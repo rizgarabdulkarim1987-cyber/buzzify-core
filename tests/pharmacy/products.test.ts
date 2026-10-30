@@ -487,10 +487,94 @@ describe('pharmacy products', () => {
       'PhImportBatch',
       'PhImportRow',
     ];
+    // Phase 3 sale records are self-contained: a sale line keeps its own qty AND baseQty, unit price and cost snapshot, so a later
+    // resize of the unit or archive of the product changes nothing in them; a held cart is priced again when it is completed
+    // (an archived product is refused then). They need no guard, which is a decision made here and not by omission.
+    const SELF_CONTAINED_SALES = [
+      'PhShift',
+      'PhCashMovement',
+      'PhSale',
+      'PhSaleLine',
+      'PhSaleLineAllocation',
+      'PhPayment',
+      'PhReturn',
+      'PhReturnLine',
+      'PhReceiptReprint',
+    ];
+    // Phase 4 purchasing records are self-contained too: a supplier, invoice, payment, allocation or credit note holds money
+    // and no unit; an invoice line points at a received line, which keeps its own qty AND baseQty; a supplier return line is
+    // in base units with its own cost copy. An order line names a product and a unit with the ordered count, and the
+    // receipt that answers it keeps its own baseQty, so a later resize of the unit changes no stock or money already
+    // booked. Decided here, not by omission.
+    const SELF_CONTAINED_PURCHASING = [
+      'PhSupplier',
+      'PhPurchaseOrder',
+      'PhPurchaseOrderLine',
+      'PhSupplierInvoice',
+      'PhSupplierInvoiceLine',
+      'PhSupplierPayment',
+      'PhSupplierPaymentAllocation',
+      'PhSupplierReturn',
+      'PhSupplierReturnLine',
+      'PhCreditNote',
+      'PhCreditAllocation',
+    ];
+    // Phase 5 intake records are self-contained: a row keeps what the AI read and what the reviewer made of it as JSON,
+    // and a matched unit only names the product it was matched to; approval copies the values into a receipt line, which
+    // keeps its own qty AND baseQty. The usage and call tables hold money and counts only. Decided here, not by omission.
+    const SELF_CONTAINED_INTAKE = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall', 'PhAiReservation'];
+    // Phase 6 transfer records are self-contained: a line is in base units of the product it names and keeps its own sent,
+    // received, lost and damaged counts, so a later resize of a unit or archive of the product changes nothing in a transfer
+    // already made (an archived product is refused when a new transfer is requested). Decided here, not by omission.
+    const SELF_CONTAINED_TRANSFERS = ['PhTransfer', 'PhTransferLine'];
+    // Phase 7 records are self-contained: a prescription and its file hold text and a stored object, never a unit; a register row is in
+    // base units (`baseQty`) and names the batch it came from, so a resize of a unit changes nothing in it; customers, their ledger and
+    // their payments hold money and a currency only; an assistant proposal is a suggestion and moves no stock or money. Decided here, not by omission.
+    const SELF_CONTAINED_PHASE_7 = ['PhPrescription', 'PhRxAttachment', 'PhControlledEntry', 'PhCustomer', 'PhCustomerLedger', 'PhCustomerPayment', 'PhAiProposal'];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !SELF_CONTAINED_TRANSFERS.includes(name) && !SELF_CONTAINED_PHASE_7.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
+  });
+});
+
+describe('the stock guards on a product', () => {
+  const EXPIRY = new Date('2027-03-31T00:00:00.000Z');
+
+  async function withBatch(stock: { available?: number; quarantine?: number }) {
+    const a = await pharmacy('A', { branches: 2 });
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const created = dataOf(await act(owner, productActions.create, panadol(a.id)));
+    const units = await prisma().phProductUnit.findMany({ where: { productId: created.id }, orderBy: { level: 'asc' } });
+    const batch = await prisma().phBatch.create({
+      data: { restaurantId: a.id, productId: created.id, lot: 'L1', expiryDate: EXPIRY, unitCostMinor: 1000n, costCurrency: 'IQD', costUnitId: units[1]!.id },
+    });
+    await prisma().phStockBalance.create({
+      data: { restaurantId: a.id, branchId: a.branchIds[1]!, productId: created.id, batchId: batch.id, available: stock.available ?? 0, quarantine: stock.quarantine ?? 0 },
+    });
+    return { a, owner, created, units };
+  }
+
+  it('refuses to archive a product that has stock in any bucket of any branch', async () => {
+    for (const stock of [{ available: 4 }, { quarantine: 2 }]) {
+      await resetWorld();
+      const { a, owner, created } = await withBatch(stock);
+      const result = await act(owner, productActions.archive, { restaurantId: a.id, productId: created.id, expectedVersion: created.version });
+      expect(codeOf(result)).toBe('CONFLICT');
+    }
+  });
+
+  it('archives a product whose batches are empty', async () => {
+    const { a, owner, created } = await withBatch({});
+    const result = await act(owner, productActions.archive, { restaurantId: a.id, productId: created.id, expectedVersion: created.version });
+    expect(codeOf(result)).toBe('OK');
+  });
+
+  it('refuses to resize a unit that a batch was costed in', async () => {
+    const { a, owner, created } = await withBatch({});
+    const resized = LADDER.map((l) => (l.level === 1 ? { ...l, baseQty: 15 } : l));
+    const result = await act(owner, productActions.update, { ...panadol(a.id, { levels: resized }), productId: created.id, expectedVersion: created.version });
+    expect(codeOf(result)).toBe('CONFLICT');
   });
 });

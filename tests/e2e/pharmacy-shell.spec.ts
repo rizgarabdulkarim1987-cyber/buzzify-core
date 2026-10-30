@@ -107,10 +107,32 @@ async function setPlaceCookie(page: Page, value: string): Promise<void> {
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
 test.describe('Pharmacy shell @desktop', () => {
+  test.describe.configure({ mode: 'serial' });
+  /** The platform's kill switch for the pharmacy product: switched on for this run and put back after. */
+  let applicationWas: 'ACTIVE' | 'DISABLED' | null = null;
+
+  test.beforeAll(async () => {
+    const client = db();
+    try {
+      applicationWas = (await client.application.findUnique({ where: { id: 'pharmacy' }, select: { status: true } }))?.status ?? null;
+      await client.application.update({ where: { id: 'pharmacy' }, data: { status: 'ACTIVE' } });
+    } finally {
+      await client.$disconnect();
+    }
+  });
+
   const restaurants: string[] = [];
   const people: string[] = [];
 
   test.afterAll(async () => {
+    if (applicationWas) {
+      const client = db();
+      try {
+        await client.application.update({ where: { id: 'pharmacy' }, data: { status: applicationWas } });
+      } finally {
+        await client.$disconnect();
+      }
+    }
     await removeStudioUsers(people.splice(0));
     await removeRestaurants(restaurants.splice(0));
   });

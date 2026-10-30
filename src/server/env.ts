@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { modelFor } from '@/server/ai/provider/models';
+import { openAiModelFor } from '@/server/ai/provider/openai';
 
 /**
  * Configuration comes in three independent sections, each parsed on first use from `process.env` and then kept, so one
@@ -251,6 +253,89 @@ export function parseStorageEnv(source: Source): StorageEnv {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Private invoice storage (pharmacy intake)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const INTAKE_VARIABLES = ['PH_INTAKE_R2_ACCOUNT_ID', 'PH_INTAKE_R2_ACCESS_KEY_ID', 'PH_INTAKE_R2_SECRET_ACCESS_KEY', 'PH_INTAKE_R2_BUCKET'] as const;
+
+const intakeSchema = z.object({
+  PH_INTAKE_R2_ACCOUNT_ID: optionalText,
+  PH_INTAKE_R2_ACCESS_KEY_ID: optionalText,
+  PH_INTAKE_R2_SECRET_ACCESS_KEY: optionalText,
+  PH_INTAKE_R2_BUCKET: optionalText,
+});
+
+export interface IntakeStorageEnv {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+}
+
+/**
+ * Where uploaded supplier invoices are kept: a SEPARATE private R2 bucket, never the public media bucket. All four
+ * variables or none; `null` means not configured (the development folder in development, no upload in production).
+ */
+export function parseIntakeStorageEnv(source: Source): IntakeStorageEnv | null {
+  const parsed = intakeSchema.parse(source);
+  const set = INTAKE_VARIABLES.filter((name) => parsed[name] !== null);
+  if (set.length === 0) return null;
+  if (set.length < INTAKE_VARIABLES.length) {
+    const missing = INTAKE_VARIABLES.filter((name) => parsed[name] === null);
+    throw new Error(`Invoice storage is only partly configured: set ${missing.join(', ')} as well, or unset the others.`);
+  }
+  // The public media bucket is world-readable; invoices must never share it (same name, with or without the same account).
+  const publicBucket = typeof source.R2_BUCKET === 'string' ? source.R2_BUCKET.trim() : '';
+  if (publicBucket && parsed.PH_INTAKE_R2_BUCKET === publicBucket) {
+    throw new Error('PH_INTAKE_R2_BUCKET is the public media bucket (R2_BUCKET): invoices need their own private bucket.');
+  }
+  return {
+    accountId: parsed.PH_INTAKE_R2_ACCOUNT_ID!,
+    accessKeyId: parsed.PH_INTAKE_R2_ACCESS_KEY_ID!,
+    secretAccessKey: parsed.PH_INTAKE_R2_SECRET_ACCESS_KEY!,
+    bucket: parsed.PH_INTAKE_R2_BUCKET!,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Pharmacy AI pricing
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface AiPricingEnv {
+  /** Micro-dollars per million input tokens. */
+  inputPerMtok: bigint;
+  /** Micro-dollars per million output tokens. */
+  outputPerMtok: bigint;
+  /** The model id the prices are for (`AI_PRICE_MODEL`): a price that belongs to another model than the one running is refused. */
+  model: string;
+}
+
+const PRICE_VARIABLES = ['AI_PRICE_INPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_MODEL'] as const;
+
+/**
+ * The model's price, which the pharmacy AI budget is counted in, and the model it is the price of (`AI_PRICE_MODEL`, the id
+ * the provider is configured to run for extraction). All three or none; the two prices are positive whole numbers; NO
+ * default: with none set the pharmacy AI refuses to run (a wrong guessed price would make the budget meaningless). A price
+ * that names no model is as good as none, so that the price cannot silently outlive a change of model or provider.
+ */
+export function parseAiPricingEnv(source: Source): AiPricingEnv | null {
+  const values = PRICE_VARIABLES.map((name) => {
+    const value = unset(source[name]);
+    return typeof value === 'string' ? value.trim() : null;
+  });
+  if (values.every((v) => v === null)) return null;
+  const missing = PRICE_VARIABLES.filter((_, n) => values[n] === null);
+  if (missing.length > 0) throw new Error(`AI pricing is only partly configured: set ${missing.join(', ')} as well, or unset the other.`);
+  const [input, output] = values.slice(0, 2).map((v, n) => {
+    if (!/^[1-9][0-9]{0,17}$/.test(v!)) throw new Error(`${PRICE_VARIABLES[n]} must be a positive whole number (micro-dollars per million tokens).`);
+    return BigInt(v!);
+  }) as [bigint, bigint];
+  const model = values[2]!;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model)) throw new Error('AI_PRICE_MODEL must be a model id such as claude-opus-5-5 (letters, digits and . _ : / -).');
+  return { inputPerMtok: input, outputPerMtok: output, model };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Scheduled publishing
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -366,6 +451,27 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   if (!authUrl) report('BETTER_AUTH_URL', 'is not set (the address the Studio is served on, such as https://studio.buzzify.me)');
   else if (!isHttps(authUrl)) report('BETTER_AUTH_URL', 'must start with https://');
 
+  // The canned AI providers and the browser tests' script path exist for development only.
+  const aiProvider = text('AI_PROVIDER');
+  if (aiProvider === 'fake' || aiProvider === 'scripted') report('AI_PROVIDER', 'must not be fake or scripted in production');
+  if (text('PH_INTAKE_E2E_SCRIPT')) report('PH_INTAKE_E2E_SCRIPT', 'is for browser tests only; remove it from production');
+
+  // The pharmacy AI price: none is allowed (the AI then refuses to run), a half-set one is not, and the price must be for the
+  // extraction model the environment names. (A provider and model saved in the Studio are checked at run time, per call.)
+  try {
+    const price = parseAiPricingEnv(source);
+    if (price) {
+      const running = aiProvider === 'openai' ? openAiModelFor('extract', source) : modelFor('extract', source);
+      if (running !== price.model) report('AI_PRICE_MODEL', 'is not the extraction model this environment runs (AI_MODEL_EXTRACT / AI_OPENAI_MODEL_EXTRACT): price the model that runs');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const name = PRICE_VARIABLES.find((variable) => message.includes(variable)) ?? PRICE_VARIABLES[0];
+    // A partly set price names the variable that is missing, a malformed one the variable that is wrong.
+    const missing = /set (.+?) as well/.exec(message)?.[1]?.split(', ')[0];
+    report(missing ?? name, 'is not set correctly (the pharmacy AI price needs AI_PRICE_INPUT_USD_MICRO_PER_MTOK, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK and AI_PRICE_MODEL together, or none)');
+  }
+
   if (!text('RESEND_API_KEY')) report('RESEND_API_KEY', 'is not set (create an API key in Resend)');
 
   const publicHost = text('PUBLIC_MENU_HOST')?.toLowerCase();
@@ -391,6 +497,15 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   else if (!isHttps(mediaUrl)) report('MEDIA_PUBLIC_URL', 'must start with https://');
 
   if (text('MEDIA_LOCAL_DIR')) report('MEDIA_LOCAL_DIR', 'must not be set in production; media is stored in R2');
+
+  // Pharmacy invoice storage is optional (without it upload is switched off), but never half set.
+  if (INTAKE_VARIABLES.some((name) => text(name))) {
+    for (const name of INTAKE_VARIABLES) if (!text(name)) report(name, 'is not set (invoice storage needs all four PH_INTAKE_R2_ variables or none)');
+    const privateBucket = text('PH_INTAKE_R2_BUCKET');
+    if (privateBucket && privateBucket === text('R2_BUCKET')) {
+      report('PH_INTAKE_R2_BUCKET', 'is the public media bucket (R2_BUCKET); invoices need their own private bucket');
+    }
+  }
 
   const cronSecret = text('CRON_SECRET');
   if (!cronSecret) report('CRON_SECRET', 'is not set (generate one with: openssl rand -base64 32)');
@@ -443,4 +558,10 @@ export const authEnv = lazy(parseAuthEnv);
 
 /** Where media is stored: R2, or the development folder. */
 export const storageEnv = lazy(parseStorageEnv);
+
+/** Where pharmacy invoice files are stored privately, or null when not configured. */
+export const intakeStorageEnv = lazy(parseIntakeStorageEnv);
+
+/** The model price for the pharmacy AI budget, or null when not configured (the AI then refuses to run). */
+export const aiPricingEnv = lazy(parseAiPricingEnv);
 

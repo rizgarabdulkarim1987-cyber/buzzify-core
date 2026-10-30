@@ -163,6 +163,59 @@ describe('phGate', () => {
     expect(await gate(p.id)).toEqual({ state: 'closed', reason: 'planInactive' });
   });
 
+  it('a disabled pharmacy application closes every pharmacy (kill switch), a FOOD restaurant is not asked', async () => {
+    const p = await pharmacy('K');
+    const food = await pharmacy('Diner', { sector: 'FOOD' });
+    expect(await gate(p.id)).toEqual({ state: 'open' });
+    await prisma().application.update({ where: { id: 'pharmacy' }, data: { status: 'DISABLED' } });
+    expect(await gate(p.id)).toEqual({ state: 'closed', reason: 'applicationDisabled' });
+    expect(await gate(food.id)).toEqual({ state: 'closed', reason: 'notPharmacy' });
+    await prisma().application.update({ where: { id: 'pharmacy' }, data: { status: 'ACTIVE' } });
+    expect(await gate(p.id)).toEqual({ state: 'open' });
+  });
+
+  describe('several pharmacy subscription rows (billing starts a new one after a lapse)', () => {
+    const extra = (restaurantId: string, status: 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED', endsInDays: number, createdAt: Date) =>
+      prisma().subscription.create({
+        data: {
+          restaurantId,
+          applicationId: 'pharmacy',
+          planCode: 'standard',
+          status,
+          period: 'MONTHLY',
+          currency: 'IQD',
+          priceMinor: 0,
+          trialEndsAt: status === 'TRIAL' ? new Date(NOW.getTime() + endsInDays * DAY) : null,
+          currentPeriodStart: new Date(NOW.getTime() + (endsInDays - 30) * DAY),
+          currentPeriodEnd: new Date(NOW.getTime() + endsInDays * DAY),
+          graceDays: 7,
+          version: 1,
+          createdAt,
+        },
+      });
+
+    it('an old EXPIRED row beside a newer ACTIVE row is open, whichever the database returns first', async () => {
+      const p = await pharmacy('M1', { subscription: 'EXPIRED', periodEndsInDays: -200 });
+      await prisma().subscription.updateMany({ where: { restaurantId: p.id }, data: { createdAt: new Date(NOW.getTime() - 300 * DAY) } });
+      await extra(p.id, 'ACTIVE', 20, new Date(NOW.getTime() - DAY));
+      expect(await gate(p.id)).toEqual({ state: 'open' });
+    });
+
+    it('a live row wins even when it is the older one', async () => {
+      const p = await pharmacy('M2', { subscription: 'ACTIVE', periodEndsInDays: 20 });
+      await prisma().subscription.updateMany({ where: { restaurantId: p.id }, data: { createdAt: new Date(NOW.getTime() - 100 * DAY) } });
+      await extra(p.id, 'EXPIRED', -200, new Date(NOW.getTime() - DAY));
+      expect(await gate(p.id)).toEqual({ state: 'open' });
+    });
+
+    it('only lapsed rows: the most recently created decides the read-only window', async () => {
+      const p = await pharmacy('M3', { subscription: 'EXPIRED', periodEndsInDays: -300 });
+      await prisma().subscription.updateMany({ where: { restaurantId: p.id }, data: { createdAt: new Date(NOW.getTime() - 400 * DAY) } });
+      await extra(p.id, 'EXPIRED', -20, new Date(NOW.getTime() - 50 * DAY)); // grace ended 13 days ago
+      expect(await gate(p.id)).toEqual({ state: 'readOnly', until: new Date(NOW.getTime() - 13 * DAY + 90 * DAY) });
+    });
+  });
+
   it('a retention setting of 30 days changes the archive boundary', async () => {
     const p = await pharmacy('R', { subscription: 'ACTIVE', periodEndsInDays: -48, graceDays: 7 }); // grace ended 41 days ago
     expect(await gate(p.id)).toMatchObject({ state: 'readOnly' });

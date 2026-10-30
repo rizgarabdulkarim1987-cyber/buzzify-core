@@ -10,7 +10,7 @@ import { auditSupportRead } from '@/server/pharmacy/support';
 import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import type { ScopedClient } from '@/server/data/tenant-db';
-import { admit, checkDefinition, phScopedClient, type CheckedTarget, type PhTarget, type PosTarget, type SelfTarget, type Target } from './access';
+import { admit, checkDefinition, type KnownPhAccess, phScopedClient, type CheckedTarget, type PhTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
@@ -120,10 +120,11 @@ export async function runQueryForPage<I, O>(
   actor: Actor | null,
   def: QueryDef<I, O>,
   raw: unknown,
+  options: { phAccess?: KnownPhAccess } = {},
 ): Promise<ActionResult<O>> {
   try {
     if (def.kind !== 'query') throw new Error(`Studio ${def.name} is not a query`);
-    const admitted = await admit(prisma, actor, def, raw);
+    const admitted = await admit(prisma, actor, def, raw, options.phAccess);
     if (!admitted.ok) return admitted;
     const { access } = admitted;
     // Every read a support actor makes is audited here, before the handler runs, whatever the handler does.
@@ -157,9 +158,10 @@ export async function runQuery<I, O>(
   actor: Actor | null,
   def: QueryDef<I, O>,
   raw: unknown,
+  options: { phAccess?: KnownPhAccess } = {},
 ): Promise<ActionResult<O>> {
   try {
-    return await runQueryForPage(prisma, actor, def, raw);
+    return await runQueryForPage(prisma, actor, def, raw, options);
   } catch (error) {
     unstable_rethrow(error);
     console.error(`[studio] Query ${def.name} failed with ${describeError(error)}`);

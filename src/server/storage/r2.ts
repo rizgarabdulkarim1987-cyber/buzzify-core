@@ -6,7 +6,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { StorageTooLargeError, type Storage } from './storage';
+import { StorageDeleteError, StorageTooLargeError, type Storage } from './storage';
 
 export interface R2Config {
   accountId: string;
@@ -31,8 +31,8 @@ function isNotFound(error: unknown): boolean {
 }
 
 /** `attachment; filename*=UTF-8''…`: the RFC 5987 form, so a name in any script survives. */
-function attachment(fileName: string): string {
-  return `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+function attachment(fileName: string, inline = false): string {
+  return `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 /**
@@ -61,8 +61,8 @@ export function r2Storage(config: R2Config, client?: S3Like): Storage {
       return { url, headers: { 'content-type': contentType } };
     },
 
-    async presignGet(key, { fileName, expiresInSec }) {
-      const command = new GetObjectCommand({ Bucket, Key: key, ResponseContentDisposition: attachment(fileName) });
+    async presignGet(key, { fileName, expiresInSec, inline }) {
+      const command = new GetObjectCommand({ Bucket, Key: key, ResponseContentDisposition: attachment(fileName, inline) });
       return getSignedUrl(s3, command, { expiresIn: expiresInSec });
     },
 
@@ -98,11 +98,17 @@ export function r2Storage(config: R2Config, client?: S3Like): Storage {
       await send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: contentType, CacheControl: cacheControl }));
     },
 
-    async delete(keys) {
+    async delete(keys, options) {
+      const strict = options?.strict === true;
+      let failed = 0;
       for (let at = 0; at < keys.length; at += DELETE_BATCH) {
         const batch = keys.slice(at, at + DELETE_BATCH);
-        await send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true } }));
+        const reply = (await send(
+          new DeleteObjectsCommand({ Bucket, Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: !strict } }),
+        )) as { Errors?: unknown[] } | undefined;
+        if (strict) failed += reply?.Errors?.length ?? 0;
       }
+      if (failed > 0) throw new StorageDeleteError(failed, keys.length);
     },
 
     publicUrl(key) {

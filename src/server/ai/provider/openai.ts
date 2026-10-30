@@ -101,6 +101,7 @@ export function createOpenAiProvider(apiKey: string, models: { ask?: string | un
   const env = { ...process.env, ...(models.ask ? { AI_OPENAI_MODEL_ASK: models.ask, AI_OPENAI_MODEL_EXTRACT: models.ask } : {}), ...(models.fast ? { AI_OPENAI_MODEL_FAST: models.fast } : {}) };
   return {
     name: 'openai',
+    modelFor: (purpose) => openAiModelFor(purpose, env),
     async complete(req) {
       let response: Response;
       try {

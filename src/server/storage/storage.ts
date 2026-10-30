@@ -14,15 +14,25 @@ export interface Storage {
     options: { contentType: string; contentLength: number; expiresInSec: number },
   ): Promise<{ url: string; headers: Record<string, string> }>;
   /** A URL that downloads a private file, saved under `fileName`, until it expires. */
-  presignGet(key: string, options: { fileName: string; expiresInSec: number }): Promise<string>;
+  presignGet(key: string, options: { fileName: string; expiresInSec: number; inline?: boolean }): Promise<string>;
   head(key: string): Promise<{ bytes: number; contentType: string } | null>;
   /** The whole file, or null when there is none. Throws `StorageTooLargeError` past `maxBytes`, before reading it. */
   get(key: string, maxBytes: number): Promise<{ bytes: Uint8Array; contentType: string } | null>;
   put(key: string, body: Uint8Array, options: { contentType: string; cacheControl: string }): Promise<void>;
-  /** Removes the files; keys with no file are fine. */
-  delete(keys: readonly string[]): Promise<void>;
+  /**
+   * Removes the files; keys with no file are fine. With `strict`, a key the store refused to delete makes this throw
+   * (`StorageDeleteError`) instead of passing silently.
+   */
+  delete(keys: readonly string[], options?: { strict?: boolean }): Promise<void>;
   /** Where guests' browsers load a public file from. */
   publicUrl(key: string): string;
+}
+
+export class StorageDeleteError extends Error {
+  constructor(readonly failed: number, readonly total: number) {
+    super(`${failed} of ${total} objects could not be deleted`);
+    this.name = 'StorageDeleteError';
+  }
 }
 
 export class StorageTooLargeError extends Error {

@@ -15,3 +15,14 @@ export function withPlace(raw: unknown, place: PhPlaceInput): Record<string, unk
   delete fields.branchId;
   return place.branchId === undefined ? { ...fields, restaurantId: place.restaurantId } : { ...fields, restaurantId: place.restaurantId, branchId: place.branchId };
 }
+
+/**
+ * The raw input of a REPORT read: the business comes from the chosen place on the server (a `restaurantId` from the browser is dropped), but the
+ * branch is the person's own filter and stays (ruling R6-15): the place switcher's branch does not narrow a report, because every report has its
+ * own branch filter whose default is "all my branches". The report's own checks refuse a branch that is not one of the person's.
+ */
+export function withBusiness(raw: unknown, restaurantId: string): Record<string, unknown> {
+  const fields = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
+  delete fields.restaurantId;
+  return { ...fields, restaurantId };
+}

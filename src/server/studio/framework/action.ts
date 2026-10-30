@@ -16,6 +16,7 @@ import {
   phScopedClient,
   type Access,
   type CheckedTarget,
+  type KnownPhAccess,
   type PhTarget,
   type PosTarget,
   type SelfTarget,
@@ -488,13 +489,13 @@ export async function runAction<I, O>(
   def: ActionDef<I, O>,
   raw: unknown,
   meta: RequestMeta,
-  options: { operation?: OperationClaim } = {},
+  options: { operation?: OperationClaim; phAccess?: KnownPhAccess } = {},
 ): Promise<ActionResult<O>> {
   try {
     if (def.kind !== 'action') throw new Error(`Studio ${def.name} is not an action`);
     // `'view'` admits any member; an action always names the permission it needs (defineAction refuses it too).
     if ((def.permission as unknown) === 'view') throw new Error(`Studio action ${def.name} cannot use 'view'`);
-    const admitted = await admit(prisma, actor, def, raw);
+    const admitted = await admit(prisma, actor, def, raw, options.phAccess);
     if (!admitted.ok) return admitted;
     const work = new Work(prisma, admitted.actor, admitted.access, clampMeta(meta), def.name, options.operation);
     const data = await def.run(work.context(), admitted.input);

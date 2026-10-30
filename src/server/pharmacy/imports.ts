@@ -19,7 +19,7 @@ import { canPh } from '@/server/domain/pharmacy/permissions';
 import { isZip, readSheet, SheetReadError, type SheetReadProblem } from '@/server/sheets/read';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
-import { assertPriceBranch, REASON_SHORT, setFirstPrices } from './prices';
+import { assertPriceBranch, cancelStaleBatches, REASON_SHORT, setFirstPrices } from './prices';
 import { assertBranchSettings, createProducts, ListEntryError, productInput, type ProductInput } from './products';
 
 /**
@@ -303,6 +303,7 @@ export async function prepareImport(scoped: ScopedClient, ph: PhActor, input: Im
 
 /** Stores the preview: the batch, then its rows in chunks. Returns the batch id. */
 export async function storeImport(tx: ScopedTx, ph: PhActor, prepared: PreparedImport): Promise<string> {
+  await cancelStaleBatches(tx, new Date());
   const batch = await tx.phImportBatch.create({
     data: {
       restaurantId: ph.restaurantId,

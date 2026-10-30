@@ -37,6 +37,8 @@ export const PH_PERMISSIONS = [
   'staff.manage',
   'settings.manage',
   'support.grant',
+  'customer.manage',
+  'credit.sell',
 ] as const;
 export type PhPermission = (typeof PH_PERMISSIONS)[number];
 
@@ -57,12 +59,15 @@ const MATRIX: Record<PhRole, readonly PhPermission[]> = {
     'return.approve',
     'stock.adjust',
     'stock.count',
+    'purchase.manage',
     'shift.use',
     'report.view',
     'ai.use',
     'import.apply',
+    'customer.manage',
+    'credit.sell',
   ],
-  PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use'],
+  PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use', 'credit.sell'],
   CASHIER: ['catalog.view', 'discount.apply', 'shift.use'],
   STOCK: [
     'catalog.view',
@@ -73,7 +78,7 @@ const MATRIX: Record<PhRole, readonly PhPermission[]> = {
     'purchase.manage',
     'import.apply',
   ],
-  ACCOUNTANT: ['catalog.view', 'cost.view', 'profit.view', 'report.view', 'purchase.manage'],
+  ACCOUNTANT: ['catalog.view', 'cost.view', 'profit.view', 'report.view', 'purchase.manage', 'customer.manage'],
 };
 
 export function canPh(role: PhRole, permission: PhPermission): boolean {

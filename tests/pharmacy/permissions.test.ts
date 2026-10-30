@@ -28,12 +28,41 @@ describe('pharmacy permissions', () => {
     expect(canPh('ACCOUNTANT', 'stock.count')).toBe(false);
   });
 
+  it('receiving (purchase.manage) is for managers, the pharmacist in charge, stock and accounts, not pharmacists or cashiers', () => {
+    for (const role of PH_ROLES) {
+      expect(canPh(role, 'purchase.manage')).toBe(['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'STOCK', 'ACCOUNTANT'].includes(role));
+      if (canPh(role, 'purchase.manage')) expect(canPh(role, 'cost.view')).toBe(true);
+    }
+  });
+
   it('the matrix has a row for every role and every permission key exists in at least one role', () => {
     const rows = roleMatrix();
     expect(rows.map((r) => r.role)).toEqual([...PH_ROLES]);
     for (const p of PH_PERMISSIONS) {
       expect(rows.some((r) => r.permissions.includes(p))).toBe(true);
       expect(phPermissionsOf('OWNER').has(p)).toBe(true);
+    }
+  });
+
+  it('customers (customer.manage) and credit selling (credit.sell) are for the owner, managers, the pharmacist in charge and, for credit, pharmacists; accountants manage customers but never sell; cashiers and stock do neither', () => {
+    const manage = ['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'ACCOUNTANT'];
+    const sell = ['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'PHARMACIST'];
+    for (const role of PH_ROLES) {
+      expect(canPh(role, 'customer.manage'), `${role} customer.manage`).toBe(manage.includes(role));
+      expect(canPh(role, 'credit.sell'), `${role} credit.sell`).toBe(sell.includes(role));
+    }
+  });
+
+  it('adding the two permissions took nothing from any role: each role holds exactly its phase 6 permissions plus the new ones', () => {
+    const before: Record<string, string[]> = {
+      CASHIER: ['catalog.view', 'discount.apply', 'shift.use'],
+      PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use'],
+      STOCK: ['catalog.view', 'catalog.manage', 'cost.view', 'stock.count', 'transfer.manage', 'purchase.manage', 'import.apply'],
+      ACCOUNTANT: ['catalog.view', 'cost.view', 'profit.view', 'report.view', 'purchase.manage'],
+    };
+    const added: Record<string, string[]> = { CASHIER: [], PHARMACIST: ['credit.sell'], STOCK: [], ACCOUNTANT: ['customer.manage'] };
+    for (const [role, list] of Object.entries(before)) {
+      expect([...phPermissionsOf(role as (typeof PH_ROLES)[number])].sort(), role).toEqual([...list, ...added[role]!].sort());
     }
   });
 

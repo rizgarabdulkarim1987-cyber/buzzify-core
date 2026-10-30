@@ -66,6 +66,8 @@ export const bulkPreviewInput = z.object({
     z.object({ kind: z.literal('fixed'), amount: z.string().max(32, 'Enter a smaller number') }),
   ]),
   rounding: z.object({ step: z.string().max(32, 'Enter a smaller number'), mode: z.enum(['nearest', 'up', 'down']) }),
+  /** Archived (inactive) products are left out of the change unless this is true. */
+  includeArchived: z.boolean().optional(),
   validFrom,
   reason,
 });
@@ -271,6 +273,8 @@ const bulkParams = z.object({
   productIds: z.array(ID).nullable(),
   change: bulkPreviewInput.shape.change,
   rounding: bulkPreviewInput.shape.rounding,
+  /** Batches stored before this existed read as false. */
+  includeArchived: z.boolean().default(false),
   reason: z.string(),
 });
 type BulkParams = z.infer<typeof bulkParams>;
@@ -291,6 +295,7 @@ async function workOut(scoped: ScopedDb, params: BulkParams, from: Date, checkDa
       branchId: params.branchId,
       currency: params.currency,
       validTo: null,
+      ...(params.includeArchived ? {} : { product: { active: true } }),
       ...(params.productIds ? { productId: { in: params.productIds } } : {}),
     },
     select: { id: true, productId: true, unitId: true, amountMinor: true, validFrom: true },
@@ -341,6 +346,21 @@ async function workOut(scoped: ScopedDb, params: BulkParams, from: Date, checkDa
   return { previewHash: preview.previewHash, rows };
 }
 
+/** How long a stored preview may wait to be applied before it is cancelled. */
+export const PREVIEW_MAX_AGE_DAYS = 7;
+
+/**
+ * Cancels this business's previews (bulk price and catalog import) older than 7 days. Run where a new preview is
+ * stored: the list reads of this framework are queries and may not write. Applied, committed and cancelled batches are
+ * untouched.
+ */
+export async function cancelStaleBatches(tx: ScopedTx, now: Date): Promise<{ prices: number; imports: number }> {
+  const before = new Date(now.getTime() - PREVIEW_MAX_AGE_DAYS * 86_400_000);
+  const prices = await tx.phPriceChangeBatch.updateMany({ where: { status: 'PREVIEW', createdAt: { lt: before } }, data: { status: 'CANCELLED' } });
+  const imports = await tx.phImportBatch.updateMany({ where: { status: 'PREVIEWED', createdAt: { lt: before } }, data: { status: 'CANCELLED' } });
+  return { prices: prices.count, imports: imports.count };
+}
+
 /** Previews a bulk change and stores it as a `PREVIEW` batch (the branch must be checked first). */
 export async function previewBulkPrices(
   tx: ScopedTx,
@@ -355,8 +375,10 @@ export async function previewBulkPrices(
     productIds: input.productIds ? [...new Set(input.productIds)].sort() : null,
     change: input.change,
     rounding: input.rounding,
+    includeArchived: input.includeArchived ?? false,
     reason: input.reason,
   };
+  await cancelStaleBatches(tx, new Date());
   const preview = await workOut(tx, params, input.validFrom, true);
   const batch = await tx.phPriceChangeBatch.create({
     data: { restaurantId: ph.restaurantId, status: 'PREVIEW', previewHash: preview.previewHash, validFrom: input.validFrom, change: params, createdById: ph.userId },
@@ -456,6 +478,19 @@ export async function pricesAt(
   query: { units: readonly { productId: string; unitId: string }[]; branchId: string | null; currency: Currency; at: Date },
 ): Promise<Map<string, PhMoney>> {
   const found = new Map<string, PhMoney>();
+  for (const [key, row] of await priceRowsAt(scoped, query)) found.set(key, { amount: row.amount, currency: query.currency });
+  return found;
+}
+
+/**
+ * `pricesAt` with the id of the price row that applies, so a sale line can record which row it was charged from. Same
+ * rule: the branch's own row wins over the business-wide one; keyed by `productId:unitId`.
+ */
+export async function priceRowsAt(
+  scoped: ScopedDb,
+  query: { units: readonly { productId: string; unitId: string }[]; branchId: string | null; currency: Currency; at: Date },
+): Promise<Map<string, { id: string; amount: bigint }>> {
+  const found = new Map<string, { id: string; amount: bigint }>();
   if (query.units.length === 0) return found;
   const wanted = new Set(query.units.map((u) => `${u.productId}:${u.unitId}`));
   const rows = await scoped.phPrice.findMany({
@@ -464,7 +499,7 @@ export async function pricesAt(
       unitId: { in: [...new Set(query.units.map((u) => u.unitId))] },
       ...validAt(query),
     },
-    select: { productId: true, unitId: true, branchId: true, amountMinor: true, validFrom: true },
+    select: { id: true, productId: true, unitId: true, branchId: true, amountMinor: true, validFrom: true },
     orderBy: { validFrom: 'desc' },
   });
   const isBranch = new Set<string>();
@@ -473,7 +508,7 @@ export async function pricesAt(
     if (!wanted.has(key)) continue;
     // Newest first: the first row of a kind stands, and a branch row replaces a business-wide one.
     if (!found.has(key) || (row.branchId !== null && !isBranch.has(key))) {
-      found.set(key, { amount: row.amountMinor, currency: query.currency });
+      found.set(key, { id: row.id, amount: row.amountMinor });
       if (row.branchId !== null) isBranch.add(key);
     }
   }

@@ -34,7 +34,7 @@ export interface PhActor {
 export type PhGate =
   | { state: 'open' }
   | { state: 'readOnly'; until: Date }
-  | { state: 'closed'; reason: 'restaurantInactive' | 'notPharmacy' | 'planInactive' | 'archived' };
+  | { state: 'closed'; reason: 'restaurantInactive' | 'notPharmacy' | 'planInactive' | 'applicationDisabled' | 'archived' };
 
 /** The retention window in days: the `pharmacyRetentionDays` platform setting when it holds a positive whole number. */
 async function retentionDays(prisma: PrismaClient): Promise<number> {
@@ -51,11 +51,16 @@ export async function phGate(prisma: PrismaClient, restaurantId: string, now: Da
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true, sector: true } });
   if (!restaurant || restaurant.status !== 'ACTIVE') return { state: 'closed', reason: 'restaurantInactive' };
   if (restaurant.sector !== 'PHARMACY') return { state: 'closed', reason: 'notPharmacy' };
-  const subscription = await prisma.subscription.findFirst({
+  // Billing may start a new row after a lapse, so a business can hold several: a live one decides, else the newest.
+  const rows = await prisma.subscription.findMany({
     where: { restaurantId, applicationId: 'pharmacy' },
-    select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true, cancelledAt: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true, cancelledAt: true, application: { select: { status: true } } },
   });
+  const subscription = rows.find((row) => isLive(effectiveStatus(row, now))) ?? rows[0];
   if (!subscription) return { state: 'closed', reason: 'planInactive' };
+  // The platform's kill switch for the whole pharmacy product (read with the subscription: no extra query).
+  if (subscription.application.status !== 'ACTIVE') return { state: 'closed', reason: 'applicationDisabled' };
   const status = effectiveStatus(subscription, now);
   if (isLive(status)) return { state: 'open' };
 
@@ -282,6 +287,17 @@ export async function currentPhPlaceInput(): Promise<{ restaurantId: string; bra
 export const getPhPlaces = cache(async (): Promise<PhPlaceChoice[]> => {
   const studioActor = await getActor();
   return studioActor ? listPhPlaces(getPrisma(), studioActor.userId, new Date()) : [];
+});
+
+/**
+ * Every branch of the business with its name, for the person's own pharmacy: the other end of a transfer may be any branch
+ * (identity only: an id and a name, never stock). Empty without a place.
+ */
+export const getPhBranches = cache(async (restaurantId: string): Promise<Array<{ id: string; name: string }>> => {
+  const studioActor = await getActor();
+  if (!studioActor) return [];
+  const own = (await listPhPlaces(getPrisma(), studioActor.userId, new Date())).some((p) => p.restaurantId === restaurantId);
+  return own ? getPrisma().branch.findMany({ where: { restaurantId }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }) : [];
 });
 
 /**

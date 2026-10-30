@@ -7,6 +7,7 @@ import { packLabelOf, validateLadder, type LadderCode, type UnitLevel } from '@/
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { clearUnitMatches } from './intake/rows';
 import { BARCODE_IN_USE_MESSAGE, barcodeInUse, barcodeRow, heldElsewhere, inUse, syncBarcodes, type SharedCode } from './barcodes';
 
 /**
@@ -180,28 +181,54 @@ export async function asLostRace(scoped: ScopedClient, error: unknown, input: Pr
 // Phase 2 guards ------------------------------------------------------------------------------------------------------
 
 /**
- * The models that hold stock or sales of a unit (batches, sale lines). None exist before Phase 2, so the guards below
- * find nothing; `tests/pharmacy/products.test.ts` fails when a Ph model appears that is neither a known catalog model nor
- * listed here, and a model listed here makes the guards fail closed until they read it.
+ * The models that hold stock or sales of a unit (batches, balances, receipt lines). Every one of them is read by the
+ * guards below; `tests/pharmacy/products.test.ts` fails when a Ph model appears that is neither a known catalog model nor
+ * listed here, so a new stock model cannot be added without deciding who guards it.
  */
-export const PH_STOCK_RECORD_MODELS: readonly string[] = [];
+export const PH_STOCK_RECORD_MODELS: readonly string[] = [
+  'PhBatch',
+  'PhStockBalance',
+  'PhStockMovement',
+  'PhReceipt',
+  'PhReceiptLine',
+  'PhStockCount',
+  'PhStockCountLine',
+  'PhExpiryAction',
+];
 
-function stockGuardUnwired(): never {
-  throw new Error(`The product stock guard does not read ${PH_STOCK_RECORD_MODELS.join(', ')} yet`);
-}
-
-/** The units of `unitIds` that a batch or sale names. */
-async function unitsWithStock(_tx: ScopedTx, unitIds: readonly string[]): Promise<string[]> {
+/** The units of `unitIds` that a receipt line or a batch's cost names: their size is part of a quantity or a cost. */
+async function unitsWithStock(tx: ScopedTx, unitIds: readonly string[]): Promise<string[]> {
   if (unitIds.length === 0) return [];
-  if (PH_STOCK_RECORD_MODELS.length > 0) stockGuardUnwired();
-  return [];
+  const [lines, batches] = await Promise.all([
+    tx.phReceiptLine.findMany({ where: { unitId: { in: [...unitIds] } }, select: { unitId: true }, distinct: ['unitId'] }),
+    tx.phBatch.findMany({ where: { costUnitId: { in: [...unitIds] } }, select: { costUnitId: true }, distinct: ['costUnitId'] }),
+  ]);
+  const named = new Set<string>([...lines.map((l) => l.unitId), ...batches.flatMap((b) => (b.costUnitId ? [b.costUnitId] : []))]);
+  return unitIds.filter((id) => named.has(id));
 }
 
-/** The products of `productIds` that an open record (an open batch, a held sale) names, so they may not be archived. */
-async function productsWithOpenRecords(_tx: ScopedTx, productIds: readonly string[]): Promise<string[]> {
+/**
+ * The products of `productIds` that an open record names, so they may not be archived: stock in any bucket in any branch
+ * (the batch is read, not the branch-scoped balance, so a branch-limited actor still sees other branches' stock), a draft
+ * receipt line, or an open count.
+ */
+async function productsWithOpenRecords(tx: ScopedTx, productIds: readonly string[]): Promise<string[]> {
   if (productIds.length === 0) return [];
-  if (PH_STOCK_RECORD_MODELS.length > 0) stockGuardUnwired();
-  return [];
+  const ids = [...productIds];
+  const [held, drafts, counting] = await Promise.all([
+    tx.phBatch.findMany({
+      where: {
+        productId: { in: ids },
+        balances: { some: { OR: [{ available: { gt: 0 } }, { reserved: { gt: 0 } }, { quarantine: { gt: 0 } }, { damaged: { gt: 0 } }] } },
+      },
+      select: { productId: true },
+      distinct: ['productId'],
+    }),
+    tx.phReceiptLine.findMany({ where: { productId: { in: ids }, receipt: { status: 'DRAFT' } }, select: { productId: true }, distinct: ['productId'] }),
+    tx.phStockCountLine.findMany({ where: { productId: { in: ids }, count: { status: { in: ['OPEN', 'SUBMITTED'] } } }, select: { productId: true }, distinct: ['productId'] }),
+  ]);
+  const named = new Set<string>([...held, ...drafts, ...counting].map((r) => r.productId));
+  return ids.filter((id) => named.has(id));
 }
 
 // Writes --------------------------------------------------------------------------------------------------------------
@@ -407,6 +434,9 @@ async function createChunk(tx: ScopedTx, restaurantId: string, inputs: readonly 
   });
 }
 
+/** The refusal of removing a pack that has prices, stock, sales or a line of an approved invoice. */
+export const UNIT_REMOVE_BLOCKED = 'This unit has prices, stock, sales or approved invoice lines, so it cannot be removed';
+
 /** The refusal of a new size for a pack that has prices (its prices would belong to another pack). */
 export const UNIT_PRICED = 'This pack has prices, so its size cannot change. Add a new pack instead.';
 
@@ -456,9 +486,21 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const removedIds = removed.map((u) => u.id);
   const priced = removedIds.length === 0 ? 0 : await tx.phPrice.count({ where: { unitId: { in: removedIds } } });
   if (priced > 0 || (await unitsWithStock(tx, removedIds)).length > 0) {
-    throw new StudioError('CONFLICT', 'This unit has prices, stock or sales, so it cannot be removed', { phCode: 'UNIT_IN_USE' });
+    throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
   }
-  if (removedIds.length > 0) await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+  if (removedIds.length > 0) {
+    // Invoice lines of an OPEN or CANCELLED intake batch matched to a removed pack go back to unmatched (same transaction); a line of
+    // an APPROVED batch is history that points at the unit, so the unit stays (review I5).
+    const intake = await clearUnitMatches(tx, current.restaurantId, removedIds, new Date());
+    if (intake.blocked > 0) throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
+    try {
+      await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+    } catch (error) {
+      // A line was matched to the unit after the check (the foreign key is the last guard): the same refusal.
+      if ((error as { code?: unknown }).code === 'P2003') throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
+      throw error;
+    }
+  }
 
   const unitIdByLevel = new Map<number, string>();
   for (const l of levels) {
