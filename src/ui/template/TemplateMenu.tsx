@@ -23,6 +23,7 @@ import { diagFlags, withDiag } from './diag';
 import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
+import { ShowcaseCarousel } from './ShowcaseCarousel';
 import { useFavorites } from './favorites';
 import './skins.css';
 
@@ -234,6 +235,7 @@ export function TemplateMenu({
           {query.trim() === '' && showsFeaturedStrip(heroKind, body, picks.length) && <FeaturedStrip items={picks} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
+          {query.trim() === '' && <ShowcaseCarousel slot="aboveSearch" />}
           <div className="tpl-tools flex flex-col gap-3">
             {/* The Book has no search box: its index is how guests find a section (the owner's wish). */}
             {body !== 'book' && <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />}
@@ -250,6 +252,7 @@ export function TemplateMenu({
               }}
             />
           </div>
+          {query.trim() === '' && <ShowcaseCarousel slot="belowSearch" />}
           {body === 'scroll' ? (
             <div className="tpl-body">
               {categories.length > 0 && <Nav kind={layout.nav} />}

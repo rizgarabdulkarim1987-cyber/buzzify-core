@@ -125,6 +125,8 @@ export interface ShowcaseCardView {
   people: number | null;
   /** OFFER: the first dish of the offer guests can see now, which the card opens. */
   productId: string | null;
+  /** OFFER on categories with no dish of its own shown: its first category with a dish shown, which the card jumps to. */
+  categoryId: string | null;
   /** SET: the bundle the card adds to the cart. */
   bundleId: string | null;
   /** BUFFET: the price is per person. */
@@ -424,6 +426,7 @@ function menuShowcase(
 ): MenuShowcaseView {
   const fallback = catalog.defaultLocale;
   const shownIds = new Set(shown.products.map((product) => product.id));
+  const shownCategoryIds = new Set(shown.products.map((product) => product.categoryId));
   const orderable = new Set(shown.products.filter((product) => product.orderState === 'OK').map((product) => product.id));
   const offers = new Map(shown.shownOffers.map((offer) => [offer.id, offer]));
   const bundles = new Map(
@@ -446,6 +449,7 @@ function menuShowcase(
     const bundle = card.kind === 'SET' && card.bundleId !== null ? bundles.get(card.bundleId) : undefined;
     const occasion = card.occasionId !== null ? occasions.get(card.occasionId) : undefined;
     const own = (key: string) => resolveText(card.translations, key, locale, fallback);
+    const productId = offer?.productIds.find((id) => shownIds.has(id)) ?? null;
     return {
       id: card.id,
       kind: card.kind,
@@ -460,7 +464,8 @@ function menuShowcase(
       occasion: occasion ? resolveText(occasion.translations, 'name', locale, fallback) || null : null,
       price: bundle ? bundle.price : card.kind === 'BUFFET' ? card.price : null,
       people: bundle?.people ?? null,
-      productId: offer?.productIds.find((id) => shownIds.has(id)) ?? null,
+      productId,
+      categoryId: productId === null ? (offer?.categoryIds.find((id) => shownCategoryIds.has(id)) ?? null) : null,
       bundleId: bundle?.id ?? null,
       perPerson: card.kind === 'BUFFET',
       when: card.kind === 'BUFFET' ? { startMinute: card.startMinute, endMinute: card.endMinute, daysOfWeek: card.daysOfWeek } : null,

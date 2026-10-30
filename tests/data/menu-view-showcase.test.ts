@@ -93,6 +93,7 @@ describe('buildMenuView showcase', () => {
         price: null,
         people: null,
         productId: IDS.burger,
+        categoryId: null,
         bundleId: null,
         perPerson: false,
         when: null,
@@ -106,6 +107,7 @@ describe('buildMenuView showcase', () => {
         price: 1500,
         people: 4,
         productId: null,
+        categoryId: null,
         bundleId: 'b-burger-meal',
         perPerson: false,
         when: null,
@@ -119,6 +121,7 @@ describe('buildMenuView showcase', () => {
         price: 25000,
         people: null,
         productId: null,
+        categoryId: null,
         bundleId: null,
         perPerson: true,
         when: { startMinute: 720, endMinute: 1380, daysOfWeek: 127 },
@@ -155,6 +158,22 @@ describe('buildMenuView showcase', () => {
     const view = buildMenuView(catalog, tenant, 'en', at(18));
     expect(view.showcase.aboveSearch[0]?.text).toBe(IDS.burger);
     expect(view.showcase.aboveSearch[0]?.text).toBe(view.offers[0]?.text);
+  });
+
+  it("points an offer card on a category at the offer's first category with a dish shown, and a dish offer at no category", () => {
+    const onCategories: CatalogPromotion = { ...happyHour, id: 'cats', productIds: [], categoryIds: ['cat-missing', 'cat-pastry', 'cat-cold'] };
+    const catalog = makeCatalog({
+      promotions: [onCategories, happyHour],
+      showcaseCards: [
+        card({ id: 'c-cats', kind: 'OFFER', promotionId: 'cats' }),
+        card({ id: 'c-dish', kind: 'OFFER', promotionId: 'hh', sortOrder: 1 }),
+      ],
+    });
+    const view = buildMenuView(catalog, tenant, 'en', at(18));
+    expect(view.showcase.aboveSearch.map((c) => [c.id, c.productId, c.categoryId])).toEqual([
+      ['c-cats', null, 'cat-pastry'],
+      ['c-dish', IDS.burger, null],
+    ]);
   });
 
   it('reaches guests through the published snapshot, with the bundle people and without a change to old hashes', () => {
