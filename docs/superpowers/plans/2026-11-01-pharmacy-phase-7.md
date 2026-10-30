@@ -29,3 +29,9 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 5. **Prescription/controlled/credit UI**: sell screen additions (prescription drawer, customer picker + credit payment), prescription list/detail with attachment viewer, customers list/detail/statement/payment, settings section; e2e.
 6. **Assistant UI + advanced printing UI**: `/pharmacy/assistant` screen (ask, tool table fallback, proposals), A4 invoice/return slip, label sheets, print settings and test page; e2e.
 7. **Acceptance + docs + whole-phase review + full suite**: `tests/pharmacy/acceptance-phase-7.test.ts` (no fabrication, permission bypass impossible, attachment gate, controlled register balances with sales/returns, credit balance equals sum of sales minus payments with independent SQL), README phase 7 section, spec section 16 (Arabic), ledger.
+
+## Rulings added during execution
+
+- R7-12 Migration `20261101100100_pharmacy_cash_movement_customer_payment` replaces the drawer sign CHECK (DROP and re-ADD of the same-name CHECK, widened by CUSTOMER_PAYMENT) because a new enum value cannot be used in the transaction that adds it. It touches only a table created earlier on this same unreleased branch (PhCashMovement, phase 3) and only widens; it has a hash-pinned whole-statement exemption in the additive guard. Cost if wrong: squash it into the phase 3 migration (needs a destructive local DB reset = owner's choice).
+- R7-13 Append-only triggers on PhControlledEntry, PhCustomerLedger, PhCustomerPayment (reusing PhPurchasing_append_only) are accepted: stronger than the plan asked, no cost.
+- R7-14 `rxRetentionDays` is `Int? DEFAULT 3650` (NOT NULL would need an UPDATE of existing rows); code treats null as 3650.
