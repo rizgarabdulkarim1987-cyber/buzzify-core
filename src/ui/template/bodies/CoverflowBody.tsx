@@ -32,6 +32,18 @@ export function focusOf(offset: number, width: number): number {
   return Math.max(0, 1 - Math.abs(offset) / (width * 1.1));
 }
 
+/**
+ * The first card rests `rest` short of the row's middle (it sits at the start edge so the first screen holds three cards)
+ * and can never be scrolled to it. This is how far the row's middle is moved toward that card so it counts as the forward
+ * one at the start: all of `rest` at 0 scrolled, easing to nothing once `scrolled` reaches the point where the second card
+ * (`pitch` away from the first) is at the middle. No shift when the first card is already at or past the middle.
+ */
+export function focalShift(rest: number, scrolled: number, pitch: number): number {
+  const reach = pitch - rest;
+  if (rest <= 0 || reach <= 0) return 0;
+  return rest * Math.max(0, 1 - scrolled / reach);
+}
+
 /** The index of the card most forward (the first of equals), or 0 for an empty row. */
 export function nearestOf(focus: readonly number[]): number {
   let best = 0;
@@ -142,10 +154,17 @@ function CoverRow({ products, motif, first }: { products: MenuProductView[]; mot
       const box = list.getBoundingClientRect();
       const middle = box.left + box.width / 2;
       const cards = [...list.children] as HTMLElement[];
-      const focus = cards.map((card) => {
+      const centres = cards.map((card) => {
         const rect = card.getBoundingClientRect();
-        return focusOf(rect.left + rect.width / 2 - middle, card.offsetWidth);
+        return rect.left + rect.width / 2;
       });
+      // Along the reading direction (right to left in Arabic): how far the first card rests before the middle.
+      const way = getComputedStyle(list).direction === 'rtl' ? -1 : 1;
+      const scrolled = Math.abs(list.scrollLeft);
+      const rest = centres.length ? way * (middle - centres[0]!) - scrolled : 0;
+      const pitch = centres.length > 1 ? Math.abs(centres[1]! - centres[0]!) : Infinity;
+      const shift = focalShift(rest, scrolled, pitch);
+      const focus = cards.map((card, place) => focusOf(centres[place]! - middle + way * shift, card.offsetWidth));
       const best = nearestOf(focus);
       cards.forEach((card, place) => {
         card.style.setProperty('--k', focus[place]!.toFixed(3));
