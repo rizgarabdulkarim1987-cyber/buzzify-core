@@ -423,15 +423,36 @@ describe('report budgets over 100,000 sale lines', () => {
 });
 
 describe('chain dashboard budget (R6-10): 5 branches on the same seed in under 1.5 seconds', () => {
+  // The default window (30 days) keeps the 1.5 s budget of R6-10. The longest window (a whole year of 50,000 sales over five populated branches) measured
+  // 1.3 to 1.5 s, too close to flake on a slower machine, so it is held to the 2 s every other year-long report here is held to (ruling R6-10a).
   const DASHBOARD_BUDGET_MS = 1500;
+  const DASHBOARD_YEAR_BUDGET_MS = 2000;
   it('answers a year window and the default 30 days with five branches, and the total is the sum of the cards', async () => {
-    // Three more branches without sales (the seed's two carry the 50,000 sales): the dashboard asks for five cards.
-    for (let n = 3; n <= 5; n += 1) await prisma().branch.create({ data: { restaurantId: big.id, name: `BG branch ${n}`, sortOrder: n } });
+    // Three more branches, and the seed spread over all five: of every five IQD sales (by number) two stay at the seed's own two branches
+    // and three move to the new ones, with their returns, and each new branch gets stock like branch 1. Every card has data.
+    const extra: string[] = [];
+    for (let n = 3; n <= 5; n += 1) extra.push((await prisma().branch.create({ data: { restaurantId: big.id, name: `BG branch ${n}`, sortOrder: n }, select: { id: true } })).id);
+    const [e3, e4, e5] = extra as [string, string, string];
+    // (a sale belongs to a shift of its own branch)
+    for (const [n, branchId] of extra.entries()) await prisma().phShift.create({ data: { id: `BG-shift-${n + 3}`, restaurantId: big.id, branchId, userId: `BG-seller-${n + 3}`, currency: 'IQD', openingFloatMinor: 0n } });
+    const moved = await prisma().$executeRaw`
+      UPDATE "PhSale" s SET "branchId" = CASE (SPLIT_PART(s."number", '-', 2)::int % 5) WHEN 2 THEN ${e3} WHEN 3 THEN ${e4} ELSE ${e5} END,
+                            "shiftId" = 'BG-shift-' || (SPLIT_PART(s."number", '-', 2)::int % 5 + 1)
+      WHERE s."restaurantId" = ${big.id} AND s."id" LIKE 'BG-s-%' AND (SPLIT_PART(s."number", '-', 2)::int % 5) IN (2, 3, 4)`;
+    expect(moved).toBeGreaterThan(SALES / 2);
+    await prisma().$executeRaw`UPDATE "PhReturn" r SET "branchId" = s."branchId", "shiftId" = s."shiftId" FROM "PhSale" s WHERE s."id" = r."saleId" AND r."restaurantId" = ${big.id}`;
+    // (the stock movements are append-only and stay where the seed put them: the dashboard does not read them)
+    for (const branchId of extra) {
+      await prisma().$executeRaw`
+        INSERT INTO "PhStockBalance" ("id", "restaurantId", "branchId", "productId", "batchId", "available", "quarantine", "reserved", "damaged", "updatedAt")
+        SELECT gen_random_uuid()::text, "restaurantId", ${branchId}, "productId", "batchId", "available", "quarantine", "reserved", "damaged", now() FROM "PhStockBalance" WHERE "restaurantId" = ${big.id} AND "branchId" = ${big.b1}`;
+    }
+    await prisma().$executeRaw`ANALYZE`;
     const actor = (await loadActor(prisma(), owner.userId)) as Actor;
     for (const [name, input] of [['year', { ...WINDOW }], ['default 30 days', {}]] as const) {
       const started = performance.now();
       const result = dataOf(await runQuery(prisma(), actor, chain.dashboard as QueryDef<unknown, unknown>, { restaurantId: big.id, ...input })) as {
-        branches: unknown[];
+        branches: Array<{ sales: unknown[]; stock: { available: number } }>;
         total: { sales: Array<{ currency: string; salesMinor: string }> };
         scope: { branchIds: string[] };
       };
@@ -439,7 +460,9 @@ describe('chain dashboard budget (R6-10): 5 branches on the same seed in under 1
       console.log(`chain dashboard ${name}, 5 branches: ${took.toFixed(0)} ms`);
       expect(result.branches).toHaveLength(5);
       expect(result.scope.branchIds).toHaveLength(5);
-      expect(took, name).toBeLessThan(DASHBOARD_BUDGET_MS);
+      if (name === 'year') for (const card of result.branches) expect(card.sales.length, 'every branch has sales').toBeGreaterThan(0);
+      for (const card of result.branches) expect(card.stock.available, 'every branch has stock').toBeGreaterThan(0);
+      expect(took, name).toBeLessThan(name === 'year' ? DASHBOARD_YEAR_BUDGET_MS : DASHBOARD_BUDGET_MS);
     }
     // The year window against independent SQL: IQD sales of the seed.
     const year = dataOf(await runQuery(prisma(), actor, chain.dashboard as QueryDef<unknown, unknown>, { restaurantId: big.id, ...WINDOW })) as { total: { sales: Array<{ currency: string; salesMinor: string }> } };

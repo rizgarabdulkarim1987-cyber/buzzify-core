@@ -26,3 +26,30 @@ describe('escaping a cell a spreadsheet would read as a formula', () => {
     expect(unescapeCell("'=x")).toBe('=x');
   });
 });
+
+describe('escaping the lookalike and padded starts of a formula (report 5b)', () => {
+  it.each([['＝'], ['＋'], ['－'], ['＠']])('writes a cell starting with the full-width %j as text and reads it back', (lead) => {
+    const cell = `${lead}SUM(A1)`;
+    expect(escapeCell(cell)).toBe(`'${cell}`);
+    expect(unescapeCell(escapeCell(cell))).toBe(cell);
+  });
+
+  const PADS = [' ', '  ', ' ', '　', '\n', '\t ', ' \n'];
+  const FORMULAS = ['=', '+', '-', '@', '＝'];
+  it.each(PADS.flatMap((pad) => FORMULAS.map((formula) => [pad, formula] as const)))('writes a cell with %j in front of %j as text', (pad, formula) => {
+    const cell = `${pad}${formula}cmd`;
+    expect(escapeCell(cell)).toBe(`'${cell}`);
+    expect(unescapeCell(escapeCell(cell))).toBe(cell);
+  });
+
+  it('writes a cell that starts with a line feed as text', () => {
+    expect(escapeCell('\nabc')).toBe("'\nabc");
+    expect(unescapeCell(escapeCell('\nabc'))).toBe('\nabc');
+  });
+
+  it('leaves ordinary text, padded ordinary text and a formula character later in the cell alone', () => {
+    for (const cell of ['Panadol', ' Panadol', ' Panadol', 'a=b', 'x -5', '', "'quoted", ' 5 mg', 'Ｗide']) {
+      expect(escapeCell(cell)).toBe(cell);
+    }
+  });
+});

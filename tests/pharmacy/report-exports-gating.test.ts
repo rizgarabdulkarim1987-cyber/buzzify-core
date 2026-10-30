@@ -77,7 +77,7 @@ describe('cost columns are omitted, not blank', () => {
         const costColumns = header.filter((h) => COST.test(h) && !['currency'].includes(h));
         expect(costColumns, `${report} still carries cost columns`).toEqual([]);
       }
-      expect(await headerOf('stockValuation', {})).toEqual(['key', 'label', 'available', 'reserved', 'quarantine', 'damaged', 'rowType']);
+      expect(await headerOf('stockValuation', {})).toEqual(['key', 'label', 'available', 'reserved', 'quarantine', 'damaged', 'inTransitUnits', 'inTransitTransfers', 'rowType']);
       expect(await headerOf('expiry', {})).not.toContain('unitCost');
       expect(codeOf(await fetchExport('margin', { ...PERIOD }))).toBe('FORBIDDEN');
     });

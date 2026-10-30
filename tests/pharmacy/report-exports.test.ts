@@ -137,7 +137,7 @@ describe('the content is what the report says, and what the rows say', () => {
   });
 
   it('returns: one row per return with its refund, equal to the returns in the database', async () => {
-    const out = await rowsOf('returns', { ...PERIOD });
+    const out = (await rowsOf('returns', { ...PERIOD })).filter((r) => r.rowType === 'row');
     const truth = await prisma().phReturn.findMany({ where: { restaurantId: w.a.id }, include: { sale: true } });
     expect(truth.length).toBe(2);
     expect(out).toHaveLength(truth.length);
@@ -147,7 +147,7 @@ describe('the content is what the report says, and what the rows say', () => {
   });
 
   it('discounts: the discounted sales, with the discount in money and the percent from the gross', async () => {
-    const out = await rowsOf('discounts', { ...PERIOD });
+    const out = (await rowsOf('discounts', { ...PERIOD })).filter((r) => r.rowType === 'row');
     const truth = await prisma().phSale.findMany({ where: { restaurantId: w.a.id, discountMinor: { gt: 0 } } });
     expect(out).toHaveLength(truth.length);
     expect(out.map((r) => r.discount).sort()).toEqual(truth.map((s) => fmt(s.discountMinor, s.currency)).sort());
@@ -212,7 +212,7 @@ describe('the content is what the report says, and what the rows say', () => {
   });
 
   it('transfers: the transfers of the range with their quantities, equal to the database', async () => {
-    const out = await rowsOf('transfers', { ...PERIOD });
+    const out = (await rowsOf('transfers', { ...PERIOD })).filter((r) => r.rowType === 'row');
     const { start, end } = instantsOf(PERIOD.from, PERIOD.to);
     const truth = await prisma().phTransfer.findMany({ where: { restaurantId: w.a.id, requestedAt: { gte: start, lt: end } }, include: { lines: true } });
     expect(out).toHaveLength(truth.length);
@@ -225,7 +225,7 @@ describe('the content is what the report says, and what the rows say', () => {
   });
 
   it('low stock: the products below their minimum, equal to the count worked out apart', async () => {
-    const out = await rowsOf('lowStock');
+    const out = (await rowsOf('lowStock')).filter((r) => r.rowType === 'row');
     const truth = await lowStockTruth(w.a.id, [w.b1, w.b2, w.b3], '2026-10-27');
     expect(out).toHaveLength([...truth.values()].reduce((n, c) => n + c, 0));
     for (const [branchId, count] of truth) {
@@ -316,7 +316,7 @@ describe('the most rows', () => {
 describe('who gets which file', () => {
   it('a branch-limited person exports their branches only: no id and no name of the other branch in the file', async () => {
     const otherName = (await prisma().branch.findUniqueOrThrow({ where: { id: w.b2 } })).name;
-    for (const [report, input] of REPORTS.filter(([r]) => r !== 'chain' && r !== 'transfers' && r !== 'damaged')) {
+    for (const [report, input] of REPORTS.filter(([r]) => r !== 'transfers')) {
       const { table: t } = await table(w.manager13, report, 'csv', input);
       const text = JSON.stringify(t);
       expect(text, `${report} names branch 2`).not.toContain(w.b2);
@@ -349,7 +349,7 @@ describe('who gets which file', () => {
     for (const [report, input] of REPORTS) expect(codeOf(await fetchExport(owner, report, 'csv', input)), report).not.toBe('OK');
   });
 
-  it('the margin export is the margin report: refused without its permissions (see report-exports-gating.test.ts) and for a bad range', async () => {
+  it('a bad range and a missing range are refused (the margin permissions are in report-exports-gating.test.ts)', async () => {
     const bad = await fetchExport(w.owner, 'sales', 'csv', { from: '2026-10-28', to: '2026-10-27' });
     expect(bad.ok).toBe(false);
     const missing = await fetchExport(w.owner, 'sales', 'csv', {});
@@ -361,6 +361,8 @@ describe('who gets which file', () => {
     const owner = await person('ownerLapsed', { membership: [p.id, 'OWNER'] });
     const data = dataOf(await ask(owner, exportQueries.report, { restaurantId: p.id, report: 'sales', format: 'csv', ...PERIOD, groupBy: 'day' })) as any;
     expect(parseCsv(new Uint8Array(Buffer.from(data.base64, 'base64')))).toHaveLength(1);
+    // The audit row of the export is written in read-only mode too.
+    expect(await prisma().auditLog.count({ where: { restaurantId: p.id, action: 'pharmacy.report.export' } })).toBe(1);
   });
 });
 
@@ -387,5 +389,48 @@ describe('every export is audited, by counts only', () => {
     await fetchExport(w.cashier1, 'sales', 'csv', { ...PERIOD });
     await fetchExport(w.manager1, 'chain', 'csv', { ...PERIOD });
     expect(await prisma().auditLog.count({ where: { restaurantId: w.a.id, action: 'pharmacy.report.export' } })).toBe(before);
+  });
+});
+
+// Kept last: it overwrites names in the shared world and does not put them back.
+describe('every text a person typed is written as text, in every export (report 5b)', () => {
+  const LEADS = ['=', '+', '-', '@', '\t', '\r', '\n', ' =', ' +', '＝'];
+  const DANGEROUS = /^(?:[\s 　]*[=+\-@＝＋－＠]|[\t\r\n])/;
+  const NUMBER = /^-?\d+(\.\d+)?$/;
+  const EXPORTS: Array<[string, Record<string, unknown>]> = [
+    ['sales', { ...PERIOD, groupBy: 'user' }],
+    ['sales', { ...PERIOD, groupBy: 'product' }],
+    ['sales', { ...PERIOD, groupBy: 'branch' }],
+    ...REPORTS.filter(([r]) => r !== 'sales'),
+    ['margin', { ...PERIOD, groupBy: 'category' }],
+  ];
+
+  it.each(LEADS.map((lead) => [JSON.stringify(lead), lead]))('a name, lot, reason or user starting with %s is escaped everywhere it appears', async (_label, lead) => {
+    const payload = `${lead}HYPERLINK("x")`;
+    const users = [...new Set([...(await prisma().phStaff.findMany({ where: { restaurantId: w.a.id }, select: { userId: true } })).map((s) => s.userId), ...(await prisma().membership.findMany({ where: { restaurantId: w.a.id }, select: { userId: true } })).map((m) => m.userId)])];
+    // (a suffix keeps names and lots apart where the database wants them unique; the start is the payload)
+    for (const [i, p] of (await prisma().phProduct.findMany({ where: { restaurantId: w.a.id }, select: { id: true } })).entries()) await prisma().phProduct.update({ where: { id: p.id }, data: { tradeName: `${payload}${i}`, strength: payload, form: payload } });
+    for (const [i, b] of (await prisma().phBatch.findMany({ where: { restaurantId: w.a.id }, select: { id: true } })).entries()) await prisma().phBatch.update({ where: { id: b.id }, data: { lot: `${payload}${i}` } });
+    for (const [i, b] of (await prisma().branch.findMany({ where: { restaurantId: w.a.id }, select: { id: true } })).entries()) await prisma().branch.update({ where: { id: b.id }, data: { name: `${payload}${i}` } });
+    await prisma().phReturn.updateMany({ where: { restaurantId: w.a.id }, data: { reason: payload } });
+    await prisma().user.updateMany({ where: { id: { in: users } }, data: { name: payload } });
+    const seen = new Set<string>();
+    for (const format of ['csv', 'xlsx'] as const) {
+      for (const [report, input] of EXPORTS) {
+        const { table: t } = await table(w.owner, report, format, input);
+        const header = t[0]!;
+        for (const [i, row] of t.entries()) {
+          for (const [c, cell] of row.entries()) {
+            if (NUMBER.test(cell)) continue;
+            expect(DANGEROUS.test(cell), `${report} ${format} row ${i} column ${header[c]}: ${JSON.stringify(cell)}`).toBe(false);
+            if (cell.includes('HYPERLINK')) seen.add(`${report}:${header[c]}`);
+          }
+        }
+      }
+    }
+    // The payload really reached the columns that carry typed text.
+    for (const place of ['sales:label', 'returns:reason', 'returns:branch', 'expiry:lot', 'expiry:strength', 'expiry:form', 'expiry:branch', 'lowStock:product', 'discounts:soldBy', 'chain:branch', 'stockValuation:label']) {
+      expect(seen, place).toContain(place);
+    }
   });
 });

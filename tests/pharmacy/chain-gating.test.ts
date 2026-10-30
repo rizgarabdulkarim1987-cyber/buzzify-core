@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { guard } from '@/server/pharmacy/chain';
 import * as chain from '@/server/pharmacy/queries/chain';
-import { StudioError } from '@/server/studio/framework/result';
 import { grant, NOW, person, pharmacy, resetWorld, useTestDatabase } from './fixture';
 import { ask, codeOf } from './stock-helpers';
 import { at, dataOf } from './reports-world';
@@ -110,11 +108,23 @@ describe('support, read-only and one failing figure', () => {
     expect(r.total.sales).toEqual([]);
   });
 
-  it('turns only the too-many-batches answer into an unavailable figure; any other failure still fails', async () => {
-    const tooMany = () => Promise.reject(new StudioError('CONFLICT', 'Too many batches match: choose a branch or a shorter horizon', { phCode: 'TOO_MANY' }));
-    expect(await guard(tooMany)).toEqual({ unavailable: true, reason: 'TOO_MANY' });
-    await expect(guard(() => Promise.reject(new StudioError('FORBIDDEN')))).rejects.toThrow();
-    await expect(guard(() => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
-    expect(await guard(() => Promise.resolve(7))).toBe(7);
+  it('a pharmacist in charge of several branches is admitted (R6-8): their branches only, costs yes, margin no', async () => {
+    const pic = await person('picChain', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.b1, w.b3]] });
+    const r: any = dataOf(await dash(pic));
+    expect(r.scope.branchIds.slice().sort()).toEqual([w.b1, w.b3].sort());
+    expect(r.branches.map((b: any) => b.branchId).sort()).toEqual([w.b1, w.b3].sort());
+    expect(JSON.stringify(r)).not.toContain(w.b2);
+    expect(r.estimatedMargin).toBeUndefined();
+    expect(JSON.stringify(r)).not.toContain('marginBp');
+    expect(r.total.stock.values.length).toBeGreaterThan(0);
+    const one = await person('picOneChain', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.b1]] });
+    const refused = await dash(one);
+    expect(refused.ok).toBe(false);
+  });
+
+  it('has no unavailable figure: the expiry cards are an aggregate with no batch limit, so they always answer', async () => {
+    const r: any = dataOf(await dash(w.owner));
+    expect(JSON.stringify(r)).not.toContain('unavailable');
+    for (const card of [r.total, ...r.branches]) expect(Object.keys(card.expiry).sort()).toEqual(['d30', 'expired']);
   });
 });
