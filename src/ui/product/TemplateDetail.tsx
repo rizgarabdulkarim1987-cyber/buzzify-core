@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { optionExtraFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
-import { stageTone } from '@/lib/stage';
 import type { DetailKind, OptionStyle } from '@/lib/templates/types';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
@@ -11,7 +10,6 @@ import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { CloseIcon, HeartIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { RollingMoney } from '@/ui/RollingMoney';
-import { ProductStage } from '@/ui/stage/ProductStage';
 import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
@@ -40,12 +38,9 @@ export interface TemplateDetailProps {
   onSwitch: (productId: string) => void;
 }
 
-function Media({ product, kind, selectedIds }: { product: MenuProductView; kind: DetailKind; selectedIds: string[] }) {
-  const staged = stageTone(product.media) !== null;
+// The product's own photo or art, never a live 3D scene: the scene froze the sheet on iPhones.
+function Media({ product, kind }: { product: MenuProductView; kind: DetailKind }) {
   const ratio = kind === 'page' ? 'aspect-[4/3] md:aspect-[16/9]' : kind === 'drawer' ? 'aspect-[4/3]' : 'aspect-[16/10]';
-  if (staged) {
-    return <ProductStage product={product} selectedIds={selectedIds} variant="sheet" testId="sheet-stage" posterSlug={`${product.slug}-detail`} className={`${ratio} w-full`} />;
-  }
   return <ProductVisual media={product.media} name={product.name} slug={`${product.slug}-detail`} priority placeholder sizes="(min-width: 768px) 640px, 100vw" className={`${ratio} w-full`} />;
 }
 
@@ -245,7 +240,7 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="relative">
-          <Media product={product} kind={kind} selectedIds={choice.selected} />
+          <Media product={product} kind={kind} />
           <CloseButton onClose={close} />
         </div>
         <div className="tpl-detail-body">
@@ -282,7 +277,7 @@ function Steps({ props, close }: { props: TemplateDetailProps; close: () => void
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="relative">
-          <Media product={product} kind="sheet" selectedIds={choice.selected} />
+          <Media product={product} kind="sheet" />
           <CloseButton onClose={close} />
         </div>
         <div className="tpl-detail-body">
