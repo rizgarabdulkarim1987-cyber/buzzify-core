@@ -61,29 +61,19 @@
   background: var(--sj-iron-hi);
 }
 
-/* The bread: a thin wheat disc spotted with char, the photo printed in its middle. */
+/* No bread disc behind the dish: the plate photo fills the whole card, with only a soft shadow under it. */
 [data-body='saj'] .cf-photo {
-  /* A fixed square, not only aspect-ratio: a browser or a squeezed flex column that ignores the ratio would turn the disc into an oval. */
+  /* A fixed square, not only aspect-ratio: a browser or a squeezed flex column that ignores the ratio would turn the photo into an oval. */
   flex: none;
   inline-size: var(--cf-card);
   block-size: var(--cf-card);
   aspect-ratio: 1;
-  padding: 10%;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 22% 30%, var(--sj-char) 0 3%, transparent 4%),
-    radial-gradient(circle at 70% 22%, var(--sj-char) 0 4%, transparent 5%),
-    radial-gradient(circle at 80% 70%, color-mix(in srgb, var(--sj-char) 80%, #fff) 0 3%, transparent 4%),
-    radial-gradient(circle at 30% 80%, var(--sj-char) 0 4%, transparent 5%),
-    radial-gradient(circle at 54% 90%, color-mix(in srgb, var(--sj-char) 60%, #fff) 0 2.5%, transparent 3.5%),
-    radial-gradient(circle at 12% 56%, var(--sj-char) 0 2%, transparent 3%),
-    radial-gradient(circle, var(--sj-wheat), color-mix(in srgb, var(--sj-wheat) 70%, var(--sj-wheat-lo)) 80%, var(--sj-wheat-lo));
-  box-shadow: 0 0.5rem 1.125rem rgb(0 0 0 / 0.45);
+  filter: drop-shadow(0 0.5rem 0.75rem rgb(0 0 0 / 0.5));
 }
 [data-body='saj'] .cf-frame {
   block-size: 100%;
   border-radius: 50%;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sj-char) 50%, transparent);
 }
 [data-body='saj'] .cf-badges {
   inset-block-start: 0;
