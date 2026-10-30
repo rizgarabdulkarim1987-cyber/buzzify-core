@@ -96,6 +96,16 @@ export function Shell({
             {t('pharmacy.nav.returns')}
           </Link>
         )}
+        {actor.role !== null && canPh(actor.role, 'rx.dispense') && (
+          <Link href="/pharmacy/prescriptions" className={LINK}>
+            {t('pharmacy.nav.prescriptions')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'customer.manage') || canPh(actor.role, 'credit.sell')) && (
+          <Link href="/pharmacy/customers" className={LINK}>
+            {t('pharmacy.nav.customers')}
+          </Link>
+        )}
         {actor.role !== null && canPh(actor.role, 'catalog.view') && (
           <Link href="/pharmacy/stock" className={LINK}>
             {t('pharmacy.nav.stock')}
@@ -141,6 +151,11 @@ export function Shell({
             {t('pharmacy.nav.chain')}
           </Link>
         )}
+        {actor.role === 'OWNER' || actor.role === 'BRANCH_MANAGER' ? (
+          <Link href="/pharmacy/settings" className={LINK}>
+            {t('pharmacy.nav.settings')}
+          </Link>
+        ) : null}
       </nav>
       {notice}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
