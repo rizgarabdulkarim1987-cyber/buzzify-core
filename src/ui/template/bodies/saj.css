@@ -63,6 +63,10 @@
 
 /* The bread: a thin wheat disc spotted with char, the photo printed in its middle. */
 [data-body='saj'] .cf-photo {
+  /* A fixed square, not only aspect-ratio: a browser or a squeezed flex column that ignores the ratio would turn the disc into an oval. */
+  flex: none;
+  inline-size: var(--cf-card);
+  block-size: var(--cf-card);
   aspect-ratio: 1;
   padding: 15%;
   border-radius: 50%;
