@@ -10,7 +10,7 @@ import { minorUnitDigits } from '@/lib/money-input';
 export type ReceiptWidth = '80' | '58';
 export type ReceiptLocale = 'en' | 'ar' | 'ckb';
 export type Currency = 'IQD' | 'USD';
-export type PayMethod = 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL';
+export type PayMethod = 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT';
 
 export interface ReceiptShop {
   name: string;
@@ -127,7 +127,7 @@ export const LABELS: Record<ReceiptLocale, ReceiptLabels> = {
     rx: 'Rx',
     copy: 'COPY',
     qty: 'Qty',
-    methods: { CASH: 'Cash', CARD_MANUAL: 'Card', TRANSFER_MANUAL: 'Transfer' },
+    methods: { CASH: 'Cash', CARD_MANUAL: 'Card', TRANSFER_MANUAL: 'Transfer', CREDIT: 'On account' },
   },
   ar: {
     receipt: 'إيصال',
@@ -149,7 +149,7 @@ export const LABELS: Record<ReceiptLocale, ReceiptLabels> = {
     rx: 'وصفة',
     copy: 'نسخة',
     qty: 'الكمية',
-    methods: { CASH: 'نقداً', CARD_MANUAL: 'بطاقة', TRANSFER_MANUAL: 'حوالة' },
+    methods: { CASH: 'نقداً', CARD_MANUAL: 'بطاقة', TRANSFER_MANUAL: 'حوالة', CREDIT: 'على الحساب' },
   },
   ckb: {
     receipt: 'وەسڵ',
@@ -171,7 +171,7 @@ export const LABELS: Record<ReceiptLocale, ReceiptLabels> = {
     rx: 'ڕەچەتە',
     copy: 'کۆپی',
     qty: 'ژمارە',
-    methods: { CASH: 'نەقد', CARD_MANUAL: 'کارت', TRANSFER_MANUAL: 'گواستنەوە' },
+    methods: { CASH: 'نەقد', CARD_MANUAL: 'کارت', TRANSFER_MANUAL: 'گواستنەوە', CREDIT: 'لەسەر هەژمار' },
   },
 };
 

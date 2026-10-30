@@ -73,7 +73,7 @@ export async function listReturns(scoped: ScopedClient, ph: PhActor, input: z.in
       branchId: r.branchId,
       currency: r.currency,
       refundMinor: String(r.refundMinor),
-      refundMethod: r.refundMethod,
+      refundMethod: r.refundMethod as RefundMethod, // never CREDIT: a return's input excludes it
       approvedById: r.approvedById,
       lineCount: r._count.lines,
       createdAt: r.createdAt.toISOString(),
@@ -137,7 +137,7 @@ export async function getReturn(scoped: ScopedClient, ph: PhActor, input: { retu
     shiftId: row.shiftId,
     currency: row.currency,
     refundMinor: String(row.refundMinor),
-    refundMethod: row.refundMethod,
+    refundMethod: row.refundMethod as RefundMethod, // never CREDIT: a return's input excludes it
     approvedById: row.approvedById,
     reason: row.reason,
     lineCount: row.lines.length,

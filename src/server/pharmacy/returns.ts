@@ -201,7 +201,7 @@ export async function createReturn(
         branchId: earlier.branchId,
         currency: earlier.currency,
         refundMinor: String(earlier.refundMinor),
-        refundMethod: earlier.refundMethod,
+        refundMethod: earlier.refundMethod as RefundMethod, // input never names CREDIT, so a stored return never holds it
         saleStatus: earlier.sale.status,
         lineCount: earlier._count.lines,
         createdAt: earlier.createdAt.toISOString(),

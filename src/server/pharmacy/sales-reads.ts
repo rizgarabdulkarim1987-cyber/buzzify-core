@@ -50,7 +50,7 @@ export interface SaleSummary {
   changeMinor: string;
   lineCount: number;
   /** The payment methods used, once each. */
-  methods: ('CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL')[];
+  methods: ('CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT')[];
   soldById: string;
   createdAt: string;
 }
@@ -152,7 +152,7 @@ export interface SaleDetail extends SaleSummary {
   pharmacistId: string | null;
   note: string;
   completedAt: string | null;
-  payments: { id: string; method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL'; amountMinor: string; reference: string }[];
+  payments: { id: string; method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT'; amountMinor: string; reference: string }[];
   lines: SaleLineView[];
 }
 

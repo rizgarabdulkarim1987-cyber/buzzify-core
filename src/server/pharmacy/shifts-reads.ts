@@ -152,7 +152,8 @@ export interface ShiftTotals {
 
 const METHODS = ['CARD_MANUAL', 'CASH', 'TRANSFER_MANUAL'] as const;
 
-function byMethod(rows: { method: MethodTotal['method']; amount: bigint }[]): MethodTotal[] {
+// A CREDIT payment (phase 7) is not a drawer or a refund method: it is left out of these totals until the credit task reports it.
+function byMethod(rows: { method: string; amount: bigint }[]): MethodTotal[] {
   return METHODS.flatMap((method) => {
     const mine = rows.filter((r) => r.method === method);
     return mine.length === 0 ? [] : [{ method, count: mine.length, amountMinor: String(mine.reduce((a, r) => a + r.amount, 0n)) }];

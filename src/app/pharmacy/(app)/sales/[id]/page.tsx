@@ -6,7 +6,7 @@ import { BackLink, Forbidden, PickBranch } from '@/app/pharmacy/_ui/PageGate';
 import { Money, Row, FIGURES, SaleStatus } from '@/app/pharmacy/_ui/money-parts';
 import { SaleActions } from '@/app/pharmacy/_ui/SaleActions';
 import { Num } from '@/app/pharmacy/_ui/sell-parts';
-import { formatUtc, personLabel, shortId } from '@/app/pharmacy/_ui/shifts-logic';
+import { formatUtc, personLabel, shortId, type RefundMethod } from '@/app/pharmacy/_ui/shifts-logic';
 import { list as listReturns, returnable } from '@/server/pharmacy/queries/returns';
 import { get } from '@/server/pharmacy/queries/sales';
 import { query } from '@/server/studio/framework/invoke';
@@ -54,6 +54,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     throw error;
   }
   const names = await peopleOf(placeInput, [sale.soldById]);
+  // A credit payment is not a way to hand money back: the refund choices are the drawer methods the sale was paid by.
+  const refundable = sale.methods.filter((m): m is RefundMethod => m !== 'CREDIT');
   const mayRead = roleMay(actor, 'return.approve') || roleMay(actor, 'report.view');
   const [can, made] = mayRead
     ? await Promise.all([query(returnable, { ...placeInput, saleId: sale.id }), query(listReturns, { ...placeInput, saleId: sale.id, pageSize: 50 })])
@@ -81,8 +83,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           writeBlocked={roleMay(actor, 'return.approve') && !returnWrite.ok && returnWrite.reason !== 'role' ? returnWrite : null}
           cancelLines={(can?.lines ?? []).filter((l) => l.remainingBaseQty > 0).map((l) => ({ saleLineId: l.id, baseQty: l.remainingBaseQty }))}
           currency={sale.currency}
-          paid={can?.paidMethods ?? sale.methods}
-          defaultMethod={can?.defaultRefundMethod ?? sale.methods[0] ?? 'CASH'}
+          paid={can?.paidMethods ?? refundable}
+          defaultMethod={can?.defaultRefundMethod ?? refundable[0] ?? 'CASH'}
         />
 
         <p className="text-sm text-muted">
