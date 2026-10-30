@@ -682,6 +682,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Selling on credit needs permission': 'error.text.phCreditNeedsPermission',
   'Choose the customer for a credit sale': 'error.text.phCreditNeedsCustomer',
   'Choose a customer only for a credit sale': 'error.text.phCreditNoCustomerWithoutCredit',
+  'A prescription is chosen only for a sale with a prescription medicine': 'error.text.phRxNotNeeded',
   'Choose one of this pharmacy’s customers': 'error.text.phCustNotOurs',
   'The customer’s currency is not the sale’s currency': 'error.text.phCustCurrency',
   'This customer is archived': 'error.text.phCustArchived',

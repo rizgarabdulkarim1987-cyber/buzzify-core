@@ -173,6 +173,20 @@ describe('with controlled sales switched on', () => {
     for (const secret of ['Dr Strange', 'Layla', '4821', 'AB 1234']) expect(everything, secret).not.toContain(secret);
   });
 
+  it('refuses a prescription id on a sale with no prescription or controlled line, from anyone, and leaves the prescription unused', async () => {
+    const w = await world();
+    const id = await newRx(w);
+    const otc = { lines: [{ productId: w.otc.id, unitId: w.otc.tablet, qty: 2 }], payments: cashFor(200n) };
+    for (const who of [w.cashier, w.pharmacist, w.owner]) {
+      const r = await act(who, saleActions.create, sale(w, id, otc));
+      expect([codeOf(r), phCodeOf(r)], who.email).toEqual(['INVALID', 'PRESCRIPTION_NOT_NEEDED']);
+    }
+    expect(await prisma().phSale.count()).toBe(0);
+    expect((await prisma().phPrescription.findUniqueOrThrow({ where: { id } })).saleId).toBeNull();
+    // The prescription is still good for the sale it was written for.
+    dataOf(await act(w.pharmacist, saleActions.create, sale(w, id)));
+  });
+
   it('refuses a cashier, a seller without a prescription, and support, and writes nothing', async () => {
     const w = await world();
     const id = await newRx(w);

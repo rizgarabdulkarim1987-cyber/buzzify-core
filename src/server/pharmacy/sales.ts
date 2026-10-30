@@ -506,6 +506,10 @@ export async function createSale(
 
   // The prescription of a controlled (or prescription) sale: its row and its number are taken before any stock row.
   const restricted = prepared.filter((l) => l.product.rxLevel === 'RESTRICTED').map((l) => ({ productId: l.product.id, tradeName: l.product.tradeName, baseQty: l.baseQty }));
+  // A prescription belongs to a sale that has a prescription or controlled line (the seller then holds rx.dispense, checked per line above).
+  if (input.prescriptionId !== undefined && !prepared.some((l) => l.product.rxLevel === 'RX' || l.product.rxLevel === 'RESTRICTED')) {
+    throw invalid('prescriptionId', 'A prescription is chosen only for a sale with a prescription medicine', 'PRESCRIPTION_NOT_NEEDED');
+  }
   const claimed = await claimPrescription(tx, { restaurantId, branchId, prescriptionId: input.prescriptionId, restricted, maxQty: settings?.controlledMaxQty ?? 30, now });
 
   // The customer of a credit sale (2c): found in this business, locked, and the limit judged on the balance as it is under the lock.
