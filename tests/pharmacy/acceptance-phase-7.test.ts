@@ -428,7 +428,7 @@ describe('no permission bypass: every action and tool answers to the role matrix
   it('a role without ai.use never reaches a model: it gets the tables and the reason', async () => {
     for (const name of ['accountant', 'stock']) {
       const answer = dataOf(await act(roles[name]!, assistantActions.askAction, { ...place(), question: name === 'accountant' ? 'Which batches expire soon?' : 'Which supplier invoices are unpaid?' })) as any;
-      expect(answer).toMatchObject({ degraded: true, reason: 'NO_AI_PERMISSION', answer: null }, name);
+      expect(answer, name).toMatchObject({ degraded: true, reason: 'NO_AI_PERMISSION', answer: null });
       expect(answer.tables).toHaveLength(1);
     }
   });
