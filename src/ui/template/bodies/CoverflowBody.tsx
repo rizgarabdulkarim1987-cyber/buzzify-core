@@ -213,7 +213,8 @@ function CoverRow({ products, motif, first }: { products: MenuProductView[]; mot
                 {digits(place + 1)}
               </span>
             )}
-            <div data-photo className="cf-photo">
+            {/* A tap on the photo opens the dish itself: it must not depend on the name button's stretched ::after, which Safari on iPhone can clip. */}
+            <div data-photo className="cf-photo" onClick={() => openProduct(product.id)}>
               {motif === 'crate' && <i aria-hidden className="cf-vinyl" />}
               <div className="cf-frame tpl-plate">
                 <ProductMedia product={product} suffix={motif} sizes="(min-width: 640px) 200px, 160px" priority={first && place < 3} rounded={false} className="cf-img" />
