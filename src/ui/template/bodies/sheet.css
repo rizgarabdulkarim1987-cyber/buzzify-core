@@ -139,7 +139,7 @@
 /* Row number, photo, dish, price, add: the column letters and every row share these tracks. */
 [data-body='sheet'] :is(.sh-cols, .sh-row) {
   display: grid;
-  grid-template-columns: 1.75rem 3.5rem minmax(0, 1fr) 4.75rem 3rem;
+  grid-template-columns: 1.75rem 3.5rem minmax(0, 1fr) 5.25rem 3rem;
 }
 [data-body='sheet'] :is(.sh-cols, .sh-row) > * {
   min-inline-size: 0;
@@ -235,6 +235,7 @@
   font-weight: 700;
   line-height: 1.2;
   text-align: end;
+  white-space: nowrap;
 }
 [data-body='sheet'] .sh-price .tpl-was {
   font-size: 0.75rem;
