@@ -608,10 +608,12 @@ describe('consolidation: the all-branches total is the sum of the branches (inde
 });
 
 describe('the reports in other words', () => {
-  it('give the same answer as the service called directly (the query layer adds nothing)', async () => {
+  it('give the same answer as the service called directly (the query layer adds only the names)', async () => {
     const owner = (await asPh(w.owner.userId, w.a.id))!;
     const scoped = scopedClient(prisma(), { restaurantId: w.a.id, allBranches: true });
     const direct = await salesReport(scoped, owner, {}, { ...PERIOD, groupBy: 'day', take: 100 });
-    expect(direct).toEqual(await salesOf({ groupBy: 'day' }));
+    const { labels, ...viaQuery } = await salesOf({ groupBy: 'day' });
+    expect(direct).toEqual(viaQuery);
+    expect(Object.keys(labels.branch).sort()).toEqual([...w.a.branchIds].sort());
   });
 });

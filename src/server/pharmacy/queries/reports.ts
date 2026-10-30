@@ -1,5 +1,6 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
+import { reportLabels } from '@/server/pharmacy/report-labels';
 import { discountsReport, returnsReport, salesReport } from '@/server/pharmacy/reports';
 import { marginReport } from '@/server/pharmacy/reports-margin';
 import { discountsInput, marginInput, returnsInput, salesInput } from '@/server/pharmacy/reports-inputs';
@@ -12,6 +13,9 @@ import { defineQuery } from '@/server/studio/framework/query';
  * ACCOUNTANT), open while the pharmacy is read-only like the other reads and closed once it is archived. A support actor and a
  * role without the permission read nothing. The place's branch narrows a report to that branch; without one a person
  * gets the branches they work in. Margin also needs `profit.view` and `cost.view` (checked in its service); the cost keys of the others exist only with `cost.view`.
+ *
+ * Each answer also carries `labels` (task 6): the names of the branches of the report and of the products, categories and sellers its
+ * rows name, so a screen never shows an id (report-labels.ts).
  */
 
 export const sales = defineQuery({
@@ -21,9 +25,16 @@ export const sales = defineQuery({
   allowReadOnly: true,
   input: salesInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return salesReport(scoped, ph, input, input);
+    const report = await salesReport(scoped, ph, input, input);
+    const keys = report.rows.map((r) => r.key);
+    const labels = await reportLabels(scoped, ph, input, {
+      products: report.groupBy === 'product' ? keys : [],
+      categories: report.groupBy === 'category' ? keys : [],
+      users: report.groupBy === 'user' ? keys : [],
+    });
+    return { ...report, labels };
   },
 });
 
@@ -34,9 +45,10 @@ export const returns = defineQuery({
   allowReadOnly: true,
   input: returnsInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return returnsReport(scoped, ph, input, input);
+    const report = await returnsReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });
 
@@ -47,9 +59,10 @@ export const discounts = defineQuery({
   allowReadOnly: true,
   input: discountsInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return discountsReport(scoped, ph, input, input);
+    const report = await discountsReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input, { users: report.rows.map((r) => r.soldById) }) };
   },
 });
 
@@ -62,9 +75,12 @@ export const margin = defineQuery({
   allowReadOnly: true,
   input: marginInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return marginReport(scoped, ph, input, input);
+    const report = await marginReport(scoped, ph, input, input);
+    const keys = report.rows.map((r) => r.key);
+    const labels = await reportLabels(scoped, ph, input, { products: report.groupBy === 'product' ? keys : [], categories: report.groupBy === 'category' ? keys : [] });
+    return { ...report, labels };
   },
 });
 
@@ -75,9 +91,10 @@ export const stockValuationQuery = defineQuery({
   allowReadOnly: true,
   input: valuationInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return stockValuation(scoped, ph, input, input);
+    const report = await stockValuation(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });
 
@@ -88,9 +105,10 @@ export const expiry = defineQuery({
   allowReadOnly: true,
   input: expiryReportInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return expiryReport(scoped, ph, input, input);
+    const report = await expiryReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });
 
@@ -101,9 +119,10 @@ export const damaged = defineQuery({
   allowReadOnly: true,
   input: damagedInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return damagedReport(scoped, ph, input, input);
+    const report = await damagedReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });
 
@@ -114,9 +133,10 @@ export const transfers = defineQuery({
   allowReadOnly: true,
   input: transfersReportInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return transfersReport(scoped, ph, input, input);
+    const report = await transfersReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });
 
@@ -127,8 +147,9 @@ export const lowStock = defineQuery({
   allowReadOnly: true,
   input: lowStockInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
-    return lowStockReport(scoped, ph, input, input);
+    const report = await lowStockReport(scoped, ph, input, input);
+    return { ...report, labels: await reportLabels(scoped, ph, input) };
   },
 });

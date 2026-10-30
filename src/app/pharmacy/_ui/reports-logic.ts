@@ -275,6 +275,6 @@ export function valuationNotices(r: Pick<ValuationReport, 'totals'>): Notice[] {
 export function expiryNotices(r: Pick<ExpiryReport, 'listTruncated'>): Notice[] {
   return r.listTruncated ? [{ key: 'expiry.truncated', tone: 'warn' }] : [];
 }
-export function transfersNotices(_r: Pick<TransfersReport, 'scope'>): Notice[] {
-  return [{ key: 'transfers.scope', tone: 'info' }];
+export function transfersNotices(r: Pick<TransfersReport, 'scope'>): Notice[] {
+  return r.scope === 'transfers-touching-the-branches-shown' ? [{ key: 'transfers.scope', tone: 'info' }] : [];
 }
