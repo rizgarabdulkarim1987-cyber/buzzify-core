@@ -451,6 +451,47 @@ export function showsSignatureStrip(heroKind: string, body: string, hasSignature
   return hasSignature && !FEATURING_HEROES.has(heroKind) && !SIGNATURE_SHAPES.has(body);
 }
 
+/** The shapes that draw the owner's featured dishes themselves. */
+const FEATURED_SHAPES: ReadonlySet<string> = new Set(['book', 'carpet', 'depth', 'frost', 'gate', 'station', 'steam', 'theatre']);
+
+/**
+ * The dishes the owner chose to feature: the picked slugs in their order, else the dishes flagged featured, else none
+ * (the menu's own fallback of the first pictured dishes is not the owner's choice, so it is not shown as one).
+ */
+export function chosenFeatured(products: readonly MenuProductView[], slugs: readonly string[]): MenuProductView[] {
+  const bySlug = new Map(products.map((product) => [product.slug, product]));
+  const picked = slugs.map((slug) => bySlug.get(slug)).filter((product): product is MenuProductView => product !== undefined);
+  return picked.length > 0 ? picked : products.filter((product) => product.featured);
+}
+
+/** Whether the menu shows the owner's featured dishes in the strip under its hero. */
+export function showsFeaturedStrip(heroKind: string, body: string, count: number): boolean {
+  return count > 0 && !FEATURING_HEROES.has(heroKind) && !FEATURED_SHAPES.has(body);
+}
+
+/** The owner's featured dishes as a sideways row of small tiles: photo, name, price. */
+export function FeaturedStrip({ items }: { items: MenuProductView[] }) {
+  const { t } = useApp();
+  const { openProduct } = useTemplate();
+  return (
+    <section aria-label={t('tpl.featured')} className="tpl-hero">
+      <ul className="scroll-hidden flex gap-3 overflow-x-auto px-(--gutter)">
+        {items.slice(0, 8).map((product, index) => (
+          <li key={product.id} className="w-28 shrink-0">
+            <button type="button" tabIndex={-1} aria-hidden onClick={() => openProduct(product.id)} className="block w-full">
+              <ProductMedia product={product} priority={index === 0} suffix="hero" sizes="112px" className="aspect-square w-full" />
+            </button>
+            <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-display tpl-name-sm mt-1 block text-start">
+              {product.name}
+            </button>
+            <Price product={product} className="block text-sm" />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** The signature dish of the hour as a quiet strip: its photo, why it is shown now, its name and price. */
 export function SignatureStrip() {
   const { signature, openProduct } = useTemplate();
