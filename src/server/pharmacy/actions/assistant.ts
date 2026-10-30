@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { canPh } from '@/server/domain/pharmacy/permissions';
+import { phGate } from '@/server/pharmacy/actor';
 import { ask } from '@/server/pharmacy/assistant/assistant';
 import { gatedProvider } from '@/server/pharmacy/assistant/provider';
 import { acceptProposal, createProposal, dismissProposal, proposalIdInput } from '@/server/pharmacy/assistant/proposals';
@@ -39,7 +40,9 @@ export const askAction = defineAction({
     const { ph, scoped } = pharmacyOf(ctx);
     assertStaff(ph);
     const now = new Date();
-    const provider = canPh(ph.role!, 'ai.use') && !input.direct ? gatedProvider(ctx.db, ph.restaurantId, now) : null;
+    // A read-only pharmacy (lapsed plan) may still read, but it spends no AI budget: the tables come back without a model.
+    const open = (await phGate(ctx.db, ph.restaurantId, now)).state === 'open';
+    const provider = open && canPh(ph.role!, 'ai.use') && !input.direct ? gatedProvider(ctx.db, ph.restaurantId, now) : null;
     const answer = await ask({ scoped, ph, now, provider }, input.question, {
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.batchId ? { batchId: input.batchId } : {}),

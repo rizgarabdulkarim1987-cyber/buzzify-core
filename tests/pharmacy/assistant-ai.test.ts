@@ -367,7 +367,8 @@ describe('the ask action', () => {
     const owner = await person('ownerRO', { membership: [ro.id, 'OWNER'] });
     const out = dataOf(await act(owner, assistantActions.askAction, { restaurantId: ro.id, question: 'show unpaid supplier invoices' })) as AssistantAnswer;
     expect(out.tables.map((t) => t.tool)).toEqual(['unpaid_supplier_invoices']);
-    expect(out).toMatchObject({ degraded: true });
+    expect(out).toMatchObject({ degraded: true, reason: 'NO_AI_PERMISSION' });
+    // A read-only pharmacy spends nothing on a model: the tables come back without one, whatever the plan allows.
   });
 
   it('is built from a hostile product name without a change of tools', async () => {
