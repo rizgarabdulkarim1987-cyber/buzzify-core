@@ -9,7 +9,6 @@ import {
   marginBp,
   REPORT_MAX_DAYS,
   ReportsError,
-  returnedCost,
   valuedUnits,
 } from '@/server/domain/pharmacy/reports-domain';
 
@@ -73,19 +72,12 @@ describe('basis points', () => {
     expect(marginBp(1000n, 1500n)).toBe(-5000n);
     expect(marginBp(3n, 2n)).toBe(3333n);
     expect(marginBp(0n, 0n)).toBeNull();
-    // 1/32 of a point... the same half-up rule on the negative side is away from zero
-    expect(marginBp(32n, 33n)).toBe(-313n);
+    // Half up on the negative side too: -312.5 is -312 (toward plus infinity), -312.6 is -313
+    expect(marginBp(32n, 33n)).toBe(-312n);
+    expect(marginBp(1000n, 1003n)).toBe(-30n); // -30 exactly
+    expect(bpOf(-1n, 32n)).toBe(-312n);
+    expect(bpOf(-3n, 64n)).toBe(-469n); // -468.75
     expect(marginBp(10n ** 18n, 4n * 10n ** 17n)).toBe(6000n);
-  });
-});
-
-describe('cost of returned units', () => {
-  it('is the allocation cost in proportion, floored, and never more than the cost', () => {
-    expect(returnedCost(1000n, 10, 3)).toBe(300n);
-    expect(returnedCost(1000n, 3, 1)).toBe(333n);
-    expect(returnedCost(1000n, 3, 3)).toBe(1000n);
-    expect(returnedCost(0n, 3, 1)).toBe(0n);
-    expect(() => returnedCost(1000n, 3, 4)).toThrow(ReportsError);
   });
 });
 
@@ -111,5 +103,14 @@ describe('consolidation', () => {
       { currency: 'IQD', values: { net: 350n, count: 5n } },
       { currency: 'USD', values: { net: 7n, count: 1n } },
     ]);
+  });
+});
+
+describe('a date that matches the pattern and is not a date', () => {
+  it('is refused as a bad date, never an exception from the Date object', () => {
+    for (const bad of ['2026-13-45', '2026-00-10', '2026-02-30', '0000-00-00']) {
+      expect(() => baghdadWindow(bad, '2026-12-31'), bad).toThrow(ReportsError);
+      expect(() => baghdadWindow('2026-01-01', bad), bad).toThrow(ReportsError);
+    }
   });
 });

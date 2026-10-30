@@ -2,19 +2,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { scopedClient } from '@/server/data/tenant-db';
 import { consolidate } from '@/server/domain/pharmacy/reports-domain';
 import { costOfBaseQty } from '@/server/domain/pharmacy/stock';
-import * as returnActions from '@/server/pharmacy/actions/returns';
-import * as saleActions from '@/server/pharmacy/actions/sales';
-import * as stockActions from '@/server/pharmacy/actions/stock';
-import * as transferActions from '@/server/pharmacy/actions/transfers';
 import * as reports from '@/server/pharmacy/queries/reports';
-import { marginReport, salesReport } from '@/server/pharmacy/reports';
+import { salesReport } from '@/server/pharmacy/reports';
+import { marginReport } from '@/server/pharmacy/reports-margin';
 import { stockValuation } from '@/server/pharmacy/reports-stock';
-import { asPh, grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
-import type { ActionResult } from '@/server/studio/framework/result';
-import { act, ask, codeOf, dataOf as typedDataOf, makeProduct, stockInto } from './stock-helpers';
+import { asPh, grant, NOW, person, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { ask, codeOf } from './stock-helpers';
+import { at, batch, build, dataOf, type Biz } from './reports-world';
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- the tests read many shapes of report off the wire and check them by value */
-const dataOf = (result: ActionResult<unknown>): any => typedDataOf(result);
 
 /**
  * Pharmacy reports (phase 6, task 4). The world is built through the real services (sales across two branches and two Baghdad
@@ -38,172 +33,6 @@ const dataOf = (result: ActionResult<unknown>): any => typedDataOf(result);
  * Transfers: T1 b1->b2 12 P sent D1 (on the road); T2 b2->b1 20 P sent D1, received D2 12:00Z as 14 + 2 damaged + 4 lost; T3 b1->b2 5 Q requested D2.
  * Also D2: owner damages 3 of PB2@b2 ("Broken in storage"), adjusts QB1 out by 4 ("Miscount").
  */
-
-let seq = 0;
-const key = (label: string) => `${label}-${(seq += 1)}-${'x'.repeat(8)}`;
-const REAL_NOW = new Date();
-
-interface Biz {
-  a: { id: string; branchIds: string[] };
-  b1: string;
-  b2: string;
-  owner: Person;
-  cashier1: Person;
-  cashier2: Person;
-  manager1: Person;
-  usd1: Person;
-  usd2: Person;
-  accountant: Person;
-  pic: Person;
-  stockP: Person;
-  pharmacist: Person;
-  P: { id: string; tablet: string; strip: string };
-  Q: { id: string; tablet: string; strip: string };
-  C1: string;
-  C2: string;
-  ids: Record<string, string>;
-}
-
-const price = (restaurantId: string, p: Biz['P'], currency: 'IQD' | 'USD', tablet: bigint, strip: bigint) =>
-  prisma().phPrice.createMany({
-    data: [
-      { restaurantId, productId: p.id, unitId: p.tablet, branchId: null, currency, amountMinor: tablet, validFrom: new Date('2026-01-01T00:00:00.000Z'), changedById: 'seed' },
-      { restaurantId, productId: p.id, unitId: p.strip, branchId: null, currency, amountMinor: strip, validFrom: new Date('2026-01-01T00:00:00.000Z'), changedById: 'seed' },
-    ],
-  });
-const shift = (restaurantId: string, branchId: string, who: Person, currency: 'IQD' | 'USD' = 'IQD') =>
-  prisma().phShift.create({ data: { restaurantId, branchId, userId: who.userId, currency, openingFloatMinor: 0n } });
-
-/** A batch with a cost in any currency, and its stock put there by real movements. */
-async function batch(restaurantId: string, branchId: string, productId: string, over: { lot: string; expiry?: string; available: number; cost?: { minor: bigint; currency: 'IQD' | 'USD'; unitId: string } }) {
-  const made = await prisma().phBatch.create({
-    data: {
-      restaurantId,
-      productId,
-      lot: over.lot,
-      expiryDate: new Date(`${over.expiry ?? '2027-06-30'}T00:00:00.000Z`),
-      ...(over.cost ? { unitCostMinor: over.cost.minor, costCurrency: over.cost.currency, costUnitId: over.cost.unitId } : {}),
-    },
-    select: { id: true },
-  });
-  await stockInto(restaurantId, branchId, made.id, { available: over.available });
-  return made.id;
-}
-
-const at = (w: Biz, branchId?: string) => ({ restaurantId: w.a.id, ...(branchId ? { branchId } : {}) });
-const cash = (amountMinor: bigint) => ({ method: 'CASH', amountMinor, clientKey: key('pay') });
-const card = (amountMinor: bigint) => ({ method: 'CARD_MANUAL', amountMinor, clientKey: key('pay') });
-const transfer = (amountMinor: bigint) => ({ method: 'TRANSFER_MANUAL', amountMinor, clientKey: key('pay') });
-
-async function sell(w: Biz, who: Person, branchId: string, currency: 'IQD' | 'USD', lines: unknown[], payments: unknown[], extra: Record<string, unknown> = {}) {
-  const made = dataOf(await act(who, saleActions.create, { ...at(w, branchId), clientKey: key('sale'), currency, lines, payments, ...extra }));
-  const row = await prisma().phSale.findUniqueOrThrow({ where: { id: made.id }, include: { lines: { include: { allocations: true } } } });
-  return { id: made.id as string, number: made.number as string, lineId: row.lines[0]!.id, allocationId: row.lines[0]!.allocations[0]!.id };
-}
-
-async function build(label: string, full: boolean): Promise<Biz> {
-  const a = await pharmacy(label, { branches: 2 });
-  const [b1, b2] = a.branchIds as [string, string];
-  const staff = (name: string, role: 'CASHIER' | 'BRANCH_MANAGER' | 'ACCOUNTANT' | 'PHARMACIST_IN_CHARGE' | 'STOCK' | 'PHARMACIST', branches: string[]) =>
-    person(`${name}${label}`, { staff: [a.id, role, branches] });
-  const w: Biz = {
-    a,
-    b1,
-    b2,
-    owner: await person(`owner${label}`, { membership: [a.id, 'OWNER'] }),
-    cashier1: await staff('cashier1', 'CASHIER', [b1]),
-    cashier2: await staff('cashier2', 'CASHIER', [b2]),
-    manager1: await staff('manager1', 'BRANCH_MANAGER', [b1]),
-    usd1: await staff('usd1', 'CASHIER', [b1]),
-    usd2: await staff('usd2', 'BRANCH_MANAGER', [b2]),
-    accountant: await staff('accountant', 'ACCOUNTANT', [b1, b2]),
-    pic: await staff('pic', 'PHARMACIST_IN_CHARGE', [b1, b2]),
-    stockP: await staff('stockP', 'STOCK', [b1, b2]),
-    pharmacist: await staff('pharmacist', 'PHARMACIST', [b1]),
-    P: await makeProduct(a.id, `Panadol${label}`),
-    Q: await makeProduct(a.id, `Aspirin${label}`),
-    C1: '',
-    C2: '',
-    ids: {},
-  };
-  await prisma().phSettings.create({ data: { restaurantId: a.id, enabledCurrencies: ['IQD', 'USD'] } });
-  w.C1 = (await prisma().phCategory.create({ data: { restaurantId: a.id, name: 'Pain', nameKey: 'pain' }, select: { id: true } })).id;
-  w.C2 = (await prisma().phCategory.create({ data: { restaurantId: a.id, name: 'Cold', nameKey: 'cold' }, select: { id: true } })).id;
-  await prisma().phProduct.update({ where: { id: w.P.id }, data: { categoryId: w.C1 } });
-  await prisma().phProduct.update({ where: { id: w.Q.id }, data: { categoryId: w.C2 } });
-  await price(a.id, w.P, 'IQD', 100n, 900n);
-  await price(a.id, w.P, 'USD', 100n, 900n);
-  await price(a.id, w.Q, 'IQD', 250n, 2000n);
-  for (const [who, branch] of [[w.owner, b1], [w.cashier1, b1], [w.manager1, b1], [w.cashier2, b2]] as const) await shift(a.id, branch, who);
-  await shift(a.id, b1, w.usd1, 'USD');
-  await shift(a.id, b2, w.usd2, 'USD');
-
-  const pb1 = await batch(a.id, b1, w.P.id, { lot: 'PB1', available: 200, cost: { minor: 705n, currency: 'IQD', unitId: w.P.strip } });
-  const pb2 = await batch(a.id, b2, w.P.id, { lot: 'PB2', available: 200, cost: { minor: 600n, currency: 'IQD', unitId: w.P.strip } });
-  const pb3 = await batch(a.id, b2, w.P.id, { lot: 'PB3', expiry: '2028-06-30', available: 200, cost: { minor: 500n, currency: 'USD', unitId: w.P.strip } });
-  const qb1 = await batch(a.id, b1, w.Q.id, { lot: 'QB1', available: 100 });
-  const qb2 = await batch(a.id, b2, w.Q.id, { lot: 'QB2', available: 100, cost: { minor: 100n, currency: 'USD', unitId: w.Q.strip } });
-  w.ids = { pb1, pb2, pb3, qb1, qb2 };
-  await prisma().phProductBranch.createMany({
-    data: [
-      { restaurantId: a.id, branchId: b1, productId: w.P.id, minQty: 200, reorderQty: 100 },
-      { restaurantId: a.id, branchId: b2, productId: w.Q.id, minQty: 100, reorderQty: 50 },
-      { restaurantId: a.id, branchId: b2, productId: w.P.id, minQty: 100, reorderQty: 10 },
-      { restaurantId: a.id, branchId: b1, productId: w.Q.id, minQty: 50, reorderQty: 10 },
-    ],
-  });
-  if (!full) {
-    await sell(w, w.cashier1, b1, 'IQD', [{ productId: w.P.id, unitId: w.P.tablet, qty: 1 }], [cash(100n)]);
-    return w;
-  }
-
-  const tab = (p: Biz['P'], qty: number) => ({ productId: p.id, unitId: p.tablet, qty });
-  const str = (p: Biz['P'], qty: number, extra: Record<string, unknown> = {}) => ({ productId: p.id, unitId: p.strip, qty, ...extra });
-  const clock = (iso: string) => vi.setSystemTime(new Date(iso));
-
-  clock('2026-10-27T09:00:00.000Z');
-  const s1 = await sell(w, w.cashier1, b1, 'IQD', [str(w.P, 2)], [cash(2000n)]);
-  await sell(w, w.cashier1, b1, 'IQD', [{ ...tab(w.P, 3), discount: { kind: 'amount', value: 15n, reason: 'Loyal customer' } }], [card(285n)]);
-  await sell(w, w.cashier2, b2, 'IQD', [tab(w.P, 5)], [cash(500n)]);
-  await sell(w, w.usd1, b1, 'USD', [tab(w.P, 2)], [card(200n)]);
-
-  clock('2026-10-27T10:00:00.000Z');
-  const placeFor = { restaurantId: a.id };
-  const t1 = dataOf(await act(w.owner, transferActions.request, { ...placeFor, clientKey: key('req'), fromBranchId: b1, toBranchId: b2, lines: [{ productId: w.P.id, qty: 12 }] }));
-  dataOf(await act(w.owner, transferActions.send, { ...placeFor, transferId: t1.id, version: t1.version, clientKey: key('send') }));
-  const t2 = dataOf(await act(w.owner, transferActions.request, { ...placeFor, clientKey: key('req'), fromBranchId: b2, toBranchId: b1, lines: [{ productId: w.P.id, qty: 20 }] }));
-  const t2sent = dataOf(await act(w.owner, transferActions.send, { ...placeFor, transferId: t2.id, version: t2.version, clientKey: key('send') }));
-  w.ids.t1 = t1.id;
-  w.ids.t2 = t2.id;
-
-  clock('2026-10-27T21:30:00.000Z');
-  const s3 = await sell(w, w.cashier1, b1, 'IQD', [str(w.Q, 1)], [transfer(2000n)]);
-
-  clock('2026-10-28T10:00:00.000Z');
-  await sell(w, w.cashier2, b2, 'IQD', [tab(w.Q, 4)], [cash(1000n)]);
-  await sell(w, w.usd2, b2, 'USD', [str(w.P, 1, { batchId: pb3, batchReason: 'Test the other currency' })], [cash(1000n)]);
-  await sell(w, w.owner, b1, 'IQD', [str(w.P, 1, { discount: { kind: 'percent', value: 10, reason: 'Staff' } })], [cash(810n)]);
-  dataOf(await act(w.owner, stockActions.damage, { ...at(w, b2), batchId: pb2, fromBucket: 'available', baseQty: 3, reason: 'Broken in storage' }));
-  dataOf(await act(w.owner, stockActions.adjust, { ...at(w, b1), batchId: qb1, direction: 'out', bucketFrom: 'available', baseQty: 4, reason: 'Miscount', clientKey: key('adj') }));
-  const t3 = dataOf(await act(w.owner, transferActions.request, { ...placeFor, clientKey: key('req'), fromBranchId: b1, toBranchId: b2, lines: [{ productId: w.Q.id, qty: 5 }] }));
-  w.ids.t3 = t3.id;
-
-  clock('2026-10-28T12:00:00.000Z');
-  dataOf(await act(w.manager1, returnActions.create, { ...at(w, b1), saleId: s1.id, lines: [{ saleLineId: s1.lineId, baseQty: 5 }], reason: 'Damaged box', refundMethod: 'CASH', clientKey: key('ret') }));
-  const t2done = dataOf(await act(w.owner, transferActions.receive, {
-    ...placeFor,
-    transferId: t2.id,
-    version: t2sent.version,
-    clientKey: key('recv'),
-    lines: [{ lineId: t2sent.lines[0]!.lineId, receivedQty: 14, damagedQty: 2, lostQty: 4, lostReason: 'LOST' }],
-  }));
-  expect(t2done.status).toBe('PARTIAL');
-
-  clock('2026-10-28T13:00:00.000Z');
-  dataOf(await act(w.manager1, returnActions.create, { ...at(w, b1), saleId: s3.id, lines: [{ saleLineId: s3.lineId, baseQty: 10 }], reason: 'Wrong medicine', refundMethod: 'TRANSFER_MANUAL', clientKey: key('ret') }));
-  vi.setSystemTime(NOW);
-  return w;
-}
 
 let w: Biz;
 let other: Biz;
@@ -484,8 +313,8 @@ describe('stock valuation', () => {
       ],
     });
     expect(r.byBranch).toEqual([
-      { branchId: w.b1, available: 253, reserved: 0, quarantine: 15, damaged: 2, noCostRows: 1, values: [{ currency: 'IQD', valueMinor: '11979', damagedValueMinor: '120' }] },
-      { branchId: w.b2, available: 458, reserved: 0, quarantine: 0, damaged: 3, noCostRows: 0, values: [{ currency: 'IQD', valueMinor: '10320', damagedValueMinor: '180' }, { currency: 'USD', valueMinor: '10460', damagedValueMinor: '0' }] },
+      { branchId: w.b1, available: 253, reserved: 0, quarantine: 15, damaged: 2, noCostRows: 1, valuationComplete: false, values: [{ currency: 'IQD', valueMinor: '11979', damagedValueMinor: '120' }] },
+      { branchId: w.b2, available: 458, reserved: 0, quarantine: 0, damaged: 3, noCostRows: 0, valuationComplete: true, values: [{ currency: 'IQD', valueMinor: '10320', damagedValueMinor: '180' }, { currency: 'USD', valueMinor: '10460', damagedValueMinor: '0' }] },
     ]);
     expect(r.rows.map((x: { key: string; label: string; available: number; valuationComplete: boolean }) => [x.key, x.label, x.available, x.valuationComplete])).toEqual([
       [w.b1, 'A branch 1', 253, false],
@@ -545,29 +374,29 @@ describe('stock valuation', () => {
 });
 
 describe('damaged, quarantined and lost stock', () => {
-  const wideWindow = () => {
-    const day = (d: Date) => d.toISOString().slice(0, 10);
-    const real = day(new Date(REAL_NOW.getTime() + 3 * 3_600_000));
-    return { from: real < '2026-10-27' ? real : '2026-10-27', to: real > '2026-10-28' ? real : '2026-10-28' };
-  };
+  /** Ledger rows take the database clock, not the faked one: the window is the Baghdad days the stored rows say, never "today". */
+  async function ledgerWindow() {
+    const rows = await prisma().phStockMovement.findMany({ where: { restaurantId: w.a.id, type: { in: ['DAMAGE', 'ADJUST'] } }, select: { createdAt: true } });
+    const day = (d: Date) => new Date(d.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
+    const days = rows.map((r) => day(r.createdAt)).sort();
+    return { from: days[0]!, to: days[days.length - 1]! };
+  }
 
   it('current damaged and quarantine stock; ledger write-offs by type with value; transfer losses by route', async () => {
-    const win = wideWindow();
-    const days = (new Date(`${win.to}T00:00:00Z`).getTime() - new Date(`${win.from}T00:00:00Z`).getTime()) / 86_400_000 + 1;
-    expect(days).toBeLessThanOrEqual(366);
+    const win = await ledgerWindow();
     const r = dataOf(await ask(w.owner, reports.damaged, { ...at(w), ...win }));
     expect(r.current.totals).toEqual({ damaged: 5, quarantine: 15, noCostRows: 1, values: [{ currency: 'IQD', damagedValueMinor: '300', quarantineValueMinor: '352' }] });
     expect(r.current.byBranch).toEqual([{ branchId: w.b1, damaged: 2, quarantine: 15 }, { branchId: w.b2, damaged: 3, quarantine: 0 }]);
-    expect(r.movements.totals).toEqual([
-      { type: 'DAMAGE', units: 3, values: [{ currency: 'IQD', valueMinor: '180' }] },
-      { type: 'ADJUST', units: 4, values: [] },
-      { type: 'SUPPLIER_RETURN', units: 0, values: [] },
-    ]);
+    expect(r.movements.totals.map((t: { type: string; units: number; values?: unknown }) => [t.type, t.units])).toEqual([['DAMAGE', 3], ['ADJUST', 4], ['SUPPLIER_RETURN', 0]]);
+    expect(r.movements.totals[0].values).toEqual([{ currency: 'IQD', valueMinor: '180' }]);
     expect(r.movements.byBranch).toEqual([{ branchId: w.b1, type: 'ADJUST', units: 4 }, { branchId: w.b2, type: 'DAMAGE', units: 3 }]);
     expect(r.movements.reasons).toEqual([{ type: 'ADJUST', reason: 'Miscount', units: 4 }, { type: 'DAMAGE', reason: 'Broken in storage', units: 3 }]);
-    // T2 arrived as 14 + 2 damaged + 4 lost (PB2 at 600/strip: 240 and 120).
-    expect(r.transfers).toEqual({
-      totals: { lostQty: 4, damagedQty: 2, values: [{ currency: 'IQD', lostValueMinor: '240', damagedValueMinor: '120' }] },
+    // The adjusted batch has no cost: the value of that write-off is not zero, it is missing, and the count says so.
+    expect(r.movements.totals[1].noCostRows).toBe(1);
+    // T2 arrived as 14 + 2 damaged + 4 lost on D2 (PB2 at 600/strip: 240 and 120).
+    const t = dataOf(await ask(w.owner, reports.damaged, { ...at(w), ...PERIOD }));
+    expect(t.transfers).toEqual({
+      totals: { lostQty: 4, damagedQty: 2, noCostRows: 0, values: [{ currency: 'IQD', lostValueMinor: '240', damagedValueMinor: '120' }] },
       byRoute: [{ fromBranchId: w.b2, toBranchId: w.b1, lostQty: 4, damagedQty: 2 }],
       byReason: [{ reason: 'LOST', lostQty: 4 }],
     });
@@ -693,8 +522,8 @@ describe('who may read, and which branches', () => {
   it('a support actor with a grant reads none', async () => {
     const admin = await person('supportA', { superAdmin: true });
     await grant(admin, w.a.id, { scopes: ['catalog.read', 'stock.read', 'sales.read'] });
-    for (const [name, input] of ALL) expect(codeOf(await ask(admin, def(name), { ...at(w), ...input })), name).not.toBe('OK');
-    expect(codeOf(await ask(admin, reports.margin, { ...at(w), ...PERIOD }))).not.toBe('OK');
+    for (const [name, input] of ALL) expect(codeOf(await ask(admin, def(name), { ...at(w), ...input })), name).toBe('FORBIDDEN');
+    expect(codeOf(await ask(admin, reports.margin, { ...at(w), ...PERIOD }))).toBe('FORBIDDEN');
   });
 
   it("a branch-limited manager's report is the report of that branch only, and another branch is refused", async () => {

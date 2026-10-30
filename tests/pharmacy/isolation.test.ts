@@ -136,21 +136,39 @@ async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'rec
   const product = await makeProduct(biz.id, tradeName);
   const lot1 = `${label}-LOT1`;
   const lot2 = `${label}-LOT2`;
-  const batch1 = await makeBatch(biz.id, b1, product.id, { lot: lot1, buckets: { available: 50 } });
-  const batch2 = await makeBatch(biz.id, b2, product.id, { lot: lot2, buckets: { available: 40 } });
+  // Stock with something for every report to show: a cost, an expiry within reach, damaged and quarantined units (phase 6, task 4: a sweep
+  // over reports that read nothing proves nothing).
+  const cost = { unitCostMinor: 100n, costUnitId: product.strip };
+  const batch1 = await makeBatch(biz.id, b1, product.id, { lot: lot1, expiry: '2026-12-15', buckets: { available: 50, damaged: 3, quarantine: 2 }, cost });
+  const batch2 = await makeBatch(biz.id, b2, product.id, { lot: lot2, expiry: '2026-11-20', buckets: { available: 40, damaged: 1 }, cost });
+  // Each branch wants more of the product than it has, so the low-stock report lists both.
+  await prisma().phProductBranch.createMany({
+    data: [b1, b2].map((branchId) => ({ restaurantId: biz.id, branchId, productId: product.id, minQty: 100_000, reorderQty: 100 })),
+  });
   const move1 = (await prisma().phStockMovement.findFirstOrThrow({ where: { batchId: batch1, branchId: b1 }, select: { id: true } })).id;
   const move2 = (await prisma().phStockMovement.findFirstOrThrow({ where: { batchId: batch2, branchId: b2 }, select: { id: true } })).id;
   // The owner works a shift in each branch, with a completed sale in it (made straight in the database).
   const saleIn = async (branchId: string, n: number) => {
     const shift = await prisma().phShift.create({ data: { restaurantId: biz.id, branchId, userId: owner.userId, currency: 'IQD' }, select: { id: true } });
     const made = await prisma().phSale.create({
-      data: { restaurantId: biz.id, branchId, shiftId: shift.id, number: `20261027-00000${n}`, status: 'COMPLETED', currency: 'IQD', clientKey: `seed-sale-${label}-${n}`, soldById: owner.userId, completedAt: NOW },
+      data: { restaurantId: biz.id, branchId, shiftId: shift.id, number: `20261027-00000${n}`, status: 'COMPLETED', currency: 'IQD', subtotalMinor: 500n, totalMinor: 500n, paidMinor: 500n, clientKey: `seed-sale-${label}-${n}`, soldById: owner.userId, completedAt: NOW },
       select: { id: true },
     });
+    // One line sold from the branch's batch at a cost, and one return of part of it: the report SQL has money to count.
+    const line = await prisma().phSaleLine.create({
+      data: { restaurantId: biz.id, saleId: made.id, lineNo: 1, productId: product.id, unitId: product.strip, qty: 1, baseQty: 10, unitPriceMinor: 500n, discountMinor: 0n, totalMinor: 500n },
+      select: { id: true },
+    });
+    const allocation = await prisma().phSaleLineAllocation.create({
+      data: { restaurantId: biz.id, saleLineId: line.id, batchId: n === 1 ? batch1 : batch2, baseQty: 10, costSnapshotMinor: 100n, costCurrency: 'IQD', expirySnapshot: new Date('2026-12-15T00:00:00.000Z') },
+      select: { id: true },
+    });
+    // Created at the fixed day of the world (the column default is the database clock, which would walk the row out of the cases' window).
     const returned = await prisma().phReturn.create({
-      data: { restaurantId: biz.id, branchId, saleId: made.id, shiftId: shift.id, number: `R20261027-00000${n}`, reason: 'Seed', approvedById: owner.userId, refundMethod: 'CASH', refundMinor: 0n, currency: 'IQD', clientKey: `seed-return-${label}-${n}` },
+      data: { restaurantId: biz.id, branchId, saleId: made.id, shiftId: shift.id, number: `R20261027-00000${n}`, reason: 'Seed', approvedById: owner.userId, refundMethod: 'CASH', refundMinor: 100n, currency: 'IQD', clientKey: `seed-return-${label}-${n}`, createdAt: NOW },
       select: { id: true },
     });
+    await prisma().phReturnLine.create({ data: { restaurantId: biz.id, returnId: returned.id, saleLineAllocationId: allocation.id, baseQty: 2, refundMinor: 100n } });
     return { sale: made.id, shift: shift.id, ret: returned.id };
   };
   const [{ sale: sale1, shift: shift1, ret: return1 }, { sale: sale2, shift: shift2, ret: return2 }] = [await saleIn(b1, 1), await saleIn(b2, 2)];
@@ -490,7 +508,8 @@ const CASES: Record<string, Case> = {
   'ph.reports.margin': { body: () => ({ from: '2026-10-01', to: '2026-10-31', groupBy: 'product' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.reports.stockValuation': { body: () => ({ groupBy: 'product' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.reports.expiry': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
-  'ph.reports.damaged': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Stock movements take the database clock, so this window is built around the real day (a fixed one would stop reading the rows one day).
+  'ph.reports.damaged': { body: () => ({ from: baghdadDayFromNow(-2), to: baghdadDayFromNow(2) }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.reports.transfers': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
   'ph.reports.lowStock': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
@@ -630,6 +649,20 @@ describe('the pharmacy isolation sweep', () => {
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 
+  it('the report cases have real rows to show: each report answers the owner with branch 1 in it, and the branch-1 manager with branch 1 and no branch 2', async () => {
+    const { a, ownerA, managerA1 } = world;
+    for (const name of Object.keys(CASES).filter((n) => n.startsWith('ph.reports.'))) {
+      const c = CASES[name]!;
+      const owner = json(await run(DEFINITIONS.get(name)!, ownerA, { ...c.body(a, 1), restaurantId: a.restaurantId }));
+      expect(owner, `${name} shows branch 1 to the owner`).toContain(a.b1);
+      expect(owner, `${name} shows branch 2 to the owner (so the manager check below looks at something)`).toContain(a.b2);
+      const mine = json(await run(DEFINITIONS.get(name)!, managerA1, { ...c.body(a, 1), restaurantId: a.restaurantId }));
+      expect(mine, `${name} shows branch 1 to the manager`).toContain(a.b1);
+      // A transfer names both of its ends, so the transfers report may show branch 2 as the other end of a branch-1 transfer.
+      if (!c.bothEnds) expect(mine, `${name} leaks branch 2 to the branch-1 manager`).not.toContain(a.b2);
+    }
+  });
+
   it('covers the sale screen search', () => {
     const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
     expect(sell).toEqual(['ph.sell.search']);
@@ -657,6 +690,10 @@ describe('the pharmacy isolation sweep', () => {
 
 // Running -----------------------------------------------------------------------------------------------------------------
 
+/** The Baghdad calendar day `shift` days from the real today (for windows around rows stamped by the database clock). */
+function baghdadDayFromNow(shift: number): string {
+  return new Date(vi.getRealSystemTime() + 3 * 3_600_000 + shift * 86_400_000).toISOString().slice(0, 10);
+}
 const json = (value: unknown) => JSON.stringify(value, (_key, v: unknown) => (typeof v === 'bigint' ? v.toString() : v));
 const actorOf = async (who: Person): Promise<Actor> => (await loadActor(prisma(), who.userId)) as Actor;
 
