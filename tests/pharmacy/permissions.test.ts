@@ -44,6 +44,28 @@ describe('pharmacy permissions', () => {
     }
   });
 
+  it('customers (customer.manage) and credit selling (credit.sell) are for the owner, managers, the pharmacist in charge and, for credit, pharmacists; accountants manage customers but never sell; cashiers and stock do neither', () => {
+    const manage = ['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'ACCOUNTANT'];
+    const sell = ['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'PHARMACIST'];
+    for (const role of PH_ROLES) {
+      expect(canPh(role, 'customer.manage'), `${role} customer.manage`).toBe(manage.includes(role));
+      expect(canPh(role, 'credit.sell'), `${role} credit.sell`).toBe(sell.includes(role));
+    }
+  });
+
+  it('adding the two permissions took nothing from any role: each role holds exactly its phase 6 permissions plus the new ones', () => {
+    const before: Record<string, string[]> = {
+      CASHIER: ['catalog.view', 'discount.apply', 'shift.use'],
+      PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use'],
+      STOCK: ['catalog.view', 'catalog.manage', 'cost.view', 'stock.count', 'transfer.manage', 'purchase.manage', 'import.apply'],
+      ACCOUNTANT: ['catalog.view', 'cost.view', 'profit.view', 'report.view', 'purchase.manage'],
+    };
+    const added: Record<string, string[]> = { CASHIER: [], PHARMACIST: ['credit.sell'], STOCK: [], ACCOUNTANT: ['customer.manage'] };
+    for (const [role, list] of Object.entries(before)) {
+      expect([...phPermissionsOf(role as (typeof PH_ROLES)[number])].sort(), role).toEqual([...list, ...added[role]!].sort());
+    }
+  });
+
   it('a permission string not in the list is refused by canPh', () => {
     expect(canPh('OWNER', 'made.up' as PhPermission)).toBe(false);
   });
