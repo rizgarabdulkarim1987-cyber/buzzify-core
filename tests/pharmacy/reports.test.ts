@@ -247,10 +247,13 @@ describe('margin report (estimated)', () => {
       { currency: 'IQD', netMinor: '2945', costMinor: '2274', marginMinor: '671', marginBp: 2278 },
       { currency: 'USD', netMinor: '900', costMinor: '500', marginMinor: '400', marginBp: 4444 },
     ]);
+    // Per branch and currency, each row with its own counts of what was left out: S3 (no cost, b1 IQD), S5 (IQD sale of a USD-cost batch, b2 IQD),
+    // S7 (USD sale of an IQD-cost batch, b1 USD: nothing complete there, so a zero row that only carries the flag).
     expect(r.byBranch).toEqual([
-      { branchId: w.b1, currency: 'IQD', netMinor: '2445', costMinor: '1974', marginMinor: '471', marginBp: 1926 },
-      { branchId: w.b2, currency: 'IQD', netMinor: '500', costMinor: '300', marginMinor: '200', marginBp: 4000 },
-      { branchId: w.b2, currency: 'USD', netMinor: '900', costMinor: '500', marginMinor: '400', marginBp: 4444 },
+      { branchId: w.b1, currency: 'IQD', netMinor: '2445', costMinor: '1974', marginMinor: '471', marginBp: 1926, incompleteCostRows: 1, mixedCurrencyRows: 0 },
+      { branchId: w.b2, currency: 'IQD', netMinor: '500', costMinor: '300', marginMinor: '200', marginBp: 4000, incompleteCostRows: 0, mixedCurrencyRows: 1 },
+      { branchId: w.b1, currency: 'USD', netMinor: '0', costMinor: '0', marginMinor: '0', marginBp: null, incompleteCostRows: 0, mixedCurrencyRows: 1 },
+      { branchId: w.b2, currency: 'USD', netMinor: '900', costMinor: '500', marginMinor: '400', marginBp: 4444, incompleteCostRows: 0, mixedCurrencyRows: 0 },
     ]);
   });
 
