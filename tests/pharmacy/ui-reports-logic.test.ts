@@ -11,6 +11,7 @@ import {
   parseFilters,
   PRESETS,
   presetRange,
+  isLongRange,
   rangeDays,
   REPORT_SPECS,
   reportHref,
@@ -203,6 +204,11 @@ describe('long ranges', () => {
     expect(LONG_RANGE_DAYS).toBe(90);
     expect(rangeDays('2026-01-01', '2026-03-31')).toBe(90);
     expect(rangeDays('2026-01-01', '2026-04-01')).toBe(91);
+  });
+  it('counts days past the 366 the server allows without throwing (the filter bar asks while the address is invalid)', () => {
+    expect(rangeDays('2025-01-01', '2026-06-01')).toBe(517);
+    expect(isLongRange('2025-01-01', '2026-06-01')).toBe(true);
+    expect(isLongRange('2026-02-02', '2026-01-01')).toBe(false);
   });
 });
 

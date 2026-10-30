@@ -20,7 +20,23 @@ export interface FilterField {
 
 const CONTROL = 'min-h-11 w-full min-w-0 rounded-md border border-line-strong bg-raised px-3 text-base text-text aria-[invalid=true]:border-danger';
 
-export function ReportFilters({
+type Props = {
+  action: string;
+  dated: boolean;
+  from: string;
+  to: string;
+  fields: FilterField[];
+  presetHrefs: Record<Preset, string>;
+  problems: Record<string, string>;
+  branchNote?: string;
+};
+
+/** Keyed by what the address says, so a preset or a new address (a soft navigation) starts the form again from the new values instead of keeping the typed ones. */
+export function ReportFilters(props: Props) {
+  return <FiltersForm key={[props.from, props.to, ...props.fields.map((f) => f.value)].join("|")} {...props} />;
+}
+
+function FiltersForm({
   action,
   dated,
   from,

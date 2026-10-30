@@ -86,9 +86,9 @@ export function presetRange(preset: Preset, now: Date): { from: string; to: stri
   }
 }
 
-/** Calendar days from..to inclusive (both valid). */
+/** Calendar days from..to inclusive (both valid, from not after to). Plain day arithmetic: it must not throw above the server's 366, because the filter bar asks while the address is invalid. */
 export function rangeDays(from: string, to: string): number {
-  return baghdadWindow(from, to).days;
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 }
 export const isLongRange = (from: string, to: string): boolean => validDay(from) && validDay(to) && from <= to && rangeDays(from, to) > LONG_RANGE_DAYS;
 

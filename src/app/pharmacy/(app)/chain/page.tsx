@@ -104,7 +104,7 @@ export default async function ChainPage({ searchParams }: { searchParams: Promis
     );
   }
   const d = result.data;
-  const empty = d.branches.every((b) => b.sales.length === 0) && d.total.stock.available === 0 && d.total.transit.transfers === 0 && d.total.openTransfers.requested + d.total.openTransfers.sent === 0 && d.total.lowStock === 0;
+  const empty = d.branches.every((b) => b.sales.length === 0) && !d.total.stock.available && d.total.transit.transfers === 0 && d.total.openTransfers.requested + d.total.openTransfers.sent === 0 && d.total.lowStock === 0;
   const params: Record<string, string> = { report: 'chain', from: filters.from, to: filters.to, ...(filters.currency ? { currency: filters.currency } : {}) };
   return (
     <>
