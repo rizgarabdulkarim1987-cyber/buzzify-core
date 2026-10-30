@@ -128,12 +128,19 @@
   block-size: 100%;
   object-fit: cover;
 }
-/* The labels (the sale badge first) on the photo's top corner; taps go through them to the card. */
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-row:has(.cf-badges) {
+  /* A row with labels keeps room for them above its cards; a row without any is as it was. */
+  padding-block-start: 2.25rem;
+}
+/*
+ * The labels (the sale badge first) sit above the whole card, outside its frame, never on the photo; the row keeps the
+ * room for them (`.cf-row`). Taps go through them to the card.
+ */
 :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-badges {
   position: absolute;
   z-index: 2;
-  inset-block-start: 0.25rem;
-  inset-inline: 0.25rem;
+  inset-block-end: calc(100% + 0.3rem);
+  inset-inline: 0;
   justify-content: flex-start;
   gap: 0.25rem;
   font-size: 0.75rem;

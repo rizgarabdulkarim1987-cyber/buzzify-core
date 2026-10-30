@@ -92,7 +92,7 @@ function SalesTags({ product }: { product: MenuProductView }) {
     <>
       {product.special && <span className="tpl-badge tpl-badge-special">{product.special}</span>}
       {sale && <span className="tpl-badge tpl-badge-sale tabular-nums">{sale}</span>}
-      {product.mostOrdered && <span className="tpl-badge">{t('menu.mostOrdered')}</span>}
+      {product.mostOrdered && <span className="tpl-badge tpl-badge-hot">{t('menu.mostOrdered')}</span>}
     </>
   );
 }
@@ -109,7 +109,7 @@ export function Badges({ product, salesOnly = false, className = '' }: { product
     <span className={`flex flex-wrap gap-1.5 ${className}`}>
       <SalesTags product={product} />
       {own?.map((badge) => (
-        <span key={badge} className="tpl-badge">
+        <span key={badge} className={badge === 'POPULAR' ? 'tpl-badge tpl-badge-hot' : 'tpl-badge'}>
           {t(`menu.badge.${badge}`)}
         </span>
       ))}

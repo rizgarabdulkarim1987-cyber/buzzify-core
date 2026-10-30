@@ -285,6 +285,20 @@
   color: var(--on-button);
   box-shadow: none;
 }
+/*
+ * "Most ordered" and "Popular" are the labels that sell, so they are filled with the accent (a quiet outline was easy
+ * to miss on a photo). !important: a body's own badge rules restyle every label alike, and this one must stay filled.
+ */
+.tpl-badge.tpl-badge-hot {
+  background: var(--accent) !important;
+  color: var(--on-accent) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+  /* One line, never squeezed: the label reads in full wherever it sits. */
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
 /* The regular price, crossed out beside the price during a discount, and "Only 2 left". */
 .tpl-was {
   margin-inline-start: 0.45em;
