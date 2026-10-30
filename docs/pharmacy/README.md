@@ -1,10 +1,10 @@
-# Buzzify Pharmacy: phases 0 to 6
+# Buzzify Pharmacy: phases 0 to 7
 
 The pharmacy module runs a pharmacy business (sector `PHARMACY`) inside this repository, next to the menu and the
 cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plans:
 `docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md`, `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md` and
-`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-5.md` and `docs/superpowers/plans/2026-10-31-pharmacy-phase-6.md`.
-This file covers what phases 0 to 6 built, what they did not build, and the policies in force.
+`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-5.md` `docs/superpowers/plans/2026-10-31-pharmacy-phase-6.md` and `docs/superpowers/plans/2026-11-01-pharmacy-phase-7.md`.
+This file covers what phases 0 to 7 built, what they did not build, and the policies in force.
 
 Nothing here is deployed. No migration has been run on production.
 
@@ -605,10 +605,128 @@ E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.tr
 E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.reports.config.ts --workers=1     # pharmacy-reports.spec.ts (about 9 minutes)
 ```
 
+## Phase 7: assistant, prescriptions and controlled drugs, credit sales, advanced printing
+
+Plan: `docs/superpowers/plans/2026-11-01-pharmacy-phase-7.md`. Rulings R7-1 to R7-14 are listed below with their cost if wrong, and in
+Arabic in section 16 of the spec. Acceptance (spec section 12, row 7): **no fabrication; no permission bypass; a prescription
+attachment cannot be read without `rx.attachment.view`.** `tests/pharmacy/acceptance-phase-7.test.ts` proves it through the same
+actions and queries the screens call, with a scripted model (no real model exists anywhere in this phase) and independent SQL for the
+register and the credit balances (see "How to run").
+
+**What exists**
+
+- **Daily assistant** (`/pharmacy/assistant`): six read tools only (`batches_expiring`, `stock_below_reorder`, `slow_movers`,
+  `transfer_candidates`, `unpaid_supplier_invoices`, `margin_change`) over the existing report services, each gated like its report
+  (`report.view`; payables `purchase.manage`; margin `report.view` + `profit.view` + `cost.view`) and limited to the person's branches.
+  Tables first. The model only chooses a tool and phrases the answer; every number, date and quantity in the prose must be in a tool
+  output or the prose is dropped and the plain tables stay (`grounding.ts`). Tool data goes to the model only inside an escaped
+  untrusted block with a whitelist of fields (no patient, prescription, customer or phone data; typed phone numbers are redacted).
+  No `ai.use`, budget reached, provider failure or ungrounded prose: the tables and a sentence, never an error. Clinical questions
+  and "sell expired stock" or "push people to buy more" are refused. Forecast: the sentence `insufficient data` unless a product has
+  sales in 8 distinct weeks, then a seasonal-naive estimate computed in code and labelled "estimate". `ph.assistant.ask` has a
+  `direct` flag (the starter chips): no model, no notice.
+- **Suggestions** (proposals TRANSFER, REORDER, SUPPLIER_RETURN): created from a table row, reviewed with the effect spelled out,
+  accepted or dismissed (one decision wins). Accepting creates nothing: it opens the EXISTING transfer request or purchase order draft
+  pre-filled (a suggestion of another branch pre-fills nothing and says so).
+- **Prescriptions and controlled drugs** (`/pharmacy/prescriptions`, `/pharmacy/prescriptions/register`): a prescription record (number,
+  prescriber, patient and an ID note of the document type and at most 4 characters), optional attachment (image or PDF up to 5 MB in
+  the private store). A `RESTRICTED` product is sellable only when the owner switched `controlledEnabled` on (default off), by a seller
+  with `rx.dispense`, with a valid prescription (30 days for RESTRICTED, 180 for RX, Baghdad days, not future), within `controlledMaxQty`
+  per product per sale (default 30, 0 = no limit). Each batch taken writes an append-only register row (`PhControlledEntry`) in the
+  sale's transaction; a return or cancel writes reversing rows (the units still go to quarantine). The attachment is read only through
+  `/api/pharmacy/rx-attachments/[id]` and `ph.rx.attachment.read`, which check `rx.attachment.view` on every read, never for support,
+  with `Cache-Control: private, no-store` and a counts-only audit row.
+- **Customers and credit** (`/pharmacy/customers`, statements, ageing, payments): `PhCustomer` (business-wide, one currency, a limit),
+  a ledger (`PhCustomerLedger`: CHARGE, PAYMENT, REVERSAL, REFUND; the balance is always the SUM, nothing stored), payments by cash,
+  card or transfer (idempotent, one correction each; a cash one touches the open shift), a `CREDIT` payment method on a sale (switch
+  `creditEnabled`, default off; refused over the limit or in another currency, never converted), a refund of a credit sale lowers the
+  balance first. Ageing is per currency (0-30, 31-60, 61-90, 90+, settled oldest first). The phone shows only with `customer.manage`.
+- **Advanced printing**: A4 sale invoice (`/pharmacy/sales/[id]/invoice`) and return slip (`/pharmacy/returns/[id]/slip`), shelf and
+  batch label sheets with a CODE128 SVG drawn in code (`/pharmacy/print/labels`; sizes 40x25, 50x30, 58 mm roll; price only with
+  `catalog.view`), per-workstation margins in `PhSettings.print` and test pages (`/pharmacy/print/settings`). Browser print only
+  (`window.print`); every reprint writes `PhReceiptReprint` with a copy number. Printing never changes a sale.
+- **Settings** (`/pharmacy/settings`): the owner's controlled-drug switch, quantity limit and retention days, and the credit switch.
+- **Permissions added**: `customer.manage` (OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT) and `credit.sell` (the same
+  except ACCOUNTANT, plus PHARMACIST). No existing role lost anything.
+
+**Rulings and the cost if they are wrong**
+
+| Ruling | What was decided | Cost if wrong |
+|---|---|---|
+| R7-1 controlled drugs | RESTRICTED sellable only with `controlledEnabled`, `rx.dispense`, a complete prescription and quantity within `controlledMaxQty` (a PhSettings number, not a per-product column); one append-only register row per batch; reversing rows on return | a flag and a number; written rows stay valid |
+| R7-2 prescription record | patient and prescriber fields never enter audit, logs, exports, reports or the assistant; the number is NOT unique in the table (pads repeat), `DUPLICATE_PRESCRIPTION` is a service check per product and window; single use per sale (unique `saleId`) | relaxing a check or an index |
+| R7-3 attachment | private store, 5 MB, image or PDF sniffed from the bytes, read only through the gated route, every read audited by count | a permission name |
+| R7-4 retention | `rxRetentionDays` default 3650 because owner question B is unanswered; nothing is purged | a purge job and a number |
+| R7-5 credit | per-customer currency and limit, ledger balance, payments with one correction, refund lowers the balance first, ageing per currency; a payment needs `customer.manage`, a credit sale `credit.sell` | permission membership; one flag |
+| R7-6 assistant | six tools, grounding, untrusted block, no write tool, budget reused from phase 5 (kind ASSISTANT) | swap the provider and tune prompts; the tool layer stays |
+| R7-7 proposals | a suggestion creates nothing; accepting opens the existing draft | drop the table |
+| R7-8 printing | A4 invoice and slip, labels, margins, reprint log; browser print only | CSS and a template |
+| R7-9 cash drawer | **NOT built**: it needs a local helper program (spec section 8) | a separate integration |
+| R7-10 UI | no motion, en/ar/ckb, RTL, 375/768/1280, axe, text plus icon for states, read-only mode keeps the assistant and statements readable | polish |
+| R7-11 tests | one shared test database, one DB test file at a time, `BUZZIFY_DB_PORT` always; migrations additive only | none |
+| R7-12 extra migration | `20261101100100_pharmacy_cash_movement_customer_payment` drops and re-adds the same-name drawer CHECK, widened by `CUSTOMER_PAYMENT` (a new enum value cannot be used in the transaction that adds it). It has a second hash-pinned, whole-statement exemption in the additive guard, next to the phase 6 one | squash it into the phase 3 migration before the first deploy (a destructive local reset: the owner's choice) |
+| R7-13 triggers | append-only triggers on `PhControlledEntry`, `PhCustomerLedger`, `PhCustomerPayment` (reusing `PhPurchasing_append_only`) | none (stronger than asked) |
+| R7-14 retention column | `rxRetentionDays` is `Int? DEFAULT 3650`: NOT NULL would need an UPDATE of existing rows; code treats null as 3650 | an UPDATE and a NOT NULL later |
+
+**Migrations added (all additive; 37 pharmacy migrations in all)**
+
+- `20261101100000_pharmacy_phase7`: the PhSettings columns, `PhPrescription`, `PhRxAttachment`, `PhControlledEntry`, `PhCustomer`,
+  `PhCustomerLedger`, `PhCustomerPayment`, `PhAiProposal`, composite foreign keys, CHECKs, append-only triggers, `ADD VALUE IF NOT
+  EXISTS` for `PhPaymentMethod.CREDIT` and `PhCashMovementType.CUSTOMER_PAYMENT`.
+- `20261101100100_pharmacy_cash_movement_customer_payment` (R7-12).
+- `20261101100200_pharmacy_return_credit`: `PhReturn.creditMinor` (the part of a refund that went off a customer's balance).
+
+**Open items and known limits of phase 7**
+
+- **Owner question B (prescription retention period) is still open.** The default is 3650 days and nothing is ever purged.
+- **Cash drawer not built (R7-9).** Receipts, invoices and labels print through the browser only.
+- **Migration exemptions (R7-12 and the earlier one).** The additive guard now pins two migrations of unreleased tables (phase 6
+  `20261031110000_pharmacy_transfers_fixes` and phase 7 `20261101100100_...`). The owner should squash both into their first
+  migrations before the first deploy.
+- **`PhReturn.creditMinor` migration** was not in the plan; it is additive, its CHECK is named `PhReturn_refund_credit_within`.
+- **Supplier-return suggestion is not deep-filled:** it opens the supplier return page with a notice and a link back to the lines.
+- **A4 reprints are logged as width 80:** `PhReceiptReprint.width` is CHECKed to 80 or 58; a paper column needs a migration.
+- **The server does not yet refuse a `prescriptionId` on a sale with no RX lines.** The sell screen no longer sends one; a new server
+  sentence in three languages and a change to the sale transaction are needed.
+- **ar and ckb are machine-drafted** (about 480 keys in phase 7) and need a native speaker; so do the "effect" sentences.
+- **Mock AI only.** No real model, no real provider latency or cost was ever exercised; `AI_PRICE_*` must match the model chosen for
+  asking (`AI_PRICE_MODEL`) or reservations are mispriced. The assistant's sentence checks are keyword based (en, ar, ckb) and are a
+  net, not a guarantee; a dose or advice in a new phrasing may pass, though no figure can.
+- **A person's own typed question goes to the model** with phone numbers redacted; a name typed into it is not removed.
+- **Drawer cash payment reversal has no sufficiency check:** correcting a cash customer payment posts a negative cash movement even if
+  the drawer holds less.
+- **Taking a customer payment needs `customer.manage`:** a pharmacist or cashier cannot take one.
+- **Overpayment is refused** (`PAYMENT_EXCEEDS_BALANCE`), not stored as a customer credit.
+- **Free-text reasons in audit rows** (returns, cancellations, adjustments, counts, shift differences) are capped free text from
+  phases 2 and 3, by design; a reason can contain a patient name. The acceptance scan therefore uses a neutral reason. Patient,
+  prescriber, customer, phone, note, prescription number and assistant question never enter an audit row (tested).
+- **Reports:** the returns report separates the credit part (fixed in the task 3 review); slow-movers units are gross of returns.
+- **The register screen nets client-side** over the rows loaded so far (a note says so while more remain).
+- **Not verified:** real printers and paper, barcode scanners reading the printed labels, phones and browsers other than Chromium,
+  PDF attachments in the viewer in a browser, wording quality of ar and ckb, Neon and production (never touched).
+
+**Environment and launch notes**
+
+- Merging runs three more migrations on production (above); the earlier warnings under "Before merging or deploying" stand (Neon dry
+  run, backup, `lock_timeout`). No new environment variable is required; `AI_PRICE_*` and a plan budget are needed before a real
+  model is wired. Controlled sales and credit ship OFF (the owner switches them on in `/pharmacy/settings`).
+- The phase 7 e2e specs use their own ports (3173, 3174), set `Application(pharmacy)` ACTIVE and restore it; run with `--workers=1`.
+
+**How to run the phase 7 tests** (always `BUZZIFY_DB_PORT=<port>`, one database test file at a time)
+
+```sh
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-7.test.ts   # the row 7 criterion (about 10 s)
+# one file at a time: phase7-schema, prescriptions-domain, prescriptions, controlled, rx-attachment-gate, credit-domain, customers,
+# credit-sales, customer-payments, credit-reports, assistant-domain, assistant-tools, assistant-ai, assistant-proposals,
+# assistant-review-domain, assistant-review-ask, print-settings, ui-rx-credit-logic, ui-assistant-logic, ui-print-logic, ui-code128,
+# ui-print-settings, ui-reads, isolation, migration-additive
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.phase7.config.ts --workers=1    # prescriptions, credit, customers (en, ar, ckb)
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.phase7b.config.ts --workers=1   # assistant and printing (scripted model)
+```
+
 ## What is NOT built
 
-- **Phase 7 onward**: assistant, prescriptions, credit,
-  controlled-drug register, advanced printing (7). Phases 4 to 6 are built; what each leaves out is listed in its own section above (phase 6: no tax report, no customer report). Offline selling (the sale is not queued; the screen says so and keeps
+- **Phase 8 onward** (launch hardening). Phases 4 to 7 are built; what each leaves out is listed in its own section above (phase 6: no tax report, no customer report; phase 7: see its open items above, no cash drawer). Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
   - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
@@ -735,8 +853,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-thirty-four pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns) and the six of phase 6 (listed under Phase 6 above; `20261031110000_pharmacy_transfers_fixes` drops constraints and columns of the still-empty transfer tables and stops itself if they hold a row), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+thirty-seven pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns) and the six of phase 6 (listed under Phase 6 above; `20261031110000_pharmacy_transfers_fixes` drops constraints and columns of the still-empty transfer tables and stops itself if they hold a row) and the three of phase 7 (listed under Phase 7 above; `20261101100100_...` drops and re-adds one CHECK of the phase 3 cash table), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -749,7 +867,7 @@ the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, p
 `main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
 `20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
 `20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
-`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other thirty-four folders). They run on
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other thirty-seven folders). They run on
 production in the same `migrate deploy`, so they need the same dry run.
 
 Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
@@ -758,7 +876,7 @@ of the migrations. The old five-column batch unique index (business, product, lo
 next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the thirty-four has been run against Neon.
+is not available yet, so none of the thirty-seven has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -794,6 +912,7 @@ the row ships DISABLED. So set it ACTIVE first, then start the trials, then give
 - **Open items from the whole-phase review (not fixed):** (M-3) the supplier statement and the payables reads take several reads that are not one snapshot, so a concurrent write between them can show a false non-zero invariant difference for a moment; reading again clears it. (M-7) the older receipt confirm takes row locks on lots in an order that can differ between two branches receiving the same lot, so two such confirms can deadlock; Postgres ends one with a deadlock error and a retry succeeds.
 - **Phase 5 owner list:** see the rulings table in section 16 of the spec and `docs/pharmacy/intake-uat.md` (D1 to D6): month-first dates, Arabic and Kurdish search under the Neon locale, image barcode decoding, who may edit (STOCK and ACCOUNTANT approve but do not edit), discounts and tax outside the receipt cost, native review of ar and ckb. Known gaps: scheduling of the purge and expiry scripts and the bucket lifecycle rule; no restore of a removed line; the approval's request key lives in `PhIntakeBatch.header.approval` (JSON, no index); real-invoice figures (quality limits, token bounds) are synthetic until UAT. Before launch: the private bucket, its `PH_INTAKE_R2_*` variables, `AI_PRICE_*` and the plan budget.
 - **Phase 6 owner list:** see the rulings table under "Phase 6" above and section 16 of the spec: squash the transfers fixes migration before the first deploy, the three-permission rule of the margin report, R6-9b (Excel text-numbers), R6-10a (a 2 s year-window dashboard), R6-13 (a cancel with no reason), R6-15 (the place does not narrow reports), native review of every ar and ckb string, and the items listed as NOT verified in that section.
+- **Phase 7 owner list:** see "Phase 7" above and section 16 of the spec: owner question B (retention, default 3650 days, nothing purged), controlled sales and credit ship OFF, the cash drawer (R7-9) is not built, squash the two pinned-exemption migrations (R7-12 and the phase 6 one) before the first deploy, payments need `customer.manage`, overpayment refused, ar and ckb are machine drafts, `AI_PRICE_*` must match the asking model, and a mock model is all that ever ran.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
 - **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".

@@ -35,3 +35,17 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 - R7-12 Migration `20261101100100_pharmacy_cash_movement_customer_payment` replaces the drawer sign CHECK (DROP and re-ADD of the same-name CHECK, widened by CUSTOMER_PAYMENT) because a new enum value cannot be used in the transaction that adds it. It touches only a table created earlier on this same unreleased branch (PhCashMovement, phase 3) and only widens; it has a hash-pinned whole-statement exemption in the additive guard. Cost if wrong: squash it into the phase 3 migration (needs a destructive local DB reset = owner's choice).
 - R7-13 Append-only triggers on PhControlledEntry, PhCustomerLedger, PhCustomerPayment (reusing PhPurchasing_append_only) are accepted: stronger than the plan asked, no cost.
 - R7-14 `rxRetentionDays` is `Int? DEFAULT 3650` (NOT NULL would need an UPDATE of existing rows); code treats null as 3650.
+
+## Status (2026-11-01)
+
+Phase 7 is built and proven locally with a scripted model; nothing is pushed, no PR, no production or Neon. Task 7 delivered `tests/pharmacy/acceptance-phase-7.test.ts` (34 tests: controlled register against independent SQL, credit balance per currency, the attachment gate at function, query and route, the role matrix of every assistant tool, proposal and rx/customer action, no fabrication, no personal data to the model, audit scan), the README phase 7 section, the Arabic phase 7 subsection and the status line of the spec.
+
+Commits (oldest first), by task:
+
+1. Schema: `b83c5071`, `cb12bf60`, `21bbb9c2`, `a4a5f8b7`.
+2. Prescriptions and controlled drugs: `b5e7060c`, `5d3773ca`, `a2958c83`, `bba541f1`, `e81d76b4`; fix round `5e0cd7c5`.
+3. Customers and credit: `448aceaf`, `f92b8893`, `01572563`, `c82c1144`, `06245f17`, `b6e565ec`; fix round `cfb37841`, `b5187ef0`.
+4. Assistant: `96cbe039`, `ae54828e`, `2d25770a`, `7ede660b`; fix round `90ad2ac3`.
+5. Prescription, controlled and credit UI: `b8f7bbd8`, `466bd69f`, `169be316`, `99ec1835`, `6930f0a0`, `924c1eee`, `50d45187`, `1306cacb`, `0e64901a`; fix round `f462b4a7`.
+6. Assistant and printing UI: `f4982a2c`, `1adf4610`, `465b43b0`, `5cd6bab1`, `38928b96`, `230ef843`, `76b2d6b5`, `9c266f76`, `1432cae3`; fix round `cb7e6eae`.
+7. Acceptance and docs: the acceptance test commit (`020b4c21`), then the docs commit (README, spec, this plan).
