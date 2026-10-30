@@ -666,6 +666,7 @@ register and the credit balances (see "How to run").
 | R7-11 tests | one shared test database, one DB test file at a time, `BUZZIFY_DB_PORT` always; migrations additive only | none |
 | R7-12 extra migration | `20261101100100_pharmacy_cash_movement_customer_payment` drops and re-adds the same-name drawer CHECK, widened by `CUSTOMER_PAYMENT` (a new enum value cannot be used in the transaction that adds it). It has a second hash-pinned, whole-statement exemption in the additive guard, next to the phase 6 one | squash it into the phase 3 migration before the first deploy (a destructive local reset: the owner's choice) |
 | R7-13 triggers | append-only triggers on `PhControlledEntry`, `PhCustomerLedger`, `PhCustomerPayment` (reusing `PhPurchasing_append_only`) | none (stronger than asked) |
+| R7-15 audit has no free text | the reason text of returns, cancels, adjustments, damage, reversals, quarantine releases, count approvals, paid in/out and shift closes stays in its own table; audit `changes` carry `hasReason` only (acceptance test scans for it) | audit rows lose the reason text; it remains in the domain tables |
 | R7-14 retention column | `rxRetentionDays` is `Int? DEFAULT 3650`: NOT NULL would need an UPDATE of existing rows; code treats null as 3650 | an UPDATE and a NOT NULL later |
 
 **Migrations added (all additive; 37 pharmacy migrations in all)**
@@ -697,9 +698,10 @@ register and the credit balances (see "How to run").
   the drawer holds less.
 - **Taking a customer payment needs `customer.manage`:** a pharmacist or cashier cannot take one.
 - **Overpayment is refused** (`PAYMENT_EXCEEDS_BALANCE`), not stored as a customer credit.
-- **Free-text reasons in audit rows** (returns, cancellations, adjustments, counts, shift differences) are capped free text from
-  phases 2 and 3, by design; a reason can contain a patient name. The acceptance scan therefore uses a neutral reason. Patient,
-  prescriber, customer, phone, note, prescription number and assistant question never enter an audit row (tested).
+- **Free-text reasons are out of audit rows (R7-15).** Earlier phases audited the capped reason text of returns, cancellations,
+  adjustments, damage, reversals, quarantine releases, count approvals, paid in/out and shift closes; it could carry a patient name.
+  Now the text stays on its own row and the audit holds `hasReason`. Audit rows written before this change keep their old text.
+  Patient, prescriber, customer, phone, note, prescription number, reasons and the assistant question never enter an audit row (tested).
 - **Reports:** the returns report separates the credit part (fixed in the task 3 review); slow-movers units are gross of returns.
 - **The register screen nets client-side** over the rows loaded so far (a note says so while more remain).
 - **Not verified:** real printers and paper, barcode scanners reading the printed labels, phones and browsers other than Chromium,

@@ -34,6 +34,7 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 
 - R7-12 Migration `20261101100100_pharmacy_cash_movement_customer_payment` replaces the drawer sign CHECK (DROP and re-ADD of the same-name CHECK, widened by CUSTOMER_PAYMENT) because a new enum value cannot be used in the transaction that adds it. It touches only a table created earlier on this same unreleased branch (PhCashMovement, phase 3) and only widens; it has a hash-pinned whole-statement exemption in the additive guard. Cost if wrong: squash it into the phase 3 migration (needs a destructive local DB reset = owner's choice).
 - R7-13 Append-only triggers on PhControlledEntry, PhCustomerLedger, PhCustomerPayment (reusing PhPurchasing_append_only) are accepted: stronger than the plan asked, no cost.
+- R7-15 Audit rows never hold free text: the reason text of returns, cancellations, stock adjustments, damage, reversals, quarantine releases, count approvals, paid in/out and shift closes stays in its own business table (PhReturn, PhStockMovement, PhStockCount, PhCashMovement, PhShift); the audit `changes` carry `hasReason` (boolean) instead. Cost if wrong: audit rows lose the reason text; it remains in the domain tables (restoring it is one key per action, but it can carry a patient name).
 - R7-14 `rxRetentionDays` is `Int? DEFAULT 3650` (NOT NULL would need an UPDATE of existing rows); code treats null as 3650.
 
 ## Status (2026-11-01)
