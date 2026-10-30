@@ -2547,7 +2547,7 @@ const pharmacy: Messages = {
   'pharmacy.reports.notice.valuation.incomplete_one': 'The value is incomplete: {n} stock row has no cost on record.',
   'pharmacy.reports.notice.valuation.incomplete_other': 'The value is incomplete: {n} stock rows have no cost on record.',
   'pharmacy.reports.notice.expiry.truncated': 'There are too many batches to list. The totals above are complete; choose one branch to see the list.',
-  'pharmacy.reports.notice.transfers.scope': 'A transfer touches two branches, so it appears in each narrowed report that includes one end. Do not add up reports of single branches; use the all-branches figure.',
+  'pharmacy.reports.notice.transfers.scope': 'A transfer touches two branches, so it appears in each narrowed report that includes one end. Do not add up reports of single branches; use the all-branches figure. Lost and damaged units and the time in transit are counted on the day the transfer was received; the other figures on the day it was requested. A branch you do not work in is shown as "other branch".',
   'pharmacy.reports.notice.chain.transit': 'A transfer on the road counts once in the total. On the cards it shows as outgoing at the sender and incoming at the receiver, so the cards can add up to more than the total.',
   'pharmacy.reports.sales.returnsNote': 'Returns count on the day they were made, so net sales are sales less refunds in the same period.',
   'pharmacy.reports.sales.paymentsNote': 'Cash is shown after the change given back.',

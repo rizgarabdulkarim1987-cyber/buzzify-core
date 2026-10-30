@@ -542,7 +542,15 @@ describe('who may read, and which branches', () => {
     for (const [name, input] of [...ALL, ['margin', { ...PERIOD }] as const]) {
       const mine = dataOf(await ask(w.manager1, def(name), { ...at(w), ...input }));
       const narrowed = dataOf(await ask(w.owner, def(name), { ...at(w, w.b1), ...input }));
-      expect(mine, name).toEqual(narrowed);
+      // R6-17: the owner who narrows to branch 1 still reaches every branch and names the other end of a transfer; the manager sees it as 'other branch'
+      // (no id, no name), so for the two reports that name both ends only the figures are compared, and the manager's answer must not hold branch 2.
+      if (name === 'transfers' || name === 'damaged') {
+        const figures = (r: unknown) => JSON.parse(JSON.stringify(r, (key, value) => (['rows', 'byBranch', 'byRoute', 'sendersAndRoutes'].includes(key) ? undefined : value)));
+        expect(figures(mine), name).toEqual(figures(narrowed));
+        expect(JSON.stringify(mine), name).not.toContain(w.b2);
+      } else {
+        expect(mine, name).toEqual(narrowed);
+      }
       const refused = await ask(w.manager1, def(name), { ...at(w, w.b2), ...input });
       expect(refused.ok, `${name} for another branch`).toBe(false);
     }

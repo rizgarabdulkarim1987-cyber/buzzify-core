@@ -272,8 +272,8 @@ export function TransfersView({ r, ctx, date }: { r: Data<TransfersReport>; ctx:
             ) : (
               <bdi key="n" dir="ltr">{x.number ?? '-'}</bdi>
             ),
-            <Name key="f">{x.fromBranchName}</Name>,
-            <Name key="t">{x.toBranchName}</Name>,
+            x.fromBranchName ? <Name key="f">{x.fromBranchName}</Name> : <span key="f" className="text-muted">{t(key('otherBranch'))}</span>,
+            x.toBranchName ? <Name key="t">{x.toBranchName}</Name> : <span key="t" className="text-muted">{t(key('otherBranch'))}</span>,
             t(`pharmacy.transfers.status.${x.status}`),
             <bdi key="d" dir="ltr">{date(x.requestedAt)}</bdi>,
             <Num key="rq" value={x.requestedQty} />,

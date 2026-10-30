@@ -20,6 +20,17 @@ export type TransfersReportInput = z.input<typeof transfersReportInput>;
 export const damagedInput = z.object({ ...periodShape });
 export type DamagedInput = z.input<typeof damagedInput>;
 
+/** Merges rows that share a key (after the id of a branch outside the person's reach was blanked). */
+function mergeBy<T>(items: T[], key: (t: T) => string, add: (a: T, b: T) => T): T[] {
+  const out = new Map<string, T>();
+  for (const item of items) {
+    const k = key(item);
+    const had = out.get(k);
+    out.set(k, had === undefined ? item : add(had, item));
+  }
+  return [...out.values()];
+}
+
 // Damaged, quarantined and lost ------------------------------------------------------------------------------------------
 
 export interface DamagedReport {
@@ -170,7 +181,7 @@ export async function damagedReport(scoped: ScopedClient, ph: PhActor, place: { 
           : {}),
       },
       byRoute: sortBy(
-        tRoute.map((r) => ({ fromBranchId: r.f, toBranchId: r.t, lostQty: r.lost, damagedQty: r.damaged })),
+        mergeBy(tRoute.map((r) => ({ fromBranchId: ph.branchIds.includes(r.f) ? r.f : '', toBranchId: ph.branchIds.includes(r.t) ? r.t : '', lostQty: r.lost, damagedQty: r.damaged })), (r) => `${r.fromBranchId}|${r.toBranchId}`, (a, b) => ({ ...a, lostQty: a.lostQty + b.lostQty, damagedQty: a.damagedQty + b.damagedQty })),
         (r) => r.fromBranchId,
         (r) => r.toBranchId,
       ),
@@ -236,6 +247,10 @@ export async function transfersReport(scoped: ScopedClient, ph: PhActor, place: 
     after = Prisma.sql`AND (t."requestedAt" < ${stamp(at[0].requestedAt)} OR (t."requestedAt" = ${stamp(at[0].requestedAt)} AND t."id" < ${input.cursor}))`;
   }
   const sentLines = Prisma.sql`l."requestLineId" IS NOT NULL`;
+  // Lost and damaged units and the time in transit are known when the transfer is RECEIVED, so they are cut by the day it was received (the same axis as the
+  // damaged report, R6-17a); every other figure of this report is cut by the day the transfer was requested.
+  const receivedBase = Prisma.sql`t."restaurantId" = ${scope.restaurantId} AND ${touches} AND t."status"::text IN ('RECEIVED', 'PARTIAL') AND t."receivedAt" >= ${stamp(w.start)} AND t."receivedAt" < ${stamp(w.endExclusive)}
+    ${input.status ? Prisma.sql`AND t."status"::text = ${input.status}` : Prisma.empty}`;
   const [groups, rows, open, lost, lostReasons, avg] = await Promise.all([
     scoped.$queryRaw<Array<{ g: number; status: TransfersReport['byStatus'][number]['status'] | null; f: string | null; t: string | null; n: number }>>(Prisma.sql`
       SELECT GROUPING(t."status", t."fromBranchId", t."toBranchId")::int AS "g", t."status"::text AS "status", t."fromBranchId" AS "f", t."toBranchId" AS "t", COUNT(*)::int AS "n"
@@ -256,17 +271,20 @@ export async function transfersReport(scoped: ScopedClient, ph: PhActor, place: 
       WHERE t."restaurantId" = ${scope.restaurantId} AND ${touches} AND t."status" = 'SENT' AND ${sentLines} GROUP BY t."fromBranchId", t."toBranchId"`),
     scoped.$queryRaw<Array<{ lost: number; damaged: number }>>(Prisma.sql`
       SELECT COALESCE(SUM(l."lostQty"), 0)::int AS "lost", COALESCE(SUM(l."damagedQty"), 0)::int AS "damaged"
-      FROM "PhTransferLine" l JOIN "PhTransfer" t ON t."restaurantId" = l."restaurantId" AND t."id" = l."transferId" WHERE ${base} AND ${sentLines}`),
+      FROM "PhTransferLine" l JOIN "PhTransfer" t ON t."restaurantId" = l."restaurantId" AND t."id" = l."transferId" WHERE ${receivedBase} AND ${sentLines}`),
     scoped.$queryRaw<Array<{ reason: 'LOST' | 'OTHER'; lost: number }>>(Prisma.sql`
       SELECT l."lostReason"::text AS "reason", SUM(l."lostQty")::int AS "lost"
-      FROM "PhTransferLine" l JOIN "PhTransfer" t ON t."restaurantId" = l."restaurantId" AND t."id" = l."transferId" WHERE ${base} AND ${sentLines} AND l."lostQty" > 0 GROUP BY l."lostReason"`),
+      FROM "PhTransferLine" l JOIN "PhTransfer" t ON t."restaurantId" = l."restaurantId" AND t."id" = l."transferId" WHERE ${receivedBase} AND ${sentLines} AND l."lostQty" > 0 GROUP BY l."lostReason"`),
     scoped.$queryRaw<Array<{ secs: bigint | null }>>(Prisma.sql`
       SELECT ROUND(AVG(EXTRACT(EPOCH FROM (t."receivedAt" - t."sentAt"))))::bigint AS "secs"
-      FROM "PhTransfer" t WHERE ${base} AND t."status"::text IN ('RECEIVED', 'PARTIAL') AND t."sentAt" IS NOT NULL AND t."receivedAt" IS NOT NULL`),
+      FROM "PhTransfer" t WHERE ${receivedBase} AND t."sentAt" IS NOT NULL AND t."receivedAt" IS NOT NULL`),
   ]);
   const more = rows.length > input.take;
   const page = more ? rows.slice(0, input.take) : rows;
   const iso = (d: Date | null) => (d ? d.toISOString() : null);
+  // R6-17: the other end of a transfer is shown only when it is a branch the person works in; otherwise it is "other branch" (empty id, empty name).
+  const reach = new Set(ph.branchIds);
+  const mask = (id: string) => (reach.has(id) ? id : '');
   return {
     from: input.from,
     to: input.to,
@@ -277,11 +295,11 @@ export async function transfersReport(scoped: ScopedClient, ph: PhActor, place: 
       (r) => r.status,
     ),
     byBranch: sortBy(
-      groups.filter((g) => g.g === 5 && g.f !== null).map((g) => ({ branchId: g.f!, count: g.n })),
+      mergeBy(groups.filter((g) => g.g === 5 && g.f !== null).map((g) => ({ branchId: mask(g.f!), count: g.n })), (r) => r.branchId, (a, b) => ({ ...a, count: a.count + b.count })),
       (r) => r.branchId,
     ),
     byRoute: sortBy(
-      groups.filter((g) => g.g === 0).map((g) => ({ fromBranchId: g.f!, toBranchId: g.t!, status: g.status!, count: g.n })),
+      mergeBy(groups.filter((g) => g.g === 0).map((g) => ({ fromBranchId: mask(g.f!), toBranchId: mask(g.t!), status: g.status!, count: g.n })), (r) => `${r.fromBranchId}|${r.toBranchId}|${r.status}`, (a, b) => ({ ...a, count: a.count + b.count })),
       (r) => r.fromBranchId,
       (r) => r.toBranchId,
       (r) => r.status,
@@ -289,11 +307,11 @@ export async function transfersReport(scoped: ScopedClient, ph: PhActor, place: 
     inTransit: {
       units: open.reduce((s, r) => s + r.units, 0),
       transfers: open.reduce((s, r) => s + r.transfers, 0),
-      byRoute: sortBy(open.map((r) => ({ fromBranchId: r.f, toBranchId: r.t, units: r.units })), (r) => r.fromBranchId, (r) => r.toBranchId),
+      byRoute: sortBy(mergeBy(open.map((r) => ({ fromBranchId: mask(r.f), toBranchId: mask(r.t), units: r.units })), (r) => `${r.fromBranchId}|${r.toBranchId}`, (a, b) => ({ ...a, units: a.units + b.units })), (r) => r.fromBranchId, (r) => r.toBranchId),
     },
     lost: { lostQty: lost[0]?.lost ?? 0, damagedQty: lost[0]?.damaged ?? 0, byReason: sortBy(lostReasons.map((r) => ({ reason: r.reason, lostQty: r.lost })), (r) => r.reason) },
     avgTransitSeconds: avg[0]?.secs === null || avg[0]?.secs === undefined ? null : Number(avg[0].secs),
-    rows: page.map((r) => ({ ...r, requestedAt: r.requestedAt.toISOString(), sentAt: iso(r.sentAt), receivedAt: iso(r.receivedAt) })),
+    rows: page.map((r) => ({ ...r, fromBranchId: mask(r.fromBranchId), fromBranchName: reach.has(r.fromBranchId) ? r.fromBranchName : '', toBranchId: mask(r.toBranchId), toBranchName: reach.has(r.toBranchId) ? r.toBranchName : '', requestedAt: r.requestedAt.toISOString(), sentAt: iso(r.sentAt), receivedAt: iso(r.receivedAt) })),
     hasMore: more,
     nextCursor: more ? page[page.length - 1]!.id : null,
   };
