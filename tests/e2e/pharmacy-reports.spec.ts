@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { createPrisma } from '@/server/data/prisma';
 import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
+import { addDays, baghdadDay } from '@/server/domain/pharmacy/reports-domain';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, setUserLocale, uniqueClientAddress, type StudioUser } from './helpers/studio';
@@ -100,6 +101,12 @@ function csvRows(file: string): string[][] {
   return readFileSync(file, 'utf8').replace(/^﻿/, '').split(/\r?\n/).filter(Boolean).map((line) => line.split(','));
 }
 const digits = (text: string | null) => (text ?? '').replace(/[^\d.-]/g, '');
+/** The texts of the cells of one table row (the row header first). */
+const cells = async (row: Locator) => (await row.locator('th, td').allInnerTexts()).map((c) => c.replace(/\s+/g, ' ').trim());
+/** The Baghdad day of an instant: the world is built on one such day, and the period tests derive their dates from the clock instead of writing them down. */
+const today = () => baghdadDay(new Date());
+const EXPORT_TOO_LARGE = { error: { code: 'INVALID', message: 'This report has too many rows for one file. Narrow the dates or choose a branch.', fields: { phCode: 'EXPORT_TOO_LARGE', limit: '50000' } } };
+const EXPIRY_TOO_LARGE = { error: { code: 'INVALID', message: 'This chain has too many expiring batches for one file (the limit is 20,000). Choose one branch and export again.', fields: { phCode: 'EXPORT_EXPIRY_TOO_LARGE', limit: '20000' } } };
 
 test.describe.configure({ mode: 'serial' });
 
@@ -111,6 +118,7 @@ test.describe('Pharmacy reports and chain @desktop', () => {
   let empty: Shop;
   let big: Shop;
   let other: Shop;
+  let broken: Shop;
   let owner: StudioUser;
   let mgrA: StudioUser;
   let cashier: StudioUser;
@@ -121,7 +129,9 @@ test.describe('Pharmacy reports and chain @desktop', () => {
   let ownerEmpty: StudioUser;
   let ownerBig: StudioUser;
   let ownerOther: StudioUser;
+  let ownerBroken: StudioUser;
   let world: { names: { P: string; Q: string }; productP: string };
+  let worldDay: string;
   let A: string;
   let B: string;
 
@@ -139,19 +149,21 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     empty = await makeShop('Empty', ['Echo', 'Foxtrot']);
     big = await makeShop('Big', ['Main']);
     other = await makeShop('Other', ['Delta']);
-    restaurants.push(shop.id, empty.id, big.id, other.id);
+    broken = await makeShop('Broken', ['Kilo', 'Lima']);
+    restaurants.push(shop.id, empty.id, big.id, other.id, broken.id);
     [A, B] = shop.branches.map((b) => b.name) as [string, string];
     const make = async (label: string) => {
       const user = await createStudioUser({ label: `ph-rep-${label}`, name: `Rep ${label}` });
       people.push(user.email);
       return user;
     };
-    const made = await Promise.all(['owner', 'mgr-a', 'cashier', 'pic', 'acct', 'stock', 'pharm', 'owner-e', 'owner-b', 'owner-o'].map(make));
-    [owner, mgrA, cashier, pic, accountant, stock, pharmacist, ownerEmpty, ownerBig, ownerOther] = made as [StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser];
+    const made = await Promise.all(['owner', 'mgr-a', 'cashier', 'pic', 'acct', 'stock', 'pharm', 'owner-e', 'owner-b', 'owner-o', 'owner-x'].map(make));
+    [owner, mgrA, cashier, pic, accountant, stock, pharmacist, ownerEmpty, ownerBig, ownerOther, ownerBroken] = made as [StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser, StudioUser];
     await assignMember(owner.userId, shop.id, 'OWNER');
     await assignMember(ownerEmpty.userId, empty.id, 'OWNER');
     await assignMember(ownerBig.userId, big.id, 'OWNER');
     await assignMember(ownerOther.userId, other.id, 'OWNER');
+    await assignMember(ownerBroken.userId, broken.id, 'OWNER');
     await staff(mgrA.userId, shop, 'BRANCH_MANAGER', [0]);
     await staff(cashier.userId, shop, 'CASHIER', [0]);
     await staff(pic.userId, shop, 'PHARMACIST_IN_CHARGE', [0, 1]);
@@ -159,6 +171,7 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     await staff(stock.userId, shop, 'STOCK', [0, 1]);
     await staff(pharmacist.userId, shop, 'PHARMACIST', [0]);
     const root = process.cwd();
+    const dayBefore = today();
     const output = execFileSync(
       process.execPath,
       [path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs'), path.join(root, 'tests', 'e2e', 'helpers', 'reports-world-cli.ts'), JSON.stringify({ restaurantId: shop.id, branchA: shop.branches[0]!.id, branchB: shop.branches[1]!.id, owner: owner.userId, mgrA: mgrA.userId, cashierA: cashier.userId, suffix: randomUUID().slice(0, 5) })],
@@ -167,18 +180,28 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     const line = output.split(/\r?\n/).find((l) => l.startsWith('WORLD '));
     if (!line) throw new Error(`the world script gave no answer:\n${output}`);
     world = JSON.parse(line.slice('WORLD '.length));
-    // The big pharmacy: 1,000 products, each below its minimum (no stock), for "Load more" and the long list at 375px.
+    worldDay = today();
+    // Every sale of the world is on one Baghdad day; a build that crossed midnight would make the day figures ambiguous, so it asks to be run again.
+    if (worldDay !== dayBefore) throw new Error('The world was built across Baghdad midnight; run the suite again.');
+    // The big pharmacy: 2,100 products, each below its minimum (no stock): "Load more", the cap (2,000 rows) and the long list at 375px.
     const client2 = db();
     try {
       const ids: string[] = [];
       await client2.phProduct.createMany({
-        data: Array.from({ length: 1000 }, (_, i) => {
+        data: Array.from({ length: 2100 }, (_, i) => {
           const tradeName = `Bulk ${String(i).padStart(4, '0')}`;
           return { restaurantId: big.id, tradeName, identityKey: `${tradeName}|${big.id}`, searchText: searchTextOf({ tradeName, genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }) };
         }),
       });
       for (const p of await client2.phProduct.findMany({ where: { restaurantId: big.id }, select: { id: true } })) ids.push(p.id);
       await client2.phProductBranch.createMany({ data: ids.map((productId) => ({ restaurantId: big.id, branchId: big.branches[0]!.id, productId, minQty: 5, reorderQty: 5 })) });
+      // The pharmacy whose reports cannot be computed: two balances of 2 billion units each add up past the integer the report answers with, so the
+      // database refuses the sum. That is a real server failure (no test switch in the product): the screens must say so in words.
+      const bad = await client2.phProduct.create({ data: { restaurantId: broken.id, tradeName: 'Overflow', identityKey: `Overflow|${broken.id}`, searchText: 'overflow' }, select: { id: true } });
+      for (const [i, branch] of broken.branches.entries()) {
+        const batch = await client2.phBatch.create({ data: { restaurantId: broken.id, productId: bad.id, lot: `OV${i}`, expiryDate: new Date('2030-01-01T00:00:00.000Z') }, select: { id: true } });
+        await client2.phStockBalance.create({ data: { restaurantId: broken.id, branchId: branch.id, productId: bad.id, batchId: batch.id, available: 2_000_000_000 } });
+      }
     } finally {
       await client2.$disconnect();
     }
@@ -228,7 +251,10 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     const panadol = o.getByTestId('report-rows').getByTestId('report-row').filter({ hasText: world.names.P }).filter({ hasText: 'IQD' });
     await expect(panadol).toContainText('2,585 IQD');
     await expect(panadol).toContainText('2,135 IQD');
-    await expect(panadol).toContainText('28');
+    // By product: count, units, gross, discount, sales, refunds and net, cell by cell (a figure in the wrong column must fail).
+    const panadolCells = await cells(panadol);
+    expect(panadolCells[0]).toContain(world.names.P);
+    expect(panadolCells.slice(1, 9)).toEqual(['IQD', '3', '28', '2,600 IQD', '15 IQD', '2,585 IQD', '450 IQD', '2,135 IQD']);
     await expect(o.getByTestId('report-rows').getByTestId('report-row').filter({ hasText: world.names.Q })).toContainText('2,000 IQD');
 
     await o.goto('/pharmacy/reports/returns');
@@ -247,7 +273,7 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     await expect(o.getByTestId('totals-IQD')).toContainText('1,569 IQD');
     expect(await text(o, 'excluded-IQD')).toBe('2,000 IQD');
     await expect(o.locator('[data-notice="margin.estimated"]')).toBeVisible();
-    await expect(o.locator('[data-notice="margin.costMissing"]')).toContainText('1 lines');
+    await expect(o.locator('[data-notice="margin.costMissing"]')).toContainText('1 line,');
     await expect(o.locator('[data-notice="margin.otherCurrency"]')).toBeVisible();
 
     await o.goto('/pharmacy/reports/stock-valuation');
@@ -257,8 +283,13 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     expect(await text(o, 'transit-units')).toBe('12');
     await expect(o.locator('[data-notice="valuation.incomplete"]')).toBeVisible();
     await o.goto('/pharmacy/reports/expiry');
-    await expect(o.getByTestId('expiry-bands')).toContainText('168');
-    await expect(o.getByTestId('expiry-bands')).toContainText('192');
+    // Bands (expired, 30, 60, 90 days): rows, units and value per band, cell by cell.
+    const bands = o.getByTestId('expiry-bands').getByTestId('report-row');
+    await expect(bands).toHaveCount(4);
+    const bandCells = await Promise.all([0, 1, 2, 3].map((i) => cells(bands.nth(i))));
+    expect(bandCells.map((c) => c.slice(1, 3))).toEqual([['0', '0'], ['1', '168'], ['1', '192'], ['0', '0']]);
+    expect(bandCells[1]![3]).toBe('11,844 IQD');
+    expect(bandCells[2]![3]).toBe('11,520 IQD');
     await o.goto('/pharmacy/reports/damaged');
     expect(await text(o, 'units-damaged')).toBe('3');
     await expect(o.getByTestId('damaged-movements')).toContainText('180 IQD');
@@ -284,8 +315,12 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     await expect(o.getByTestId(`chain-card-${idA}`)).toContainText('Outgoing on the road (units)12');
     await expect(o.getByTestId(`chain-card-${idB}`)).toContainText('Incoming on the road (units)12');
     const compare = o.getByTestId('chain-compare-IQD').getByTestId('report-row');
-    await expect(compare.first()).toContainText(A);
-    await expect(compare.first()).toContainText('1');
+    // The row header is the branch, the next cell its rank (A is first: 3,635 against 500).
+    const first = await cells(compare.first());
+    expect(first[0]).toContain(A);
+    expect(first[1]).toBe('1');
+    expect(first[2]).toBe('3');
+    expect((await cells(compare.nth(1)))[1]).toBe('2');
     await expect(o.locator('[data-notice="chain.transit"]')).toBeVisible();
     // A figure links to the report with the same period.
     const href = await o.getByTestId(`chain-card-${idA}`).getByRole('link').first().getAttribute('href');
@@ -325,6 +360,10 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     expect(total[header.indexOf('net')]).toBe('4135');
     const totalUsd = rows.find((r) => r[header.indexOf('rowType')] === 'total' && r[header.indexOf('currency')] === 'USD')!;
     expect(totalUsd[header.indexOf('net')]).toBe('2.00');
+    // A request another site started carries our cookie but makes no file and no audit row.
+    const cross = await o.request.get('/pharmacy/reports/export?report=sales&format=csv', { headers: { 'sec-fetch-site': 'cross-site' } });
+    expect(cross.status()).toBe(403);
+    expect(await auditCount()).toBe(before + 1);
     // Excel: the same screen gives a workbook with the server's file name.
     const xlsx = o.waitForEvent('download');
     await o.getByTestId('export-xlsx').click();
@@ -450,15 +489,25 @@ test.describe('Pharmacy reports and chain @desktop', () => {
       await expect(o.getByTestId('report-totals'), url).toHaveCount(0);
       await expect(o.getByTestId('chain-card-total'), url).toHaveCount(0);
     }
-    // A 366-day range is allowed, 367 is not; a long range says it may take a few seconds.
-    await o.goto('/pharmacy/reports/sales?from=2026-01-01&to=2027-01-01');
+    // A 366-day range is allowed, 367 is not; a long range says it may take a few seconds (the dates come from the clock, not from the calendar of this file).
+    const t0 = today();
+    await o.goto(`/pharmacy/reports/sales?from=${addDays(t0, -366)}&to=${t0}`);
+    await expect(o.getByTestId('filter-error-to')).toBeVisible();
+    await o.goto(`/pharmacy/reports/sales?from=${addDays(t0, -365)}&to=${t0}`);
     await expect(o.getByTestId('filters-invalid')).toHaveCount(0);
     await expect(o.getByTestId('long-range-hint')).toBeVisible();
-    await o.goto('/pharmacy/reports/sales?from=2026-01-01&to=2026-03-31');
+    await o.goto(`/pharmacy/reports/sales?from=${addDays(t0, -90)}&to=${t0}`);
+    await expect(o.getByTestId('long-range-hint')).toBeVisible();
+    await o.goto(`/pharmacy/reports/sales?from=${addDays(t0, -89)}&to=${t0}`);
     await expect(o.getByTestId('long-range-hint')).toHaveCount(0);
     // A preset is a link that carries the period; "today" is one day.
     await o.getByTestId('preset-today').click();
     await expect(o).toHaveURL(/from=(\d{4}-\d{2}-\d{2})&to=\1/);
+    const pickedDay = /from=(\d{4}-\d{2}-\d{2})/.exec(o.url())![1];
+    // The world's sales are on `worldDay`: when the clock still says so the day shows them, and if the run went past Baghdad midnight the day is empty.
+    if (pickedDay === worldDay) expect(await text(o, 'net-IQD')).toBe('4,135 IQD');
+    else await expect(o.getByTestId('report-empty')).toBeVisible();
+    await o.goto(`/pharmacy/reports/sales?from=${worldDay}&to=${worldDay}`);
     expect(await text(o, 'net-IQD')).toBe('4,135 IQD');
     // Changing the branch filter narrows the figures and the address.
     await o.getByTestId('filter-branch').selectOption({ label: B });
@@ -469,27 +518,43 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     await o.getByTestId('filter-from').fill('2026-02-02');
     await o.context().setOffline(true);
     await expect(o.getByTestId('stock-offline')).toBeVisible();
+    // A report screen is read-only: it says the figures may be old, not that changes cannot be saved.
+    await expect(o.getByTestId('stock-offline')).toContainText('may be out of date');
+    await expect(o.getByTestId('stock-offline')).not.toContainText('saved');
     await expect(o.getByTestId('filter-from')).toHaveValue('2026-02-02');
     await expect(o.getByTestId('filter-branch')).toHaveValue(shop.branches[1]!.id);
     await o.context().setOffline(false);
     await o.context().close();
   });
 
-  test('a long list pages by "Load more", and 1,000 rows stay usable at 375px', async ({ browser }) => {
-    test.setTimeout(240_000);
+  test('a long list pages by "Load more" up to its cap, then says so; 2,000 rows stay usable at 375px', async ({ browser }) => {
+    test.setTimeout(360_000);
     const o = await session(browser, ownerBig, big, null, { width: 375, height: 800 });
     await o.goto('/pharmacy/reports/low-stock');
-    expect(await text(o, 'low-total')).toBe('1,000');
+    expect(await text(o, 'low-total')).toBe('2,100');
+    await expect(o.getByTestId('report-capped')).toHaveCount(0);
     await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(100);
     await o.getByTestId('report-more').click();
     await expect(o).toHaveURL(/pages=2/);
     await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(200);
     await o.goto('/pharmacy/reports/low-stock?pages=10');
     await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(1000);
+    await expect(o.getByTestId('report-more')).toBeVisible();
+    // The last page that can be asked for: 20 pages of 100 rows. The link is gone and a sentence takes its place (it used to loop on the same page).
+    await o.goto('/pharmacy/reports/low-stock?pages=19');
+    await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(1900);
+    await o.getByTestId('report-more').click();
+    await expect(o).toHaveURL(/pages=20/);
+    await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(2000);
     await expect(o.getByTestId('report-more')).toHaveCount(0);
+    await expect(o.getByTestId('report-capped')).toContainText('first 2,000 rows');
+    // A larger number in the address is read as the last page, not as more rows.
+    await o.goto('/pharmacy/reports/low-stock?pages=99');
+    await expect(o.getByTestId('report-rows').getByTestId('report-row')).toHaveCount(2000);
+    await expect(o.getByTestId('report-capped')).toBeVisible();
     expect(await scrollsSideways(o)).toBe(false);
     expect(await seriousViolations(o)).toEqual([]);
-    await o.screenshot({ path: `${SHOTS}/low-stock-1000-375.png` });
+    await o.screenshot({ path: `${SHOTS}/low-stock-capped-375.png` });
     await o.context().close();
   });
 
@@ -531,7 +596,7 @@ test.describe('Pharmacy reports and chain @desktop', () => {
   }
 
   async function auditLocale(browser: Browser, locale: 'en' | 'ar' | 'ckb'): Promise<void> {
-    for (const u of [owner, mgrA, cashier, pic, ownerEmpty, ownerBig]) await setUserLocale(u.userId, locale);
+    for (const u of [owner, mgrA, cashier, pic, ownerEmpty, ownerBig, ownerBroken]) await setUserLocale(u.userId, locale);
     const dir = locale === 'en' ? 'ltr' : 'rtl';
     const small = { width: 375, height: 800 };
     const idA = shop.branches[0]!.id;
@@ -564,12 +629,28 @@ test.describe('Pharmacy reports and chain @desktop', () => {
       await o.goto(url);
       await check(o, `${locale}-${name}`);
     }
-    // The export refusal in words.
+    // The failed-to-load state of a report and of the chain, from a pharmacy whose stock sum the database refuses.
+    const x = await session(browser, ownerBroken, broken, null, small);
+    for (const [name, url] of [['error', '/pharmacy/reports/stock-valuation'], ['error-chain', '/pharmacy/chain']] as const) {
+      await x.goto(url);
+      await expect(x.getByTestId('report-error')).toBeVisible();
+      await expect(x.getByTestId('report-totals')).toHaveCount(0);
+      await check(x, `${locale}-${name}`);
+    }
+    await x.context().close();
+    // The loading boundary (loading.tsx) could not be held on screen reliably through route interception; it is reviewed in source only.
+    // The export refusals in words: the row cap (a report) and the 20,000-batch guard (the chain).
     await o.goto('/pharmacy/reports/sales');
-    await o.route('**/pharmacy/reports/export**', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: { code: 'INVALID', message: 'This report has too many rows for one file. Narrow the dates or choose a branch.', fields: { phCode: 'EXPORT_TOO_LARGE', limit: '50000' } } }) }));
+    await o.route('**/pharmacy/reports/export**', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify(EXPORT_TOO_LARGE) }));
     await o.getByTestId('export-csv').click();
     await expect(o.getByTestId('export-error')).toBeVisible();
     await check(o, `${locale}-export-refused`);
+    await o.unroute('**/pharmacy/reports/export**');
+    await o.goto('/pharmacy/chain');
+    await o.route('**/pharmacy/reports/export**', (route) => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify(EXPIRY_TOO_LARGE) }));
+    await o.getByTestId('export-xlsx').click();
+    await expect(o.getByTestId('export-error')).toBeVisible();
+    await check(o, `${locale}-export-expiry-refused`);
     await o.unroute('**/pharmacy/reports/export**');
     await o.context().close();
 
@@ -600,7 +681,7 @@ test.describe('Pharmacy reports and chain @desktop', () => {
 
     // A pharmacy with nothing in it: every report and the chain say so, naming the filter.
     const e = await session(browser, ownerEmpty, empty, null, small);
-    for (const [name, url] of [['empty-sales', '/pharmacy/reports/sales'], ['empty-returns', '/pharmacy/reports/returns'], ['empty-valuation', '/pharmacy/reports/stock-valuation'], ['empty-expiry', '/pharmacy/reports/expiry'], ['empty-transfers', '/pharmacy/reports/transfers'], ['empty-low-stock', '/pharmacy/reports/low-stock'], ['empty-chain', '/pharmacy/chain']] as const) {
+    for (const [name, url] of [['empty-sales', '/pharmacy/reports/sales'], ['empty-returns', '/pharmacy/reports/returns'], ['empty-discounts', '/pharmacy/reports/discounts'], ['empty-margin', '/pharmacy/reports/margin'], ['empty-damaged', '/pharmacy/reports/damaged'], ['empty-valuation', '/pharmacy/reports/stock-valuation'], ['empty-expiry', '/pharmacy/reports/expiry'], ['empty-transfers', '/pharmacy/reports/transfers'], ['empty-low-stock', '/pharmacy/reports/low-stock'], ['empty-chain', '/pharmacy/chain']] as const) {
       await e.goto(url);
       await expect(e.getByTestId('report-empty')).toBeVisible();
       await check(e, `${locale}-${name}`);
@@ -611,6 +692,9 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     const b = await session(browser, ownerBig, big, null, small);
     await b.goto('/pharmacy/reports/low-stock?pages=2');
     await check(b, `${locale}-low-stock-200`, [375]);
+    await b.goto('/pharmacy/reports/low-stock?pages=20');
+    await expect(b.getByTestId('report-capped')).toBeVisible();
+    await check(b, `${locale}-low-stock-capped`, [375]);
     await b.context().close();
 
     // A lapsed subscription: reports and the chain stay readable.
@@ -641,6 +725,6 @@ test.describe('Pharmacy reports and chain @desktop', () => {
   test('Sorani: no sideways scroll and axe clean on every screen and state', async ({ browser }) => {
     test.setTimeout(900_000);
     await auditLocale(browser, 'ckb');
-    for (const u of [owner, mgrA, cashier, pic, ownerEmpty, ownerBig]) await setUserLocale(u.userId, 'en');
+    for (const u of [owner, mgrA, cashier, pic, ownerEmpty, ownerBig, ownerBroken]) await setUserLocale(u.userId, 'en');
   });
 });
