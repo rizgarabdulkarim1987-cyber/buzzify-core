@@ -463,6 +463,8 @@ describe('the indexes', () => {
     expect(names).toEqual(
       [
         'PhTransferLine_pkey',
+        'PhTransferLine_requestLineId_idx',
+        'PhTransferLine_restaurantId_transferId_requestLineId_idx',
         'PhTransferLine_restaurantId_batchId_idx',
         'PhTransferLine_restaurantId_id_key',
         'PhTransferLine_restaurantId_productId_idx',
@@ -476,6 +478,7 @@ describe('the indexes', () => {
         'PhTransfer_restaurantId_id_fromBranchId_toBranchId_key',
         'PhTransfer_restaurantId_id_key',
         'PhTransfer_restaurantId_receiveKey_key',
+        'PhTransfer_restaurantId_requestedAt_idx',
         'PhTransfer_restaurantId_sendKey_key',
         'PhTransfer_restaurantId_status_sentAt_idx',
         'PhTransfer_restaurantId_toBranchId_status_idx',

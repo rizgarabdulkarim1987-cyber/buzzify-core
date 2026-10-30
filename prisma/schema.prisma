@@ -3575,6 +3575,7 @@ model PhTransfer {
   @@index([restaurantId, fromBranchId, status])
   @@index([restaurantId, toBranchId, status])
   @@index([restaurantId, status, sentAt])
+  @@index([restaurantId, requestedAt])
 }
 
 /// A line of a transfer, in whole base units. Two kinds, told apart by `requestLineId`: a REQUEST line (no batch, no request
@@ -3611,4 +3612,6 @@ model PhTransferLine {
   @@unique([transferId, lineNo])
   @@index([restaurantId, batchId])
   @@index([restaurantId, productId])
+  @@index([restaurantId, transferId, requestLineId])
+  @@index([requestLineId])
 }
