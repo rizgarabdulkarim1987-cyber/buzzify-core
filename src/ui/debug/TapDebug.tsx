@@ -27,7 +27,23 @@ export function TapDebug() {
     };
     const onPointer = (event: PointerEvent) => log(`${event.type} ${event.pointerType} ${describeTarget(event.target as Element)}`);
     const onTouch = (event: TouchEvent) => log(`${event.type} ${describeTarget(event.target as Element)}`);
-    const onClick = (event: MouseEvent) => log(`click ${describeTarget(event.target as Element)}${event.defaultPrevented ? ' (prevented)' : ''}`);
+    // What the product sheet looks like a moment after a dish was opened: open or not, how big and how visible its panel is.
+    const probe = (label: string) => {
+      const sheet = document.querySelector<HTMLDialogElement>('dialog.tpl-surface');
+      const panel = sheet?.firstElementChild as HTMLElement | null | undefined;
+      if (!sheet || !panel) return log(`${label} no sheet`);
+      const box = panel.getBoundingClientRect();
+      const style = getComputedStyle(panel);
+      const animations = panel.getAnimations().map((a) => `${a.playState}@${Math.round(Number(a.currentTime ?? 0))}`).join(',') || '-';
+      const pictures = [...sheet.querySelectorAll('img')];
+      log(`${label} open=${sheet.open} panel=${Math.round(box.width)}x${Math.round(box.height)}@${Math.round(box.top)} op=${style.opacity} vis=${style.visibility} anim=${animations} img=${pictures.filter((p) => p.complete).length}/${pictures.length} cv=${sheet.querySelectorAll('canvas').length}`);
+    };
+    const probes: number[] = [];
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as Element;
+      log(`click ${describeTarget(target)}${event.defaultPrevented ? ' (prevented)' : ''}`);
+      if (target.closest('.tpl-open')) for (const ms of [100, 600, 1500, 3000]) probes.push(window.setTimeout(() => probe(`+${ms}`), ms));
+    };
     let scrolling = 0;
     const onScroll = () => {
       if (scrolling) return;
@@ -66,6 +82,7 @@ export function TapDebug() {
       document.removeEventListener('visibilitychange', onVisible);
       cancelAnimationFrame(frame);
       clearTimeout(scrolling);
+      for (const id of probes) clearTimeout(id);
     };
   }, [on]);
 
