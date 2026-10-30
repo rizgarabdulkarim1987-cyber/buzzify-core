@@ -58,7 +58,7 @@ export const askAction = defineAction({
         label: { before: null, after: answer.label },
         grounded: { before: null, after: answer.grounded },
         degraded: { before: null, after: answer.degraded ?? false },
-        reason: { before: null, after: answer.reason ?? null },
+        degradeReason: { before: null, after: answer.reason ?? null },
       },
     });
     return answer;
