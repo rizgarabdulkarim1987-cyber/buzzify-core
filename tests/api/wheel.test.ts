@@ -155,6 +155,11 @@ describe('POST wheel', () => {
     expect((await blocked.json()).error.code).toBe('SPINS_USED');
   });
 
+  it('cannot get more spins by writing a different X-Forwarded-For on every request', async () => {
+    for (let k = 0; k < 3; k++) expect((await call('POST', { address: `spoofed-${k}, 10.9.9.7` })).status).toBe(200);
+    expect((await call('POST', { address: 'spoofed-3, 10.9.9.7' })).status).toBe(409);
+  });
+
   it('treats a forged cookie as a new guest and replaces it', async () => {
     const response = await call('POST', { cookie: 'bz_guest=forged.value' });
     expect(response.status).toBe(200);
