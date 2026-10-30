@@ -188,6 +188,7 @@ function CoverRow({ products, motif, first }: { products: MenuProductView[]; mot
       <ul ref={row} className="scroll-hidden cf-row">
         {products.map((product, place) => (
           <li key={product.id} data-row className="cf-card">
+            <Badges product={product} className="cf-badges" />
             {motif === 'space-deck' && (
               <span aria-hidden className="cf-num">
                 {digits(place + 1)}
@@ -198,7 +199,6 @@ function CoverRow({ products, motif, first }: { products: MenuProductView[]; mot
               <div className="cf-frame tpl-plate">
                 <ProductMedia product={product} suffix={motif} sizes="(min-width: 640px) 200px, 160px" priority={first && place < 3} rounded={false} className="cf-img" />
               </div>
-              <Badges product={product} className="cf-badges" />
             </div>
             <button type="button" onClick={() => openProduct(product.id)} className="tpl-open cf-name">
               {product.name}
