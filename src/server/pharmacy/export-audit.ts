@@ -14,7 +14,7 @@ export async function auditReportExport(prisma: PrismaClient, ph: PhActor, file:
     report: { before: null, after: file.report },
     format: { before: null, after: file.format },
     rows: { before: null, after: file.rows },
-    branches: { before: null, after: ph.branchIds.length },
+    branches: { before: null, after: file.branches },
     ...(file.from !== null ? { from: { before: null, after: file.from } } : {}),
     ...(file.to !== null ? { to: { before: null, after: file.to } } : {}),
   };

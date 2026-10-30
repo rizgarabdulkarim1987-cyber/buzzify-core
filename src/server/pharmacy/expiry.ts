@@ -91,9 +91,11 @@ type Place = { branchId?: string | undefined };
 export async function listExpiry(
   scoped: ScopedClient,
   ph: PhActor,
-  input: z.infer<typeof expiryInput> & Place,
+  input: z.infer<typeof expiryInput> & Place & { maxRows?: number },
 ): Promise<{ items: ExpiryRow[]; nextCursor: string | null; totals: ExpiryTotals; days: number }> {
   const today = utcToday();
+  // `maxRows` lowers the limit (a seam for the export's test of its refusal); the default is the phase 2 number.
+  const cap = input.maxRows ?? MAX_EXPIRY_ROWS;
   // A MONTH batch alerts from the start of its month (up to 30 days before its stored end-of-month date): fetch a month
   // wider than the horizon, then let `expiryBand` decide.
   const reach = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + (input.days + 31) * DAY_MS);
@@ -104,9 +106,9 @@ export async function listExpiry(
       batch: { expiryDate: { lte: reach } },
     },
     select: { batchId: true, branchId: true, productId: true, available: true, reserved: true, quarantine: true },
-    take: MAX_EXPIRY_ROWS + 1,
+    take: cap + 1,
   });
-  if (balances.length > MAX_EXPIRY_ROWS) {
+  if (balances.length > cap) {
     throw new StudioError('CONFLICT', 'Too many batches match: choose a branch or a shorter horizon', { phCode: 'TOO_MANY' });
   }
 

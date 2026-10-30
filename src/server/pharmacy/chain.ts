@@ -28,8 +28,6 @@ export const chainInput = z.object({
 });
 export type ChainInput = z.input<typeof chainInput>;
 
-export type Unavailable = { unavailable: true; reason: string };
-
 export interface Flow {
   units: number;
   transfers: number;
@@ -44,7 +42,7 @@ interface Common {
   sales: MoneyTotals[];
   margin?: MarginFigures[];
   stock: Buckets & { noCostRows?: number; valuationComplete?: boolean; values?: ValueView[] };
-  expiry: { expired: ExpiryBandTotals; d30: ExpiryBandTotals } | Unavailable;
+  expiry: { expired: ExpiryBandTotals; d30: ExpiryBandTotals };
   lowStock: number;
 }
 export interface BranchCard extends Common {
@@ -77,16 +75,6 @@ export interface ChainDashboard {
   branches: BranchCard[];
   total: ChainTotal;
   comparison: Array<{ currency: Currency; rows: ComparisonRow[] }>;
-}
-
-/** Runs a read whose failure should cost the dashboard one figure and not the page: only the "too many batches" answer is turned into `unavailable`. */
-export async function guard<T>(run: () => Promise<T>): Promise<T | Unavailable> {
-  try {
-    return await run();
-  } catch (error) {
-    if (error instanceof StudioError && error.code === 'CONFLICT' && error.fields?.phCode === 'TOO_MANY') return { unavailable: true, reason: 'TOO_MANY' };
-    throw error;
-  }
 }
 
 interface FlowRow {
@@ -137,11 +125,15 @@ export async function chainDashboard(scoped: ScopedClient, ph: PhActor, input: z
     salesReport(scoped, ph, {}, { from, to, groupBy: 'branch', ...currency, take: 1, cursor: null }),
     withMargin ? marginReport(scoped, ph, {}, { from, to, groupBy: 'branch', ...currency, take: 1, cursor: null }) : Promise.resolve(null),
     stockValuation(scoped, ph, {}, { groupBy: 'branch', take: 1, cursor: null }),
-    guard(() => expiryBandTotals(scoped, scope, withCost)),
+    // An aggregate over the stock rows with no cap on batches (unlike the phase 2 list), so it cannot fail for size: there is no
+    // "unavailable" figure on the dashboard (report 5b).
+    expiryBandTotals(scoped, scope, withCost),
     lowStockReport(scoped, ph, {}, { take: 1, cursor: null }),
     openFlows(scoped, scope),
   ]);
 
+  // The currency filter narrows every money figure, stock and expiry values included (counts and units are not money).
+  const inCurrency = <T extends { currency: Currency }>(values: T[] | undefined): T[] => (values ?? []).filter((v) => !input.currency || v.currency === input.currency);
   const zeroBuckets: Buckets = { available: 0, reserved: 0, quarantine: 0, damaged: 0 };
   const stockOf = (v: (Buckets & { noCostRows?: number; valuationComplete?: boolean; values?: ValueView[] }) | undefined): Common['stock'] => {
     const base = v ?? { ...zeroBuckets, ...(withCost ? { noCostRows: 0, valuationComplete: true, values: [] } : {}) };
@@ -150,12 +142,15 @@ export async function chainDashboard(scoped: ScopedClient, ph: PhActor, input: z
       reserved: base.reserved,
       quarantine: base.quarantine,
       damaged: base.damaged,
-      ...(withCost ? { noCostRows: base.noCostRows ?? 0, valuationComplete: base.valuationComplete ?? true, values: base.values ?? [] } : {}),
+      ...(withCost ? { noCostRows: base.noCostRows ?? 0, valuationComplete: base.valuationComplete ?? true, values: inCurrency(base.values) } : {}),
     };
   };
   const emptyBand = (band: ExpiryBandTotals['band']): ExpiryBandTotals => ({ band, rows: 0, units: 0, ...(withCost ? { noCostRows: 0, values: [] } : {}) });
-  const expiryOf = (bands: ExpiryBandTotals[] | undefined): Common['expiry'] =>
-    'unavailable' in expiry ? expiry : { expired: bands?.find((b) => b.band === 'expired') ?? emptyBand('expired'), d30: bands?.find((b) => b.band === 'd30') ?? emptyBand('d30') };
+  const bandOf = (bands: ExpiryBandTotals[] | undefined, band: ExpiryBandTotals['band']): ExpiryBandTotals => {
+    const found = bands?.find((b) => b.band === band) ?? emptyBand(band);
+    return found.values ? { ...found, values: inCurrency(found.values) } : found;
+  };
+  const expiryOf = (bands: ExpiryBandTotals[] | undefined): Common['expiry'] => ({ expired: bandOf(bands, 'expired'), d30: bandOf(bands, 'd30') });
 
   const marginRows = (branchId: string): MarginFigures[] | undefined =>
     margin ? margin.byBranch.filter((m) => m.branchId === branchId).map(withoutBranch) : undefined;
@@ -171,10 +166,7 @@ export async function chainDashboard(scoped: ScopedClient, ph: PhActor, input: z
     });
   };
 
-  const expiryBands = (branchId: string | null) => {
-    if ('unavailable' in expiry) return undefined;
-    return branchId === null ? expiry.totals : expiry.byBranch.find((e) => e.branchId === branchId)?.bands;
-  };
+  const expiryBands = (branchId: string | null) => (branchId === null ? expiry.totals : expiry.byBranch.find((e) => e.branchId === branchId)?.bands);
 
   const branches: BranchCard[] = branchRows.map((b) => {
     const margins = marginRows(b.id);

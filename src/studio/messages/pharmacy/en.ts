@@ -2405,6 +2405,8 @@ const pharmacy: Messages = {
   'pharmacy.transfers.lostAnswer': 'The answer did not arrive, so your change may already be saved. The page was refreshed: check it before trying again.',
   'error.text.phChainNeedsMany': 'The chain view needs more than one branch',
   'error.text.phReportTooLarge': 'This report has too many rows for one file. Narrow the dates or choose a branch.',
+  'error.text.phReportTooLargeUndated': 'This report has too many rows for one file. Choose a branch.',
+  'error.text.phExpiryTooLarge': 'This chain has too many expiring batches for one file (the limit is 20,000). Choose one branch and export again.',
   'error.text.phChooseReport': 'Choose a report',
   'error.text.phChooseFormat': 'Choose CSV or XLSX',
 };

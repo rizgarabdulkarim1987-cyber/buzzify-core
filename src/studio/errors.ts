@@ -551,6 +551,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose how to group': 'error.text.phGroupChoose',
   'The chain view needs more than one branch': 'error.text.phChainNeedsMany',
   'This report has too many rows for one file. Narrow the dates or choose a branch.': 'error.text.phReportTooLarge',
+  'This report has too many rows for one file. Choose a branch.': 'error.text.phReportTooLargeUndated',
+  'This chain has too many expiring batches for one file (the limit is 20,000). Choose one branch and export again.': 'error.text.phExpiryTooLarge',
   'Use at most 300 characters': 'error.text.phTextMax300',
   'You can return only what was sold and not yet returned': 'error.text.phReturnLimit',
   'This key was already used for a different return': 'error.text.phReturnKeyMismatch',
