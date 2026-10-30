@@ -7,6 +7,7 @@ import type { SceneMedia } from '@/lib/templates/types';
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
 import { allows, type Entitlements, type FeatureKey } from '@/server/domain/entitlements';
+import { MOTION_PRESET_IDS, type MotionPresetId } from '@/lib/templates/motion-presets';
 import { allowedSceneKinds, motionPresetLock, premiumTemplateLock, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
 import { isSceneKind, SCENE_KINDS, SCENE_MEDIA_KIND } from '@/server/media/kinds';
 import { loadAssets } from '@/server/media/resolve';
@@ -73,6 +74,10 @@ export interface DesignPlanView {
   sceneKinds: SceneFileKind[];
   /** The stored file's feature when the plan lacks it (kept, but guests get the template's scene); else null. */
   lockedScene: FeatureKey | null;
+  /** The motion presets the plan lets the business choose (`still` is in every plan). */
+  motionPresets: MotionPresetId[];
+  /** Whether the plan has the premium templates; without it the Gallery marks them and a save refuses them. */
+  premiumTemplates: boolean;
   upgrade: UpgradeInfo;
 }
 
@@ -140,6 +145,8 @@ export async function designState(
     plan: {
       sceneKinds: allowedSceneKinds(plan.entitlements),
       lockedScene: sceneKind && !allows(plan.entitlements, sceneFeature(sceneKind)) ? sceneFeature(sceneKind) : null,
+      motionPresets: MOTION_PRESET_IDS.filter((id) => motionPresetLock(id, undefined, plan.entitlements) === null),
+      premiumTemplates: allows(plan.entitlements, 'design.premiumTemplates'),
       upgrade: plan.upgrade,
     },
     customTemplateId: menu.brand?.customTemplateId ?? null,

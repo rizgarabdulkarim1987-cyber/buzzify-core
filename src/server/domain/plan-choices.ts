@@ -89,6 +89,7 @@ const SCENE_FEATURES: Readonly<Record<SceneFileKind, FeatureKey>> = {
   model: 'immersive.models3d',
   video: 'design.backgroundVideo',
   lottie: 'design.backgroundAnimation',
+  image: 'design.backgroundImage',
 };
 
 /** The feature a background file of this kind needs. */
@@ -98,7 +99,7 @@ export function sceneFeature(kind: SceneFileKind): FeatureKey {
 
 /** The kinds of background file the plan allows: model, video, Lottie. */
 export function allowedSceneKinds(entitlements: Entitlements): SceneFileKind[] {
-  return (['model', 'video', 'lottie'] as const).filter((kind) => allows(entitlements, sceneFeature(kind)));
+  return (['model', 'video', 'lottie', 'image'] as const).filter((kind) => allows(entitlements, sceneFeature(kind)));
 }
 
 /**

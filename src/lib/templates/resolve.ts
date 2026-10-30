@@ -170,6 +170,12 @@ export function parseSceneMedia(value: unknown): SceneMedia | null {
     }
     case 'lottie':
       return positive(value.width) && positive(value.height) ? { kind: 'lottie', assetId, url, width: value.width, height: value.height } : null;
+    case 'image': {
+      if (!positive(value.width) || !positive(value.height)) return null;
+      const srcset = typeof value.srcset === 'string' && value.srcset.split(',').every((entry) => entry.trim() === '' || safeUrl(entry.trim().split(' ')[0])) ? value.srcset : '';
+      const placeholder = typeof value.placeholder === 'string' && /^(data:image\/webp;base64,[A-Za-z0-9+/]+={0,2})?$/.test(value.placeholder) ? value.placeholder : '';
+      return { kind: 'image', assetId, url, width: value.width, height: value.height, srcset, placeholder };
+    }
     case 'video': {
       const poster = value.poster;
       if (!positive(value.width) || !positive(value.height) || !isObject(poster) || !safeUrl(poster.url)) return null;

@@ -168,6 +168,7 @@ describe('scene files', () => {
     model: { kind: 'model', assetId: 'm1', url: '/m1/original.glb', framing: DEFAULT_FRAMING },
     video: { kind: 'video', assetId: 'v1', url: '/v1/original.mp4', width: 1080, height: 1920, poster: { url: '/v1/poster.webp', srcset: '', placeholder: '' } },
     lottie: { kind: 'lottie', assetId: 'l1', url: '/l1/original.json', width: 512, height: 512 },
+    image: { kind: 'image', assetId: 'i1', url: '/i1/1600.webp', width: 2400, height: 1600, srcset: '', placeholder: '' },
   } satisfies Record<SceneMedia['kind'], SceneMedia>;
   const designed = (media: SceneMedia): BrandView => ({
     ...VIEW,
@@ -178,12 +179,13 @@ describe('scene files', () => {
     expect(sceneFeature('model')).toBe('immersive.models3d');
     expect(sceneFeature('video')).toBe('design.backgroundVideo');
     expect(sceneFeature('lottie')).toBe('design.backgroundAnimation');
+    expect(sceneFeature('image')).toBe('design.backgroundImage');
   });
 
   it('offers Lottie with Pro, every kind with Premium, and a kind an extra turns on', () => {
     expect(allowedSceneKinds(BASIC)).toEqual([]);
-    expect(allowedSceneKinds(PRO)).toEqual(['lottie']);
-    expect(allowedSceneKinds(PREMIUM)).toEqual(['model', 'video', 'lottie']);
+    expect(allowedSceneKinds(PRO)).toEqual(['lottie', 'image']);
+    expect(allowedSceneKinds(PREMIUM)).toEqual(['model', 'video', 'lottie', 'image']);
     expect(allowedSceneKinds(on('BASIC', { 'design.backgroundVideo': true }))).toEqual(['video']);
   });
 

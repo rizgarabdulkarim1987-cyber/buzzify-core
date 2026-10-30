@@ -369,7 +369,9 @@ export type SceneMedia =
       /** The still shown before the video plays, and instead of it with reduced motion or data saver. */
       poster: { url: string; srcset: string; placeholder: string };
     }
-  | { kind: 'lottie'; assetId: string; url: string; width: number; height: number };
+  | { kind: 'lottie'; assetId: string; url: string; width: number; height: number }
+  /** A picture from the library, drawn covering the background (`design.backgroundImage`). */
+  | { kind: 'image'; assetId: string; url: string; width: number; height: number; srcset: string; placeholder: string };
 
 /** What a business changed from its template: only what it changed. Stored on `BrandConfig.design`. */
 export interface DesignOverrides {

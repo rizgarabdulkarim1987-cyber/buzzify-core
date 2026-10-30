@@ -39,9 +39,12 @@ menu) and respects the plan rules already in force.
   under a new "Picture" group). `SCENE_FEATURES.image = 'design.backgroundImage'`; `allowedSceneKinds`,
   `sceneChoiceLock`, `clampBrandView` and `hiddenFromGuests` then lock it with no extra code.
 - The guest menu draws it in `SceneLayer` as a covering, non-moving picture under the same veil (`overlay`,
-  `brightness`, `blur`, `opacity`) as other scene files, with the blurred placeholder first. With `ambient` on it may
-  drift slowly; reduced motion and data saver keep it still. **[call]**
+  `brightness`, `blur`, `opacity`) as other scene files, with the blurred placeholder first. It does not drift (built
+  without it: a still picture needs no idle page, no WebGL and no exception for reduced motion or data saver). **[call]**
+- A picture that fails to load gives way to the template's poster.
 - SVG and ICON stay out: a background must be a raster. **[call]**
+- `IMAGE` joins the library's scene kinds, so a photo is now listed in both families (the one overlap, noted in
+  `src/server/media/kinds.ts`); a vector graphic is still refused as a background. **[call]**
 
 ### 3.2 Motion presets (`design.motionPresets`)
 
@@ -58,8 +61,9 @@ menu) and respects the plan rules already in force.
 
 ### 3.3 Premium templates (`design.premiumTemplates`)
 
-- `PREMIUM_TEMPLATE_IDS` in `src/lib/templates/premium.ts`: the presets tagged `cinematic` in code, as a fixed list
-  checked by a test (so a later tag edit cannot silently lock a template). **[call]**
+- `PREMIUM_TEMPLATE_IDS` in `src/lib/templates/premium.ts`: the presets tagged `cinematic` that come after the first
+  thirty, which stay free because they were sold before this feature. Derived from the tags, with tests that the first
+  thirty and every business type keep free templates. **[call]** (Changed from the first draft's "fixed list".)
 - Basic cannot newly choose one (save refused with the same upgrade lock as other plan locks; the Gallery shows a
   lock mark and the upgrade hint). A menu already on one keeps it and keeps publishing; guests are unaffected.
 - Not retroactive for any current menu: nothing stored changes.

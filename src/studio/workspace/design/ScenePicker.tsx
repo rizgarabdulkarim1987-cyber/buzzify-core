@@ -19,11 +19,11 @@ import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
 import { Dialog } from '@/studio/ui/Dialog';
 
-type Filter = 'all' | 'MODEL' | 'VIDEO' | 'LOTTIE';
-const FILTERS: Filter[] = ['all', 'MODEL', 'VIDEO', 'LOTTIE'];
+type Filter = 'all' | 'MODEL' | 'VIDEO' | 'LOTTIE' | 'IMAGE';
+const FILTERS: Filter[] = ['all', 'IMAGE', 'MODEL', 'VIDEO', 'LOTTIE'];
 
 /** The kinds in the order their features stand in the plans' catalog, for the hints under the grid. */
-const HINT_ORDER: readonly SceneFileKind[] = ['lottie', 'video', 'model'];
+const HINT_ORDER: readonly SceneFileKind[] = ['lottie', 'image', 'video', 'model'];
 
 /**
  * Choosing a background file (spec 2026-10-18-template-studio-stage-2-scene-files-design.md, 6): the restaurant's scene
@@ -223,9 +223,9 @@ export function ScenePicker({
 
 /** The file in use, small: a video's poster, else the mark of its kind. */
 export function SceneFileMark({ media }: { media: SceneMedia }) {
-  if (media.kind === 'video') {
-    // eslint-disable-next-line @next/next/no-img-element -- the library's own poster rendition
-    return <img src={media.poster.url} alt="" className="size-full object-cover" />;
+  if (media.kind === 'video' || media.kind === 'image') {
+    // eslint-disable-next-line @next/next/no-img-element -- the library's own poster or picture rendition
+    return <img src={media.kind === 'video' ? media.poster.url : media.url} alt="" className="size-full object-cover" />;
   }
   const Icon = media.kind === 'model' ? Box : Sparkles;
   return <Icon aria-hidden className="size-6 text-muted" strokeWidth={1.5} />;
