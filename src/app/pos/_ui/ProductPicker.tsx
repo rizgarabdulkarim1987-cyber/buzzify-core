@@ -9,6 +9,7 @@ import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { Input } from '@/studio/ui/Input';
 import { useMoney } from './money';
+import { ProductPhoto } from './ProductPhoto';
 
 /**
  * The dishes a guest's order can hold, to pick one from: a search, the categories and one button per dish. Only dishes the
@@ -56,12 +57,15 @@ export function ProductPicker({ catalog, disabled, onPick }: { catalog: TillCata
                 type="button"
                 disabled={disabled}
                 onClick={() => onPick(product)}
-                className="flex min-h-20 w-full flex-col items-start gap-1 rounded-2xl border border-line bg-raised p-3 text-start hover:bg-hover disabled:opacity-60"
+                className="flex min-h-20 w-full flex-col items-start overflow-hidden rounded-2xl border border-line bg-raised text-start hover:bg-hover disabled:opacity-60"
               >
-                <span className="line-clamp-2 text-base leading-snug font-bold break-words text-text">{pickName(product.names, locale, fallback)}</span>
-                <span className="mt-auto flex w-full items-end justify-between gap-2">
-                  <span className="text-base font-semibold text-text">{money(product.price)}</span>
-                  {needsSheet(product) ? <SlidersHorizontal size={16} aria-hidden className="text-muted" /> : null}
+                <ProductPhoto product={product} />
+                <span className="flex w-full flex-1 flex-col items-start gap-1 p-3">
+                  <span className="line-clamp-2 text-base leading-snug font-bold break-words text-text">{pickName(product.names, locale, fallback)}</span>
+                  <span className="mt-auto flex w-full items-end justify-between gap-2">
+                    <span className="text-base font-semibold text-text">{money(product.price)}</span>
+                    {needsSheet(product) ? <SlidersHorizontal size={16} aria-hidden className="text-muted" /> : null}
+                  </span>
                 </span>
               </button>
             </li>
