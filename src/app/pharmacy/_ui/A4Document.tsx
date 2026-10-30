@@ -176,7 +176,7 @@ function Sheet({ model, kind, customerName }: { model: ReceiptModel; kind: 'sale
         {customerName && <Meta label={t('pharmacy.print.customer')} value={customerName} testId="a4-customer" />}
       </dl>
 
-      <div className="overflow-x-auto print:overflow-visible">
+      <div role="region" aria-label={t(isSale ? 'pharmacy.print.invoice.title' : 'pharmacy.print.slip.title')} tabIndex={0} className="overflow-x-auto print:overflow-visible">
         <table className="w-full border-collapse text-sm" data-testid="a4-lines">
           <thead>
             <tr className="border-y-2 border-black">
