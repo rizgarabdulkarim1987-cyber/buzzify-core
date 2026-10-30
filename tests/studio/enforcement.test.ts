@@ -1144,6 +1144,101 @@ describe('Studio enforcement rules', () => {
       });
     });
 
+    describe('the daily assistant: tools only read, proposals have one writer, nothing reaches the base client, no question or answer in the audit (phase 7)', () => {
+      const DIR = 'src/server/pharmacy/assistant/';
+      const SERVICE = 'src/server/pharmacy/assistant/proposals.ts';
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)';
+
+      /** A write call by any receiver, a destructured delegate, a versioned update, or raw SQL, whatever the table. */
+      function anyWrite(source: string): string[] {
+        const found: string[] = [];
+        if (new RegExp(`\\b(?:ph|restaurant|branch|audit)[A-Za-z]*\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push('delegate write');
+        if (new RegExp(`\\)\\s*\\.\\s*${WRITE}\\s*\\(`).test(source)) found.push('chained write');
+        if (/\bupdateWithVersion\s*\(/.test(source)) found.push('versioned update');
+        if (/\$executeRaw(?:Unsafe)?\b/.test(source)) found.push('raw execute');
+        if (/\$queryRaw(?:Unsafe)?\b/.test(source)) found.push('raw query');
+        if (/(?:insert\s+into|delete\s+from|truncate)\s+"?Ph/i.test(source)) found.push('raw sql');
+        return found;
+      }
+      /** The writes of `PhAiProposal` in any file other than the proposals service. */
+      function proposalWrites(path: string, source: string): string[] {
+        if (path === SERVICE) return [];
+        const found: string[] = [];
+        if (new RegExp(`\\bphAiProposal\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push('PhAiProposal');
+        else if (/\{[^}]*\bphAiProposal\b[^}]*\}\s*=/.test(source)) found.push('PhAiProposal');
+        else if (/(?:insert\s+into|update|delete\s+from)\s+(?:"PhAiProposal"|PhAiProposal\b)/i.test(source)) found.push('PhAiProposal');
+        return found;
+      }
+      /** A runtime import of the base client. */
+      const clientImports = (source: string) =>
+        [...source.matchAll(/(?:^|\n)\s*import\s+(?!type\b)[^;]*?from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]!).filter((from) => /\/data\/prisma$|^@prisma\/client$/.test(from));
+      const personalAuditKeys = (source: string) => [...source.matchAll(/\b(question|answer|text|message|prompt|name|phone|note|customerName|patientName)\s*:\s*\{\s*before\b/g)].map((m) => m[1]);
+      const nonProposalFiles = () => sourceFiles('src/server/pharmacy/assistant').filter((path) => path !== SERVICE);
+
+      it('recognises a write however it is spelled (negative self-test)', () => {
+        expect(anyWrite('await tx.phAiProposal.create({ data });')).toEqual(['delegate write']);
+        expect(anyWrite('await ctx.scoped!.phStockBalance.updateMany({ where, data });')).toEqual(['delegate write']);
+        expect(anyWrite('await getPrisma().phBatch.update({ where, data });')).toEqual(['delegate write']);
+        expect(anyWrite('await updateWithVersion(tx.phCustomer, { id }, tx);')).toEqual(['versioned update']);
+        expect(anyWrite('await tx.$executeRaw`UPDATE "PhBatch" SET x = 1`;')).toEqual(['raw execute']);
+        expect(anyWrite('await tx.$queryRaw`SELECT 1`;')).toEqual(['raw query']);
+        expect(anyWrite('await tx.phProduct.findMany({});\nawait tx.phBatch.count();\nconst rows = await listExpiry(scoped, {});')).toEqual([]);
+      });
+
+      it('recognises a write of the proposal table, and ignores the service itself', () => {
+        expect(proposalWrites('src/server/pharmacy/actions/assistant.ts', 'await tx.phAiProposal.create({ data });')).toEqual(['PhAiProposal']);
+        expect(proposalWrites('src/server/pharmacy/assistant/tools.ts', 'await tx.phAiProposal.updateMany({ where, data });')).toEqual(['PhAiProposal']);
+        expect(proposalWrites('src/app/api/x/route.ts', 'const { phAiProposal } = tx;')).toEqual(['PhAiProposal']);
+        expect(proposalWrites('src/server/pharmacy/queries/assistant.ts', 'await tx.$executeRaw`delete from "PhAiProposal"`;')).toEqual(['PhAiProposal']);
+        expect(proposalWrites('src/server/pharmacy/queries/assistant.ts', 'await scoped.phAiProposal.findMany({});')).toEqual([]);
+        expect(proposalWrites(SERVICE, 'await tx.phAiProposal.create({ data });')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts: only proposals.ts writes PhAiProposal', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => proposalWrites(path, read(path)).map((table) => `${path}: ${table}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the service’s own create and decision writes, so the check is not passing on a stale path', () => {
+        const source = read(SERVICE);
+        expect(source).toMatch(/\bphAiProposal\s*\.\s*create\b/);
+        expect(source).toMatch(/\bphAiProposal\s*\.\s*updateMany\b/);
+        expect(sourceFiles('src/server/pharmacy/assistant').length).toBeGreaterThanOrEqual(7);
+      });
+
+      it('has no write of any kind, and no raw SQL, in the assistant folder outside proposals.ts: tools, grounding and the model path only read', () => {
+        const found = nonProposalFiles().flatMap((path) => anyWrite(read(path)).map((what) => `${path}: ${what}`));
+        expect(found).toEqual([]);
+      });
+
+      it('has no raw SQL at all in the assistant folder, proposals.ts included', () => {
+        const found = sourceFiles('src/server/pharmacy/assistant').flatMap((path) => anyWrite(read(path)).filter((what) => what.startsWith('raw')).map((what) => `${path}: ${what}`));
+        expect(found).toEqual([]);
+      });
+
+      it('imports no base database client in the assistant folder, its action or its query: reads go through the scoped client handed in', () => {
+        expect(clientImports("import { getPrisma } from '@/server/data/prisma';")).toEqual(['@/server/data/prisma']);
+        expect(clientImports("import { PrismaClient } from '@prisma/client';")).toEqual(['@prisma/client']);
+        expect(clientImports("import type { Prisma } from '@prisma/client';\nimport { z } from 'zod';")).toEqual([]);
+        const paths = [...sourceFiles('src/server/pharmacy/assistant'), 'src/server/pharmacy/actions/assistant.ts', 'src/server/pharmacy/queries/assistant.ts', 'src/server/domain/pharmacy/assistant-domain.ts'];
+        expect(paths.flatMap((path) => clientImports(read(path)).map((from) => `${path}: ${from}`))).toEqual([]);
+      });
+
+      it('writes the AI budget tables only from the intake folder: the assistant gate lives in src/server/pharmacy/intake/assistant-ai.ts', () => {
+        expect(read('src/server/pharmacy/intake/assistant-ai.ts')).toMatch(/\bphAiReservation\b/);
+        for (const path of sourceFiles(DIR.slice(0, -1))) {
+          expect(/\bphAi(?:UsageMonth|Reservation|Call)\b/.test(read(path)), path).toBe(false);
+        }
+      });
+
+      it('keeps the question, the answer, names and phones out of the audit rows (negative self-test)', () => {
+        expect(personalAuditKeys('changes: { question: { before: null, after: input.question } }')).toEqual(['question']);
+        expect(personalAuditKeys('changes: { answer: { before: null, after: a }, phone: { before: a, after: b } }')).toEqual(['answer', 'phone']);
+        expect(personalAuditKeys('changes: { tools: { before: null, after: names }, rows: { before: null, after: 3 } }')).toEqual([]);
+        expect(personalAuditKeys(read('src/server/pharmacy/actions/assistant.ts'))).toEqual([]);
+      });
+    });
+
     it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
       const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')].flatMap((path) =>
         pharmacyClientViolations(path, read(path)).map((specifier) => `${path}: ${specifier}`),

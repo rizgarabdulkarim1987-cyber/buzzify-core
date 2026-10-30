@@ -8,6 +8,7 @@ import * as invoiceActions from '@/server/pharmacy/actions/supplier-invoices';
 import * as paymentActions from '@/server/pharmacy/actions/supplier-payments';
 import * as returnActions from '@/server/pharmacy/actions/supplier-returns';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
+import { setAiProviderForTests } from '@/server/ai/provider';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
@@ -116,6 +117,9 @@ interface Ids {
   customerName: string;
   custPay1: string;
   custPay2: string;
+  /** An assistant proposal of the business in branch 1 / in branch 2 (phase 7, task 4); branch-scoped. */
+  proposal1: string;
+  proposal2: string;
 }
 interface World {
   a: Ids;
@@ -137,7 +141,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2' | 'proposal1' | 'proposal2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -344,6 +348,11 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
   };
   withDocs.custPay1 = await customerPaymentIn(base.b1, 1);
   withDocs.custPay2 = await customerPaymentIn(base.b2, 2);
+  // One open assistant proposal in each branch (straight in the database).
+  const proposalIn = async (branchId: string) =>
+    (await prisma().phAiProposal.create({ data: { restaurantId: base.restaurantId, branchId, kind: 'REORDER', payload: { lines: [{ productId: base.productId, qty: 1 }] }, createdById: owner.userId }, select: { id: true } })).id;
+  withDocs.proposal1 = await proposalIn(base.b1);
+  withDocs.proposal2 = await proposalIn(base.b2);
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -355,6 +364,8 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
 
 beforeAll(async () => {
   useTestDatabase();
+  // No assistant call may reach a model from this file: with no provider the answer is the plain tables.
+  setAiProviderForTests(null);
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
   await resetWorld();
@@ -367,6 +378,7 @@ afterEach(() => {
   vi.setSystemTime(NOW);
 });
 afterAll(() => {
+  setAiProviderForTests(undefined);
   vi.useRealTimers();
 });
 
@@ -391,8 +403,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1, proposalId: ids.proposal1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2, proposalId: ids.proposal2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -628,6 +640,18 @@ const CASES: Record<string, Case> = {
   'ph.credit.payment.reverse': { body: (ids, n) => ({ paymentId: pick(ids, n).custPayId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.credit.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credit.settings.set': { body: () => ({ creditEnabled: false, version: 1 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // The daily assistant (phase 7, task 4). Asking reads through the scoped client and the tools' own queries, so a batch of another branch or business
+  // answers nothing of theirs (the provider is switched off in this file: the answer is the tables). A proposal is branch-scoped: another branch's or
+  // business's id is not found, and a transfer from a branch the person cannot reach is refused.
+  'ph.assistant.ask': { body: (ids, n) => ({ question: 'What is expiring soon?', batchId: pick(ids, n).batchId }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.assistant.proposals': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.assistant.proposal.create': {
+    body: (ids, n) => ({ proposal: { kind: 'TRANSFER', fromBranchId: n === 1 ? ids.b1 : ids.b2, toBranchId: n === 1 ? ids.b2 : ids.b1, lines: [{ productId: ids.productId, qty: 1 }] } }),
+    foreignIds: 'harmless',
+    otherBranchIds: 'refused',
+  },
+  'ph.assistant.proposal.accept': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.assistant.proposal.dismiss': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -765,6 +789,25 @@ describe('the pharmacy isolation sweep', () => {
       expect(ageing).not.toContain(b.customerId);
       expect(ageing).not.toContain(b.customerName);
     }
+  });
+
+  it('covers every phase 7 assistant definition, each with a sweep case of its own', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.assistant.'));
+    expect(names.sort()).toEqual(['ph.assistant.ask', 'ph.assistant.proposal.accept', 'ph.assistant.proposal.create', 'ph.assistant.proposal.dismiss', 'ph.assistant.proposals']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('has real proposals to guard: the owner sees both branches of the business and the branch-1 manager only branch 1, and neither sees the other business', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    const place = { restaurantId: a.restaurantId };
+    const owner = json(await run(DEFINITIONS.get('ph.assistant.proposals')!, ownerA, place));
+    expect(owner).toContain(a.proposal1);
+    expect(owner).toContain(a.proposal2);
+    expect(owner).not.toContain(b.proposal1);
+    const manager = json(await run(DEFINITIONS.get('ph.assistant.proposals')!, managerA1, place));
+    expect(manager).toContain(a.proposal1);
+    expect(manager, 'a branch-1 manager does not see branch 2').not.toContain(a.proposal2);
+    expect(manager).not.toContain(b.proposal1);
   });
 
   it('covers every phase 6 transfer definition', () => {
@@ -932,6 +975,7 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     customers: businessWide ? await prisma().phCustomer.findMany(businessWide) : undefined,
     customerLedger: businessWide ? await prisma().phCustomerLedger.findMany(businessWide) : undefined,
     customerPayments: await prisma().phCustomerPayment.findMany({ where, orderBy }),
+    aiProposals: await prisma().phAiProposal.findMany({ where, orderBy }),
     settings: branchId ? undefined : await prisma().phSettings.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     // Support reads are logged by design (a granted Super Admin leaves a `support.read` row even when refused): checked on their own.
     audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId, action: { not: 'support.read' } }, orderBy }),
@@ -945,8 +989,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.customerId, ids.customerName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ids.transfer1, ids.transfer2, ...docs(1), ...docs(2)];
