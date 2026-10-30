@@ -153,6 +153,8 @@ export interface SaleDetail extends SaleSummary {
   note: string;
   completedAt: string | null;
   payments: { id: string; method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT'; amountMinor: string; reference: string }[];
+  /** The customer a credit sale is on the account of; only for a role that may manage customers or sell on credit. */
+  customer: { id: string; name: string } | null;
   lines: SaleLineView[];
 }
 
@@ -175,6 +177,8 @@ export async function getSale(scoped: ScopedClient, ph: PhActor, input: { saleId
   });
   if (!sale) throw new StudioError('NOT_FOUND', 'Sale not found');
   const withCost = mayViewCost(ph);
+  const mayNameCustomer = ph.role !== null && (canPh(ph.role, 'customer.manage') || canPh(ph.role, 'credit.sell'));
+  const customer = mayNameCustomer && sale.customerId ? await scoped.phCustomer.findFirst({ where: { id: sale.customerId }, select: { id: true, name: true } }) : null;
   return {
     id: sale.id,
     number: sale.number,
@@ -196,6 +200,7 @@ export async function getSale(scoped: ScopedClient, ph: PhActor, input: { saleId
     createdAt: sale.createdAt.toISOString(),
     completedAt: sale.completedAt ? sale.completedAt.toISOString() : null,
     payments: sale.payments.map((p) => ({ id: p.id, method: p.method, amountMinor: String(p.amountMinor), reference: p.reference })),
+    customer,
     lines: sale.lines.map((l) => ({
       lineNo: l.lineNo,
       productId: l.productId,

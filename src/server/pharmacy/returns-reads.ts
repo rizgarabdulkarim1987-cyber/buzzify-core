@@ -203,6 +203,8 @@ export interface Returnable {
   returnable: boolean;
   window: { withinWindow: boolean; days: number; needsManager: boolean; mayOverride: boolean };
   paidMethods: RefundMethod[];
+  /** Part of the sale was on a customer's account: a refund lowers that balance first, then goes back by the other methods. */
+  onAccount: boolean;
   defaultRefundMethod: RefundMethod;
   lines: ReturnableLine[];
 }
@@ -292,6 +294,7 @@ export async function returnableOf(scoped: ScopedClient, ph: PhActor, input: { s
     returnable: (sale.status === 'COMPLETED' || sale.status === 'RETURNED_PARTIAL') && lines.some((l) => l.remainingBaseQty > 0),
     window: { withinWindow, days, needsManager: !withinWindow, mayOverride: mayOverrideWindow(ph.role) },
     paidMethods: [...new Set(paid.map((p) => p.method))],
+    onAccount: sale.payments.some((p) => p.method === 'CREDIT'),
     defaultRefundMethod: defaultRefundMethod(paid),
     lines,
   };

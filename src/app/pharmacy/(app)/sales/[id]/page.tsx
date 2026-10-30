@@ -152,10 +152,17 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               <Money minor={sale.totalMinor} currency={cur} />
             </Row>
             {sale.payments.map((p) => (
-              <Row key={p.id} label={t(`pharmacy.method.${p.method}`)} testId="detail-payment">
+              <Row key={p.id} label={t(`pharmacy.method.${p.method}`)} testId={p.method === 'CREDIT' ? 'detail-credit' : 'detail-payment'}>
                 <Money minor={p.amountMinor} currency={cur} />
               </Row>
             ))}
+            {sale.customer && (
+              <Row label={t('pharmacy.credit.onAccount')} testId="detail-customer">
+                <Link href={`/pharmacy/customers/${sale.customer.id}`} className="inline-flex min-h-11 items-center rounded-md underline underline-offset-2 hover:bg-hover" dir="auto">
+                  {sale.customer.name}
+                </Link>
+              </Row>
+            )}
             <Row label={t('pharmacy.sell.pay.change')} testId="detail-change">
               <Money minor={sale.changeMinor} currency={cur} />
             </Row>

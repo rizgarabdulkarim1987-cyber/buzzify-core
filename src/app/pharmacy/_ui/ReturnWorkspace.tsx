@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Hourglass, Lock, Undo2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, Hourglass, Info, Lock, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createReturn, returnPreview } from '@/app/pharmacy/_actions/returns';
@@ -141,6 +141,11 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
               {t('pharmacy.returns.openShiftLink')}
             </Link>
           </span>
+        </Note>
+      )}
+      {data.onAccount && (
+        <Note icon={<Info aria-hidden />} tone="info" role="status" testId="return-on-account">
+          {t('pharmacy.credit.returnNote')}
         </Note>
       )}
       {!data.window.withinWindow && (
