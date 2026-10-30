@@ -41,6 +41,8 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 
 Phase 7 is built and proven locally with a scripted model; nothing is pushed, no PR, no production or Neon. Task 7 delivered `tests/pharmacy/acceptance-phase-7.test.ts` (34 tests: controlled register against independent SQL, credit balance per currency, the attachment gate at function, query and route, the role matrix of every assistant tool, proposal and rx/customer action, no fabrication, no personal data to the model, audit scan), the README phase 7 section, the Arabic phase 7 subsection and the status line of the spec.
 
+Review round (whole-phase review): audit-fields guard extended (prescriber, licence, free-text keys); `PRESCRIPTION_NOT_NEEDED` refusal (a prescription id on a sale with no RX line); grounding no longer accepts the year, month or day of a table date as a figure; ageing and statement read the payment correction link through the business-wide ledger row; a read-only pharmacy's assistant spends no AI budget. Credit plus cash change was examined and is by design. Open items are in `docs/pharmacy/README.md`.
+
 Commits (oldest first), by task:
 
 1. Schema: `b83c5071`, `cb12bf60`, `21bbb9c2`, `a4a5f8b7`.
