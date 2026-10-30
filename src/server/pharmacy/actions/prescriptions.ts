@@ -89,6 +89,7 @@ export const attach = defineAction({
           entityType: 'PhRxAttachment',
           entityId: added.id,
           changes: {
+            // Named rxId, not prescriptionId: the audit field guard matches /prescription/ by key name, and this value is an id (allowed), never the paper's text.
             rxId: { before: null, after: added.prescriptionId },
             mime: { before: null, after: added.mime },
             bytes: { before: null, after: added.sizeBytes },

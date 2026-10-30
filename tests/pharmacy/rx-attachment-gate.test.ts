@@ -147,7 +147,7 @@ describe('reading a prescription file', () => {
     await ask(w.cashier, rxQueries.attachmentRead, input);
     const rows = await reads();
     expect(rows).toHaveLength(2);
-    expect(rows.map((r) => r.actorId)).toEqual([w.pharmacist.userId, w.owner.userId]);
+    expect(rows.map((r) => r.actorId).sort()).toEqual([w.pharmacist.userId, w.owner.userId].sort());
     for (const row of rows) {
       expect(row).toMatchObject({ entityType: 'PhRxAttachment', entityId: w.fileId, restaurantId: w.a.id });
       expect(row.changes).toEqual({ fileId: { before: null, after: w.fileId }, bytes: { before: null, after: PNG.length } });

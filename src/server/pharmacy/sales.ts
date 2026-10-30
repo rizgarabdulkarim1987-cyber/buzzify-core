@@ -32,7 +32,9 @@ import { applyMovement, lockOrder } from './stock';
  *
  * Lock order, always the same, so sales never deadlock: (1) the sale key (a repeat of one key waits for the first and
  * then replays it), (2) the seller's shift row `FOR SHARE` (a shift close takes it `FOR UPDATE`, so a sale either
- * finishes before the close or finds the shift closed: no cash is ever posted into a closed shift), (3) the branch's
+ * finishes before the close or finds the shift closed: no cash is ever posted into a closed shift), (2b) when the sale carries a prescription (phase 7):
+ * the prescription row `FOR UPDATE`, then the business-wide prescription-number advisory lock (NS_RX_NUMBER; see claimPrescription in
+ * prescriptions.ts), both before any stock lock, (3) the branch's
  * stock balances of the products sold, `FOR UPDATE` in batch order (`COLLATE "C"`, a fixed byte order), (4) the sold
  * batches' rows `FOR SHARE` (a recall or block racing a sale waits for it, or the sale sees it), (5) the branch's sale
  * numbering. Allocation reads the balances only after (3), so two sales of the last unit queue up and the second sees

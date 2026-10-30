@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
-import { utcToday } from '@/server/domain/pharmacy/expiry';
+import { baghdadDay } from '@/server/domain/pharmacy/reports-domain';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import {
   checkIssuedOn,
@@ -123,7 +123,7 @@ export async function createPrescription(
     return { result: { id: earlier.id, branchId: earlier.branchId, issuedOn: dayOf(earlier.issuedOn), saleId: earlier.saleId, replayed: true }, audit: null };
   }
 
-  const dated = checkIssuedOn(input.issuedOn, utcToday(now), 'RX');
+  const dated = checkIssuedOn(input.issuedOn, baghdadDay(now), 'RX');
   if (!dated.ok) {
     if (dated.reason === 'FUTURE') throw invalid('issuedOn', 'The prescription date is in the future', 'RX_DATE_FUTURE');
     if (dated.reason === 'EXPIRED') throw invalid('issuedOn', 'This prescription is too old to use', 'RX_EXPIRED');
@@ -293,7 +293,9 @@ export async function claimPrescription(
   if (rx.saleId !== null) throw conflict('PRESCRIPTION_USED', 'This prescription was already used for a sale');
 
   const level: RxLevel = restricted.length > 0 ? 'RESTRICTED' : 'RX';
-  const today = utcToday(args.now);
+  // The date on the paper is the pharmacist's local day (Baghdad, UTC+3), not the UTC day: between 00:00 and 03:00 local a prescription
+  // dated today must not read as the future.
+  const today = baghdadDay(args.now);
   const dated = checkIssuedOn(dayOf(rx.issuedOn), today, level);
   if (!dated.ok) {
     if (dated.reason === 'FUTURE') throw invalid('prescriptionId', 'The prescription date is in the future', 'RX_DATE_FUTURE');

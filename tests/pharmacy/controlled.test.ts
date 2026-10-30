@@ -206,6 +206,39 @@ describe('with controlled sales switched on', () => {
     expect(await registerByLot(w)).toEqual({ L1: 15, L2: 20 });
   });
 
+  it('with the limit at 0 sells more than the old limit of 30 in one sale', async () => {
+    const w = await world({ maxQty: 0 });
+    const id = await newRx(w);
+    dataOf(await act(w.pharmacist, saleActions.create, sale(w, id, { lines: [{ productId: w.r.id, unitId: w.r.tablet, qty: 35 }], payments: cashFor(3500n) })));
+    expect(await registerByLot(w)).toEqual({ L1: 15, L2: 20 });
+  });
+
+  it('judges the prescription date on the Baghdad day: at 22:30 UTC (01:30 next day) day 30 is the 28th minus 30, and today is not the future', async () => {
+    const w = await world();
+    vi.setSystemTime(new Date('2026-10-27T22:30:00.000Z'));
+    const today = await newRx(w, { issuedOn: '2026-10-28', number: 'BG TODAY' }).catch(() => null);
+    expect(today).not.toBeNull();
+    const edge = await newRx(w, { issuedOn: '2026-09-28', number: 'BG EDGE' });
+    const old = await newRx(w, { issuedOn: '2026-09-27', number: 'BG OLD' });
+    expect(codeOf(await act(w.pharmacist, saleActions.create, sale(w, today!)))).toBe('OK');
+    const expired = await act(w.pharmacist, saleActions.create, sale(w, old));
+    expect([codeOf(expired), phCodeOf(expired)]).toEqual(['INVALID', 'RX_EXPIRED']);
+    expect(codeOf(await act(w.pharmacist, saleActions.create, sale(w, edge, { clientKey: key('edge') })))).toBe('OK');
+  });
+
+  it('lets only one of two parallel sales use the same prescription', async () => {
+    const w = await world();
+    const id = await newRx(w);
+    const lines = [{ productId: w.r.id, unitId: w.r.tablet, qty: 5 }];
+    const [one, two] = await Promise.all([
+      act(w.pharmacist, saleActions.create, sale(w, id, { lines, payments: cashFor(500n), clientKey: key('par1') })),
+      act(w.pharmacist, saleActions.create, sale(w, id, { lines, payments: cashFor(500n), clientKey: key('par2') })),
+    ]);
+    expect([one, two].map(codeOf).sort()).toEqual(['CONFLICT', 'OK']);
+    expect([one, two].map(phCodeOf)).toContain('PRESCRIPTION_USED');
+    expect(await prisma().phSale.count()).toBe(1);
+  });
+
   it('refuses a prescription that is too old (31 days) or dated in the future, and accepts day 30', async () => {
     const w = await world();
     const old = await newRx(w, { issuedOn: '2026-09-26', number: 'OLD 1' });

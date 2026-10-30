@@ -589,9 +589,10 @@ const CASES: Record<string, Case> = {
   'ph.rx.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.rx.get': { body: (ids, n) => ({ prescriptionId: pick(ids, n).rxId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.rx.register': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Seeded files have no stored object, so 'refused' here holds for any id; the real gate (a stored file, every refusal) is tests/pharmacy/rx-attachment-gate.test.ts.
   'ph.rx.attachment.read': { body: (ids, n) => ({ id: pick(ids, n).rxFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.settings.controlled.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
-  'ph.settings.controlled.set': { body: () => ({ controlledEnabled: false, controlledMaxQty: 30, rxRetentionDays: 3650, version: 99 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.settings.controlled.set': { body: () => ({ controlledEnabled: false, controlledMaxQty: 30, rxRetentionDays: 3650, version: 1 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {

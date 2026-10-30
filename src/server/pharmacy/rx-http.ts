@@ -51,7 +51,12 @@ const STATUS: Record<ErrorCode, number> = {
   UPGRADE_REQUIRED: 403,
 };
 
-const PRIVATE = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' } as const;
+const PRIVATE = {
+  'cache-control': 'private, no-store',
+  'x-content-type-options': 'nosniff',
+  // Contain any active content in a PDF: nothing loads, nothing runs, no same-origin access.
+  'content-security-policy': "default-src 'none'; sandbox",
+} as const;
 
 function refuse(code: ErrorCode, message?: string): Response {
   const result = failure(code, message);

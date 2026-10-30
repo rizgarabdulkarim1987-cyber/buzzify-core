@@ -159,6 +159,15 @@ describe('recording a prescription', () => {
     expect(codeOf(await act(w.pharmacist, rxActions.create, rx(w, { issuedOn: '2026-02-30' })))).toBe('INVALID');
   });
 
+  it('judges the date on the Baghdad day: at 22:30 UTC (01:30 on the 28th) a prescription dated the 28th is today, the 29th is the future, day 180 is 2026-05-01', async () => {
+    const w = await world();
+    vi.setSystemTime(new Date('2026-10-27T22:30:00.000Z'));
+    expect(codeOf(await act(w.pharmacist, rxActions.create, rx(w, { issuedOn: '2026-10-28' })))).toBe('OK');
+    expect(phCodeOf(await act(w.pharmacist, rxActions.create, rx(w, { issuedOn: '2026-10-29' })))).toBe('RX_DATE_FUTURE');
+    expect(codeOf(await act(w.pharmacist, rxActions.create, rx(w, { issuedOn: '2026-05-01' })))).toBe('OK');
+    expect(phCodeOf(await act(w.pharmacist, rxActions.create, rx(w, { issuedOn: '2026-04-30' })))).toBe('RX_EXPIRED');
+  });
+
   it('puts ids, a status and a branch in the audit row and nothing the paper says', async () => {
     const w = await world();
     const made = dataOf(await act(w.pharmacist, rxActions.create, rx(w)));
