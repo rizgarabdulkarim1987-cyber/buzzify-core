@@ -120,7 +120,7 @@ export function Badges({ product, salesOnly = false, className = '' }: { product
     <span className={`flex flex-wrap gap-1.5 ${className}`}>
       <SalesTags product={product} />
       {own?.map((badge) => (
-        <span key={badge} className={badge === 'POPULAR' ? 'tpl-badge tpl-badge-hot' : 'tpl-badge'}>
+        <span key={badge} className={badge === 'POPULAR' ? 'tpl-badge tpl-badge-hot' : badge === 'RECOMMENDED' ? 'tpl-badge tpl-badge-pick' : 'tpl-badge'}>
           {t(`menu.badge.${badge}`)}
         </span>
       ))}
