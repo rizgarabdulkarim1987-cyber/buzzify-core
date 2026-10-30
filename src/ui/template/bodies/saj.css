@@ -87,7 +87,7 @@
 }
 /* The studio photos are a bowl on a grey backdrop: zoom in so the circle ends at the rim and no grey shows around it. */
 [data-body='saj'] .cf-frame img {
-  transform: scale(1.32);
+  transform: scale(1.12);
 }
 [data-body='saj'] .cf-badges {
   inset-block-start: 0;
