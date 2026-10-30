@@ -32,19 +32,21 @@ export const askAction = defineAction({
     productId: z.string().min(1).max(64).optional(),
     days: z.union([z.literal(30), z.literal(60), z.literal(90), z.literal(180)]).optional(),
     period: periodShape.optional(),
+    direct: z.boolean().optional(),
   }),
   target: phTargetOf,
   async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     assertStaff(ph);
     const now = new Date();
-    const provider = canPh(ph.role!, 'ai.use') ? gatedProvider(ctx.db, ph.restaurantId, now) : null;
+    const provider = canPh(ph.role!, 'ai.use') && !input.direct ? gatedProvider(ctx.db, ph.restaurantId, now) : null;
     const answer = await ask({ scoped, ph, now, provider }, input.question, {
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.batchId ? { batchId: input.batchId } : {}),
       ...(input.productId ? { productId: input.productId } : {}),
       ...(input.days ? { days: input.days } : {}),
       ...(input.period ? { period: input.period } : {}),
+      ...(input.direct ? { direct: true } : {}),
     });
     ctx.audit({
       action: 'ph.assistant.ask',

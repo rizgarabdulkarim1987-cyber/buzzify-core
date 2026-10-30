@@ -79,7 +79,7 @@ export function AssistantWorkspace({ branches, caps, writable, forecast }: Assis
     return null;
   };
 
-  const run = async (text: string, extra: { batch?: boolean } = {}) => {
+  const run = async (text: string, extra: { batch?: boolean; direct?: boolean } = {}) => {
     if (busy) return;
     setBusy(true);
     setProblem(null);
@@ -92,6 +92,7 @@ export function AssistantWorkspace({ branches, caps, writable, forecast }: Assis
         ...(periodSet && !periodBad ? { period: { from, to } } : {}),
         ...(product ? { productId: product.id } : {}),
         ...(extra.batch && batchId ? { batchId } : {}),
+        ...(extra.direct ? { direct: true } : {}),
       }),
     );
     setBusy(false);
@@ -241,14 +242,14 @@ export function AssistantWorkspace({ branches, caps, writable, forecast }: Assis
         <ul className="flex flex-wrap gap-2" data-testid="assistant-starters">
           {STARTERS.map((s) => (
             <li key={s.tool}>
-              <button type="button" className={TOUCH_BTN} disabled={starterDisabled(s)} data-testid={`starter-${s.tool}`} onClick={() => void run(s.question, { batch: true })}>
+              <button type="button" className={TOUCH_BTN} disabled={starterDisabled(s)} data-testid={`starter-${s.tool}`} onClick={() => void run(s.question, { batch: true, direct: true })}>
                 {t(`pharmacy.assistant.starter.${s.tool}`)}
               </button>
             </li>
           ))}
           {forecast && (
             <li>
-              <button type="button" className={TOUCH_BTN} disabled={busy || !product} data-testid="starter-forecast" onClick={() => void run('Forecast the demand for next week')}>
+              <button type="button" className={TOUCH_BTN} disabled={busy || !product} data-testid="starter-forecast" onClick={() => void run('Forecast the demand for next week', { direct: true })}>
                 {t('pharmacy.assistant.starter.forecast')}
               </button>
             </li>

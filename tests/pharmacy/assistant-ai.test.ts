@@ -158,6 +158,16 @@ describe('the model is never required', () => {
     expect((a.tables[0] as any).rows).toHaveLength(3);
   });
 
+  it('a starter (direct) asks for no model: the tables answer, with no degraded notice and no model call', async () => {
+    const model = scripted(text('Never used.'));
+    const a = await askAs(w.owner, model, 'Which batches expire soon?', { direct: true });
+    expect(a).toMatchObject({ answer: null, grounded: true });
+    expect(a.degraded).toBeUndefined();
+    expect(a.reason).toBeUndefined();
+    expect(a.tables).toHaveLength(1);
+    expect(model.requests).toHaveLength(0);
+  });
+
   it('returns the plain tables when the provider fails, whatever it fails with, and never throws', async () => {
     for (const [failure, reason] of [
       [new AssistantDegraded('AI_BUDGET_REACHED'), 'AI_BUDGET_REACHED'],

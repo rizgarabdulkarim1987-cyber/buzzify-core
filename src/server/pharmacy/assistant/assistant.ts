@@ -49,6 +49,8 @@ export interface AskOptions {
   days?: 30 | 60 | 90 | 180;
   /** For a forecast, which product: a demand figure adds up units of one product only. */
   productId?: string;
+  /** A starter question: the tool runs and the tables answer, with no model and no degraded notice (the person asked for no prose). */
+  direct?: boolean;
 }
 
 export type AnswerReason = DegradeReason | 'CLINICAL' | 'UNSAFE_STOCK' | 'PRODUCT_NEEDED';
@@ -198,6 +200,7 @@ export async function ask(env: AskEnv, question: string, opts: AskOptions = {}):
     links: tables.map((t) => ({ tool: t.tool, href: LINKS[t.tool] })),
   };
 
+  if (opts.direct) return base(env, shown);
   if (!env.provider) return base(env, { ...shown, degraded: true, reason: reason ?? 'NO_AI_PERMISSION' });
   let prose: string;
   try {
