@@ -151,9 +151,10 @@
 /* The edge code in the margin beside the frame, as printed on film stock. */
 [data-body='film'] .fm-code {
   position: absolute;
-  inset-block-start: 50%;
-  inset-inline-end: calc(100% + 0.0625rem);
-  inline-size: var(--fm-rail);
+  /* Physical sides: the vertical writing mode below would turn the logical ones sideways. */
+  top: 50%;
+  right: calc(100% + 0.0625rem);
+  width: var(--fm-rail);
   translate: 0 -50%;
   color: var(--fm-hole);
   font-size: 0.75rem;
