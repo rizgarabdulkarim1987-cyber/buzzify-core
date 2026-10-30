@@ -1,0 +1,133 @@
+/*
+ * The Laundromat (kind `wash`, family vitrine): a tiled laundromat wall, each section a row of washing machines under
+ * its dark label bar, each dish a machine: a control panel with two knobs and the price on its small display, the photo
+ * seen through the round door with its chrome ring and glass reflection, the name, and «start» (add), which spins the
+ * photo in the drum. The machines are `--raised`, the display and the label bar `--text` with `--bg` letters, the
+ * coins of the strip `--accent`.
+ */
+[data-body='wash'] {
+  --wa-tile: color-mix(in srgb, var(--text) 9%, var(--bg));
+  --wa-chrome: color-mix(in srgb, var(--text) 22%, var(--raised));
+  --wa-chrome-lo: color-mix(in srgb, var(--text) 45%, var(--raised));
+  --wa-foot: color-mix(in srgb, var(--text) 28%, var(--bg));
+  background:
+    repeating-linear-gradient(0deg, transparent 0 2.375rem, var(--wa-tile) 2.375rem 2.5rem),
+    repeating-linear-gradient(90deg, transparent 0 2.375rem, var(--wa-tile) 2.375rem 2.5rem);
+}
+
+/* The coin-slot strip: each section a token with its coin. */
+[data-body='wash'] .vt-chip {
+  padding-inline: 0.375rem 0.875rem;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: 0 2px 0 var(--wa-chrome-lo);
+}
+[data-body='wash'] .wa-coin {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 35%, #fff), var(--accent) 70%);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, #000);
+}
+[data-body='wash'] .vt-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 2px 0 #000;
+}
+
+/* The row's label bar: the section's name and how many machines. */
+[data-body='wash'] .wa-title {
+  justify-content: space-between;
+  margin-block-end: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 1.0625rem;
+}
+[data-body='wash'] .wa-title b {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+}
+
+/* A machine. */
+[data-body='wash'] .wa-tile {
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem 0.625rem;
+  border-radius: 0.75rem;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow:
+    0 0.375rem 0 var(--wa-foot),
+    0 0.625rem 1.25rem rgb(0 0 0 / 0.12);
+}
+[data-body='wash'] .wa-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  inline-size: 100%;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--text) 8%, var(--raised));
+}
+[data-body='wash'] .wa-knob {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff, var(--wa-chrome-lo));
+}
+/* The small display: the price glows in the panel. */
+[data-body='wash'] .wa-lcd {
+  min-inline-size: 0;
+  overflow: hidden;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.1875rem;
+  background: var(--text);
+  color: var(--bg);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  box-shadow: inset 0 0 0.375rem rgb(0 0 0 / 0.5);
+}
+/* The round door: a chrome ring, the drum's photo behind the glass and its reflection. */
+[data-body='wash'] .wa-window {
+  position: relative;
+  inline-size: 78%;
+  aspect-ratio: 1;
+  border: 0.5rem solid var(--wa-chrome);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 3px var(--wa-chrome-lo),
+    0 2px 6px rgb(0 0 0 / 0.2);
+}
+[data-body='wash'] .wa-window > :first-child {
+  border-radius: 50%;
+}
+[data-body='wash'] .wa-window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.55), transparent 45%);
+  pointer-events: none;
+}
+[data-body='wash'] .wa-add {
+  border-radius: 999px;
+  background: var(--button);
+  color: var(--on-button);
+}
+[data-body='wash'] .wa-add::after {
+  content: ' ▶';
+  font-size: 0.75rem;
+}
+
+@media (hover: hover) {
+  [data-body='wash'] .vt-chip:hover:not([aria-current='true']) {
+    box-shadow: 0 2px 0 var(--accent);
+  }
+  [data-body='wash'] .wa-tile:hover .wa-window {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--wa-chrome));
+  }
+}

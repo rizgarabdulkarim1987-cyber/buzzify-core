@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات تكشّخ ٢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Baloo+Bhaijaan+2:wght@500;700;800&family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=Cairo:wght@400;600;700;900&family=Changa:wght@300;500;700;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;600;700&family=Lalezar&family=Reem+Kufi:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 900px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 320px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover h2 { font-size: 22px; }
+  .cover .tag { font-size: 13px; color: #ffd23f; font-weight: 700; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .who { font-size: 12px; color: #9a9aa3; }
+  .cover .sk { font-size: 11px; color: #9a9aa3; direction: ltr; text-align: right; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 50; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 56px 10px 12px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .cart .cnt { transition: transform .2s; display: inline-block; }
+  .cart .cnt.bump { transform: scale(1.35); }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; z-index: 60; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: .25s; pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .mono { font-family: 'IBM Plex Mono'; direction: ltr; unicode-bidi: isolate; }
+
+  /* =====================================================================
+     1. LOOKBOOK — a fashion house collection
+     ===================================================================== */
+  .m-look { background: #f2efe9; color: #111; font-family: 'El Messiri'; }
+  .m-look .lat { font-family: 'Bodoni Moda'; direction: ltr; unicode-bidi: isolate; }
+  .m-look .hero { position: relative; height: 400px; }
+  .m-look .hero .ph { position: absolute; inset: 0; }
+  .m-look .hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(0,0,0,.55)); }
+  .m-look .hero .brand { position: absolute; top: 18px; right: 18px; z-index: 2; color: #fff; font: 400 13px 'Bodoni Moda'; letter-spacing: 6px; }
+  .m-look .hero h1 { position: absolute; bottom: 64px; right: 14px; left: 14px; z-index: 2; color: #fff; font: 700 60px/0.9 'Amiri'; }
+  .m-look .hero .sub { position: absolute; bottom: 22px; right: 16px; left: 16px; z-index: 2; color: #fff; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .m-look .hero .sub .add { color: #fff; border-color: #fff; }
+  .m-look .tabs { background: #f2efe9; border-bottom: 1px solid #111; }
+  .m-look .tabs button { font: 400 14px 'El Messiri'; padding: 2px 8px; color: #777; }
+  .m-look .tabs button.on { color: #111; text-decoration: underline; text-underline-offset: 6px; }
+  .m-look section { padding: 30px 14px 8px; }
+  .m-look section > h3 { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #111; padding-bottom: 6px; margin-bottom: 16px; font: 700 34px 'Amiri'; }
+  .m-look section > h3 small { font: italic 400 13px 'Bodoni Moda'; }
+  .m-look .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 12px; }
+  .m-look .lk:nth-child(3n+1) { grid-column: 1 / -1; }
+  .m-look .lk:nth-child(3n+1) .ph { aspect-ratio: 4/3.2; }
+  .m-look .lk .ph { aspect-ratio: 3/4; filter: contrast(1.05); }
+  .m-look .lk .no { font: 400 11px 'Bodoni Moda'; letter-spacing: 3px; margin-top: 8px; color: #777; }
+  .m-look .lk .nm { font: 700 19px 'Amiri'; line-height: 1.2; }
+  .m-look .lk .row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .m-look .lk .row b { font: 400 16px 'Bodoni Moda'; }
+  .m-look .add { font: 400 12px 'El Messiri'; border: 1px solid #111; padding: 4px 12px; letter-spacing: 1px; }
+  .m-look .cart { background: #111; color: #f2efe9; font-family: 'El Messiri'; letter-spacing: 1px; }
+
+  /* =====================================================================
+     2. HUD — targeting system locks on to every dish
+     ===================================================================== */
+  .m-hud { --g: #39ff88; background-color: #020a06; background-image: linear-gradient(rgba(57,255,136,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(57,255,136,.06) 1px, transparent 1px); background-size: 24px 24px; color: #d6ffe6; font-family: 'Changa'; }
+  .m-hud::before { content: ''; position: sticky; top: 0; display: block; height: 0; }
+  .m-hud .scan { position: fixed; left: 0; right: 0; height: 80px; pointer-events: none; z-index: 25; background: linear-gradient(transparent, rgba(57,255,136,.10), transparent); animation: scan 4s linear infinite; }
+  @keyframes scan { from { top: -80px; } to { top: 100%; } }
+  .m-hud .hd { padding: 20px 14px 6px; display: flex; justify-content: space-between; align-items: end; }
+  .m-hud .hd h1 { font-weight: 800; font-size: 28px; color: var(--g); letter-spacing: 1px; }
+  .m-hud .hd .mono { font-size: 10px; line-height: 1.6; text-align: left; color: var(--g); opacity: .8; }
+  .m-hud .tabs { background: rgba(2,10,6,.9); border-bottom: 1px solid rgba(57,255,136,.35); }
+  .m-hud .tabs button { font: 600 11px 'IBM Plex Mono'; padding: 5px 9px; border: 1px solid rgba(57,255,136,.35); color: var(--g); }
+  .m-hud .tabs button span { font-family: 'Changa'; font-size: 12.5px; }
+  .m-hud .tabs button.on { background: var(--g); color: #020a06; }
+  .m-hud .radar { position: relative; margin: 16px auto 0; width: 82%; aspect-ratio: 1; border-radius: 50%; border: 1.5px solid var(--g); }
+  .m-hud .radar .ph { position: absolute; inset: 9%; border-radius: 50%; filter: saturate(1.1); }
+  .m-hud .radar::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, rgba(57,255,136,.45), transparent 60deg); animation: sweep 3s linear infinite; z-index: 2; mix-blend-mode: screen; }
+  .m-hud .radar::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(var(--g), var(--g)) center/1px 100% no-repeat, linear-gradient(90deg, var(--g), var(--g)) center/100% 1px no-repeat; opacity: .5; z-index: 2; }
+  @keyframes sweep { to { transform: rotate(360deg); } }
+  .m-hud .lock { text-align: center; margin-top: 12px; }
+  .m-hud .lock small { font: 600 11px 'IBM Plex Mono'; color: #ff4d4d; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .m-hud .lock h2 { font-weight: 800; font-size: 24px; }
+  .m-hud .lock .row { display: flex; justify-content: center; gap: 14px; align-items: center; margin-top: 6px; }
+  .m-hud section { padding: 24px 12px 6px; }
+  .m-hud section > h3 { font-weight: 700; font-size: 18px; margin-bottom: 12px; color: var(--g); display: flex; gap: 8px; align-items: center; }
+  .m-hud section > h3 .mono { font-size: 10px; opacity: .7; }
+  .m-hud .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  .m-hud .tg { position: relative; }
+  .m-hud .tg .fr { position: relative; padding: 8px; }
+  .m-hud .tg .fr .ph { aspect-ratio: 1; }
+  .m-hud .tg .fr i { position: absolute; width: 16px; height: 16px; border: 2px solid var(--g); transition: all .35s cubic-bezier(.2,.8,.2,1); }
+  .m-hud .tg .fr i:nth-child(1) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+  .m-hud .tg .fr i:nth-child(2) { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+  .m-hud .tg .fr i:nth-child(3) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+  .m-hud .tg .fr i:nth-child(4) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+  .m-hud .tg.locked .fr i { border-color: #ff4d4d; width: 24px; height: 24px; }
+  .m-hud .tg .fr::after { content: ''; position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%); background: linear-gradient(var(--g), var(--g)) center/2px 100% no-repeat, linear-gradient(90deg, var(--g), var(--g)) center/100% 2px no-repeat; opacity: .7; }
+  .m-hud .tg .id { position: absolute; top: 12px; right: 12px; font: 600 9px 'IBM Plex Mono'; background: rgba(2,10,6,.8); color: var(--g); padding: 2px 4px; z-index: 2; }
+  .m-hud .tg .nm { font-weight: 700; font-size: 14px; margin-top: 4px; }
+  .m-hud .tg .sp { font: 400 10px 'IBM Plex Mono'; opacity: .7; }
+  .m-hud .tg .row { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; }
+  .m-hud .tg .row b { font: 600 13px 'IBM Plex Mono'; color: var(--g); }
+  .m-hud .add { width: 30px; height: 30px; border: 1.5px solid var(--g); color: var(--g); font-size: 17px; }
+  .m-hud .cart { background: var(--g); color: #020a06; font-family: 'IBM Plex Mono'; }
+
+  /* =====================================================================
+     3. AQUARIUM — dishes float in bubbles under rippling light
+     ===================================================================== */
+  .m-aqua { background: linear-gradient(180deg, #0a6c8f 0%, #064a6e 35%, #022a45 100%); color: #fff; font-family: 'Baloo Bhaijaan 2'; }
+  .m-aqua .caus { position: fixed; inset: 0; pointer-events: none; opacity: .35; mix-blend-mode: soft-light; background: repeating-radial-gradient(circle at 30% 20%, transparent 0 18px, rgba(255,255,255,.6) 20px, transparent 24px), repeating-radial-gradient(circle at 70% 60%, transparent 0 26px, rgba(255,255,255,.5) 28px, transparent 32px); background-size: 180px 160px, 220px 200px; animation: caus 9s linear infinite; }
+  @keyframes caus { to { background-position: 180px 160px, -220px 200px; } }
+  .m-aqua .bub { position: fixed; bottom: -20px; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.6); pointer-events: none; animation: rise linear infinite; }
+  @keyframes rise { to { transform: translateY(-1000px) translateX(20px); opacity: 0; } }
+  .m-aqua .hd { position: relative; text-align: center; padding: 26px 14px 8px; }
+  .m-aqua .hd h1 { font-weight: 800; font-size: 40px; line-height: 1; }
+  .m-aqua .hd p { opacity: .8; font-size: 14px; }
+  .m-aqua .tabs { background: rgba(2,42,69,.6); backdrop-filter: blur(10px); }
+  .m-aqua .tabs button { font: 700 13px 'Baloo Bhaijaan 2'; padding: 5px 14px; border-radius: 30px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
+  .m-aqua .tabs button.on { background: #fff; color: #064a6e; }
+  .m-aqua .orb { position: relative; border-radius: 50%; aspect-ratio: 1; box-shadow: inset 0 0 0 3px rgba(255,255,255,.35), 0 18px 30px rgba(0,0,0,.35); animation: bob 4s ease-in-out infinite; }
+  .m-aqua .orb .ph { position: absolute; inset: 0; border-radius: 50%; }
+  .m-aqua .orb::after { content: ''; position: absolute; top: 9%; right: 16%; width: 30%; height: 18%; border-radius: 50%; background: radial-gradient(ellipse, rgba(255,255,255,.75), transparent 70%); transform: rotate(25deg); }
+  @keyframes bob { 50% { transform: translateY(-8px); } }
+  .m-aqua .hero { position: relative; padding: 18px 50px 0; text-align: center; }
+  .m-aqua .hero h2 { font-weight: 800; font-size: 26px; margin-top: 14px; }
+  .m-aqua .hero .row { justify-content: center; gap: 14px; }
+  .m-aqua section { position: relative; padding: 26px 12px 6px; }
+  .m-aqua section > h3 { font-weight: 800; font-size: 26px; margin-bottom: 14px; text-align: center; }
+  .m-aqua .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 16px; }
+  .m-aqua .it { text-align: center; }
+  .m-aqua .it:nth-child(2n) .orb { animation-delay: -2s; }
+  .m-aqua .it:nth-child(3n) .orb { animation-delay: -1s; }
+  .m-aqua .it .nm { font-weight: 700; font-size: 16px; margin-top: 10px; }
+  .m-aqua .row { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; font-weight: 700; }
+  .m-aqua .add { width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #064a6e; font-weight: 800; font-size: 18px; }
+  .m-aqua .cart { background: rgba(255,255,255,.95); color: #064a6e; }
+
+  /* =====================================================================
+     4. BANK — every dish is a banknote
+     ===================================================================== */
+  .m-bank { background: #ece8dd; color: #1f2a24; font-family: 'Reem Kufi'; }
+  .m-bank .hd { text-align: center; padding: 24px 14px 8px; }
+  .m-bank .hd small { font: 400 11px 'Amiri'; letter-spacing: 2px; }
+  .m-bank .hd h1 { font-weight: 700; font-size: 28px; }
+  .m-bank .hd .seal { width: 54px; height: 54px; margin: 6px auto 0; border-radius: 50%; border: 2px solid #1f2a24; display: grid; place-items: center; font: 700 11px 'Amiri'; background: repeating-conic-gradient(#1f2a24 0 3deg, transparent 3deg 10deg); -webkit-mask: radial-gradient(circle, #000 55%, transparent 56%), radial-gradient(circle, transparent 0 66%, #000 67%); }
+  .m-bank .tabs { background: rgba(236,232,221,.95); border-bottom: 1.5px solid #1f2a24; }
+  .m-bank .tabs button { font: 600 13px 'Reem Kufi'; padding: 4px 10px; border: 1.5px solid #1f2a24; border-radius: 4px; }
+  .m-bank .tabs button.on { background: #1f2a24; color: #ece8dd; }
+  .m-bank section { padding: 22px 12px 4px; }
+  .m-bank section > h3 { font-weight: 700; font-size: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  .m-bank section > h3 small { font: 400 12px 'Amiri'; }
+  .m-bank .list { display: flex; flex-direction: column; gap: 10px; }
+  .m-bank .note { --n: #2d5a3d; position: relative; display: grid; grid-template-columns: 96px 1fr auto; gap: 10px; align-items: center; padding: 10px; border-radius: 6px; color: #fff; overflow: hidden; background: radial-gradient(circle at 15% 50%, rgba(255,255,255,.12) 0 20%, transparent 21%), repeating-radial-gradient(circle at 15% 50%, rgba(255,255,255,.10) 0 1px, transparent 1px 5px), repeating-linear-gradient(45deg, rgba(255,255,255,.06) 0 1px, transparent 1px 6px), linear-gradient(120deg, var(--n), color-mix(in srgb, var(--n) 70%, #000)); box-shadow: 0 3px 8px rgba(0,0,0,.18); border: 1px solid rgba(0,0,0,.2); }
+  .m-bank .note::before { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; pointer-events: none; }
+  .m-bank .note .ph { width: 96px; height: 80px; border-radius: 50% / 50%; border: 2px solid rgba(255,255,255,.7); box-shadow: 0 0 0 4px rgba(255,255,255,.15); }
+  .m-bank .note .nm { font-weight: 700; font-size: 16px; line-height: 1.2; }
+  .m-bank .note .sr { font: 400 10px 'IBM Plex Mono'; color: #ffd8a8; direction: ltr; text-align: right; margin-top: 3px; }
+  .m-bank .note .ds { font: 400 11px 'Amiri'; opacity: .85; }
+  .m-bank .note .den { text-align: center; }
+  .m-bank .note .den b { display: block; font-weight: 700; font-size: 22px; line-height: 1; }
+  .m-bank .note .den small { font: 400 10px 'Amiri'; opacity: .8; }
+  .m-bank .add { margin-top: 6px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.92); color: var(--n); font-weight: 700; font-size: 17px; }
+  .m-bank .hero { margin: 14px 12px 0; }
+  .m-bank .hero .note { grid-template-columns: 1fr; text-align: center; padding: 16px; }
+  .m-bank .hero .note .ph { width: 70%; height: 120px; margin: 0 auto; }
+  .m-bank .hero .note .nm { font-size: 22px; margin-top: 8px; }
+  .m-bank .hero .note .den b { font-size: 34px; }
+  .m-bank .hero .wm { position: absolute; top: 14px; right: 16px; font: 700 12px 'Amiri'; opacity: .7; }
+  .m-bank .cart { background: #1f2a24; color: #ece8dd; }
+
+  /* =====================================================================
+     5. PERIODIC TABLE — the elements of taste
+     ===================================================================== */
+  .m-pt { background: #f6f5ef; color: #1a1a1a; font-family: 'IBM Plex Sans Arabic'; }
+  .m-pt .hd { padding: 22px 14px 8px; }
+  .m-pt .hd small { font: 600 10px 'IBM Plex Mono'; letter-spacing: 3px; color: #777; }
+  .m-pt .hd h1 { font-weight: 700; font-size: 26px; line-height: 1.2; }
+  .m-pt .tabs { background: rgba(246,245,239,.95); }
+  .m-pt .tabs button { font: 600 12px 'IBM Plex Sans Arabic'; padding: 5px 10px; border-radius: 4px; background: color-mix(in srgb, var(--c) 22%, #fff); border: 1.5px solid var(--c); }
+  .m-pt .tabs button.on { background: var(--c); color: #fff; }
+  .m-pt section { padding: 18px 10px 4px; }
+  .m-pt section > h3 { font-weight: 700; font-size: 15px; margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
+  .m-pt section > h3::before { content: ''; width: 12px; height: 12px; background: var(--c); }
+  .m-pt .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .m-pt .el { background: color-mix(in srgb, var(--c) 18%, #fff); border: 1.5px solid var(--c); padding: 5px; position: relative; }
+  .m-pt .el .top { display: flex; justify-content: space-between; font: 600 10px 'IBM Plex Mono'; }
+  .m-pt .el .sym { font: 700 26px/1 'IBM Plex Sans Arabic'; margin: 2px 0 4px; color: color-mix(in srgb, var(--c) 75%, #000); }
+  .m-pt .el .ph { aspect-ratio: 1; }
+  .m-pt .el .nm { font-weight: 600; font-size: 12px; margin-top: 4px; line-height: 1.25; }
+  .m-pt .el .row { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+  .m-pt .el .row b { font: 600 11px 'IBM Plex Mono'; }
+  .m-pt .add { width: 24px; height: 24px; background: var(--c); color: #fff; font-weight: 700; }
+  .m-pt .hero { margin: 12px 10px 0; display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; background: #1a1a1a; color: #fff; padding: 10px; }
+  .m-pt .hero .big { border: 2px solid #ffd23f; padding: 8px; }
+  .m-pt .hero .big .top { display: flex; justify-content: space-between; font: 600 11px 'IBM Plex Mono'; color: #ffd23f; }
+  .m-pt .hero .big .sym { font: 700 54px/1 'IBM Plex Sans Arabic'; color: #ffd23f; margin: 6px 0; }
+  .m-pt .hero .big .nm { font-size: 13px; }
+  .m-pt .hero .ph { min-height: 160px; }
+  .m-pt .hero .info { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .m-pt .cart { background: #1a1a1a; color: #fff; font-family: 'IBM Plex Mono'; }
+
+  /* =====================================================================
+     6. STOCK EXCHANGE — dishes traded live
+     ===================================================================== */
+  .m-stock { background: #0b0f14; color: #e6edf3; font-family: 'Cairo'; }
+  .m-stock .tk { background: #11161d; border-bottom: 1px solid #1f2731; white-space: nowrap; overflow: hidden; font: 600 12px 'IBM Plex Mono'; padding: 7px 0; }
+  .m-stock .tk span { display: inline-block; animation: tk 22s linear infinite; }
+  .m-stock .tk em { font-style: normal; margin: 0 14px; }
+  .m-stock .up { color: #2ee6a6; } .m-stock .dn { color: #ff5c7a; }
+  @keyframes tk { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+  .m-stock .hd { padding: 16px 14px 6px; display: flex; justify-content: space-between; align-items: end; }
+  .m-stock .hd h1 { font-weight: 900; font-size: 24px; }
+  .m-stock .hd .mono { font-size: 11px; color: #2ee6a6; }
+  .m-stock .tabs { background: rgba(11,15,20,.94); border-bottom: 1px solid #1f2731; }
+  .m-stock .tabs button { font: 700 12.5px 'Cairo'; padding: 5px 12px; border-radius: 6px; color: #8b98a5; }
+  .m-stock .tabs button.on { background: #1f2731; color: #fff; }
+  .m-stock .hero { margin: 12px; background: #11161d; border: 1px solid #1f2731; border-radius: 14px; overflow: hidden; }
+  .m-stock .hero .ph { height: 150px; }
+  .m-stock .hero .in { padding: 12px; }
+  .m-stock .hero .in small { color: #2ee6a6; font-weight: 700; font-size: 12px; }
+  .m-stock .hero .in h2 { font-size: 20px; font-weight: 900; }
+  .m-stock .hero svg { width: 100%; height: 60px; display: block; margin-top: 6px; }
+  .m-stock .hero .row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .m-stock section { padding: 14px 12px 4px; }
+  .m-stock section > h3 { font-size: 14px; color: #8b98a5; font-weight: 700; display: flex; justify-content: space-between; padding: 0 2px 6px; border-bottom: 1px solid #1f2731; }
+  .m-stock .rw { display: grid; grid-template-columns: 62px 1fr 64px auto; gap: 10px; align-items: center; padding: 9px 2px; border-bottom: 1px solid #161c24; }
+  .m-stock .rw .ph { width: 62px; height: 62px; border-radius: 10px; }
+  .m-stock .rw .nm { font-weight: 700; font-size: 14.5px; }
+  .m-stock .rw .sy { font: 600 10.5px 'IBM Plex Mono'; color: #8b98a5; }
+  .m-stock .rw svg { width: 64px; height: 30px; }
+  .m-stock .rw .pr { text-align: left; }
+  .m-stock .rw .pr b { display: block; font: 600 13px 'IBM Plex Mono'; }
+  .m-stock .pill { display: inline-block; font: 700 10.5px 'IBM Plex Mono'; padding: 1px 6px; border-radius: 4px; margin-top: 2px; }
+  .m-stock .pill.up { background: rgba(46,230,166,.14); } .m-stock .pill.dn { background: rgba(255,92,122,.14); }
+  .m-stock .add { width: 28px; height: 28px; border-radius: 8px; background: #2ee6a6; color: #0b0f14; font-weight: 900; font-size: 16px; margin-top: 4px; }
+  .m-stock .cart { background: #2ee6a6; color: #0b0f14; }
+
+  /* =====================================================================
+     7. CHAT — the waiter sends you the menu as messages
+     ===================================================================== */
+  .m-chat { background-color: #e9e1d4; background-image: radial-gradient(rgba(0,0,0,.05) 1px, transparent 1px); background-size: 14px 14px; color: #111; font-family: 'Cairo'; }
+  .m-chat .bar { position: sticky; top: 0; z-index: 21; background: #1f6f5c; color: #fff; display: flex; gap: 10px; align-items: center; padding: 12px 14px 12px 56px; }
+  .m-chat .bar .av { width: 40px; height: 40px; border-radius: 50%; }
+  .m-chat .bar b { display: block; font-size: 15px; }
+  .m-chat .bar small { font-size: 11.5px; opacity: .85; }
+  .m-chat .tabs { top: 64px; background: rgba(233,225,212,.92); backdrop-filter: blur(6px); }
+  .m-chat .tabs button { font: 600 12.5px 'Cairo'; padding: 5px 12px; border-radius: 30px; background: #fff; border: 1px solid #1f6f5c; color: #1f6f5c; }
+  .m-chat .tabs button.on { background: #1f6f5c; color: #fff; }
+  .m-chat .day { text-align: center; margin: 10px 0; }
+  .m-chat .day span { background: #fff; font-size: 11px; padding: 3px 10px; border-radius: 8px; color: #555; }
+  .m-chat .msg { max-width: 82%; margin: 6px 12px; background: #fff; border-radius: 14px 4px 14px 14px; padding: 7px 10px; box-shadow: 0 1px 1px rgba(0,0,0,.08); font-size: 14px; position: relative; }
+  .m-chat .msg time { display: block; text-align: left; font-size: 10px; color: #888; margin-top: 2px; }
+  .m-chat .me { margin-right: auto; margin-left: 12px; background: #d6f5c9; border-radius: 4px 14px 14px 14px; animation: pop .25s ease-out; }
+  .m-chat .me time::after { content: ' ✓✓'; color: #34b7f1; }
+  @keyframes pop { from { transform: scale(.8); opacity: 0; } }
+  .m-chat .alb { padding: 4px; }
+  .m-chat .alb .g { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .m-chat .alb .pc { position: relative; border-radius: 10px; overflow: hidden; }
+  .m-chat .alb .pc .ph { aspect-ratio: 1; }
+  .m-chat .alb .pc .cap { position: absolute; bottom: 0; left: 0; right: 0; padding: 18px 6px 5px; background: linear-gradient(transparent, rgba(0,0,0,.75)); color: #fff; display: flex; justify-content: space-between; align-items: end; }
+  .m-chat .alb .pc .cap b { font-size: 12.5px; line-height: 1.2; display: block; }
+  .m-chat .alb .pc .cap span { font-size: 11px; opacity: .9; }
+  .m-chat .add { width: 28px; height: 28px; border-radius: 50%; background: #25d366; color: #fff; font-weight: 900; font-size: 16px; flex: none; }
+  .m-chat section { padding-bottom: 6px; }
+  .m-chat .cart { background: #1f6f5c; color: #fff; }
+
+  /* =====================================================================
+     8. CONTACT SHEET — the photographer's film proofs
+     ===================================================================== */
+  .m-film { background: #1c1b19; color: #f1ece2; font-family: 'IBM Plex Sans Arabic'; }
+  .m-film .hd { padding: 22px 14px 8px; }
+  .m-film .hd small { font: 600 10px 'IBM Plex Mono'; color: #ff9f1c; letter-spacing: 2px; }
+  .m-film .hd h1 { font: 700 34px 'Aref Ruqaa'; line-height: 1.1; }
+  .m-film .hd p { font-size: 12px; opacity: .7; }
+  .m-film .tabs { background: rgba(28,27,25,.94); }
+  .m-film .tabs button { font: 600 12px 'IBM Plex Sans Arabic'; padding: 4px 10px; border: 1px solid #4a463f; border-radius: 3px; color: #c9c2b4; }
+  .m-film .tabs button.on { background: #ff9f1c; color: #1c1b19; border-color: #ff9f1c; }
+  .m-film section { padding: 16px 10px 4px; }
+  .m-film section > h3 { font: 600 11px 'IBM Plex Mono'; color: #ff9f1c; letter-spacing: 2px; margin-bottom: 6px; direction: ltr; text-align: right; }
+  .m-film section > h3 span { font-family: 'IBM Plex Sans Arabic'; font-size: 14px; color: #f1ece2; letter-spacing: 0; }
+  .m-film .strip { background: #0b0a09; padding: 16px 8px; position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 8px; }
+  .m-film .strip::before, .m-film .strip::after { content: ''; position: absolute; left: 6px; right: 6px; height: 8px; background: repeating-linear-gradient(90deg, #e9e2d3 0 8px, transparent 8px 18px); border-radius: 2px; opacity: .85; }
+  .m-film .strip::before { top: 4px; } .m-film .strip::after { bottom: 4px; }
+  .m-film .fr { position: relative; }
+  .m-film .fr .ph { aspect-ratio: 4/3.3; border-radius: 2px; }
+  .m-film .fr .no { font: 600 9px 'IBM Plex Mono'; color: #ff9f1c; direction: ltr; text-align: left; margin-top: 3px; }
+  .m-film .fr .nm { font-weight: 600; font-size: 13.5px; margin-top: 1px; }
+  .m-film .fr .row { display: flex; justify-content: space-between; align-items: center; }
+  .m-film .fr .row b { font: 600 12px 'IBM Plex Mono'; }
+  .m-film .fr.pick::before { content: ''; position: absolute; inset: -7px -6px 30px -6px; border: 3px solid #e63946; border-radius: 48% 52% 45% 55% / 55% 45% 55% 45%; transform: rotate(-2deg); z-index: 2; pointer-events: none; }
+  .m-film .fr.pick::after { content: 'ممتاز ✓'; position: absolute; top: -10px; left: 0; font: 700 15px 'Aref Ruqaa'; color: #e63946; transform: rotate(-8deg); z-index: 3; }
+  .m-film .fr.x .ph::after { content: ''; }
+  .m-film .add { width: 26px; height: 26px; border: 1.5px solid #ff9f1c; color: #ff9f1c; border-radius: 3px; font-weight: 700; }
+  .m-film .hero { margin: 12px 10px 0; background: #f1ece2; padding: 10px 10px 14px; color: #1c1b19; transform: rotate(-1deg); box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+  .m-film .hero .ph { aspect-ratio: 4/3; }
+  .m-film .hero .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .m-film .hero b { font: 700 20px 'Aref Ruqaa'; }
+  .m-film .hero small { font: 600 10px 'IBM Plex Mono'; color: #888; }
+  .m-film .cart { background: #ff9f1c; color: #1c1b19; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات جديدة تكشّخ</h1>
+  <p>الدفعة الثانية. سجلت اختياراتك من الدفعة الأولى: صالة العرض، تشريح الطبق، الجدار المفتوح، كروت الهولوغرام، صحون الدي جي، وزقاق النيون. هذي ثمانية جديدة بنفس القاعدة. <b>اضغط «افتح المنيو»</b> وجرب: نزّل، دوس الأقسام، وأضف للسلة. ⤢ شاشة كاملة، و✕ يسكّر.</p>
+  <div class="covers" id="covers" data-multiselect></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 600) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const FEAT = { n: 'مشاوي مشكلة للعائلة', d: 'كباب، تكة، أوصال ودجاج، مع خبز التنور والصوص', p: '٣٥٬٠٠٠', img: '1555939594-58d7cb561ad1', kcal: '١٨٠٠', min: '٢٥' };
+const MENU = [
+  { id: 'grill', t: 'المشويات', c: '#e4572e', note: '#2d5a3d', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن والبهارات', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0', kcal: '٤٥٠', min: '١٥', sym: 'تك', tk: 'TKKA', ch: 12 },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص الفلفل', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e', kcal: '٧٨٠', min: '٢٠', sym: 'ست', tk: 'STAK', ch: 4 },
+    { n: 'ريش مشوية', d: 'ريش غنم بالباربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947', kcal: '٩٢٠', min: '٢٥', sym: 'ري', tk: 'RIBS', ch: -3 },
+    { n: 'برياني دجاج', d: 'بسمتي ودجاج ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a', kcal: '٦٤٠', min: '١٢', sym: 'بر', tk: 'BRYN', ch: 8 },
+  ]},
+  { id: 'fast', t: 'السريع', c: '#f3a712', note: '#7a3b69', items: [
+    { n: 'دبل سماش', d: 'لحم مضغوط وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd', kcal: '٨٥٠', min: '١٠', sym: 'سم', tk: 'SMSH', ch: 21 },
+    { n: 'شاورما عربي', d: 'دجاج وثوم وبطاطا', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783', kcal: '٦٢٠', min: '٨', sym: 'شا', tk: 'SHWR', ch: 15 },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec', kcal: '٩٥٠', min: '١٢', sym: 'بس', tk: 'BRST', ch: -6 },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38', kcal: '٨٠٠', min: '١٥', sym: 'بي', tk: 'PZZA', ch: 2 },
+    { n: 'سمبوسة', d: '٥ قطع لحم أو خضار', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950', kcal: '٤٢٠', min: '٦', sym: 'سب', tk: 'SMBS', ch: -1 },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9', kcal: '٧١٠', min: '١٤', sym: 'با', tk: 'PSTA', ch: 5 },
+  ]},
+  { id: 'fresh', t: 'السلطات', c: '#29a35a', note: '#2b5a8a', items: [
+    { n: 'سلطة الموسم', d: 'خضار طازجة وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd', kcal: '٢٢٠', min: '٥', sym: 'سل', tk: 'SLAD', ch: 3 },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d', kcal: '٣٩٠', min: '٧', sym: 'أف', tk: 'AVCD', ch: 9 },
+  ]},
+  { id: 'sweet', t: 'الحلويات', c: '#d1495b', note: '#8a4b2b', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9', kcal: '٤٨٠', min: '٣', sym: 'تي', tk: 'TRMS', ch: 7 },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات وزبدة', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445', kcal: '٦٥٠', min: '١٠', sym: 'بك', tk: 'PNCK', ch: 11 },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c', kcal: '٥٢٠', min: '٤', sym: 'بو', tk: 'BRWN', ch: -2 },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb', kcal: '٥٩٠', min: '٣', sym: 'أو', tk: 'OREO', ch: 18 },
+  ]},
+  { id: 'drink', t: 'المشروبات', c: '#4361ee', note: '#7a1f2b', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085', kcal: '١٩٠', min: '٤', sym: 'لا', tk: 'LATT', ch: 6 },
+    { n: 'موهيتو فراولة', d: 'نعناع وليمون وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e', kcal: '١٤٠', min: '٤', sym: 'مو', tk: 'MOJT', ch: 13 },
+  ]},
+];
+const ALL = MENU.flatMap(s => s.items);
+const LETTERS = 'ABCDE';
+const toAr = x => String(x).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const tabs = (fmt) => `<nav class="tabs">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c}">${fmt ? fmt(s, i) : s.t}</button>`).join('')}</nav>`;
+const sections = (head, item, wrap = (s, inner) => `<div class="grid">${inner}</div>`) => MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c};--n:${s.note}">${head(s, si)}${wrap(s, s.items.map((it, k) => item(it, s, k, si)).join(''))}</section>`).join('');
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: <b class="cnt">٠</b></span><span class="sum">٠ د.ع ←</span></div>`;
+const spark = (seed, up, w = 64, h = 30) => { let v = h / 2, pts = []; for (let i = 0; i < 12; i++) { v += Math.sin(seed * 7.3 + i * 1.9) * 5 + (up ? -1.4 : 1.4); v = Math.max(3, Math.min(h - 3, v)); pts.push(`${(i / 11 * w).toFixed(1)},${v.toFixed(1)}`); } return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="${up ? '#2ee6a6' : '#ff5c7a'}" stroke-width="2" points="${pts.join(' ')}"/></svg>`; };
+
+const STYLES = [
+ { key: 'hud', name: 'رادار المقاتلة', tag: 'نظام تصويب يقفل على كل طبق', who: 'للشباب، البرغر، ومحلات الألعاب', sk: 'gsap · animate · brutalist-skill',
+   desc: 'شاشة طيار مقاتلة: رادار يدور فوق الطبق المميز، وخط مسح يمر على الشاشة، وكل طبق محاط بأقواس تصويب. لما تضيف طبق تقفل الأقواس عليه وتصير حمرة.',
+   render: () => `
+    <div class="scan"></div>
+    <div class="hd"><h1>رادار الجوع</h1><div class="mono">SYS ONLINE<br>TGT: ${toAr(ALL.length)}<br>ALT 0300</div></div>
+    ${tabs((s, i) => `<span class="mono">S-${i + 1}</span> <span>${s.t}</span>`)}
+    <div class="radar"><div class="ph" ${bg(FEAT.img, 700)}></div></div>
+    <div class="lock"><small class="mono">● TARGET LOCKED</small><h2>${FEAT.n}</h2><div class="row"><span class="mono">${FEAT.kcal} kcal · ${FEAT.min} min</span><b class="mono">${FEAT.p}</b><button class="add">+</button></div></div>
+    ${sections((s, si) => `<h3>${s.t}<span class="mono">SECTOR ${si + 1}</span></h3>`, (it, s, k, si) => `
+      <div class="tg"><div class="fr"><i></i><i></i><i></i><i></i><div class="ph" ${bg(it.img)}></div></div><span class="id mono">TGT-${LETTERS[si]}${k + 1}</span><div class="nm">${it.n}</div><div class="sp mono">${it.kcal} kcal · ${it.min} min</div><div class="row"><b>${it.p}</b><button class="add">+</button></div></div>`)}
+    ${cart('الأهداف')}` },
+
+ { key: 'aqua', name: 'الأكواريوم', tag: 'الأطباق تسبح بفقاعات', who: 'للمأكولات البحرية والعصائر والعوائل', sk: 'animate · emil-design-eng · animation-performance',
+   desc: 'المنيو تحت الماي: ضوء يتموج، وفقاعات تصعد، وكل طبق جوة فقاعة لامعة تطفو بهدوء لفوق وجوة. يرتاح الزبون من يشوفه، والصغار يحبونه.',
+   render: () => `
+    <div class="caus"></div>${Array.from({ length: 9 }, (_, i) => `<i class="bub" style="left:${8 + i * 10}%;animation-duration:${6 + (i % 4) * 2}s;animation-delay:-${i * 1.3}s;width:${6 + (i % 3) * 5}px;height:${6 + (i % 3) * 5}px"></i>`).join('')}
+    <div class="hd"><h1>بحر المذاق</h1><p>انزل للأعماق 🫧</p></div>
+    ${tabs()}
+    <div class="hero"><div class="orb"><div class="ph" ${bg(FEAT.img, 700)}></div></div><h2>${FEAT.n}</h2><div class="row"><span>${FEAT.p} د.ع</span><button class="add">+</button></div></div>
+    ${sections(s => `<h3>${s.t}</h3>`, it => `
+      <div class="it"><div class="orb"><div class="ph" ${bg(it.img)}></div></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`)}
+    ${cart('شبكتك')}` },
+
+ { key: 'bank', name: 'بنك المذاق', tag: 'كل طبق ورقة نقدية', who: 'للمطاعم اللي تحب الفكاهة والتميز', sk: 'canvas-design · ui-ux-pro-max · impeccable',
+   desc: 'كل طبق ورقة نقدية بنقوش وخطوط مثل العملة الحقيقية، وصورته بمكان الصورة الرسمية، والسعر هو «فئة» الورقة، وإلها رقم تسلسلي. كل قسم ورقته بلون، مثل فئات العملة.',
+   render: () => `
+    <div class="hd"><small>صادر عن</small><h1>البنك المركزي للمذاق</h1><div class="seal">ختم</div></div>
+    ${tabs()}
+    <div class="hero"><div class="note" style="--n:#1f4d3a"><span class="wm">فئة خاصة</span><div class="ph" ${bg(FEAT.img, 700)}></div><div class="nm">${FEAT.n}</div><div class="sr">SN-MS 000001</div><div class="den"><b>${FEAT.p}</b><small>دينار مذاق</small></div><button class="add" style="margin:6px auto 0">+</button></div></div>
+    ${sections(s => `<h3>${s.t}<small>فئة ${s.t}</small></h3>`, (it, s, k, si) => `
+      <div class="note" style="--n:${s.note}"><div class="ph" ${bg(it.img, 400)}></div><div><div class="nm">${it.n}</div><div class="ds">${it.d}</div><div class="sr">${LETTERS[si]}${String(k + 1).padStart(2, '0')} ${String(483920 + k * 7919 + si * 104729).slice(0, 6)}</div></div><div class="den"><b>${it.p}</b><small>دينار</small><br><button class="add">+</button></div></div>`, (s, inner) => `<div class="list">${inner}</div>`)}
+    ${cart('محفظتك')}` },
+
+ { key: 'chat', name: 'النادل يراسلك', tag: 'المنيو رسائل من النادل', who: 'للكل، لأن كل الناس تعرف تستخدمه', sk: 'emil-design-eng · ui-ux-pro-max · animate',
+   desc: 'المنيو محادثة: النادل يرسلك ألبوم صور لكل قسم، وتحت كل صورة اسمها وسعرها. لما تدوس ＋ ترسل له رسالة «أريد…» وتطلع بالمحادثة بعلامتين زرق. كل الناس تعرف تستخدمه بدون شرح.',
+   render: () => `
+    <div class="bar"><div class="av ph" ${bg(FEAT.img, 120)}></div><div><b>مطعم بغداد · النادل علي</b><small>متصل الآن</small></div></div>
+    ${tabs()}
+    <div class="day"><span>اليوم</span></div>
+    <div class="msg">هلا وغلا 👋 آني علي، رح أرسلك المنيو صور. دوس ＋ على اللي يعجبك وأنا أسجله.<time>٩:٤١ م</time></div>
+    <div class="msg alb"><div class="pc"><div class="ph" ${bg(FEAT.img, 700)} style="aspect-ratio:4/3"></div><div class="cap"><div><b>${FEAT.n} ⭐</b><span>${FEAT.p}</span></div><button class="add">+</button></div></div><time style="padding:0 6px">٩:٤١ م</time></div>
+    ${sections(s => `<div class="msg">هذي ${s.t} 👇<time>٩:٤٢ م</time></div>`, it => `
+      <div class="pc"><div class="ph" ${bg(it.img, 400)}></div><div class="cap"><div><b>${it.n}</b><span>${it.p}</span></div><button class="add">+</button></div></div>`, (s, inner) => `<div class="msg alb"><div class="g">${inner}</div><time style="padding:0 6px">٩:٤٢ م</time></div>`)}
+    ${cart('طلبك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover card" data-choice="${s.key}-${s.name}">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="tag">${s.tag}</span><h2>${s.name}</h2><p>${s.desc}</p><span class="who">👥 ${s.who}</span><span class="sk">${s.sk}</span>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.style.cssText = 'position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+  el.querySelectorAll('.scan,.caus,.bub').forEach(x => x.style.position = 'absolute');
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+let count = 0, total = 0;
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+
+function open(key) {
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0;
+  screen.onscroll = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+
+function wire(key) {
+  screen.querySelectorAll('.add').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const card = b.closest('.lk,.tg,.it,.note,.el,.rw,.pc,.fr,.hero,.lock,.sub,.info');
+    const txt = card ? card.textContent : '';
+    const m = txt.match(/[٠-٩]{1,3}٬[٠-٩]{3}/);
+    count++; total += m ? fromAr(m[0]) : 0;
+    const c = screen.querySelector('.cart .cnt'); c.textContent = toAr(count); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 200);
+    screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+    const nmEl = card && card.querySelector('.nm, h2, b');
+    const nm = nmEl ? nmEl.textContent.replace('⭐', '').trim() : '';
+    if (key === 'hud' && card) card.classList.add('locked');
+    if (key === 'chat') {
+      const sec = b.closest('section') || screen.querySelector('.alb');
+      const msg = document.createElement('div'); msg.className = 'msg me';
+      msg.innerHTML = `أريد ${nm} 🙏<time>٩:٤٣ م</time>`;
+      (sec.closest('section') ? sec : sec.parentNode).appendChild(msg);
+      msg.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      setTimeout(() => { const r = document.createElement('div'); r.className = 'msg'; r.innerHTML = `تمام، سجلت ${nm} ✓<time>٩:٤٣ م</time>`; msg.after(r); r.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 700);
+    } else toast(`انضاف ${nm} ✓`);
+  }));
+  const nav = screen.querySelector('.tabs'), btns = [...nav.querySelectorAll('button')];
+  const off = () => nav.offsetHeight + (key === 'chat' ? 64 : 0);
+  btns.forEach(b => b.addEventListener('click', () => {
+    const sec = screen.querySelector(`[data-sec="${b.dataset.to}"]`);
+    screen.scrollTo({ top: sec.offsetTop - off() + 2, behavior: 'smooth' });
+  }));
+  screen.onscroll = () => {
+    let cur = MENU[0].id;
+    for (const s of MENU) { const el = screen.querySelector(`[data-sec="${s.id}"]`); if (el.offsetTop - off() - 60 <= screen.scrollTop) cur = s.id; }
+    btns.forEach(b => b.classList.toggle('on', b.dataset.to === cur));
+    const on = btns.find(b => b.classList.contains('on')); nav.scrollTo({ left: on.offsetLeft - nav.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' });
+  };
+}
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

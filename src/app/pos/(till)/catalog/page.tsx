@@ -40,8 +40,8 @@ export default async function PosCatalogPage() {
       <div className="flex flex-col gap-8 px-8 pb-8">
         {editor ? (
           <>
-            <CatalogImport />
-            <CatalogEditor data={editor} />
+            <CatalogImport currency={state.menus.find((menu) => menu.id === state.chosenId)?.currency ?? 'IQD'} />
+            <CatalogEditor data={editor} canPictures={Boolean(access.actor?.viaMembership)} />
           </>
         ) : (
           <CatalogSetup menus={state.menus} />

@@ -225,3 +225,86 @@ export async function verifyPin(prisma: PrismaClient, input: VerifyInput): Promi
   });
   return { userId: person.userId, staffId: person.id };
 }
+
+// Approving on the spot -----------------------------------------------------------------------------------------------------
+
+export interface ApproverInput {
+  restaurantId: string;
+  staffId: string;
+  pin: string;
+  meta: RequestMeta;
+  now?: Date;
+  /** The signed-in person who asks for the approval: named on a wrong try, and limited in how many wrong tries they get. */
+  requestedByUserId?: string;
+}
+
+/** Wrong approval PINs one person may type in the window before they are stopped, whichever manager they try. */
+const APPROVAL_ASKER_LIMIT = 10;
+
+/**
+ * Checks the PIN of a manager or owner who approves a cashier's discount, cancel or refund at the till. Unlike
+ * `verifyPin` it opens no session and needs no registered device; it shares the person's own lock counters, so wrong tries
+ * here and at sign-in count together. Every outcome writes an audit row, and the PIN is never stored or logged.
+ */
+export async function verifyApproverPin(prisma: PrismaClient, input: ApproverInput): Promise<{ staffId: string; userId: string }> {
+  const now = input.now ?? new Date();
+  const { restaurantId } = input;
+  const meta = clampMeta(input.meta);
+
+  if (input.requestedByUserId) {
+    const since = new Date(now.getTime() - PIN_LIMITS.staffLockMs);
+    const wrong = await prisma.auditLog.count({ where: { restaurantId, actorId: input.requestedByUserId, action: 'pos.approval.fail', occurredAt: { gte: since } } });
+    if (wrong >= APPROVAL_ASKER_LIMIT) throw new PinLockedError(new Date(now.getTime() + PIN_LIMITS.staffLockMs));
+  }
+
+  let staff = await prisma.posStaff.findFirst({
+    where: { id: input.staffId, restaurantId, deactivatedAt: null, role: { in: ['OWNER', 'MANAGER'] } },
+    select: { id: true, userId: true, pinHash: true, pinFailedCount: true, pinLockedUntil: true, user: { select: { deactivatedAt: true } } },
+  });
+
+  if (staff?.pinLockedUntil && staff.pinLockedUntil <= now) {
+    await prisma.posStaff.updateMany({ where: { id: staff.id, restaurantId, pinLockedUntil: { lte: now } }, data: { pinFailedCount: 0, pinLockedUntil: null } });
+    staff = { ...staff, pinFailedCount: 0, pinLockedUntil: null };
+  }
+  if (staff?.pinLockedUntil) throw new PinLockedError(staff.pinLockedUntil);
+  if (staff) {
+    // The try is charged before the slow hash check, so parallel requests cannot all pass the limit.
+    const taken = await prisma.posStaff.updateMany({
+      where: { id: staff.id, restaurantId, pinLockedUntil: null, pinFailedCount: { lt: PIN_LIMITS.staffFailures } },
+      data: { pinFailedCount: { increment: 1 } },
+    });
+    if (taken.count === 0) {
+      await prisma.posStaff.updateMany({
+        where: { id: staff.id, restaurantId, pinLockedUntil: null, pinFailedCount: { gte: PIN_LIMITS.staffFailures } },
+        data: { pinLockedUntil: new Date(now.getTime() + PIN_LIMITS.staffLockMs) },
+      });
+      const locked = await prisma.posStaff.findFirst({ where: { id: staff.id, restaurantId }, select: { pinLockedUntil: true } });
+      throw new PinLockedError(locked?.pinLockedUntil ?? new Date(now.getTime() + PIN_LIMITS.staffLockMs));
+    }
+  }
+
+  const audit = (tx: Pick<PrismaClient, 'auditLog'>, action: 'pos.approval.ok' | 'pos.approval.fail', entityId: string, actorId: string | null) =>
+    tx.auditLog.create({ data: { actorId, restaurantId, action, entityType: 'PosStaff', entityId, changes: {}, ip: meta.ip, userAgent: meta.userAgent } });
+
+  const hash = staff?.pinHash ?? (await dummy());
+  const matches = await verifyPassword({ hash, password: input.pin });
+  if (!staff || !staff.pinHash || !matches || staff.user.deactivatedAt !== null) {
+    await prisma.$transaction(async (tx) => {
+      if (staff) {
+        await tx.posStaff.updateMany({
+          where: { id: staff.id, restaurantId, pinFailedCount: { gte: PIN_LIMITS.staffFailures }, pinLockedUntil: null },
+          data: { pinLockedUntil: new Date(now.getTime() + PIN_LIMITS.staffLockMs) },
+        });
+      }
+      await audit(tx, 'pos.approval.fail', staff?.id ?? 'unknown', input.requestedByUserId ?? null);
+    });
+    throw new PinRefusedError();
+  }
+
+  const person = staff;
+  await prisma.$transaction(async (tx) => {
+    await tx.posStaff.updateMany({ where: { id: person.id, restaurantId }, data: { pinFailedCount: 0, pinLockedUntil: null } });
+    await audit(tx, 'pos.approval.ok', person.id, person.userId);
+  });
+  return { staffId: person.id, userId: person.userId };
+}

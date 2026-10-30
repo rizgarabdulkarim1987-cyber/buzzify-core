@@ -6,6 +6,8 @@ import { ModeSwitch } from './ModeSwitch';
 
 export function Header({ current = 'menu', overlay = false }: { current?: 'menu' | 'explore'; overlay?: boolean }) {
   const { tenant, table, t, href } = useApp();
+  // The restaurant's own page is Explore in the switch below, so the header needs no icon of its own for it.
+  const hasSwitch = tenant.features.explore || tenant.extras.about;
   return (
     <header
       className={`flex flex-col px-5 pt-5 pb-1 ${
@@ -35,10 +37,10 @@ export function Header({ current = 'menu', overlay = false }: { current?: 'menu'
             <p className="mt-0.5 text-sm text-accent">{t('menu.table', { number: String(table).padStart(2, '0') })}</p>
           )}
         </div>
-        <GuestTools />
+        <GuestTools showAbout={!hasSwitch} />
       </div>
-      {/* Explore is the plan's to give: without it there is one way to browse, so no switch. */}
-      {tenant.features.explore && <ModeSwitch current={current} />}
+      {/* Explore is the plan's to give (or the restaurant's own page): without either there is one way to browse, so no switch. */}
+      {hasSwitch && <ModeSwitch current={current} />}
     </header>
   );
 }

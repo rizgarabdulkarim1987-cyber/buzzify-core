@@ -8,7 +8,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { HeartIcon, PlusIcon } from '@/ui/Icons';
-import { hasSalesPills } from '@/ui/menu/SalesLabels';
+import { hasSalesPills, useCountsLabel } from '@/ui/menu/SalesLabels';
 import { useTemplate } from './context';
 
 /**
@@ -62,16 +62,48 @@ export function CardNote({ product, className = '' }: { product: MenuProductView
   );
 }
 
-/** The Sales tab's labels on a product: its special, its live discount and "Most ordered". */
-function SalesTags({ product }: { product: MenuProductView }) {
+/** The product's live discount in percent, or 0 when it is not on sale. */
+export function saleOff(product: MenuProductView): number {
+  return product.regularPrice !== undefined && product.percentOff ? product.percentOff : 0;
+}
+
+/** "−NN%" in the menu's numerals, or null when the product is not on sale. */
+function useSaleLabel(product: MenuProductView): string | null {
   const { t, tenant } = useApp();
+  const off = saleOff(product);
+  return off ? t('menu.percentOff', { percent: localDigits(String(off), tenant.numeralSystem) }) : null;
+}
+
+/**
+ * A discount as a compact "−NN%" chip, for a price in a tight spot (`tpl-price-tight`) that has no room for the crossed-out
+ * regular price: sighted guests still see the sale, and the price keeps the regular price for screen readers. Nothing
+ * when the product is not on sale. The shape places it (`shared/shapes.css` draws it).
+ */
+export function SaleChip({ product, className = '' }: { product: MenuProductView; className?: string }) {
+  const label = useSaleLabel(product);
+  return label ? <span className={`tpl-off tabular-nums ${className}`}>{label}</span> : null;
+}
+
+/**
+ * The dish's order and view counts as a quiet line of its own, for the cards that have no badge row (docs/superpowers/specs/2026-10-30-menu-dish-counts-design.md).
+ * Left out while the dish has no paid order or the menu does not show counts.
+ */
+export function DishCounts({ product, className = '' }: { product: MenuProductView; className?: string }) {
+  const counts = useCountsLabel(product);
+  return counts ? <span className={`tpl-counts tabular-nums ${className}`}>{counts}</span> : null;
+}
+
+/** The Sales tab's labels on a product: its special, its live discount, "Most ordered" and its counts. */
+function SalesTags({ product }: { product: MenuProductView }) {
+  const { t } = useApp();
+  const sale = useSaleLabel(product);
+  const counts = useCountsLabel(product);
   return (
     <>
       {product.special && <span className="tpl-badge tpl-badge-special">{product.special}</span>}
-      {product.regularPrice !== undefined && product.percentOff && (
-        <span className="tpl-badge tpl-badge-sale tabular-nums">{t('menu.percentOff', { percent: localDigits(String(product.percentOff), tenant.numeralSystem) })}</span>
-      )}
-      {product.mostOrdered && <span className="tpl-badge">{t('menu.mostOrdered')}</span>}
+      {sale && <span className="tpl-badge tpl-badge-sale tabular-nums">{sale}</span>}
+      {product.mostOrdered && <span className="tpl-badge tpl-badge-hot">{t('menu.mostOrdered')}</span>}
+      {counts && <span className="tpl-badge tpl-counts tabular-nums">{counts}</span>}
     </>
   );
 }
@@ -88,7 +120,7 @@ export function Badges({ product, salesOnly = false, className = '' }: { product
     <span className={`flex flex-wrap gap-1.5 ${className}`}>
       <SalesTags product={product} />
       {own?.map((badge) => (
-        <span key={badge} className="tpl-badge">
+        <span key={badge} className={badge === 'POPULAR' ? 'tpl-badge tpl-badge-hot' : badge === 'RECOMMENDED' ? 'tpl-badge tpl-badge-pick' : 'tpl-badge'}>
           {t(`menu.badge.${badge}`)}
         </span>
       ))}
@@ -151,19 +183,36 @@ export function FavoriteButton({ product, className = '' }: { product: MenuProdu
 
 /**
  * The one action a card offers: add a product that needs no choices, or open it to choose. Nothing when the menu takes
- * no orders or the product cannot be ordered now.
+ * no orders or the product cannot be ordered now. `icon` is for small buttons (a shape's tag, rim or stamp): always a
+ * plus, its label still saying "Choose …" for a product with choices.
  */
-export function QuickAction({ product, variant = 'round', className = '' }: { product: MenuProductView; variant?: 'round' | 'label'; className?: string }) {
+export function QuickAction({
+  product,
+  variant = 'round',
+  className = '',
+  onAdded,
+}: {
+  product: MenuProductView;
+  variant?: 'round' | 'label' | 'icon';
+  className?: string;
+  /** Runs after the dish is added straight away (not when it opens for a choice), with the button that added it. */
+  onAdded?: (button: HTMLButtonElement) => void;
+}) {
   const { t } = useApp();
   const { canOrder, quickAdd, openProduct } = useTemplate();
   const { orderable } = useAvailability(product);
   if (!canOrder || !orderable) return null;
   const choose = product.needsChoices;
   const label = choose ? t('tpl.chooseNamed', { name: product.name }) : t('product.quickAdd', { name: product.name });
-  const act = (event: MouseEvent) => {
+  const act = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (choose) openProduct(product.id);
-    else quickAdd(product);
+    if (choose) {
+      openProduct(product.id);
+      return;
+    }
+    const button = event.currentTarget;
+    quickAdd(product);
+    onAdded?.(button);
   };
   if (variant === 'label') {
     return (
@@ -174,7 +223,7 @@ export function QuickAction({ product, variant = 'round', className = '' }: { pr
   }
   return (
     <button type="button" onClick={act} aria-label={label} className={`tpl-add ${className}`}>
-      {choose ? <span className="text-xs leading-none">{t('tpl.choose')}</span> : <PlusIcon />}
+      {choose && variant === 'round' ? <span className="text-xs leading-none">{t('tpl.choose')}</span> : <PlusIcon />}
     </button>
   );
 }

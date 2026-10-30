@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Images, ImagePlus } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { previewOf } from '@/server/domain/pos/visible';
 import {
@@ -14,6 +15,8 @@ import {
   posSaveProductBasics,
   posSetAvailability,
   posSetCategorySection,
+  posSetProductPicture,
+  posSetProductBarcode,
   posSetProductSetting,
   posUpdateCategory,
   renameKitchenSection,
@@ -24,6 +27,8 @@ import type { ActionResult } from '@/server/studio/framework/result';
 import { describeFailure } from '@/studio/errors';
 import { requireFields, useActionForm, type FormValues } from '@/studio/forms';
 import { useLocale, useT } from '@/studio/i18n';
+import { MediaPicker } from '@/studio/media/MediaPicker';
+import { uploadMedia } from '@/studio/media/upload';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -184,15 +189,74 @@ function SectionsPanel({ sections }: { sections: Section[] }) {
   );
 }
 
+/** The product's main picture, the one the menu and the till show: a thumbnail, with a pick from the library or a new upload. */
+function PictureField({ product, restaurantId }: { product: Product; restaurantId: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const { busy, call } = useCall();
+  const [picking, setPicking] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const setPicture = (assetId: string) => call(() => posSetProductPicture({ productId: product.id, version: product.version, assetId }));
+
+  async function upload(file: File) {
+    setUploading(true);
+    const result = await uploadMedia(file, { restaurantId });
+    if (result.ok) await setPicture(result.data.assetId);
+    else toast.error(describeFailure(t, locale, result.error).message);
+    setUploading(false);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-sm text-text">{t('pos.catalog.productPicture')}</span>
+      <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-hover">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a library thumbnail, already small */}
+        {product.thumbUrl ? <img src={product.thumbUrl} alt="" className="size-full object-cover" /> : <Images size={20} aria-hidden className="text-muted" />}
+      </span>
+      <Button size="sm" variant="secondary" icon={<Images aria-hidden />} disabled={busy || uploading} onClick={() => setPicking(true)}>
+        {t('content.media.choose')}
+      </Button>
+      <Button size="sm" variant="secondary" icon={<ImagePlus aria-hidden />} pending={uploading} disabled={busy} onClick={() => fileInput.current?.click()}>
+        {t('content.media.upload')}
+      </Button>
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/avif"
+        aria-label={t('content.media.upload')}
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) void upload(file);
+        }}
+      />
+      <MediaPicker
+        open={picking}
+        onOpenChange={setPicking}
+        restaurantId={restaurantId}
+        onPick={(items) => {
+          const first = items[0];
+          if (first) void setPicture(first.assetId);
+        }}
+      />
+    </div>
+  );
+}
+
 // Products ------------------------------------------------------------------------------------------------------------
 
-function ProductRow({ product, category, categories, sections, locales, setting }: {
+function ProductRow({ product, category, categories, sections, locales, setting, restaurantId, canPictures }: {
   product: Product;
   category: Category;
   categories: Category[];
   sections: Section[];
   locales: Locale[];
-  setting: { sectionId: string | null; soldOutOverride: boolean };
+  setting: { sectionId: string | null; soldOutOverride: boolean; barcode: string | null };
+  restaurantId: string;
+  canPictures: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -216,6 +280,7 @@ function ProductRow({ product, category, categories, sections, locales, setting 
   );
   return (
     <li className="flex flex-col gap-3 px-4 py-4">
+      {canPictures ? <PictureField product={product} restaurantId={restaurantId} /> : null}
       <form key={product.version} {...form.props} className="flex flex-col gap-3">
         <FormError form={form} fields={['price', 'categoryId', ...locales.map((locale) => `names.${locale}`)]} />
         <NameFields locales={locales} names={product.names} form={form} />
@@ -257,6 +322,23 @@ function ProductRow({ product, category, categories, sections, locales, setting 
             disabled={busy}
             onChange={(event) => void call(() => posSetProductSetting({ productId: product.id, sectionId: event.target.value || null, soldOutOverride: setting.soldOutOverride }))}
             options={sectionOptions(t, sections)}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text">
+          {t('pos.catalog.productBarcode')}
+          <Input
+            key={setting.barcode ?? ''}
+            dir="ltr"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={120}
+            className="w-44 rtl:text-right"
+            defaultValue={setting.barcode ?? ''}
+            disabled={busy}
+            onBlur={(event) => {
+              const next = event.target.value.trim();
+              if (next !== (setting.barcode ?? '')) void call(() => posSetProductBarcode({ productId: product.id, barcode: next }));
+            }}
           />
         </label>
         {product.isHidden && <span className="text-sm text-muted">{t('pos.catalog.productHidden')}</span>}
@@ -301,13 +383,15 @@ function AddProduct({ category, locales }: { category: Category; locales: Locale
 
 // Categories ----------------------------------------------------------------------------------------------------------
 
-function CategoryCard({ category, categories, sections, locales, sectionId, productSettings }: {
+function CategoryCard({ category, categories, sections, locales, sectionId, productSettings, restaurantId, canPictures }: {
   category: Category;
   categories: Category[];
   sections: Section[];
   locales: Locale[];
   sectionId: string | null;
   productSettings: Editor['productSettings'];
+  restaurantId: string;
+  canPictures: boolean;
 }) {
   const t = useT();
   const router = useRouter();
@@ -363,7 +447,9 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
               categories={categories}
               sections={sections}
               locales={locales}
-              setting={productSettings[product.id] ?? { sectionId: null, soldOutOverride: false }}
+              setting={productSettings[product.id] ?? { sectionId: null, soldOutOverride: false, barcode: null }}
+              restaurantId={restaurantId}
+              canPictures={canPictures}
             />
           ))}
           {hidden > 0 && (
@@ -404,7 +490,7 @@ function AddCategory({ locales }: { locales: Locale[] }) {
 }
 
 /** The product list: kitchen sections, then every category with its products, each saved on its own. */
-export function CatalogEditor({ data }: { data: Editor }) {
+export function CatalogEditor({ data, canPictures }: { data: Editor; canPictures: boolean }) {
   const t = useT();
   const { locales, categories } = data.catalog;
   return (
@@ -427,6 +513,8 @@ export function CatalogEditor({ data }: { data: Editor }) {
             locales={locales}
             sectionId={data.categorySections[category.id] ?? null}
             productSettings={data.productSettings}
+            restaurantId={data.restaurantId}
+            canPictures={canPictures}
           />
         ))}
         <AddCategory locales={locales} />

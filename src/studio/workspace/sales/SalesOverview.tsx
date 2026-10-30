@@ -21,13 +21,13 @@ type View = Overview & { upgrade: UpgradeInfo };
 const FIX_PATH: Record<AdviceCode, string> = {
   NO_PHOTO: '',
   NO_DESCRIPTION: '',
-  NO_COST: '',
+  NO_COST: '/sales/dishes',
   LONG_CATEGORY: '',
   VEGETARIAN_SECTION: '',
   TWO_SIZES: '',
   NO_RULES: '/sales/upgrades',
   SET_NOT_A_DEAL: '/sales/sets',
-  NO_SIGNATURE: '',
+  NO_SIGNATURE: '/sales/dishes',
 };
 
 /** Fewer guest sessions than this, and the classes are a first look rather than a verdict. */

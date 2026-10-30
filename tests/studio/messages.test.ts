@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LOCALES } from '@/lib/locale';
+import { OP_KINDS } from '@/lib/pos-sync/op-schema';
+import { BODY_KINDS } from '@/lib/templates/types';
 import { PERMISSIONS } from '@/server/domain/permissions';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import type { ErrorCode } from '@/server/studio/framework/result';
@@ -200,10 +202,26 @@ describe('server texts', () => {
 });
 
 describe('the browse shape messages', () => {
-  const keys = ['design.layout.body', 'design.body.scroll', 'design.body.book', 'design.body.magazine', 'design.body.board', 'design.setByShape'];
+  // The first four are named outright, so the list cannot shrink unnoticed; every other shape follows BODY_KINDS.
+  const keys = [
+    'design.layout.body',
+    'design.body.scroll',
+    'design.body.book',
+    'design.body.magazine',
+    'design.body.board',
+    ...BODY_KINDS.map((kind) => `design.body.${kind}`),
+    'design.setByShape',
+  ];
 
   it.each(['en', 'ar', 'ckb'] as const)('%s has the body label, every shape name and the set-by-shape line', (locale) => {
     for (const key of keys) expect(STUDIO_MESSAGES[locale][key], key).toBeTruthy();
     expect(STUDIO_MESSAGES[locale]['design.setByShape']).toContain('{shape}');
+  });
+});
+
+describe('the offline queue messages', () => {
+  // The queue panel labels every operation by `pos.offline.kind.<kind>`: a kind without a label would print the raw key.
+  it.each(['en', 'ar', 'ckb'] as const)('%s names every kind of queued operation', (locale) => {
+    for (const kind of OP_KINDS) expect(STUDIO_MESSAGES[locale][`pos.offline.kind.${kind}`], kind).toBeTruthy();
   });
 });

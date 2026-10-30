@@ -30,6 +30,8 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's static files and image optimizer, and files with an extension (fonts, images).
-  matcher: ['/((?!_next/static|_next/image|.*\\..*).*)'],
+  // Everything except Next's static files and image optimizer, and files with an extension (fonts, images) outside the
+  // Studio, till and pharmacy. A dotted path under those (`/studio/restaurants/x.y`) still goes through `routeHost`,
+  // or the menu host would answer it from the Studio's catch-all routes.
+  matcher: ['/((?!_next/static|_next/image|(?!(?:studio|pos|pharmacy|api)(?:/|$)).*\\.[a-z0-9]+$).*)'],
 };

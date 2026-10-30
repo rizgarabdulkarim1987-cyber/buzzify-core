@@ -11,8 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pos.receipt.title') };
 }
 
-export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const [receipt, { actor }] = await Promise.all([query(posReceipt, { orderId: id }), getPosAccess()]);
-  return <Receipt receipt={receipt} canRefund={actor !== null && canPos(actor.role, 'payment.refund')} />;
+export default async function ReceiptPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ part?: string; print?: string }> }) {
+  const [{ id }, { part, print }] = await Promise.all([params, searchParams]);
+  const [receipt, { actor }] = await Promise.all([query(posReceipt, { orderId: id, ...(part ? { paymentId: part } : {}) }), getPosAccess()]);
+  return <Receipt receipt={receipt} canRefund={actor !== null && canPos(actor.role, 'payment.refund')} autoPrint={print === '1'} />;
 }

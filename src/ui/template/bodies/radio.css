@@ -1,0 +1,228 @@
+/*
+ * The Old Radio (kind `radio`, family ledger): the page is the radio's wooden cabinet (`--bg`, a darker grain). At the
+ * top, sticky, the glowing dial (`--accent` with `--on-accent`): the restaurant's name, the sections as stations with
+ * their frequencies, a tick scale, and the red needle that slides to the station in view (`useNeedle`). Each section
+ * is a speaker cloth (a woven mix of `--accent` and `--text`) holding the station's programme: one row a dish on
+ * `--raised`, a round photo, name, price and a knob that adds.
+ */
+[data-body='radio'] {
+  --ro-wood: color-mix(in srgb, var(--bg) 82%, #000);
+  --ro-cloth: color-mix(in srgb, var(--accent) 40%, var(--bg));
+  --ro-weave: color-mix(in srgb, var(--text) 30%, transparent);
+  --nav-room: 6.25rem;
+  background:
+    repeating-linear-gradient(100deg, rgb(0 0 0 / 0.06) 0 0.125rem, transparent 0.125rem 0.625rem),
+    linear-gradient(var(--bg), var(--ro-wood));
+}
+
+/* ------------------------------------------------------------------ the dial */
+
+[data-body='radio'] .tpl-strip-sticky {
+  margin: 0.375rem 0.625rem 0;
+  padding: 0.375rem 0.5rem 1.25rem;
+  border-radius: 0.625rem;
+  background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--accent) 70%, #fff) 0, var(--accent) 70%);
+  box-shadow:
+    inset 0 0 1.125rem rgb(255 190 80 / 0.45),
+    0 0 0 0.3125rem var(--ro-wood),
+    0 0.5rem 1rem rgb(0 0 0 / 0.35);
+  color: var(--on-accent);
+}
+@media (min-width: 640px) {
+  [data-body='radio'] > .tpl-strip-sticky {
+    margin-inline: max(0.625rem, calc((100% - var(--column)) / 2));
+  }
+}
+/* The scale of ticks along the dial's foot (decoration). */
+[data-body='radio'] .tpl-strip-sticky::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0.75rem;
+  inset-block-end: 0.5rem;
+  block-size: 0.4375rem;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 0.4375rem);
+  opacity: 0.55;
+  pointer-events: none;
+}
+[data-body='radio'] .ro-brand {
+  display: flex;
+  justify-content: center;
+  padding-block-end: 0.125rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-body='radio'] .ro-brand span {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl:is(:lang(ar), :lang(ckb)) [data-body='radio'] .ro-brand {
+  letter-spacing: 0;
+}
+[data-body='radio'] .tpl-strip-list {
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0;
+}
+[data-body='radio'] .tpl-strip-list > li {
+  flex: 1 0 auto;
+}
+[data-body='radio'] .lg-chip {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  inline-size: 100%;
+  padding-inline: 0.375rem;
+  color: var(--on-accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+[data-body='radio'] .lg-chip small {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+[data-body='radio'] .lg-chip[aria-current='true'] {
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+/* The needle: a red hairline that slides to the lit station (its place is set by the body; no station lit, no needle). */
+[data-body='radio'] .ro-needle {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0.25rem;
+  inset-inline-start: var(--needle, 50%);
+  inline-size: 3px;
+  margin-inline-start: -1.5px;
+  border-radius: 2px;
+  background: #d0021b;
+  box-shadow: 0 0 6px #d0021b;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    inset-inline-start 380ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms;
+}
+[data-body='radio'] [data-dial][data-tuned] .ro-needle {
+  opacity: 0.9;
+}
+
+/* ------------------------------------------------------------------ the stations and their programme */
+
+[data-body='radio'] .lg-section {
+  padding: 1rem 0.625rem 0.375rem;
+}
+[data-body='radio'] .lg-head {
+  padding: 0 0.375rem 0.375rem;
+}
+[data-body='radio'] .lg-title {
+  color: var(--text);
+  font-size: 1.125rem;
+}
+[data-body='radio'] .lg-title small {
+  order: 2;
+  color: var(--accent-ink);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+}
+[data-body='radio'] .lg-title small::after {
+  content: ' kHz';
+}
+[data-body='radio'] .lg-title [data-count] {
+  order: 3;
+  margin-inline-start: auto;
+  color: var(--muted);
+}
+/* The speaker cloth: a fine weave the programme rows sit on. */
+[data-body='radio'] .ro-grille {
+  display: grid;
+  gap: 0.3125rem;
+  padding: 0.5rem;
+  border-radius: 0.625rem;
+  background:
+    radial-gradient(circle, var(--ro-weave) 0 1px, transparent 1.6px) 0 0 / 6px 6px,
+    var(--ro-cloth);
+  box-shadow: inset 0 2px 8px rgb(0 0 0 / 0.4);
+}
+[data-body='radio'] .ro-prog {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--raised) 92%, transparent);
+}
+[data-body='radio'] .ro-ph {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--ro-wood);
+}
+[data-body='radio'] .ro-tx {
+  flex: 1;
+  min-inline-size: 0;
+}
+[data-body='radio'] .ro-name {
+  font-size: 0.9375rem;
+}
+[data-body='radio'] .ro-desc {
+  font-size: 0.75rem;
+}
+[data-body='radio'] .ro-price {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+[data-body='radio'] .ro-price .tpl-was {
+  font-size: 0.75rem;
+}
+/* The knob that adds: round, lit from the top corner. */
+[data-body='radio'] .ro-add.tpl-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent) 60%);
+  box-shadow: 0 0 0 2px var(--ro-wood), 0 2px 4px rgb(0 0 0 / 0.35);
+  color: var(--on-accent);
+}
+[data-body='radio'] .ro-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='radio'] .ro-name:focus-visible::after {
+  border-radius: 0.375rem;
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  [data-body='radio'] .lg-chip:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='radio'] .ro-ph {
+    inline-size: 3.75rem;
+    block-size: 3.75rem;
+  }
+  [data-body='radio'] .ro-name {
+    font-size: 1.0625rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='radio'] .ro-needle {
+    transition: none;
+  }
+}

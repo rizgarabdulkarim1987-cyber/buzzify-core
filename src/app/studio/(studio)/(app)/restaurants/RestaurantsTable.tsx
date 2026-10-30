@@ -1,14 +1,24 @@
 'use client';
 
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
+import { Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { deleteRestaurant } from '@/app/studio/_actions/restaurants';
 import type { PlanTier } from '@/server/domain/entitlements';
 import type { BusinessSector, RestaurantStatus, RestaurantType } from '@/server/domain/restaurant-profile';
 import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import { useRefuse } from '@/studio/refuse';
+import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { DataTable } from '@/studio/ui/DataTable';
+import { Field } from '@/studio/ui/Field';
 import { useFilterParams } from '@/studio/ui/FilterBar';
+import { IconButton } from '@/studio/ui/IconButton';
+import { Input } from '@/studio/ui/Input';
+import { isolated } from '@/studio/ui/isolate';
 import { RestaurantStatusBadge } from './RestaurantStatusBadge';
 import { SectorBadge } from './SectorBadge';
 import type { SortKey } from './list-params';
@@ -34,15 +44,21 @@ export function RestaurantsTable({
   sort,
   dir,
   planNames,
+  canDelete = false,
 }: {
   rows: RestaurantRow[];
   sort: SortKey;
   dir: 'asc' | 'desc';
   planNames: Record<PlanTier, string>;
+  /** Super Admins only; the server checks again when the deletion is asked for. */
+  canDelete?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
+  const router = useRouter();
+  const refuse = useRefuse();
   const { set } = useFilterParams();
+  const [doomed, setDoomed] = useState<RestaurantRow | null>(null);
   const number = useMemo(() => numberFormat(locale), [locale]);
 
   const columns = useMemo<ColumnDef<RestaurantRow, unknown>[]>(
@@ -120,8 +136,21 @@ export function RestaurantsTable({
         meta: { width: '140px' },
         cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatDate(row.original.createdAt, locale)}</span>,
       },
+      ...(canDelete
+        ? [
+            {
+              id: 'actions',
+              header: () => <span className="sr-only">{t('restaurants.delete')}</span>,
+              enableSorting: false,
+              meta: { align: 'end' as const, width: '48px' },
+              cell: ({ row }) => (
+                <IconButton label={t('restaurants.delete')} icon={<Trash2 aria-hidden />} size="sm" className="hover:text-danger" onClick={() => setDoomed(row.original)} />
+              ),
+            } satisfies ColumnDef<RestaurantRow, unknown>,
+          ]
+        : []),
     ],
-    [t, locale, number, planNames],
+    [t, locale, number, planNames, canDelete],
   );
 
   const sorting: SortingState = [{ id: sort, desc: dir === 'desc' }];
@@ -131,13 +160,38 @@ export function RestaurantsTable({
   };
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      getRowId={(row) => row.id}
-      caption={t('restaurants.list.caption')}
-      sorting={sorting}
-      onSortingChange={onSortingChange}
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={rows}
+        getRowId={(row) => row.id}
+        caption={t('restaurants.list.caption')}
+        sorting={sorting}
+        onSortingChange={onSortingChange}
+      />
+      <ConfirmDialog
+        open={doomed !== null}
+        onOpenChange={(open) => {
+          if (!open) setDoomed(null);
+        }}
+        title={isolated(t('restaurants.delete.title'), { name: doomed?.name ?? '' })}
+        body={doomed && doomed.menuCount > 0 ? t('restaurants.delete.hasMenus') : t('restaurants.delete.body')}
+        confirmLabel={t('restaurants.delete.confirm')}
+        onConfirm={async (form) => {
+          if (!doomed) return true;
+          const result = await deleteRestaurant({ restaurantId: doomed.id, confirmName: String(form.get('confirmName') ?? '') });
+          if (!result.ok) return refuse(result, ['confirmName']);
+          toast.success(t('restaurants.delete.done'));
+          router.refresh();
+          return true;
+        }}
+      >
+        {(errors) => (
+          <Field label={isolated(t('restaurants.delete.typeName'), { name: doomed?.name ?? '' })} error={errors.confirmName}>
+            <Input name="confirmName" autoComplete="off" autoFocus />
+          </Field>
+        )}
+      </ConfirmDialog>
+    </>
   );
 }

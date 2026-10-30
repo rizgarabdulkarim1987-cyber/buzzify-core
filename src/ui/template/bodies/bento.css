@@ -1,0 +1,327 @@
+/*
+ * The Bento Box body (a browse shape of a template menu; the mockup layout-2-bnt): the whole menu is one black lacquer
+ * box on a wooden table, a pair of chopsticks across its top. Every section is a red tray inside it under a paper label,
+ * cut into square compartments three across (two across for a section of two): the photo fills the compartment, a paper
+ * flag on its foot carries the add button and the name, an accent flag on its corner the price. A strip of lid-handle
+ * tabs stays at the top and jumps. Everything is scoped under [data-body='bento']. The paper pair is the template
+ * --text on --bg inverted, the accent flags use --on-accent, the lacquer and the trays are the accent drawn toward
+ * black, so contrast holds on every palette and Customize colours reach the whole box. Logical properties only (RTL
+ * mirrors).
+ */
+[data-body='bento'] {
+  --bn-lac: color-mix(in srgb, var(--accent) 9%, #0d0a09);
+  --bn-tray: color-mix(in srgb, var(--accent) 72%, #0d0a09);
+  --bn-paper: var(--text);
+  --bn-ink: var(--bg);
+  /* The sticky strip's height, so a jumped-to box lands just below it. */
+  --nav-room: 4.5rem;
+  position: relative;
+  isolation: isolate;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+/* The wooden table: fine vertical grain over the page colour. */
+[data-body='bento']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: repeating-linear-gradient(90deg, rgb(0 0 0 / 0.08) 0 2px, transparent 2px 13px);
+  pointer-events: none;
+}
+/* The chopsticks laid across the top: two bars, each with a red tip at its far end. */
+[data-body='bento'] .bn-sticks {
+  position: relative;
+  block-size: 2.5rem;
+  margin-inline: 1.25rem;
+  overflow: hidden;
+}
+[data-body='bento'] .bn-sticks i {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0.5rem;
+  inline-size: 9rem;
+  block-size: 0.4375rem;
+  border-radius: 0 0.25rem 0.25rem 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 78%, var(--bg)), var(--text) 70%, var(--accent) 70%);
+  transform: rotate(-12deg);
+  transform-origin: 0 50%;
+}
+[data-body='bento'] .bn-sticks i + i {
+  inset-block-start: 1.125rem;
+  transform: rotate(-8deg);
+}
+[data-body='bento'] .bn-sticks:dir(rtl) i {
+  background: linear-gradient(270deg, color-mix(in srgb, var(--text) 78%, var(--bg)), var(--text) 70%, var(--accent) 70%);
+  border-radius: 0.25rem 0 0 0.25rem;
+  transform: rotate(12deg);
+  transform-origin: 100% 50%;
+}
+[data-body='bento'] .bn-sticks:dir(rtl) i + i {
+  transform: rotate(8deg);
+}
+
+/* The strip of lid handles (sticky: shared/shapes.css): a paper tab with a handle bump on top; the lit one is lacquer red. */
+[data-body='bento'] .bn-lids {
+  padding: 0.5rem 0.5rem 0.25rem;
+}
+[data-body='bento'] .bn-strip-list {
+  gap: 0.375rem;
+  padding: 0.375rem 0.125rem 0.25rem;
+}
+[data-body='bento'] .bn-lid {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-block: 0;
+  padding-inline: 0.875rem;
+  border-radius: 0.25rem;
+  background: var(--bn-paper);
+  color: var(--bn-ink);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 30%, transparent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+[data-body='bento'] .bn-lid::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.3125rem;
+  inset-inline: 30% 30%;
+  block-size: 0.3125rem;
+  border-radius: 0.25rem 0.25rem 0 0;
+  background: var(--bn-lac);
+  opacity: 0.85;
+}
+[data-body='bento'] .bn-lid[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+@media (hover: hover) {
+  [data-body='bento'] .bn-lid:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--bn-paper) 82%, var(--accent));
+  }
+}
+
+/* The box: one black lacquer frame round all the trays, with a thin accent line inside it and a sheen across its lid. */
+[data-body='bento'] .bn-lacquer {
+  position: relative;
+  margin: 0.5rem 0.625rem 0.25rem;
+  border: 0.875rem solid var(--bn-lac);
+  border-radius: 1rem;
+  background: var(--bn-lac);
+  box-shadow:
+    inset 0 0 0 3px var(--bn-tray),
+    0 14px 24px color-mix(in srgb, #000 45%, transparent);
+}
+[data-body='bento'] .bn-lacquer::before {
+  content: '';
+  position: absolute;
+  inset: -0.875rem;
+  z-index: 3;
+  border-radius: 1rem;
+  background: linear-gradient(120deg, rgb(255 255 255 / 0.16), transparent 30%);
+  pointer-events: none;
+}
+
+/* A tray: a red compartment block; the next one is cut off by a thick lacquer divider. */
+[data-body='bento'] .bn-box {
+  padding: 0.375rem;
+  background: var(--bn-tray);
+}
+[data-body='bento'] .bn-box + .bn-box {
+  border-block-start: 0.625rem solid var(--bn-lac);
+}
+
+/* The label: a paper tag over the tray's start: the number, the name, the dish count. */
+[data-body='bento'] [data-heading].bn-head {
+  margin-block-end: 0.375rem;
+  padding-inline: 0;
+  text-align: start;
+}
+[data-body='bento'] .bn-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0.0625rem 0.5rem;
+  background: var(--bn-paper);
+  color: var(--bn-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+[data-body='bento'] .bn-tag small {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.125rem;
+  background: var(--bn-ink);
+  color: var(--bn-paper);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='bento'] .bn-tag span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='bento'] .bn-tag b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* The tray: three square compartments across (two for a section of two), a thin gap showing the lacquer red. */
+[data-body='bento'] .bn-tray {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='bento'] .bn-tray[data-cols='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/*
+ * A compartment (shared/IconDish.tsx): square, the photo fills it; a paper flag on its foot (a grid row, so the whole
+ * cell stays the tap area) carries the name, with the add button at its start. The price is an accent flag on the
+ * photo's upper start corner and the discount chip sits under it.
+ */
+[data-body='bento'] .bn-cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--card, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
+}
+/* The photo's frame is the whole compartment; the photo is laid over it (shared/shapes.css). */
+[data-body='bento'] .bn-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+/* The top of the compartment: the price flag and the discount chip under it, at the start corner. */
+[data-body='bento'] .bn-top {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-block-size: 0;
+  padding-block-start: 0.25rem;
+}
+
+/* The price: an accent flag on the corner. */
+[data-body='bento'] .bn-price {
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding-block: 0.0625rem;
+  padding-inline: 0.375rem 0.5rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  /* A very long price keeps to two lines; the whole price is in the dish sheet. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.25rem) 50%, 100% 100%, 0 100%);
+}
+[data-body='bento'] .bn-price:dir(rtl) {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0.25rem 50%);
+  padding-inline: 0.5rem 0.375rem;
+}
+/* The discount chip (shared/shapes.css), in paper under the accent price flag. */
+[data-body='bento'] .bn-off {
+  --sale-bg: var(--bn-paper);
+  --sale-ink: var(--bn-ink);
+}
+
+/* The add button (shared/shapes.css): the round accent dot at the foot flag start, as in the mockup. */
+[data-body='bento'] .bn-add {
+  --rim-add-size: 1.625rem;
+  --rim-add-bg: var(--accent);
+  --rim-add-ink: var(--on-accent);
+  inset-block-end: 0.1875rem;
+  inset-block-start: auto;
+  inset-inline-start: 0.1875rem;
+  inset-inline-end: auto;
+  box-shadow: 0 1px 0 color-mix(in srgb, #000 35%, transparent);
+}
+
+/*
+ * The name flag: paper, two lines at most however long (shared/shapes.css), room at its start for the add dot. Not
+ * positioned, so the tap overlay covers the whole cell; its ring stays inside the compartment, which clips outside it.
+ */
+[data-body='bento'] .bn-name {
+  --tpl-ring-inset: -3px;
+  --tpl-ring-radius: 0.25rem;
+  grid-row: 2;
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  min-block-size: 2rem;
+  padding-block: 0.1875rem;
+  padding-inline: 2.125rem 0.375rem;
+  background: var(--bn-paper);
+  color: var(--bn-ink);
+  text-align: start;
+}
+
+@media (hover: hover) {
+  [data-body='bento'] .bn-cell:hover {
+    box-shadow:
+      inset 0 0 0 2px var(--bn-paper),
+      inset 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
+  }
+}
+[data-body='bento'] .bn-cell:active {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* A wide screen keeps the box a tidy column. */
+@media (min-width: 640px) {
+  [data-body='bento'] {
+    --column: 36rem;
+  }
+  [data-body='bento'] .bn-name {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Less motion: the compartments are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='bento'] .bn-lid {
+    transition: none;
+  }
+}

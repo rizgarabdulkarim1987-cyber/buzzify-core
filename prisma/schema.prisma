@@ -114,6 +114,7 @@ model Restaurant {
   posSettings           PosSettings?
   posStaffs             PosStaff[]
   posKitchenSections    PosKitchenSection[]
+  posPrinters           PosPrinter[]
   posCategorySettings   PosCategorySetting[]
   posProductSettings    PosProductSetting[]
   posAreas              PosArea[]
@@ -121,6 +122,7 @@ model Restaurant {
   posOrders             PosOrder[]
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
+  posBillCalls          PosBillCall[]
   posDeliveryZones      PosDeliveryZone[]
   posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
@@ -129,6 +131,8 @@ model Restaurant {
   posCashExpenses       PosCashExpense[]
   posSyncOperations     PosSyncOperation[]
   posPaymentReversals   PosPaymentReversal[]
+  posCounters           PosCounter[]
+  posPaymentLegs        PosPaymentLeg[]
   posSharedDevices      PosSharedDevice[]
   posPinAttempts        PosPinAttempt[]
   posInventoryItems     PosInventoryItem[]
@@ -270,6 +274,12 @@ model Menu {
   numeralSystem       NumeralSystem @default(LATN)
   /// Whether guests get the complaints and suggestions box; read live, never part of a snapshot.
   feedbackEnabled     Boolean       @default(true)
+  /// Whether guests see the intro page before the menu, the restaurant's own page, and the wheel of fortune; read live like feedbackEnabled.
+  introEnabled        Boolean       @default(false)
+  aboutEnabled        Boolean       @default(false)
+  wheelEnabled        Boolean       @default(false)
+  /// Whether each dish card shows its order and view counts; read live like the switches above, and shown only when the plan holds menu.dishCounts.
+  dishCountsEnabled   Boolean       @default(false)
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -286,6 +296,14 @@ model Menu {
   slugs           MenuSlug[]
   domains         MenuDomain[]
   brand           BrandConfig?
+  intro           MenuIntro?
+  about           MenuAbout?
+  aboutOffers     AboutOffer[]
+  wheel           MenuWheel?
+  wheelSlices     WheelSlice[]
+  wheelSpins      WheelSpin[]
+  viewTotals      ProductViewTotal[]
+  viewMarks       ProductViewMark[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -296,8 +314,9 @@ model Menu {
   bundles         Bundle[]
   bundleItems     BundleItem[]
   promotions      Promotion[]
+  occasions       Occasion[]
+  showcaseCards   ShowcaseCard[]
   schedule        DaypartSchedule[]
-  motions         MenuMotion[]
   tables          Table[]
   qrCodes         QrCode[]
   importJobs      ImportJob[]
@@ -396,35 +415,9 @@ model Category {
   version            Int                 @default(1)
   menu               Menu                @relation(fields: [menuId], references: [id], onDelete: Cascade)
   products           Product[]
-  motions            MenuMotion[]
   posCategorySetting PosCategorySetting?
 
   @@unique([menuId, slug])
-}
-
-/// A motion from the library at a place on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md). Part of
-/// the draft; published with the revision. Only the motions service writes rows, the slot and the category together.
-model MenuMotion {
-  id         String    @id @default(cuid())
-  menuId     String
-  /// `hero`, `signature`, or `category:<categoryId>`: one motion per place. It carries the uniqueness, since two null
-  /// categories are different to PostgreSQL.
-  slot       String
-  /// The category whose heading it plays over (category places only); deleting the category deletes the motion.
-  categoryId String?
-  /// A motion id from the library's catalog (src/motion/catalog).
-  motionId   String
-  /// The motion's params other than text, resolved.
-  params     Json
-  /// For each text param, its text by language.
-  texts      Json      @default("{}")
-  version    Int       @default(1)
-  updatedAt  DateTime  @updatedAt
-  menu       Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@unique([menuId, slot])
-  @@index([categoryId])
 }
 
 model Product {
@@ -577,6 +570,10 @@ model Bundle {
   menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
   items        BundleItem[]
 
+/// How many people the set feeds (shown on its showcase card); null when not stated.
+  people       Int?
+  showcaseCards ShowcaseCard[]
+
   @@unique([menuId, slug])
 }
 
@@ -625,8 +622,75 @@ model Promotion {
   version      Int           @default(1)
   createdAt    DateTime      @default(now())
   menu         Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  showcaseCards ShowcaseCard[]
 
   @@index([menuId])
+}
+
+enum ShowcaseSlot {
+  /// The carousel above the search bar.
+  ABOVE_SEARCH
+  /// The carousel below the search bar.
+  BELOW_SEARCH
+}
+
+enum ShowcaseKind {
+  /// A card for one Promotion.
+  OFFER
+  /// A card for one Bundle (a set meal).
+  SET
+  /// A free-standing buffet card with its own price and hours.
+  BUFFET
+}
+
+/// A dated occasion (Eid, Ramadan) whose cards show only between its dates (docs/superpowers/specs/2026-10-30-menu-occasions-showcase-design.md).
+model Occasion {
+  id           String         @id @default(cuid())
+  menuId       String
+  /// Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive.
+  startsOn     String
+  endsOn       String
+  /// { en: { name }, ar: ..., ckb: ... }
+  translations Json
+  isActive     Boolean        @default(true)
+  sortOrder    Int            @default(0)
+  version      Int            @default(1)
+  createdAt    DateTime       @default(now())
+  menu         Menu           @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  cards        ShowcaseCard[]
+
+  @@index([menuId])
+}
+
+/// One card in a menu showcase carousel; OFFER points at a Promotion, SET at a Bundle, BUFFET carries its own price and hours.
+model ShowcaseCard {
+  id           String       @id @default(cuid())
+  menuId       String
+  slot         ShowcaseSlot
+  kind         ShowcaseKind
+  sortOrder    Int
+  isActive     Boolean      @default(true)
+  /// Set when the card belongs to an occasion and shows only within its dates.
+  occasionId   String?
+  promotionId  String?
+  bundleId     String?
+  /// BUFFET only: integer IQD per person.
+  price        Int?
+  /// BUFFET only: a daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
+  startMinute  Int?
+  endMinute    Int?
+  /// Bit 0 is Monday, as `DaypartSchedule.daysOfWeek`.
+  daysOfWeek   Int          @default(127)
+  /// { en: { title, text }, ar: ..., ckb: ... }
+  translations Json
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now())
+  menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  occasion     Occasion?    @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+  promotion    Promotion?   @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  bundle       Bundle?      @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, slot])
 }
 
 model DaypartSchedule {
@@ -1277,6 +1341,7 @@ enum PosRole {
   MANAGER
   CASHIER
   KITCHEN
+  CAPTAIN
 }
 
 enum PosPaymentMethod {
@@ -1284,6 +1349,8 @@ enum PosPaymentMethod {
   ZAINCASH
   FIB
   QICARD
+  /// Cash in US dollars: the leg's `amount` is the dinars it covers, `tenderedUsd` the dollars handed over.
+  CASH_USD
 }
 
 /// How one restaurant runs its till: rates, payment methods and the on/off switches of the cashier's features.
@@ -1303,6 +1370,23 @@ model PosSettings {
   complaintsEnabled     Boolean            @default(false)
   /// Minutes a table may stay occupied before its ring warns.
   tableRingMinutes      Int                @default(60)
+  /// Minutes of no activity before the till signs the person out; 0 turns it off.
+  idleMinutes           Int                @default(15)
+  /// A cashier's discount, cancel and refund need a manager PIN on the spot.
+  requireApproval       Boolean            @default(true)
+  /// A guest order waits for a captain's approval before the cashier may take it.
+  captainApproval       Boolean            @default(false)
+  /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
+  roundingStep          Int                @default(0)
+  /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
+  usdEnabled            Boolean            @default(false)
+  usdRate               Int                @default(0)
+  /// The business details printed on every receipt.
+  invoiceName           String             @default("")
+  invoiceAddress        String             @default("")
+  invoicePhone          String             @default("")
+  invoiceTaxNumber      String             @default("")
+  invoiceFooter         String             @default("")
   /// The menu whose rows are this restaurant's product list; null until the cashier is first set up.
   catalogMenuId         String?
   version               Int                @default(1)
@@ -1347,6 +1431,7 @@ model PosKitchenSection {
   staff        PosStaff[]
   categories   PosCategorySetting[]
   products     PosProductSetting[]
+  printers     PosPrinter[]
 
   @@index([restaurantId])
 }
@@ -1371,9 +1456,47 @@ model PosProductSetting {
   restaurantId    String
   sectionId       String?
   soldOutOverride Boolean            @default(false)
+  /// The code printed on the product's pack, scanned at the till. Text so leading zeros survive; unique per restaurant when set (a partial index in the migration).
+  barcode         String?
   product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum PosPrinterRole {
+  RECEIPT
+  KITCHEN
+}
+
+enum PosPrinterTransport {
+  NETWORK
+  FILE
+}
+
+/// A thermal printer of the restaurant. The bridge program on each till PC reaches it by address.
+model PosPrinter {
+  id           String              @id @default(cuid())
+  restaurantId String
+  name         String
+  role         PosPrinterRole
+  transport    PosPrinterTransport
+  /// host:port for NETWORK, a Windows share path for FILE.
+  address      String
+  /// 58 or 80 (millimetres).
+  paperWidth   Int                 @default(80)
+  cut          Boolean             @default(true)
+  /// The drawer port pin (2 or 5) when a cash drawer hangs off this printer.
+  drawerPin    Int?
+  /// The printer that takes receipts; at most one per restaurant.
+  isDefault    Boolean             @default(false)
+  /// A KITCHEN printer for one section; null takes every section without a printer of its own.
+  sectionId    String?
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  section      PosKitchenSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
 }
@@ -1431,48 +1554,70 @@ model PosTable {
   area           PosArea            @relation(fields: [areaId], references: [id], onDelete: Cascade)
   orders         PosOrder[]
   customerOrders PosCustomerOrder[]
+  billCalls      PosBillCall[]
 
   @@unique([restaurantId, number])
   @@index([areaId])
 }
 
+/// A guest at a table asked for the bill. Unseen until someone at the till or the floor marks it seen.
+model PosBillCall {
+  id             String     @id @default(cuid())
+  restaurantId   String
+  tableId        String
+  tableNumber    Int
+  createdAt      DateTime   @default(now())
+  seenAt         DateTime?
+  /// Plain id (no relation): the person who marked it seen.
+  seenByUserId   String?
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table          PosTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, seenAt])
+  @@index([tableId, createdAt])
+}
+
 /// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
 model PosOrder {
-  id                   String           @id @default(cuid())
-  restaurantId         String
-  tableId              String?
+  id                               String             @id @default(cuid())
+  restaurantId                     String
+  tableId                          String?
   /// Sequence per restaurant.
-  number               Int
-  kind                 PosOrderKind     @default(DINE_IN)
-  status               PosOrderStatus   @default(OPEN)
-  seatedAt             DateTime         @default(now())
-  invoiceDiscountKind  PosDiscountKind?
-  invoiceDiscountValue Int?
+  number                           Int
+  kind                             PosOrderKind       @default(DINE_IN)
+  status                           PosOrderStatus     @default(OPEN)
+  seatedAt                         DateTime           @default(now())
+  invoiceDiscountKind              PosDiscountKind?
+  invoiceDiscountValue             Int?
+  invoiceDiscountReason            PosDiscountReason?
+  invoiceDiscountNote              String?
+  invoiceDiscountApprovedByStaffId String?
   /// Takeaway and delivery: the Baghdad day ('YYYY-MM-DD') and the number within it. Null for dine-in.
-  queueDay             String?
-  queueNumber          Int?
-  customerName         String           @default("")
-  customerPhone        String           @default("")
-  address              String           @default("")
-  addressNote          String           @default("")
+  queueDay                         String?
+  queueNumber                      Int?
+  customerName                     String             @default("")
+  customerPhone                    String             @default("")
+  address                          String             @default("")
+  addressNote                      String             @default("")
   /// Plain ids and copies (no relation): a zone or driver edit never changes an order.
-  deliveryZoneId       String?
-  deliveryZoneName     String           @default("")
+  deliveryZoneId                   String?
+  deliveryZoneName                 String             @default("")
   /// Integer IQD added after tax; 0 for anything but a delivery.
-  deliveryFee          Int              @default(0)
-  driverId             String?
-  driverNameSnapshot   String           @default("")
-  fulfillment          PosFulfillment?
-  outAt                DateTime?
-  doneAt               DateTime?
+  deliveryFee                      Int                @default(0)
+  driverId                         String?
+  driverNameSnapshot               String             @default("")
+  fulfillment                      PosFulfillment?
+  outAt                            DateTime?
+  doneAt                           DateTime?
   /// Optimistic lock: every write to an order or its lines matches it and bumps it by one.
-  version              Int              @default(1)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  restaurant           Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table                PosTable?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  lines                PosOrderLine[]
-  payment              PosPayment?
+  version                          Int                @default(1)
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime           @updatedAt
+  restaurant                       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table                            PosTable?          @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  lines                            PosOrderLine[]
+  /// One payment for the whole bill, or one per guest when the bill was split (`part` 1, 2, 3...).
+  payments                         PosPayment[]
 
   @@unique([restaurantId, number])
   @@unique([restaurantId, queueDay, queueNumber])
@@ -1511,36 +1656,46 @@ model PosDriver {
 }
 
 model PosOrderLine {
-  id                  String           @id @default(cuid())
-  restaurantId        String
-  orderId             String
-  productId           String?
-  nameSnapshot        String
+  id                        String             @id @default(cuid())
+  restaurantId              String
+  orderId                   String
+  productId                 String?
+  nameSnapshot              String
   /// Integer IQD: the product's base price when the line was added. Chosen variant and options are in optionsSnapshot.
-  unitPriceSnapshot   Int
-  quantity            Int              @default(1)
-  note                String           @default("")
+  unitPriceSnapshot         Int
+  quantity                  Int                @default(1)
+  note                      String             @default("")
   /// [{ id, name, priceDelta }] of the chosen variant (first) and options, copied when the line was added.
-  optionsSnapshot     Json             @default("[]")
-  discountKind        PosDiscountKind?
-  discountValue       Int?
-  cancelledAt         DateTime?
-  cancelReason        String?
+  optionsSnapshot           Json               @default("[]")
+  /// Integer IQD per unit: what the menu's live offer took off when the line was added (0: none). Kept apart from the
+  /// cashier's own discount, which applies to the price that is left.
+  promoDiscountPerUnit      Int                @default(0)
+  discountKind              PosDiscountKind?
+  discountValue             Int?
+  discountReason            PosDiscountReason?
+  discountNote              String?
+  discountApprovedByStaffId String?
+  cancelledAt               DateTime?
+  cancelReason              String?
   /// Plain id (no relation): the kitchen section when the line was added; survives a section delete.
-  sectionId           String?
-  sectionNameSnapshot String           @default("")
-  sentAt              DateTime?
+  sectionId                 String?
+  sectionNameSnapshot       String             @default("")
+  sentAt                    DateTime?
   /// The round it was sent in: 1, 2, 3... per order.
-  batch               Int?
-  readyAt             DateTime?
-  cancelAckAt         DateTime?
-  createdAt           DateTime         @default(now())
-  restaurant          Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  order               PosOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product             Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  batch                     Int?
+  readyAt                   DateTime?
+  cancelAckAt               DateTime?
+  /// The payment that paid this line; null while unpaid. A paid line can no longer change.
+  paymentId                 String?
+  createdAt                 DateTime           @default(now())
+  restaurant                Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order                     PosOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product                   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payment                   PosPayment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
   @@index([orderId])
+  @@index([paymentId])
   @@index([productId])
   @@index([restaurantId, sentAt])
 }
@@ -1548,12 +1703,17 @@ model PosOrderLine {
 model PosPayment {
   id             String              @id @default(cuid())
   restaurantId   String
-  orderId        String              @unique
+  orderId        String
+  /// 1 for a bill paid at once; 2, 3... for the next guest's share of a split bill.
+  part           Int                 @default(1)
   method         PosPaymentMethod
   /// Integer IQD handed over by the customer.
   amountReceived Int
   reference      String?
   totalsSnapshot Json
+  /// Integer IQD left on top of the bill; never part of `totalsSnapshot.total`, so sales reports stay clean.
+  tipAmount      Int                 @default(0)
+  tipMethod      PosPaymentMethod?
   userId         String?
   shiftId        String?
   paidAt         DateTime            @default(now())
@@ -1562,9 +1722,35 @@ model PosPayment {
   user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   shift          PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   reversal       PosPaymentReversal?
+  legs           PosPaymentLeg[]
+  lines          PosOrderLine[]
 
+  @@unique([orderId, part])
   @@index([restaurantId, paidAt])
   @@index([shiftId])
+}
+
+/// How much of a payment was taken with one method. A bill paid half cash, half FIB has two legs. The legs' `amount`s add
+/// up to the payment's snapshot total.
+model PosPaymentLeg {
+  id           String           @id @default(cuid())
+  restaurantId String
+  paymentId    String
+  method       PosPaymentMethod
+  /// Integer IQD applied to the bill by this method (cash change is not part of it).
+  amount       Int
+  /// Integer IQD a cash customer handed over (at least `amount`); null for other methods.
+  tendered     Int?
+  /// Whole US dollars a customer handed over for a CASH_USD leg; null for other methods.
+  tenderedUsd  Int?
+  /// Dinars per dollar, frozen when a CASH_USD leg was taken (a refund goes back at this rate); null for other methods.
+  rate         Int?
+  reference    String?
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, method])
+  @@index([restaurantId])
 }
 
 /// One person's cash drawer from opening to count. One open shift per person and restaurant: the partial unique index
@@ -1584,6 +1770,13 @@ model PosShift {
   expectedCashAtClose Int?
   /// countedCash minus expectedCashAtClose: positive is over, negative is short.
   difference          Int?
+  /// Whole dollars counted in the drawer at close; null when the restaurant takes no dollars (or the shift is open).
+  countedUsd          Int?
+  expectedUsdAtClose  Int?
+  /// countedUsd minus expectedUsdAtClose.
+  differenceUsd       Int?
+  /// Z report number, per restaurant, given when the shift closes. Null for a shift closed before numbering or still open.
+  zNumber             Int?
   note                String               @default("")
   restaurant          Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   user                User                 @relation(fields: [userId], references: [id], onDelete: NoAction)
@@ -1591,8 +1784,29 @@ model PosShift {
   expenses            PosCashExpense[]
   reversals           PosPaymentReversal[]
 
+  @@unique([restaurantId, zNumber])
   @@index([restaurantId, openedAt])
   @@index([userId])
+}
+
+/// A named running number per restaurant (the Z report number).
+model PosCounter {
+  restaurantId String
+  name         String
+  value        Int        @default(0)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, name])
+}
+
+enum PosDiscountReason {
+  MANAGER_DECISION
+  REGULAR_GUEST
+  COMPLAINT
+  STAFF_MEAL
+  OTHER
+  /// A dish given on the house; always needs a manager's approval.
+  COMP
 }
 
 /// Cash taken out of the drawer during a shift.
@@ -1644,26 +1858,33 @@ enum PosCustomerOrderStatus {
 /// A guest's order from the Menu's table page, waiting for the cashier. Separate from `PosOrder`, so the one-live-order-per-table
 /// index and the order state machine are untouched. A request older than 60 minutes is expired on read, not by a job.
 model PosCustomerOrder {
-  id              String                 @id @default(cuid())
-  restaurantId    String
-  tableId         String
+  id                      String                 @id @default(cuid())
+  restaurantId            String
+  tableId                 String
   /// The Menu's table number when the guest sent it.
-  tableNumber     Int
+  tableNumber             Int
   /// Random and unguessable: the guest reads the request's status with it.
-  publicId        String                 @unique @default(cuid())
-  status          PosCustomerOrderStatus @default(PENDING)
-  customerNote    String                 @default("")
-  locale          String
-  rejectReason    String                 @default("")
+  publicId                String                 @unique @default(cuid())
+  status                  PosCustomerOrderStatus @default(PENDING)
+  customerNote            String                 @default("")
+  locale                  String
+  rejectReason            String                 @default("")
   /// Plain id (no relation): the order the request became or joined.
-  orderId         String?
-  decidedAt       DateTime?
+  orderId                 String?
+  decidedAt               DateTime?
   /// Plain id (no relation): the person who accepted or rejected it.
-  decidedByUserId String?
-  createdAt       DateTime               @default(now())
-  restaurant      Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table           PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  lines           PosCustomerOrderLine[]
+  decidedByUserId         String?
+  /// True when placed while captain approval was on: the cashier may not accept it until a captain approves.
+  requiresCaptain         Boolean                @default(false)
+  captainApprovedAt       DateTime?
+  /// Plain id (no relation): the captain, manager or owner who approved it.
+  captainApprovedByUserId String?
+  /// Plain id (no relation): the captain who placed it by mouth at the table; null for a guest's own request.
+  createdByUserId         String?
+  createdAt               DateTime               @default(now())
+  restaurant              Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table                   PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  lines                   PosCustomerOrderLine[]
 
   @@index([restaurantId, status])
   @@index([tableId, status, createdAt])
@@ -1695,23 +1916,27 @@ model PosCustomerOrderLine {
 /// A full reversal of one payment, recorded as a counter-entry under the reverser's name. One per payment; the payment
 /// row is never edited. It counts in the shift where it was recorded.
 model PosPaymentReversal {
-  id           String           @id @default(cuid())
-  restaurantId String
-  paymentId    String           @unique
-  orderId      String
-  method       PosPaymentMethod
+  id                String           @id @default(cuid())
+  restaurantId      String
+  paymentId         String           @unique
+  orderId           String
+  method            PosPaymentMethod
   /// Integer IQD: the payment's snapshot total.
-  amount       Int
+  amount            Int
+  /// Integer IQD of `amount` that went back out of the drawer: the payment's cash legs (0 when none were cash).
+  cashPart          Int              @default(0)
   /// Free text copied from the terminal for a terminal method.
-  reference    String?
-  reason       String
-  userId       String?
-  shiftId      String?
-  createdAt    DateTime         @default(now())
-  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  shift        PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  reference         String?
+  reason            String
+  /// Plain id (no relation): the manager who approved a cashier's refund.
+  approvedByStaffId String?
+  userId            String?
+  shiftId           String?
+  createdAt         DateTime         @default(now())
+  restaurant        Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment           PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  user              User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift             PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, createdAt])
   @@index([shiftId])
@@ -3884,4 +4109,185 @@ model PhAiProposal {
 
   @@unique([restaurantId, id])
   @@index([restaurantId, branchId, status, createdAt])
+}
+
+/// The intro page shown before the menu (docs/superpowers/specs/2026-10-29-menu-intro-design.md). One per menu.
+model MenuIntro {
+  id                String   @id @default(cuid())
+  menuId            String   @unique
+  /// A picture or MP4 (with its poster) from the media library; null falls back to the platform's default, then to the brand colour.
+  backgroundAssetId String?
+  /// How dark the gradient over the background is, 0 to 100.
+  overlay           Int      @default(50)
+  showLogo          Boolean  @default(true)
+  showContact       Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// An advert the platform shows on the intro pages of every restaurant, or only of the ones listed.
+model PlatformAdvert {
+  id            String    @id @default(cuid())
+  imageAssetId  String
+  alts          Json      @default("{}")
+  href          String    @default("")
+  startsAt      DateTime?
+  endsAt        DateTime?
+  sortOrder     Int       @default(0)
+  active        Boolean   @default(true)
+  /// Both lists empty means every menu; otherwise the advert shows in a menu whose restaurant is listed or that is listed itself.
+  restaurantIds String[]
+  menuIds       String[]
+  createdAt     DateTime  @default(now())
+}
+
+/// How often a platform advert was seen and clicked in a menu on a day: counts only, no person, address or cookie.
+/// Global (no tenant scope): the Super Admin reads it across restaurants. Rows go when the advert goes.
+model PlatformAdvertDaily {
+  id           String   @id @default(cuid())
+  advertId     String
+  /// The menu and restaurant the advert was shown on (not tenant columns: the platform reads these across all restaurants).
+  shownMenuId       String
+  shownRestaurantId String
+  /// YYYY-MM-DD in UTC.
+  day          String
+  views        Int      @default(0)
+  clicks       Int      @default(0)
+
+  @@unique([advertId, shownMenuId, day])
+  @@index([day])
+  @@index([shownRestaurantId, day])
+}
+
+/// The background intro pages use when a restaurant sets none. A single row, id 'singleton'.
+model PlatformIntro {
+  id                String   @id
+  backgroundAssetId String?
+  updatedAt         DateTime @updatedAt
+}
+
+/// The restaurant's own page inside the menu, shown to guests as "Explore" unless a title is set (docs/superpowers/specs/2026-10-29-menu-about-tab-design.md). One per menu.
+model MenuAbout {
+  id              String   @id @default(cuid())
+  menuId          String   @unique
+  /// { en?, ar?, ckb? }; empty falls back to the guest message "Explore".
+  titles          Json     @default("{}")
+  coverAssetId    String?
+  /// { en?, ar?, ckb? } to a list of story blocks (heading, paragraph, list), validated by cleanStory.
+  story           Json     @default("{}")
+  galleryAssetIds String[]
+  showHours       Boolean  @default(true)
+  showContact     Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// A unique offer or discount card on the About page. Information only: it moves no price.
+model AboutOffer {
+  id           String    @id @default(cuid())
+  menuId       String
+  /// { en?, ar?, ckb? } each
+  titles       Json      @default("{}")
+  bodies       Json      @default("{}")
+  label        Json      @default("{}")
+  imageAssetId String?
+  startsAt     DateTime?
+  endsAt       DateTime?
+  sortOrder    Int       @default(0)
+  active       Boolean   @default(true)
+  /// At most one of these; both are ids of this menu's own product or category.
+  productId    String?
+  categoryId   String?
+  createdAt    DateTime  @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, sortOrder])
+}
+
+/// The wheel of fortune inside the Explore page (docs/superpowers/specs/2026-10-29-menu-wheel-of-fortune-design.md). One per menu.
+model MenuWheel {
+  id          String    @id @default(cuid())
+  menuId      String    @unique
+  /// Spins one guest may make a day (1 to 10); an address may make three times as many.
+  spinsPerDay Int       @default(1)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  /// { en?, ar?, ckb? }
+  title       Json      @default("{}")
+  updatedAt   DateTime  @updatedAt
+
+  menu   Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  slices WheelSlice[]
+}
+
+/// A dish on the wheel. The product is one of this menu's; it is skipped at spin time when hidden, unavailable or gone.
+model WheelSlice {
+  id        String @id @default(cuid())
+  wheelId   String
+  menuId    String
+  productId String
+  /// An optional prize line such as "10% off today": information only.
+  label     Json   @default("{}")
+  weight    Int    @default(1)
+  sortOrder Int    @default(0)
+
+  wheel MenuWheel @relation(fields: [wheelId], references: [id], onDelete: Cascade)
+  menu  Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([wheelId, productId])
+  @@index([menuId])
+}
+
+/// One spin, kept for three days to count a guest's and an address's spins of the day. No personal data: a random cookie key and a salted hash.
+model WheelSpin {
+  id        String   @id @default(cuid())
+  menuId    String
+  guestKey  String
+  ipHash    String
+  /// YYYY-MM-DD in the menu's time zone.
+  day       String
+  /// 0 for a guest's first spin of the day, 1 for the second; unique with the guest and day, so two spins at once cannot both take the last one.
+  slot      Int
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, day, guestKey, slot])
+  @@index([menuId, day, ipHash])
+  @@index([createdAt])
+}
+
+/// How many times guests opened a dish, from the first day. Counted once per device and day, at most three per address and day (ProductViewMark); nobody edits it.
+model ProductViewTotal {
+  id        String   @id @default(cuid())
+  menuId    String
+  /// A plain id (no relation): a deleted dish never blocks anything.
+  productId String
+  views     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, productId])
+}
+
+/// Who has been counted for a dish today, kept three days. No personal data: a signed random cookie key and a salted address hash.
+model ProductViewMark {
+  id        String   @id @default(cuid())
+  menuId    String
+  productId String
+  /// YYYY-MM-DD in the menu's time zone.
+  day       String
+  guestKey  String
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, productId, day, guestKey])
+  @@index([menuId, productId, day, ipHash])
+  @@index([createdAt])
 }

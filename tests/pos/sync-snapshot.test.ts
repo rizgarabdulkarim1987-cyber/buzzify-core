@@ -39,8 +39,8 @@ beforeEach(async () => {
   });
   await prisma().posSettings.upsert({
     where: { restaurantId: a.id },
-    create: { restaurantId: a.id, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
-    update: { catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
+    create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
+    update: { requireApproval: false, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
   });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } });
   burger = (await prisma().product.create({ data: { menuId: menu.id, categoryId: category.id, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: names('برغر', 'Burger') } })).id;
@@ -74,7 +74,7 @@ describe('the offline read cache', () => {
     expect(s.restaurantId).toBe(a.id);
     expect(s.areas).toHaveLength(1);
     expect(s.areas[0]?.tables).toHaveLength(4);
-    expect(s.rates).toEqual({ serviceRatePercent: 0, taxRatePercent: 10 });
+    expect(s.rates).toEqual({ serviceRatePercent: 0, taxRatePercent: 10, roundingStep: 0 });
     expect(s.catalog?.products.map((p) => p.id)).toEqual([burger]);
     expect(s.orders).toHaveLength(1);
     expect(s.orders[0]).toMatchObject({ id: o.orderId, version: o.version, tableId: tables[0]!.id, status: 'OPEN' });
@@ -117,5 +117,25 @@ describe('the offline read cache', () => {
     await liveOrder(tables[0]!.id);
     const text = JSON.stringify(await snapshot());
     expect(text).not.toMatch(/"(token|password|secret|session|cookie)[A-Za-z]*"\s*:/i);
+  });
+});
+
+describe('the snapshot for offline printing', () => {
+  const printer = (restaurantId: string, name: string) =>
+    prisma().posPrinter.create({ data: { restaurantId, name, role: 'RECEIPT', transport: 'NETWORK', address: '192.168.1.50:9100', paperWidth: 80, cut: true, drawerPin: 2, isDefault: true } });
+
+  it("lists the restaurant's printers and never another's", async () => {
+    await printer(a.id, 'Front');
+    await printer(b.id, 'Other');
+    expect((await snapshot()).printers?.map((p) => p.name)).toEqual(['Front']);
+  });
+
+  it('carries the receipt details', async () => {
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { invoiceName: 'Grill House', invoiceAddress: 'Street 1', invoicePhone: '0770', invoiceTaxNumber: 'T-9', invoiceFooter: 'Thanks' } });
+    expect((await snapshot()).business).toEqual({ name: 'Grill House', address: 'Street 1', phone: '0770', taxNumber: 'T-9', footer: 'Thanks' });
+  });
+
+  it('has empty receipt details when none were set', async () => {
+    expect((await snapshot()).business).toEqual({ name: '', address: '', phone: '', taxNumber: '', footer: '' });
   });
 });

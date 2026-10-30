@@ -39,6 +39,13 @@ function applicationInserts(sql: string): string[] {
 }
 
 /**
+/**
+ * Cashier migrations that touch only POS tables and must backfill rows or change an index (payment legs copy each old
+ * payment into one leg; a split bill needs `PosPayment` unique per order and part instead of per order). They never touch a pharmacy table. Add a name here only for that case.
+ */
+const POS_ONLY = new Set(['20261028100000_cashier_split_payments', '20261028110000_cashier_payment_parts', '20261029130000_printer_default_unique']);
+
+/**
  * One narrow exemption. The transfer tables were created by an earlier migration of the same unreleased phase (nothing is
  * deployed, they hold no rows), and the review of that schema needed constraints, a column and an enum of those two tables
  * replaced, which cannot be said without a DROP. That one migration may drop exactly those objects and nothing else, and ONLY
@@ -73,7 +80,7 @@ function refusedIn(name: string, sql: string): string[] {
 function pharmacyMigrations(): { name: string; sql: string }[] {
   if (!existsSync(MIGRATIONS)) return [];
   return readdirSync(MIGRATIONS)
-    .filter((name) => /^\d{14}_/.test(name) && name > LAST_BEFORE_PHARMACY)
+    .filter((name) => /^\d{14}_/.test(name) && name > LAST_BEFORE_PHARMACY && !POS_ONLY.has(name))
     .sort()
     .map((name) => ({ name, sql: readFileSync(join(MIGRATIONS, name, 'migration.sql'), 'utf8') }));
 }

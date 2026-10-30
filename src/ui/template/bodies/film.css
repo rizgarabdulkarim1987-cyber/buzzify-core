@@ -1,0 +1,321 @@
+/*
+ * The film strip (family `filmstrip`, kind `film`): an old film runs down the page. The strip is the background darkened
+ * (decoration), its sprocket holes on both sides lit in the text colour like light through the film; every dish is a
+ * frame whose photo is black and white until the dish is in the order (`data-ordered`), when it turns to colour. Between
+ * the sections, a silent-film title card in a double ornate frame (the accent) names the section. The frames flicker and
+ * the film grains only while their reel is on screen (`data-live`) and no finger is down (`data-hold`); with less motion
+ * nothing moves. Text sits on `--raised` or `--bg` only. Logical properties only, so Arabic mirrors.
+ */
+[data-body='film'] {
+  --nav-room: 3.5rem;
+  --column: 40rem;
+  --fm-strip: color-mix(in srgb, var(--bg) 70%, #000);
+  --fm-hole: color-mix(in srgb, var(--text) 85%, var(--bg));
+  --fm-gold: var(--accent);
+  --fm-rail: 1.75rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip: reel names on a dark band */
+
+[data-body='film'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--fm-gold) 40%, transparent);
+}
+[data-body='film'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='film'] .fm-chip {
+  min-block-size: 2.5rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.125rem;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-display-stack);
+  font-size: 0.9375rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--text);
+  transition: background-color 150ms, color 150ms;
+}
+[data-body='film'] .fm-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the title card */
+
+[data-body='film'] .fm-main {
+  padding-block-start: 0.5rem;
+}
+[data-body='film'] .fm-section {
+  padding-block-start: 0.75rem;
+}
+[data-body='film'] .fm-card {
+  margin: 0.25rem 1.5rem 0.875rem;
+  padding: 0.875rem 0.75rem;
+  border: 3px double var(--fm-gold);
+  outline: 1px solid var(--fm-gold);
+  outline-offset: 4px;
+  background:
+    radial-gradient(circle at 0 0, var(--fm-gold) 0 0.25rem, transparent 0.3rem),
+    radial-gradient(circle at 100% 0, var(--fm-gold) 0 0.25rem, transparent 0.3rem),
+    radial-gradient(circle at 0 100%, var(--fm-gold) 0 0.25rem, transparent 0.3rem),
+    radial-gradient(circle at 100% 100%, var(--fm-gold) 0 0.25rem, transparent 0.3rem),
+    var(--raised);
+  text-align: center;
+}
+[data-body='film'] .fm-presents {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tpl:is(:lang(ar), :lang(ckb)) [data-body='film'] .fm-presents {
+  letter-spacing: 0;
+}
+[data-body='film'] .fm-head:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
+}
+[data-body='film'] .fm-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.625rem;
+  line-height: 1.2;
+}
+[data-body='film'] .fm-title small {
+  order: -1;
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+}
+[data-body='film'] .fm-title small::before,
+[data-body='film'] .fm-title small::after {
+  content: ' \2014  ';
+}
+[data-body='film'] .fm-title [data-count] {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+/* The flourish under the name: a thin rule with a diamond. */
+[data-body='film'] .fm-flourish {
+  order: 3;
+  inline-size: 7rem;
+  block-size: 0.5rem;
+  background:
+    linear-gradient(45deg, transparent 35%, var(--fm-gold) 35% 65%, transparent 65%) 50% 50% / 0.5rem 0.5rem no-repeat,
+    linear-gradient(var(--fm-gold), var(--fm-gold)) 50% 50% / 100% 1px no-repeat;
+}
+
+/* ------------------------------------------------------------------ the reel and its frames */
+
+[data-body='film'] .fm-reel {
+  position: relative;
+  margin: 0 0.75rem;
+  padding: 0.25rem var(--fm-rail);
+  list-style: none;
+  background: var(--fm-strip);
+  overflow: hidden;
+}
+/* The sprocket holes down both sides of the film. */
+[data-body='film'] .fm-reel::before,
+[data-body='film'] .fm-reel::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--fm-rail);
+  background: repeating-linear-gradient(transparent 0 0.375rem, var(--fm-hole) 0.375rem 1rem, transparent 1rem 1.375rem) 50% 0 / 0.6875rem 100% no-repeat;
+  pointer-events: none;
+}
+[data-body='film'] .fm-reel::before {
+  inset-inline-start: 0;
+}
+[data-body='film'] .fm-reel::after {
+  inset-inline-end: 0;
+}
+/* A frame: the photo, and its caption on the frame's own ground; the black frame line between frames. */
+[data-body='film'] .fm-frame {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 46%) minmax(0, 1fr);
+  border-block: 0.25rem solid var(--fm-strip);
+  background: var(--raised);
+}
+/* The edge code in the margin beside the frame, as printed on film stock. */
+[data-body='film'] .fm-code {
+  position: absolute;
+  /* Physical sides: the vertical writing mode below would turn the logical ones sideways. */
+  top: 50%;
+  right: calc(100% + 0.0625rem);
+  width: var(--fm-rail);
+  translate: 0 -50%;
+  color: var(--fm-hole);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  writing-mode: vertical-rl;
+  z-index: 1;
+  padding-block: 0.25rem;
+  background: var(--fm-strip);
+}
+[data-body='film'] .fm-shot {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  filter: grayscale(1) sepia(0.3) contrast(1.15);
+  transition: filter 600ms ease;
+}
+[data-body='film'] .fm-frame[data-ordered] .fm-shot {
+  filter: none;
+}
+[data-body='film'] .fm-shot > :first-child {
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='film'] .fm-shot img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The light leaking at the photo's edges, like an old print's vignette. */
+[data-body='film'] .fm-shot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(0 0 0 / 0.45));
+  pointer-events: none;
+}
+[data-body='film'] .fm-cap {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  padding: 0.375rem 0.5rem 0.4rem;
+}
+[data-body='film'] .fm-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-family: var(--font-display-stack);
+  font-size: 1rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-body='film'] .fm-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.125rem 0.375rem;
+}
+[data-body='film'] .fm-price {
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='film'] .fm-badges {
+  font-size: 0.75rem;
+}
+[data-body='film'] .fm-add {
+  align-self: flex-start;
+  min-block-size: 2.25rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.125rem;
+}
+
+/* ------------------------------------------------------------------ flicker and grain (only while live) */
+
+/* The grain: specks of light and dark over the reel, jumping a few times a second. */
+[data-body='film'] .fm-section .fm-card,
+[data-body='film'] .fm-section .fm-shot > :first-child {
+  animation: fm-flick var(--t, 4s) linear var(--dl, 0s) infinite paused;
+}
+[data-body='film'] .fm-section[data-live] :is(.fm-card, .fm-shot > :first-child) {
+  animation-play-state: running;
+}
+[data-body='film'] .fm-section[data-live] .fm-frame::after {
+  content: '';
+  position: absolute;
+  inset: -1.25rem;
+  z-index: 1;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--text) 60%, transparent) 0 0.6px, transparent 1px) 0 0 / 7px 9px,
+    radial-gradient(circle, rgb(0 0 0 / 0.6) 0 0.8px, transparent 1.2px) 3px 4px / 11px 13px;
+  opacity: 0.14;
+  pointer-events: none;
+  animation: fm-grain 0.5s steps(4) infinite;
+}
+[data-body='film'][data-hold] :is(.fm-card, .fm-shot > :first-child),
+[data-body='film'][data-hold] .fm-frame::after {
+  animation-play-state: paused;
+}
+@keyframes fm-flick {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.86;
+  }
+  42% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.92;
+  }
+}
+@keyframes fm-grain {
+  25% {
+    translate: -6px 4px;
+  }
+  50% {
+    translate: 5px -5px;
+  }
+  75% {
+    translate: -3px -6px;
+  }
+}
+
+@media (hover: hover) {
+  [data-body='film'] .fm-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--text) 12%, transparent);
+  }
+  [data-body='film'] .fm-frame:hover .fm-shot {
+    filter: grayscale(0.4) sepia(0.15);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='film'] {
+    --fm-rail: 2.25rem;
+  }
+  [data-body='film'] .fm-name {
+    font-size: 1.1875rem;
+  }
+  [data-body='film'] .fm-title {
+    font-size: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='film'] .fm-section :is(.fm-card, .fm-shot > :first-child),
+  [data-body='film'] .fm-section .fm-frame::after {
+    animation: none;
+  }
+  [data-body='film'] :is(.fm-chip, .fm-shot) {
+    transition: none;
+  }
+}

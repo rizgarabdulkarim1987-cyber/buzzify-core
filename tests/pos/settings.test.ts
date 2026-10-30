@@ -19,6 +19,8 @@ const VALID = {
   takeawayEnabled: true,
   deliveryEnabled: false,
   complaintsEnabled: false,
+  idleMinutes: 15,
+  requireApproval: true,
   version: 0,
 };
 
@@ -72,6 +74,17 @@ describe('posSettings', () => {
       takeawayEnabled: false,
       deliveryEnabled: false,
       complaintsEnabled: false,
+      idleMinutes: 15,
+      roundingStep: 0,
+      usdEnabled: false,
+      usdRate: 0,
+      invoiceName: '',
+      invoiceAddress: '',
+      invoicePhone: '',
+      invoiceTaxNumber: '',
+      invoiceFooter: '',
+      requireApproval: true,
+      captainApproval: false,
       catalogMenuId: null,
       version: 0,
     });
@@ -133,5 +146,39 @@ describe('updatePosSettings', () => {
     expect(await prisma().posSettings.count({ where: { restaurantId: a.id } })).toBe(1);
     dataOf(await run(bOwner, updatePosSettings, { ...VALID, taxRatePercent: 1 }));
     expect((await prisma().posSettings.findUnique({ where: { restaurantId: a.id } }))?.taxRatePercent).toBe(5);
+  });
+});
+
+describe('currency and invoice settings', () => {
+  it('saves the rounding step, the dollar rate and the business details', async () => {
+    dataOf(
+      await run(owner, updatePosSettings, {
+        ...VALID,
+        roundingStep: 250,
+        usdEnabled: true,
+        usdRate: 1500,
+        invoiceName: 'Buzz Grill',
+        invoiceTaxNumber: 'TX-77',
+      }),
+    );
+    expect(dataOf(await ask(owner, posSettings, {}))).toMatchObject({
+      roundingStep: 250,
+      usdEnabled: true,
+      usdRate: 1500,
+      invoiceName: 'Buzz Grill',
+      invoiceTaxNumber: 'TX-77',
+      invoiceFooter: '',
+    });
+  });
+
+  it.each([
+    ['a step that is not offered', { roundingStep: 100 }],
+    ['a negative step', { roundingStep: -250 }],
+    ['a fractional step', { roundingStep: 250.5 }],
+    ['dollars on with no rate', { usdEnabled: true, usdRate: 0 }],
+    ['a fractional rate', { usdRate: 1500.5 }],
+    ['a negative rate', { usdRate: -1 }],
+  ])('refuses %s', async (_label, patch) => {
+    expect(codeOf(await run(owner, updatePosSettings, { ...VALID, ...patch }))).toBe('INVALID');
   });
 });

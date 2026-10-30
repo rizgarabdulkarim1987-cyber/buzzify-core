@@ -4,9 +4,15 @@
  * digits, with a point or a comma.
  */
 
+/**
+ * Currencies pinned to the digits the product stores them with. Older ICU data (some servers and phones) gives IQD three
+ * decimals, which would show 250 dinars as 0.250; amounts here are whole dinars.
+ */
+const PINNED_DIGITS: Record<string, number> = { IQD: 0 };
+
 /** How many digits the currency's minor unit has: 2 for USD, 0 for IQD. */
 export function minorUnitDigits(currency: string): number {
-  return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  return PINNED_DIGITS[currency] ?? new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
 }
 
 /** The largest amount the Studio accepts, in minor units. */

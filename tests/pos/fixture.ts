@@ -64,7 +64,7 @@ export async function person(
   label: string,
   flags: {
     membership?: [string, 'DESIGNER' | 'OWNER'];
-    staff?: [string, 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN'];
+    staff?: [string, 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'CAPTAIN'];
     superAdmin?: boolean;
   } = {},
 ): Promise<Person> {

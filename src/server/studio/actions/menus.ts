@@ -332,7 +332,6 @@ export const duplicateMenu = defineAction({
         if (dropScene) delete design.sceneAsset;
         await tx.brandConfig.update({ where: { id: copied.id }, data: { ...within, ...(dropScene ? { design: json(design) } : {}) } });
       }
-      if (!allows(destination, 'design.menuMotions')) await tx.menuMotion.deleteMany({ where: { menuId } });
       await refreshDraftHash(tx, menuId);
 
       ctx.audit({
@@ -353,40 +352,62 @@ export const duplicateMenu = defineAction({
 
 // Deleting ------------------------------------------------------------------------------------------------------------
 
+/**
+ * Erases a menu in any status, with nothing left behind: its catalog, revisions, brand kit, tables and events (the
+ * cascade), its addresses (no tombstone, so they can be used again) and the activity filed under it. Not the one a
+ * restaurant's cashier sells from, which would stop the till. The deletion itself is not written down.
+ */
 export const deleteMenu = defineAction({
   name: 'menus.delete',
   permission: 'menu.delete',
   input: z.object({ menuId: idField, confirmName: z.string().max(200) }),
   target: (i) => atMenu(i.menuId),
-  run: (ctx, { confirmName }) =>
-    ctx.transaction(async (tx) => {
-      const menuId = menuOf(ctx);
-      const row = await tx.menu.findUnique({ where: { id: menuId }, select: { name: true, slug: true, status: true } });
-      if (!row) throw new StudioError('NOT_FOUND');
-      if (row.status !== 'ARCHIVED') throw new StudioError('INVALID', 'Archive the menu before deleting it');
-      if (confirmName.trim() !== row.name) {
-        const message = 'Type the menu name exactly to confirm';
-        throw new StudioError('INVALID', message, { confirmName: message });
-      }
-
-      // Its addresses stay reserved as tombstones, so an old QR code never opens someone else's menu.
+  run: async (ctx, { confirmName }) => {
+    const menuId = menuOf(ctx);
+    const row = await ctx.db.menu.findUnique({ where: { id: menuId }, select: { name: true } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    if (confirmName.trim() !== row.name) {
+      const message = 'Type the menu name exactly to confirm';
+      throw new StudioError('INVALID', message, { confirmName: message });
+    }
+    if (await ctx.db.posSettings.findFirst({ where: { catalogMenuId: menuId }, select: { id: true } })) {
+      throw new StudioError('INVALID', 'This menu is the product list of the restaurant’s cashier. Choose another one first.');
+    }
+    return ctx.transaction(async (tx) => {
       const slugs = await menuSlugs(tx, menuId);
-      await tx.menuSlug.updateMany({ where: { menuId }, data: { menuId: null } });
-      // Its catalog, revisions, brand kit, tables and events go with it. The delete itself asks for an archived menu: one
-      // restored between the read above and this line is live again, and must not be deleted from under its guests (the
-      // transaction, tombstones included, is rolled back).
-      const { count } = await tx.menu.deleteMany({ where: { id: menuId, status: 'ARCHIVED' } });
+      await tx.menuSlug.deleteMany({ where: { menuId } });
+      await tx.auditLog.deleteMany({ where: { menuId } });
+      const { count } = await tx.menu.deleteMany({ where: { id: menuId } });
       if (count === 0) throw new StudioError('CONFLICT');
-
-      ctx.audit({
-        action: 'menu.deleted',
-        entityType: 'Menu',
-        entityId: menuId,
-        changes: { name: { before: row.name, after: null }, slug: { before: row.slug, after: null } },
-      });
       ctx.afterCommit(() => expireMenu(slugs, menuId));
       return { deleted: true as const };
-    }),
+    });
+  },
+});
+
+/** Erases up to 200 menus, each one as `menus.delete` run for the same person; the word DELETE stands for each menu's name. */
+export const bulkDeleteMenus = defineAction({
+  name: 'menus.bulkDelete',
+  permission: null,
+  input: z.object({
+    menuIds: z
+      .array(idField)
+      .min(1, 'Choose at least one menu')
+      .max(200, 'Choose at most 200 menus')
+      .refine((ids) => new Set(ids).size === ids.length, 'Each menu can be listed only once'),
+    confirm: z.literal('DELETE', 'Type DELETE to confirm'),
+  }),
+  target: () => ({ kind: 'self' }),
+  run: async (ctx, { menuIds }) => {
+    const results: BulkResult[] = [];
+    for (const menuId of menuIds) {
+      // The name is only handed to the delete, which checks the person's right to the menu first.
+      const row = await ctx.db.menu.findUnique({ where: { id: menuId }, select: { name: true } });
+      const result = await runAction(ctx.db, ctx.actor, deleteMenu, { menuId, confirmName: row?.name ?? '' }, ctx.meta);
+      results.push(result.ok ? { menuId, ok: true } : { menuId, ok: false, code: result.error.code });
+    }
+    return { results };
+  },
 });
 
 // Many at once --------------------------------------------------------------------------------------------------------

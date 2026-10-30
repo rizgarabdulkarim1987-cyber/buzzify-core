@@ -1,0 +1,139 @@
+/*
+ * Halay (`halay`, family `drift`): a Kurdish halay line, hand in hand across a meadow. Every section is one long line of
+ * dancers gliding sideways; each dancer is a dish, its photo the face, a coloured dress under it and the name and price
+ * at its feet; the first dancer (the sarchopi) waves the red handkerchief. The dancers sway from foot to foot. Colours
+ * from the template's tokens: words in `--text` on `--bg`, the accent for the heading's rule and the add; the dresses,
+ * the arms, the handkerchief and the grass are pure decoration (never under text).
+ */
+[data-body='halay'] {
+  --dr-w: 31%;
+  --dr-min: 6.75rem;
+  --dr-max: 9rem;
+  --ha-face: 4.5rem;
+  --ha-arm: color-mix(in srgb, var(--text) 25%, #c08a5a);
+  --ha-grass: color-mix(in srgb, var(--bg) 45%, #5f9a3a);
+  background: linear-gradient(color-mix(in srgb, var(--bg) 88%, #6fb6e0), var(--bg) 22rem);
+}
+
+/* The strip: white tags ringed in the accent, the lit one filled. */
+[data-body='halay'] .dr-chip {
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+[data-body='halay'] .dr-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+[data-body='halay'] .dr-section {
+  padding-block: 0.75rem 0.25rem;
+}
+[data-body='halay'] .dr-title {
+  font-size: 1.3125rem;
+}
+[data-body='halay'] .dr-title small {
+  display: none;
+}
+[data-body='halay'] .dr-title b {
+  color: var(--text);
+}
+
+/* The line: no gaps (the dancers hold hands), room above for the handkerchief, the meadow under their feet. */
+[data-body='halay'] .dr-row {
+  gap: 0;
+  padding-block: 1.75rem 1.25rem;
+  background: linear-gradient(var(--ha-grass), var(--ha-grass)) 0 100% / 100% 0.5rem no-repeat;
+}
+[data-body='halay'] .dr-dish {
+  padding-inline: 0.25rem;
+  transform-origin: 50% 100%;
+  animation: ha-step 0.9s ease-in-out infinite;
+  animation-play-state: var(--dr-play, paused);
+}
+[data-body='halay'] .dr-dish:nth-child(even) {
+  animation-delay: -0.45s;
+}
+/* The arms: from this dancer back to the one before, at the shoulders, behind both. */
+[data-body='halay'] .dr-dish + .dr-dish::before {
+  content: '';
+  position: absolute;
+  inset-block-start: calc(var(--ha-face) + 0.375rem);
+  inset-inline-start: -32%;
+  inline-size: 64%;
+  block-size: 4px;
+  border-radius: 2px;
+  background: var(--ha-arm);
+}
+/* The face: the dish photo in a round frame ringed in the dancer's colour. */
+[data-body='halay'] .dr-photo {
+  z-index: 1;
+  inline-size: var(--ha-face);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--bg),
+    0 0 0 5px oklch(0.6 0.17 var(--dr-dancer, 20));
+}
+/* The dress under it: a coloured trapezoid. */
+[data-body='halay'] .dr-words {
+  margin-block-start: 0;
+}
+[data-body='halay'] .dr-words::before {
+  content: '';
+  position: relative;
+  z-index: 1;
+  inline-size: 70%;
+  block-size: 2.5rem;
+  margin-block-start: -0.25rem;
+  background: oklch(0.6 0.17 var(--dr-dancer, 20));
+  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
+}
+[data-body='halay'] .dr-name {
+  margin-block-start: 0.25rem;
+  font-size: 0.8125rem;
+}
+[data-body='halay'] .dr-add {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+/* The sarchopi's red handkerchief, raised and waving. */
+[data-body='halay'] .dr-cloth {
+  inset-block-start: -1.25rem;
+  inset-inline-start: 4%;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  background: #d7263d;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  transform-origin: 100% 100%;
+  animation: ha-wave 0.6s ease-in-out infinite;
+  animation-play-state: var(--dr-play, paused);
+}
+
+@keyframes ha-step {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(3deg);
+  }
+}
+@keyframes ha-wave {
+  0%,
+  100% {
+    transform: rotate(-20deg);
+  }
+  50% {
+    transform: rotate(25deg);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='halay'] {
+    --ha-face: 5.5rem;
+    --dr-max: 10.5rem;
+  }
+}

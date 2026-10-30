@@ -8,8 +8,8 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Pill,
   Settings,
-  Sparkles,
   Store,
   UserRound,
   Users,
@@ -38,16 +38,16 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   billing: CreditCard,
   menus: UtensilsCrossed,
   media: Images,
-  motion: Sparkles,
   people: Users,
   announcements: Megaphone,
   activity: Activity,
   settings: Settings,
   store: Store,
+  pharmacy: Pill,
 };
 
 /** A navigation item as the layout hands it over: its label already in the person's language. */
-export type SidebarItem = Omit<NavItem, 'labelKey' | 'label'> & { label: string };
+export type SidebarItem = Omit<NavItem, 'labelKey' | 'label' | 'scope'> & { label: string };
 
 export interface SidebarUser {
   name: string;

@@ -1,0 +1,310 @@
+/*
+ * The food city (family `towers`, kind `city`): a city at night. Every section is a tower on one road, its neon sign on
+ * the roof in the section's own hue (`--h`, decoration only: the tube, the glow, the roof's edge, never under text);
+ * every dish is a floor with a lit window (its photo, glowing in `--accent`) and its name and price beside it. The towers
+ * stand side by side and the row scrolls sideways; the roof of a tower with fewer dishes stands lower (`--drop`), and
+ * below its last floor its unlit windows go down to the street. Text and buttons use the template tokens only.
+ * Logical properties only, so Arabic mirrors (the row starts at the right).
+ */
+[data-body='city'] {
+  --nav-room: 3.5rem;
+  --ct-tower: calc((100vw - 1.75rem) / 2.12);
+  --ct-window: 3rem;
+  --ct-facade: color-mix(in srgb, var(--raised) 55%, var(--bg));
+  --ct-floor: var(--raised);
+  --ct-dark: color-mix(in srgb, var(--bg) 70%, #000);
+  --ct-sky: color-mix(in srgb, var(--bg) 82%, var(--accent));
+  padding-block-end: 0;
+  color: var(--text);
+  background: linear-gradient(var(--bg), var(--bg) 40%, var(--ct-sky));
+}
+[data-body='city'] :is(.ct-chip, .ct-tower) {
+  --ct-neon: oklch(0.8 0.17 var(--h, 60));
+}
+
+/* ------------------------------------------------------------------ the strip: small neon signs */
+
+[data-body='city'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+[data-body='city'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='city'] .ct-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in oklab, var(--ct-neon) 70%, transparent);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: 0 0 10px -4px var(--ct-neon);
+  transition: box-shadow 150ms, background-color 150ms;
+}
+[data-body='city'] .ct-chip-tube {
+  inline-size: 0.875rem;
+  block-size: 0.25rem;
+  border-radius: 999px;
+  background: var(--ct-neon);
+  box-shadow: 0 0 6px var(--ct-neon);
+}
+[data-body='city'] .ct-chip[aria-current='true'] {
+  background: var(--raised);
+  box-shadow: 0 0 18px -2px var(--ct-neon), inset 0 0 10px -4px var(--ct-neon);
+}
+
+/* ------------------------------------------------------------------ the sky, the row of towers, the road */
+
+[data-body='city'] .ct-main {
+  position: relative;
+  padding-block-start: 0.5rem;
+}
+/* The moon: decoration in the sky's corner, behind the towers. */
+[data-body='city'] .ct-moon {
+  position: absolute;
+  inset-block-start: 0.75rem;
+  inset-inline-end: 1.25rem;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 35%, #fff);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.85;
+}
+[data-body='city'] .ct-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 1.75rem 0.75rem 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.75rem;
+}
+[data-body='city'] .ct-road {
+  display: block;
+  block-size: 2.5rem;
+  border-block-start: 3px dashed color-mix(in srgb, var(--accent) 80%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, #000);
+}
+
+/* ------------------------------------------------------------------ a tower */
+
+[data-body='city'] .ct-tower {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  inline-size: var(--ct-tower);
+  padding-block-start: var(--drop, 0rem);
+  scroll-margin-block-start: var(--nav-room);
+  scroll-snap-align: start;
+}
+/* The mast on the roof that carries the sign. */
+[data-body='city'] .ct-mast {
+  align-self: center;
+  inline-size: 2px;
+  block-size: 0.75rem;
+  background: color-mix(in srgb, var(--text) 40%, transparent);
+}
+[data-body='city'] .ct-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  margin-block-end: -1px;
+}
+/* The neon sign: the words in the text colour, glowing in the section's hue inside a lit tube. */
+[data-body='city'] .ct-sign {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 0.375rem;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border: 2px solid var(--ct-neon);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.25;
+  text-align: center;
+  text-shadow: 0 0 10px var(--ct-neon);
+  box-shadow: 0 0 14px -2px var(--ct-neon), inset 0 0 10px -4px var(--ct-neon);
+  overflow-wrap: anywhere;
+}
+[data-body='city'] .ct-sign [data-count] {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+[data-body='city'] .ct-head:focus-visible .ct-sign {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+/* The building: the facade under the sign, its roof edge in the sign's hue, standing on the road. */
+[data-body='city'] .ct-bld {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0.375rem 0.375rem 0;
+  border-block-start: 4px solid var(--ct-neon);
+  border-start-start-radius: 0.375rem;
+  border-start-end-radius: 0.375rem;
+  /* Below the last lit floor, the tower's unlit windows run down to the street. */
+  background:
+    repeating-linear-gradient(var(--ct-facade) 0 0.75rem, transparent 0.75rem 2rem),
+    repeating-linear-gradient(90deg, var(--ct-facade) 0 0.5rem, var(--ct-dark) 0.5rem 1.5rem, var(--ct-facade) 1.5rem 2rem);
+}
+[data-body='city'] .ct-floors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  padding-block-end: 0.75rem;
+  background: var(--ct-facade);
+}
+/* A floor: the lit window and the words on its sill. */
+[data-body='city'] .ct-floor {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--ct-window) minmax(0, 1fr);
+  column-gap: 0.5rem;
+  align-items: start;
+  padding: 0.375rem;
+  border-radius: 0.1875rem;
+  background: var(--ct-floor);
+}
+[data-body='city'] .ct-window {
+  position: relative;
+  inline-size: var(--ct-window);
+  block-size: var(--ct-window);
+  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--accent) 70%, var(--ct-facade));
+  border-radius: 0.125rem;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* The window's mullion: a thin cross over the photo. */
+[data-body='city'] .ct-window::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), color-mix(in srgb, var(--ct-facade) 75%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(transparent calc(50% - 1px), color-mix(in srgb, var(--ct-facade) 75%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
+  pointer-events: none;
+}
+[data-body='city'] .ct-window > * {
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='city'] .ct-window img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='city'] .ct-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+[data-body='city'] .ct-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+[data-body='city'] .ct-level {
+  position: absolute;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+[data-body='city'] .ct-name {
+  padding-inline-end: 0.875rem;
+}
+[data-body='city'] .ct-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.125rem 0.25rem;
+}
+[data-body='city'] .ct-price {
+  color: var(--accent-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+[data-body='city'] .ct-add {
+  inline-size: 2rem;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border-radius: 0.25rem;
+}
+[data-body='city'] .ct-badges {
+  font-size: 0.75rem;
+}
+/* The lit door at the foot of the tower. */
+[data-body='city'] .ct-door {
+  align-self: center;
+  inline-size: 34%;
+  block-size: 1.75rem;
+  margin-block-start: auto;
+  border-start-start-radius: 0.875rem;
+  border-start-end-radius: 0.875rem;
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+@media (hover: hover) {
+  [data-body='city'] .ct-chip:hover:not([aria-current='true']) {
+    box-shadow: 0 0 16px -3px var(--ct-neon);
+  }
+  [data-body='city'] .ct-floor:hover .ct-window {
+    box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='city'] {
+    --ct-tower: 16rem;
+    --ct-window: 4.5rem;
+  }
+  [data-body='city'] .ct-name {
+    font-size: 0.9375rem;
+  }
+  [data-body='city'] .ct-row {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='city'] .ct-chip {
+    transition: none;
+  }
+}

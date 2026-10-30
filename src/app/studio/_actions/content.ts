@@ -28,6 +28,10 @@ export async function saveProduct(input: unknown) {
   return invoke(content.saveProduct, input);
 }
 
+export async function setSelling(input: unknown) {
+  return invoke(content.setSelling, input);
+}
+
 export async function deleteProduct(input: unknown) {
   return invoke(content.deleteProduct, input);
 }
@@ -38,4 +42,8 @@ export async function moveProduct(input: unknown) {
 
 export async function loadProduct(input: unknown) {
   return invokeQuery(contentQueries.product, input);
+}
+
+export async function attachPhotos(input: unknown) {
+  return invoke(content.attachPhotos, input);
 }

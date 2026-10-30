@@ -23,6 +23,7 @@
     "studio:set-platform-owner": "tsx scripts/set-platform-owner.ts",
     "studio:stage-models": "tsx scripts/set-stage-models.ts",
     "studio:template": "tsx scripts/set-template.ts",
+    "studio:photos": "tsx scripts/attach-photos.ts",
     "studio:thumbnails": "playwright test --config playwright.thumbnails.config.ts",
     "db:up": "tsx scripts/db.ts up",
     "db:down": "tsx scripts/db.ts down",

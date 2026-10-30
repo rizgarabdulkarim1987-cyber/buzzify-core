@@ -1,0 +1,387 @@
+/*
+ * The Frosted Window body (poster themed-win): a winter window with snow falling. The featured dish is in the WINDOW at the
+ * top: its photo behind a pane of frost (a canvas, FrostBody) that a first soft wipe opens and that anyone can rub clear, its
+ * name, price and add beside it. A sticky strip of translucent pills (the one in view white). Every section is a heading over
+ * a grid of snow-capped cards (a pale card, a cap of snow on its top edge that drops in once, the photo, the name, the price
+ * and the add on a row). Snow drifts down behind the page for a few seconds and stops. Everything is scoped under
+ * [data-body='frost'], logical properties only (RTL mirrors). Every colour comes from the template's palette (Customize
+ * recolours the window; the preset's default palette is the poster's night blue, white and blue); the page is a gradient from
+ * the ground to a lighter blue, the snow and the caps are gradients on a layer and on frames, never behind text.
+ */
+[data-body='frost'] {
+  /* The page: the ground lightened towards the surface, top to foot (every text on it is the palette's text colour). */
+  --fr-sky: color-mix(in srgb, var(--bg) 40%, var(--surface));
+  /* A card: the text colour at 92% over the ground (white on a dark palette, near black on a light one), its ink the ground. */
+  --fr-card: color-mix(in srgb, var(--text) 92%, var(--bg));
+  --fr-ink: var(--bg);
+  /* A price on the card: the accent darkened towards the ground. */
+  --fr-price: color-mix(in srgb, var(--accent) 40%, var(--bg));
+  /* Text in the accent on the page itself (a price by the window): the accent lifted towards the text colour. */
+  --fr-soft: color-mix(in srgb, var(--accent) 35%, var(--text));
+  /* The frost on the window: the text colour, a touch towards the accent. */
+  --fr-frost: color-mix(in srgb, var(--text) 82%, var(--accent));
+  /* The sale chip stays a deep rose with white ink (a fixed pair), so a sale reads on every palette. */
+  --fr-sale: #7a0c2c;
+  --fr-sale-ink: #fff;
+  --nav-room: 3.5rem;
+  --column: 64rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 26%;
+  position: relative;
+  isolation: isolate;
+  padding-block-end: 1rem;
+  color: var(--text);
+  background: linear-gradient(var(--bg), var(--fr-sky));
+}
+/* The snow: two tiles of flakes on a layer behind the page that drifts down once, in five seconds, and rests. */
+[data-body='frost']::before {
+  content: '';
+  position: fixed;
+  inset-block: -120px 0;
+  inset-inline: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle, var(--text) 0 1.6px, transparent 2px), radial-gradient(circle, color-mix(in srgb, var(--text) 80%, transparent) 0 1.2px, transparent 1.6px);
+  background-size: 60px 60px, 90px 90px;
+  background-position: 0 0, 30px 40px;
+  pointer-events: none;
+  animation: fr-snow 5s linear both;
+}
+@keyframes fr-snow {
+  from {
+    transform: translateY(-120px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------ the window */
+
+[data-body='frost'] .fr-hero-wrap {
+  padding-block: 0.5rem 0.75rem;
+  padding-inline: 1rem;
+}
+[data-body='frost'] .fr-hero {
+  --tpl-ring-radius: 1rem;
+  --tpl-ring-inset: 4px;
+  --sale-bg: var(--fr-sale);
+  --sale-ink: var(--fr-sale-ink);
+  --rim-add-bg: var(--accent);
+  --rim-add-ink: var(--on-accent);
+  --rim-add-size: 2.5rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-inline-size: 0;
+}
+/* The glass: a rounded pane that holds the photo and, over it, the frost. */
+[data-body='frost'] .fr-glass {
+  position: relative;
+  flex: none;
+  inline-size: 10rem;
+  aspect-ratio: 4 / 3.2;
+  overflow: hidden;
+  border-radius: 1.375rem;
+  box-shadow: 0 0.875rem 1.875rem rgb(0 0 0 / 0.35);
+  background: var(--fr-card);
+}
+[data-body='frost'] .fr-glass .fr-photo {
+  inline-size: 100%;
+  block-size: 100%;
+}
+/* The frost: the canvas over the photo, rubbed clear by a finger. A vertical drag still scrolls the page. */
+[data-body='frost'] .fr-ice {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  inline-size: 100%;
+  block-size: 100%;
+  color: var(--fr-frost);
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+[data-body='frost'] .fr-hero .fr-off {
+  inset-block-start: auto;
+  inset-block-end: 0.375rem;
+  inset-inline-start: 0.375rem;
+  z-index: 4;
+}
+[data-body='frost'] .fr-cap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-inline-size: 0;
+}
+[data-body='frost'] .fr-hero-name {
+  max-inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+[data-body='frost'] .fr-hero .fr-price {
+  color: var(--fr-soft);
+  font-size: 1.0625rem;
+}
+
+/* ------------------------------------------------------------------ the strip of pills */
+
+[data-body='frost'] .fr-strip {
+  padding-block: 0.25rem;
+  background: color-mix(in srgb, var(--bg) 75%, transparent);
+  backdrop-filter: blur(10px);
+}
+[data-body='frost'] .fr-strip-list {
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+}
+/* A pill: translucent, the section's name; the one in view is the text colour with the ground's ink. */
+[data-body='frost'] .fr-chip {
+  min-inline-size: 2.75rem;
+  max-inline-size: 11rem;
+  padding-inline: 0.875rem;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--text) 16%, var(--bg));
+  color: var(--text);
+}
+[data-body='frost'] .fr-chip-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+[data-body='frost'] .fr-chip[aria-current='true'] {
+  background-color: var(--text);
+  color: var(--bg);
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the pill, in the pill's text colour. */
+[data-body='frost'] .fr-strip-list button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+
+/* ------------------------------------------------------------------ a section */
+
+[data-body='frost'] .fr-pane {
+  padding-block: 1.25rem 0.25rem;
+  padding-inline: 0.75rem;
+}
+[data-body='frost'] [data-heading].fr-head {
+  display: block;
+  padding-inline: 0;
+}
+[data-body='frost'] .fr-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.875rem;
+  color: var(--text);
+  font-size: 1.625rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-body='frost'] .fr-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='frost'] .fr-title small {
+  flex: none;
+  order: 2;
+  color: var(--fr-soft);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+[data-body='frost'] .fr-title b {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ the snow-capped cards */
+
+[data-body='frost'] .fr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='frost'] .fr-grid:empty {
+  display: none;
+}
+/* A card: pale, rounded, the positioned ancestor of the name's tap area (so the whole card opens the dish). */
+[data-body='frost'] .fr-card {
+  --tpl-ring-radius: 1.125rem;
+  --tpl-ring-inset: 2px;
+  --sale-bg: var(--fr-sale);
+  --sale-ink: var(--fr-sale-ink);
+  --rim-add-bg: var(--accent);
+  --rim-add-ink: var(--on-accent);
+  --rim-add-size: 2.5rem;
+  --photo-off-at: 0.25rem;
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  padding: 0.75rem 0.4375rem 0.5rem;
+  border-radius: 1.125rem;
+  background: var(--fr-card);
+  color: var(--fr-ink);
+}
+/* The snow on its top edge: a white cap, two round drifts hanging from it, overhanging the card a little (decoration over the
+   card's own padding, never over the photo or a text). */
+[data-body='frost'] .fr-card::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.5625rem;
+  inset-inline: -0.1875rem;
+  block-size: 1.25rem;
+  border-radius: 0.875rem 0.875rem 0.625rem 0.625rem;
+  background:
+    radial-gradient(circle at 20% 100%, var(--fr-card) 6px, transparent 7px),
+    radial-gradient(circle at 70% 100%, var(--fr-card) 8px, transparent 9px),
+    var(--fr-card);
+  box-shadow: 0 3px 4px color-mix(in srgb, var(--bg) 15%, transparent);
+  pointer-events: none;
+}
+[data-body='frost'] .fr-shot {
+  position: relative;
+}
+[data-body='frost'] .fr-photo {
+  /* A dish with no media: the plate's rings and ground in the card's own colours, on every palette. */
+  --text: var(--fr-ink);
+  --bg: var(--fr-card);
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border-radius: 0.8125rem;
+  background: var(--fr-card);
+}
+[data-body='frost'] .fr-card .fr-off {
+  inset-block-start: auto;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+  z-index: 2;
+}
+[data-body='frost'] .fr-name {
+  padding: 0 0.125rem;
+  color: var(--fr-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: start;
+}
+[data-body='frost'] .fr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  max-inline-size: 100%;
+}
+[data-body='frost'] .fr-cap .fr-meta {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+[data-body='frost'] .fr-price {
+  min-inline-size: 0;
+  padding-inline: 0.125rem;
+  color: var(--fr-price);
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+[data-body='frost'] .fr-price .tpl-was {
+  display: block;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+[data-body='frost'] .fr-card .tpl-was {
+  color: color-mix(in srgb, var(--fr-ink) 75%, var(--fr-card));
+}
+/* The add: a round accent key beside the price (never over the photo). */
+[data-body='frost'] .fr-add {
+  position: relative;
+  z-index: 3;
+  flex: none;
+}
+[data-body='frost'] .fr-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='frost'] .fr-add:focus-visible {
+  outline: 2px solid var(--rim-add-ink);
+  outline-offset: -4px;
+}
+/* The whole card's keyboard ring is drawn round it, in the text colour. */
+[data-body='frost'] .tpl-open:focus-visible::after {
+  outline: 2px solid var(--text);
+  outline-offset: var(--tpl-ring-inset);
+  border-radius: var(--tpl-ring-radius);
+}
+[data-body='frost'] .fr-card .tpl-open:focus-visible::after {
+  outline-color: var(--fr-ink);
+}
+
+/* The entrance (armed by the script): the snow cap of each card waits folded up, then drops in once, one card after the other,
+   as its section first comes into view. The sections on the screen when the script arms are opened in the same pass, so the
+   first screen never shows them waiting. */
+[data-body='frost'][data-armed] .fr-pane:not([data-open]) .fr-card::before {
+  transform: scaleY(0);
+  transform-origin: top;
+}
+[data-body='frost'][data-armed] .fr-pane[data-open] .fr-card::before {
+  transition: transform 600ms cubic-bezier(0.23, 1, 0.32, 1) calc(250ms + var(--fr-at, 0) * 60ms);
+  transform-origin: top;
+}
+/* Keyboard focus inside a section drops its caps at once. */
+[data-body='frost'][data-armed] .fr-pane:focus-within .fr-card::before {
+  transform: none;
+  transition-delay: 0ms;
+}
+
+@media (hover: hover) {
+  [data-body='frost'] .fr-card:hover .fr-photo {
+    filter: brightness(1.05);
+  }
+}
+
+/* A wide screen: bigger window and cards, four to a row, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='frost'] .fr-glass {
+    inline-size: 18rem;
+  }
+  [data-body='frost'] .fr-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem 0.75rem;
+  }
+  [data-body='frost'] .fr-name {
+    font-size: 1rem;
+  }
+  [data-body='frost'] .fr-hero-name {
+    font-size: 1.75rem;
+  }
+  [data-body='frost'] .fr-title {
+    font-size: 2rem;
+  }
+}
+
+/* Less motion: the snow rests, the caps are simply on the cards, the chips simply change. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='frost']::before {
+    animation: none;
+  }
+  [data-body='frost'] .fr-card::before,
+  [data-body='frost'] .fr-chip {
+    transition: none !important;
+  }
+}

@@ -1,8 +1,11 @@
 import type { AnyDb } from '@/server/data/tenant-db';
 import { isLocale, type Locale } from '@/lib/locale';
+import { tillOfferPerUnit } from '@/server/domain/pos/line-offer';
 import { lineTotal, type Discount } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
+import type { DiscountWhy } from './approval';
 import { refuse } from './errors';
+import { loadTillOffers, pricingMoment } from './line-offers';
 import {
   bumpOrder,
   assertNotHandedOver,
@@ -87,13 +90,16 @@ export interface AddLineInput {
   variantId?: string;
   optionIds: string[];
   expectedVersion: number;
+  /** When a till device tapped the dish while offline: the moment the menu's offers are read at (see `pricingMoment`). */
+  clientAt?: Date;
 }
 
 /**
  * Adds a product of the catalog menu to the order, copying its name, price, section and the chosen variant and options as
- * they are now. A product that is switched off, sold out at the till, or in an inactive category cannot be added.
+ * they are now, and what the menu's live offer takes off a unit (kept apart from the regular price, so reports and the
+ * receipt show it as a discount). A product that is switched off, sold out at the till, or in an inactive category cannot be added.
  */
-export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string, input: AddLineInput) {
+export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string, input: AddLineInput, now: Date = new Date()) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
   const product = await db.product.findFirst({
@@ -112,6 +118,9 @@ export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string,
   if (!product.isAvailable || setting?.soldOutOverride) throw refuse('CONFLICT', 'This product is not available');
   const defaultLocale: Locale | string = menu?.defaultLocale ?? 'en';
   const options = chooseForLine(product, defaultLocale, input.variantId, input.optionIds);
+  const { offers, timeZone } = await loadTillOffers(db, restaurantId, menuId);
+  const regularUnit = product.basePrice + options.reduce((sum, option) => sum + option.priceDelta, 0);
+  const promoDiscountPerUnit = tillOfferPerUnit(product, regularUnit, offers, pricingMoment(input.clientAt, now), timeZone);
 
   const sectionId = setting?.sectionId ?? categorySetting?.sectionId ?? null;
   const section = sectionId ? await db.posKitchenSection.findFirst({ where: { id: sectionId, restaurantId }, select: { id: true, name: true } }) : null;
@@ -125,6 +134,7 @@ export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string,
       productId: product.id,
       nameSnapshot: nameOf(product.translations, defaultLocale),
       unitPriceSnapshot: product.basePrice,
+      promoDiscountPerUnit,
       quantity: input.quantity,
       note: input.note,
       optionsSnapshot: options,
@@ -141,6 +151,8 @@ export interface UpdateLineInput {
   quantity?: number;
   note?: string;
   discount?: Discount | null;
+  /** Why a discount was given and who approved it; stored with the discount, cleared with it. */
+  why?: DiscountWhy;
 }
 
 async function loadLineForChange(db: AnyDb, restaurantId: string, lineId: string, expected: number) {
@@ -149,6 +161,7 @@ async function loadLineForChange(db: AnyDb, restaurantId: string, lineId: string
   const order = await loadOrderForChange(db, restaurantId, line.orderId, expected);
   assertNotHandedOver(order);
   if (line.cancelledAt) throw refuse('CONFLICT', 'The line is cancelled');
+  if (line.paymentId !== null) throw refuse('CONFLICT', 'This line is already paid');
   return { line, order };
 }
 
@@ -169,7 +182,15 @@ export async function updateLineIn(db: AnyDb, restaurantId: string, input: Updat
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, status !== order.status ? { status } : {});
 
   const changes: Record<string, { before: unknown; after: unknown }> = {};
-  const data: { quantity?: number; note?: string; discountKind?: Discount['kind'] | null; discountValue?: number | null } = {};
+  const data: {
+    quantity?: number;
+    note?: string;
+    discountKind?: Discount['kind'] | null;
+    discountValue?: number | null;
+    discountReason?: DiscountWhy['reason'] | null;
+    discountNote?: string | null;
+    discountApprovedByStaffId?: string | null;
+  } = {};
   if (input.quantity !== undefined) {
     data.quantity = input.quantity;
     changes.quantity = { before: line.quantity, after: input.quantity };
@@ -181,6 +202,10 @@ export async function updateLineIn(db: AnyDb, restaurantId: string, input: Updat
   if (input.discount !== undefined) {
     data.discountKind = input.discount?.kind ?? null;
     data.discountValue = input.discount?.value ?? null;
+    const why = input.discount ? input.why : undefined;
+    data.discountReason = why?.reason ?? null;
+    data.discountNote = why?.note ?? null;
+    data.discountApprovedByStaffId = why?.approvedByStaffId ?? null;
     changes.discount = { before: toDiscount(line.discountKind, line.discountValue) ?? null, after: input.discount };
   }
   // sentAt: null too when the quantity or note changes, so a send that won the row lock first cannot be overwritten.
@@ -206,6 +231,13 @@ export async function cancelLineIn(db: AnyDb, restaurantId: string, input: { lin
   if (count === 0) throw refuse('CONFLICT', 'The line is cancelled');
   // Cancelling the last line the kitchen was still cooking, or the last line not sent yet, can finish the order.
   const finalStatus = await settleStatus(db, restaurantId, order.id, status, version);
+  // A part of the bill is already paid and nothing unpaid is left: the order is complete (otherwise it could never close).
+  const unpaidLeft = await db.posOrderLine.count({ where: { orderId: order.id, restaurantId, cancelledAt: null, paymentId: null } });
+  if (unpaidLeft === 0 && (await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) {
+    const closed = await db.posOrder.updateMany({ where: { id: order.id, restaurantId, version }, data: { status: 'PAID', version: { increment: 1 } } });
+    if (closed.count === 0) throw refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
+    return { orderId: order.id, lineId: line.id, version: version + 1, name: line.nameSnapshot, quantity: line.quantity, sent: line.sentAt !== null, from: order.status, to: 'PAID' as const };
+  }
   return { orderId: order.id, lineId: line.id, version, name: line.nameSnapshot, quantity: line.quantity, sent: line.sentAt !== null, from: order.status, to: finalStatus };
 }
 

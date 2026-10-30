@@ -53,7 +53,7 @@ describe('a lapsed Cashier subscription', () => {
   it('still lets a shift be closed, read and reported', async () => {
     const shiftId = dataOf(await run(cashier, openPosShift, { openingFloat: 1_000 })).shiftId;
     await lapse();
-    expect(dataOf(await ask(cashier, posShift, { shiftId })).expectedCash).toBe(1_000);
+    expect(dataOf(await ask(cashier, posShift, { shiftId })).expectedCash).toBeNull();
     expect(dataOf(await ask(manager, posOpenShifts, {})).shifts).toHaveLength(1);
     expect(codeOf(await ask(manager, posDailyReport, { day: baghdadDayOf(new Date()) }) as never)).toBe('OK');
     expect(dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 1_000, note: '' })).difference).toBe(0);

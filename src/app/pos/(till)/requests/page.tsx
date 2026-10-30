@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getPosAccess } from '@/server/pos/actor';
 import { query } from '@/server/studio/framework/invoke';
-import { posQrFlags, posRequests } from '@/server/studio/queries/pos-requests';
+import { posBillCalls, posQrFlags, posRequestCatalog, posRequests } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { Alert } from '@/studio/ui/Alert';
@@ -28,11 +28,11 @@ export default async function RequestsPage() {
       </>
     );
   }
-  const { requests, readAt } = await query(posRequests, {});
+  const [{ requests, readAt }, billCalls, catalog] = await Promise.all([query(posRequests, {}), query(posBillCalls, {}), query(posRequestCatalog, {})]);
   return (
     <>
       <PageHeader title={t('pos.requests.title')} description={t('pos.requests.intro')} />
-      <RequestsScreen requests={requests} readAt={readAt} />
+      <RequestsScreen requests={requests} billCalls={billCalls} catalog={catalog} role={actor.role} readAt={readAt} />
     </>
   );
 }

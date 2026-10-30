@@ -1,12 +1,14 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { getStudioTranslator } from '@/studio/messages';
+import { CATEGORY_STYLES, STYLE_CATEGORIES } from '@/studio/styles/categories';
+import { MENU_STYLES } from '@/studio/styles/catalog';
+import { TEMPLATE_FOR_STYLE } from '@/studio/styles/template-map';
 import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
 import { hideDevTools, superAdminFile, uniqueClientAddress } from './helpers/studio';
 
 /**
  * The Styles filter in the Templates gallery (docs/superpowers/specs/2026-10-26-menu-styles-in-templates-design.md):
- * all 35 picked styles in catalog order; the three that are real are ordinary templates, the other 32 are coming-soon
- * cards with their mockup in the preview and no way to apply.
+ * all 35 picked styles in catalog order; every one is an ordinary template (preview, apply, customize).
  */
 
 const en = getStudioTranslator('en');
@@ -31,25 +33,40 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
   async function openStyles(page: Page) {
     await page.goto(`/studio/menus/${menu.menuId}/design`);
     await expect(page.getByRole('heading', { name: en('design.gallery.title') })).toBeVisible();
-    const chip = page.getByRole('button', { name: en('design.filter.styles'), exact: true });
-    await expect(chip).toHaveAttribute('aria-pressed', 'false');
-    await chip.click();
-    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    // The categories are there from the first look, with no Styles button to press first.
+    await expect(page.getByRole('group', { name: en('design.filter.category') })).toBeVisible();
+    await expect(page.getByRole('button', { name: en('design.filter.styles'), exact: true })).toHaveCount(0);
   }
 
-  test('shows the 35 styles, three as templates and the rest as coming soon', async ({ browser }) => {
+  const chip = (page: Page, key: string) => page.getByRole('group', { name: en('design.filter.category') }).getByRole('button', { name: en(key), exact: true });
+
+  test('lists every style under its category, every one an ordinary template', async ({ browser }) => {
     test.slow();
     const page = await signedIn(browser);
     await openStyles(page);
     const cards = page.locator('ul[data-styles] > li');
-    await expect(cards).toHaveCount(35);
-    await expect(page.getByText(en('design.filter.stylesCount_other', { count: 35 }))).toBeVisible();
-    // Coming-soon cards say so in text, on every one of the 32.
-    await expect(cards.getByText(en('design.comingSoon'), { exact: true })).toHaveCount(32);
-    // Catalog order: the first style is a coming-soon card (the Kurdish theme), with its poster from the private route.
-    const first = cards.first().getByRole('button');
-    await expect(first).toHaveAccessibleName(en('design.selectSoon', { name: en('styles.themed-kurd.name') }));
-    await expect(first.locator('img')).toHaveAttribute('src', '/studio/style-files/poster/themed-kurd');
+    // Every catalog style maps to a template, so none is coming soon (the coming-soon path stays for a future style).
+    expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(MENU_STYLES.length);
+    let total = 0;
+    for (const category of STYLE_CATEGORIES) {
+      await chip(page, `styles.category.${category}`).click();
+      await expect(cards).toHaveCount(CATEGORY_STYLES[category].length);
+      await expect(cards.getByText(en('design.comingSoon'), { exact: true })).toHaveCount(0);
+      total += CATEGORY_STYLES[category].length;
+    }
+    expect(total).toBe(123);
+  });
+
+  test('a category shows only its styles, and All brings the ordinary gallery back', async ({ browser }) => {
+    test.slow();
+    const page = await signedIn(browser);
+    await openStyles(page);
+    await chip(page, 'styles.category.lists').click();
+    await expect(page.getByRole('button', { name: en('design.select', { name: 'Periodic Table of Food' }) })).toBeVisible();
+    await expect(page.getByRole('button', { name: en('design.select', { name: 'Jajim and Nowruz' }) })).toHaveCount(0);
+    await chip(page, 'design.filter.categoryAll').click();
+    await expect(page.locator('ul[data-styles] > li')).toHaveCount(0);
+    await expect(page.getByRole('group', { name: en('design.filter.business') })).toBeVisible();
   });
 
   test('previews The Book with the menu’s own products and applies it', async ({ browser }) => {
@@ -64,27 +81,26 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     await expect(page.getByRole('button', { name: en('design.customize') })).toBeVisible();
   });
 
-  test('a coming-soon card shows its mockup and offers no apply', async ({ browser }) => {
+  test('previews The Elevator as an ordinary template and offers to apply it', async ({ browser }) => {
     test.slow();
     const page = await signedIn(browser);
     await openStyles(page);
-    const card = page.getByRole('button', { name: en('design.selectSoon', { name: en('styles.layout-elv.name') }) });
+    const card = page.getByRole('button', { name: en('design.select', { name: 'The Elevator' }) });
     await card.click();
     await expect(card).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByText(en('design.comingSoonPreview'))).toBeVisible();
-    await expect(page.locator('aside iframe')).toHaveAttribute('src', '/studio/style-files/page/layout?style=elv');
-    await expect(page.getByRole('button', { name: en('design.apply'), exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: en('design.customize') })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: en('design.duplicate') })).toHaveCount(0);
+    await expect(page.getByText(en('design.comingSoonPreview'))).toHaveCount(0);
+    await expect(page.locator('aside iframe')).toHaveAttribute('src', /template=the-elevator/);
+    await expect(page.getByRole('button', { name: en('design.apply'), exact: true })).toBeVisible();
   });
 
-  test('leaving Styles with a coming-soon card chosen goes back to the template in use', async ({ browser }) => {
+  test('changing category with a style chosen keeps previewing a template, never a mockup', async ({ browser }) => {
     test.slow();
     const page = await signedIn(browser);
     await openStyles(page);
-    await page.getByRole('button', { name: en('design.selectSoon', { name: en('styles.layout-elv.name') }) }).click();
-    await expect(page.getByText(en('design.comingSoonPreview'))).toBeVisible();
-    await page.getByRole('button', { name: en('design.filter.styles'), exact: true }).click();
+    await page.getByRole('button', { name: en('design.select', { name: 'The Elevator' }) }).click();
+    await expect(page.locator('aside iframe')).toHaveAttribute('src', /template=the-elevator/);
+    await chip(page, 'styles.category.cinema').click();
+    await chip(page, 'design.filter.categoryAll').click();
     await expect(page.getByText(en('design.comingSoonPreview'))).toHaveCount(0);
     await expect(page.locator('aside iframe')).not.toHaveAttribute('src', /style-files/);
   });

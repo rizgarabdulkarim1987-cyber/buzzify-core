@@ -149,4 +149,35 @@ describe('sales fields in the draft catalog (database)', () => {
     expect(catalog.products[0]?.serves).toBe(4);
     expect(catalog.categories[0]?.completesMeal).toBe(true);
   });
+
+  it('loads occasions, the switched-on showcase cards and the people count of a set', async () => {
+    const menuId = fixture.menu.id;
+    const items = { create: [{ menuId, productId: fixture.product.id, quantity: 2 }] };
+    const family = await prisma.bundle.create({ data: { menuId, slug: 'family', price: 5000, dayparts: [], people: 4, translations: { en: { name: 'Family' } }, items } });
+    const plain = await prisma.bundle.create({ data: { menuId, slug: 'plain', price: 3000, dayparts: [], translations: { en: { name: 'Plain' } }, items } });
+    const occasion = await prisma.occasion.create({
+      data: { menuId, startsOn: '2026-10-14', endsOn: '2026-10-16', isActive: false, translations: { en: { name: 'Eid' } } },
+    });
+    const set = await prisma.showcaseCard.create({
+      data: { menuId, slot: 'ABOVE_SEARCH', kind: 'SET', sortOrder: 1, bundleId: family.id, occasionId: occasion.id, translations: { en: { title: 'Family' } } },
+    });
+    const buffet = await prisma.showcaseCard.create({
+      data: { menuId, slot: 'BELOW_SEARCH', kind: 'BUFFET', sortOrder: 0, price: 25000, startMinute: 720, endMinute: 1380, daysOfWeek: 31, translations: { en: { title: 'Buffet', text: 'All day' } } },
+    });
+    await prisma.showcaseCard.create({
+      data: { menuId, slot: 'ABOVE_SEARCH', kind: 'BUFFET', sortOrder: 2, isActive: false, translations: { en: { title: 'Off' } } },
+    });
+
+    const catalog = await loadDraftCatalog(menuDb(prisma, menuId), menuId);
+    // Switched off occasions load too: whether one is on decides its cards.
+    expect(catalog.occasions).toEqual([
+      { id: occasion.id, startsOn: '2026-10-14', endsOn: '2026-10-16', isActive: false, translations: { en: { name: 'Eid' } } },
+    ]);
+    expect(catalog.showcaseCards).toEqual([
+      { id: buffet.id, slot: 'BELOW_SEARCH', kind: 'BUFFET', sortOrder: 0, occasionId: null, promotionId: null, bundleId: null, price: 25000, startMinute: 720, endMinute: 1380, daysOfWeek: 31, translations: { en: { title: 'Buffet', text: 'All day' } } },
+      { id: set.id, slot: 'ABOVE_SEARCH', kind: 'SET', sortOrder: 1, occasionId: occasion.id, promotionId: null, bundleId: family.id, price: null, startMinute: null, endMinute: null, daysOfWeek: 127, translations: { en: { title: 'Family' } } },
+    ]);
+    expect(catalog.bundles.find((b) => b.id === family.id)?.people).toBe(4);
+    expect(catalog.bundles.find((b) => b.id === plain.id)?.people).toBeNull();
+  });
 });

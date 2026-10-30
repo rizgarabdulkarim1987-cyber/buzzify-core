@@ -83,6 +83,15 @@ describe('the tables board', () => {
     expect(view.busyCount).toBe(2);
   });
 
+  it('shows the rounded total the cashier will collect, the same as the order screen', async () => {
+    // 5,000 + 10% service + 5% tax on it = 5,775, rounded to the 1,000 step: 6,000.
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { serviceRatePercent: 10, taxRatePercent: 5, roundingStep: 1000 } });
+    const { orderId } = await seat(1);
+    const order = dataOf(await ask(cashier, posOrder, { orderId }));
+    expect(order.totals.rounding).not.toBe(0);
+    expect((await board()).tables.find((t) => t.number === 1)!.total).toBe(order.totals.total);
+  });
+
   it('gives each open table its live lines, without the cancelled ones', async () => {
     const { orderId } = await seat(1, 2);
     const line = await prisma().posOrderLine.findFirstOrThrow({ where: { orderId } });

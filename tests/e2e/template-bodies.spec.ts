@@ -1,215 +1,44 @@
-import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import type { Prisma } from '@/generated/prisma/client';
-import type { DesignOverrides } from '@/lib/templates/types';
-import { createPrisma } from '@/server/data/prisma';
-import { seedMenu } from '../../prisma/seed/apply';
-import { MAISON } from '../../prisma/seed/maison';
-import { DEV_DB, databaseUrl } from '../../scripts/db-config';
-import { deleteBillingRows, publishFixture } from '../helpers/db';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  dishName,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectJumpsTo,
+  expectNoPageWiden,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectStripStays,
+  openMenu,
+} from './helpers/body-menu';
+import { BODY_KINDS, bodyOf, templateList } from '@/lib/templates';
 
 /**
  * The browse bodies of a template menu (spec 2026-10-26-menu-styles-in-templates-design.md): the same template and the
- * same data, drawn as a book. The menu is a throwaway copy of the Maison Lumière demo with `layout.body: 'book'` in its
+ * same data, drawn as a magazine and a board (the Book has its own spec, book-body.spec.ts). Each menu is a throwaway copy of the Maison Lumière demo with its body in its
  * overrides, in a restaurant of its own at a new address, so the seeded demos other suites read never change. Its
  * last category has one dish.
  */
 
-const run = randomUUID().slice(0, 8);
-const slug = `e2e-${run}-book`;
-const magSlug = `e2e-${run}-mag`;
-const boardSlug = `e2e-${run}-board`;
-const boardArabSlug = `e2e-${run}-boardar`;
-const bookArabSlug = `e2e-${run}-bookar`;
-const boardIndexSlug = `e2e-${run}-boardidx`;
-const prisma = createPrisma(databaseUrl(DEV_DB));
-const made: { restaurantId: string; menuId: string; slug: string }[] = [];
+const menus = bodyMenus();
+const magSlug = menus.slug('mag');
+const boardSlug = menus.slug('board');
+const boardArabSlug = menus.slug('boardar');
+const boardIndexSlug = menus.slug('boardidx');
 
-const products = MAISON.products.filter((product) => product.slug !== 'baguette');
-const categories = MAISON.categories;
-const named = (productSlug: string) => MAISON.products.find((product) => product.slug === productSlug)!.name.en;
-
-async function createMenu(menuSlug: string, label: string, layout: NonNullable<DesignOverrides['layout']>, numeralSystem: 'LATN' | 'ARAB' = 'LATN') {
-  const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
-  const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [], numeralSystem } }, restaurant.id);
-  made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
-  await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
-  const design: DesignOverrides = { ...MAISON.brand.design, layout };
-  await prisma.brandConfig.update({ where: { menuId: seeded.menuId }, data: { design: design as Prisma.InputJsonValue } });
-  await publishFixture(prisma, seeded.menuId, `${label} body`);
-}
+const named = dishName;
 
 test.beforeAll(async () => {
-  await createMenu(slug, 'book', { body: 'book', hero: 'chapters' });
-  await createMenu(magSlug, 'magazine', { body: 'magazine', hero: 'compact', nav: 'chips', card: 'row' });
-  await createMenu(boardSlug, 'board', { body: 'board', hero: 'compact' });
-  await createMenu(boardArabSlug, 'board', { body: 'board', hero: 'compact' }, 'ARAB');
-  await createMenu(bookArabSlug, 'book', { body: 'book' }, 'ARAB');
+  await menus.create(magSlug, 'magazine', { layout: { body: 'magazine', hero: 'compact', nav: 'chips', card: 'row' } });
+  await menus.create(boardSlug, 'board', { layout: { body: 'board', hero: 'compact' } });
+  await menus.create(boardArabSlug, 'board', { layout: { body: 'board', hero: 'compact' }, numeralSystem: 'ARAB' });
   // A scroll template's big hero and side index left in the overrides: the Board sets both itself.
-  await createMenu(boardIndexSlug, 'board', { body: 'board', hero: 'editorial', nav: 'index' });
+  await menus.create(boardIndexSlug, 'board', { layout: { body: 'board', hero: 'editorial', nav: 'index' } });
 });
 
-test.afterAll(async () => {
-  try {
-    for (const { restaurantId, menuId, slug: menuSlug } of made) {
-      await prisma.menuSlug.deleteMany({ where: { OR: [{ menuId }, { slug: menuSlug }] } });
-      await prisma.menu.deleteMany({ where: { id: menuId } });
-      await prisma.auditLog.deleteMany({ where: { OR: [{ menuId }, { restaurantId }] } });
-      await deleteBillingRows(prisma, [restaurantId]);
-      await prisma.restaurant.deleteMany({ where: { id: restaurantId } });
-    }
-  } finally {
-    await prisma.$disconnect();
-  }
-});
-
-const book = (page: Page) => page.locator('[data-body="book"]');
-const index = (page: Page) => page.locator('[data-page="index"]');
-
-test('the index page lists every chapter with a count and a price', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await expect(book(page)).toBeVisible();
-  await expect(index(page)).toBeVisible();
-  for (const category of categories) await expect(index(page).getByRole('button', { name: new RegExp(category.name.en) })).toBeVisible();
-  await expect(index(page).getByText(/\$\d/).first()).toBeVisible();
-  await expect(index(page).getByRole('button', { name: /Pâtisserie/ })).toContainText('dishes');
-});
-
-test('turns to a chapter, opens a dish, adds one, and returns to the index with the ribbon', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
-  const spread = page.locator('#cat-patisserie');
-  await expect(spread).toBeVisible();
-  await expect(index(page)).toBeHidden();
-  await expect(spread.getByRole('button', { name: named('mille-feuille'), exact: true })).toBeVisible();
-
-  await spread.getByRole('button', { name: named('mille-feuille'), exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: named('mille-feuille') })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
-
-  await expect(page.getByTestId('cart-bar')).toBeHidden();
-  await spread.getByRole('button', { name: `Add ${named('mille-feuille')} to your order` }).click();
-  await expect(page.getByTestId('cart-bar')).toContainText('1');
-
-  await page.getByRole('button', { name: 'Back to contents' }).click();
-  await expect(index(page)).toBeVisible();
-  await expect(spread).toBeHidden();
-});
-
-test('a category with one dish has its own spread', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await index(page).getByRole('button', { name: /Bread/ }).click();
-  const spread = page.locator('#cat-bread');
-  await expect(spread.getByRole('button', { name: named('sourdough'), exact: true })).toBeVisible();
-  await expect(spread.getByRole('listitem')).toHaveCount(1);
-});
-
-test('reduced motion turns the page at once', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`/${slug}/en?stage=off`);
-  await expect(page.locator('#cat-patisserie')).toHaveCSS('transition-duration', /^(0|1e-06)s$/);
-  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
-  await expect(page.locator('#cat-patisserie')).toBeVisible({ timeout: 100 });
-});
-
-test('an address with #cat-<slug> opens that chapter', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off#cat-patisserie`);
-  await expect(page.locator('#cat-patisserie')).toBeVisible();
-  await expect(index(page)).toBeHidden();
-});
-
-test('a chapter turned to after an address stays open when the menu is searched', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off#cat-bread`);
-  await expect(page.locator('#cat-bread')).toBeVisible();
-  await page.getByRole('button', { name: 'Back to contents' }).click();
-  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
-  await expect(page.locator('#cat-patisserie')).toBeVisible();
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('mille');
-  await expect(page.locator('#cat-patisserie')).toBeVisible();
-  await expect(page.locator('#cat-bread')).toBeHidden();
-});
-
-test('a deep link to a dish opens the detail sheet on the book', async ({ page }) => {
-  await page.goto(`/${slug}/en/p/mille-feuille?stage=off`);
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: named('mille-feuille') })).toBeVisible();
-  await expect(book(page)).toBeAttached();
-});
-
-test('the index replaces the hero: a hero left in the overrides is not drawn', async ({ page }) => {
-  // The fixture's overrides still say `hero: 'chapters'`, whose buttons read "Go to <category>".
-  await page.goto(`/${slug}/en?stage=off`);
-  await expect(index(page)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Go to Pâtisserie' })).toHaveCount(0);
-});
-
-test('a chapter of the index opens its page with focus on the heading', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
-  await expect(page.locator('#cat-patisserie')).toBeVisible();
-  await expect(index(page)).toBeHidden();
-  await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
-});
-
-test('on a phone the first screen shows the index with photos and prices', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/${slug}/en?stage=off`);
-  await expect(index(page)).toBeVisible();
-  const first = index(page).locator('.bk-taste li').first();
-  await expect(first.locator('img, svg').first()).toBeInViewport({ ratio: 1 });
-  await expect(first.getByText(/\$\d/)).toBeInViewport({ ratio: 1 });
-});
-
-test('typing in the search box on a chapter keeps the focus in the search box', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
-  await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
-  const search = page.getByRole('searchbox', { name: 'Search the menu' });
-  await search.click();
-  // "sourdough" hides the Pâtisserie chapter, deleting it brings the chapter back.
-  await page.keyboard.type('sourdough', { delay: 30 });
-  await expect(search).toBeFocused();
-  await expect(search).toHaveValue('sourdough');
-  for (let i = 0; i < 'sourdough'.length; i += 1) await page.keyboard.press('Backspace', { delay: 30 });
-  await expect(search).toBeFocused();
-  await expect(search).toHaveValue('');
-  await expect(page.locator('#cat-patisserie')).toBeVisible();
-});
-
-test('closed pages take no room and the open page is the only one laid out', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await expect(index(page)).toBeVisible();
-  for (const category of categories) expect(await page.locator(`#cat-${category.slug}`).boundingBox(), category.slug).toBeNull();
-  await index(page).getByRole('button', { name: /Bread/ }).click();
-  await expect(page.locator('#cat-bread')).toBeVisible();
-  // After the turn (under 300 ms) the index and the other chapters leave the layout.
-  await expect.poll(async () => page.locator('[data-page="index"]').boundingBox()).toBeNull();
-  expect(await page.locator('#cat-patisserie').boundingBox()).toBeNull();
-});
-
-test('a search that finds nothing keeps the skip link target', async ({ page }) => {
-  await page.goto(`/${slug}/en?stage=off`);
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
-  await expect(page.getByText(/zzzzqq/)).toBeVisible();
-  await expect(page.locator('main#menu')).toHaveCount(1);
-});
-
-test('counts and page numbers use the tenant numerals', async ({ page }) => {
-  await page.goto(`/${bookArabSlug}/en?stage=off`);
-  const chapter = index(page).getByRole('button', { name: /Pâtisserie/ });
-  await expect(chapter.locator('.bk-count')).toHaveText('٣ dishes');
-  await expect(chapter.locator('.bk-folio')).toHaveText('٢');
-});
-
-test('in Arabic the book is right to left and its index renders', async ({ page }) => {
-  await page.goto(`/${slug}/ar?stage=off`);
-  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(index(page)).toBeVisible();
-  await expect(index(page).getByRole('button', { name: new RegExp(categories[1]!.name.ar) })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-});
+test.afterAll(() => menus.remove());
 
 const magazine = (page: Page) => page.locator('[data-body="magazine"]');
 
@@ -228,9 +57,8 @@ test.describe('the Magazine body', () => {
 
   test('the strip jumps to a section', async ({ page }) => {
     await page.goto(`/${magSlug}/en?stage=off`);
-    await page.getByRole('button', { name: /Pâtisserie/ }).first().click();
-    await expect(page.locator('#cat-patisserie')).toBeInViewport();
-    await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
+    await expectEverySectionReachable(page.getByRole('navigation', { name: 'Categories' }));
+    await expectJumpsTo(page, page.getByRole('button', { name: /Pâtisserie/ }).first(), 'patisserie');
   });
 
   test('an address with #cat-<slug> reaches that section', async ({ page }) => {
@@ -240,8 +68,10 @@ test.describe('the Magazine body', () => {
 
   test('the overrides choose the strip and the cards', async ({ page }) => {
     await page.goto(`/${magSlug}/en?stage=off`);
-    await expect(page.locator('.tpl[data-nav="chips"][data-card="row"]')).toBeVisible();
-    await expect(magazine(page).locator('[data-card="row"]').first()).toBeAttached();
+    await expect(page.locator('.tpl[data-nav="chips"]')).toBeVisible();
+    // The cards are the magazine's own photo tiles, whatever card kind was chosen.
+    await expect(magazine(page).locator('.mg-tile').first()).toBeAttached();
+    await expect(magazine(page).locator('[data-card]')).toHaveCount(0);
   });
 
   test('a lead and a card open the detail sheet', async ({ page }) => {
@@ -252,17 +82,19 @@ test.describe('the Magazine body', () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-    await magazine(page).locator('#cat-patisserie').getByRole('button', { name: named('mille-feuille'), exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expectOpensProduct(page, magazine(page).locator('#cat-patisserie'), 'mille-feuille');
   });
 
-  test('on a phone the first screen shows the lead and the next dish with its price', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/${magSlug}/en?stage=off`);
+  test('on a phone the first screen shows the lead and the next dish as photo tiles with their prices, in a bento', async ({ page }) => {
+    await openMenu(page, magSlug);
     const spread = magazine(page).locator('section').first();
     await expect(spread.locator('[data-lead]')).toBeInViewport();
-    const card = spread.locator('[data-card] li').first();
-    await expect(card.getByText(/\$\d/).first()).toBeInViewport({ ratio: 1 });
+    const tile = spread.locator('.mg-tile:not([data-lead])').first();
+    await expect(tile.getByText(/\$\d/).first()).toBeInViewport({ ratio: 1 });
+    const lead = (await spread.locator('[data-lead]').boundingBox())!;
+    const next = (await tile.boundingBox())!;
+    expect(lead.width, 'the lead is two columns wide').toBeGreaterThan(next.width * 1.8);
+    expect(lead.height, 'and two rows tall').toBeGreaterThan(next.height * 1.8);
   });
 
   test('a long dish name keeps the caption on the photo', async ({ page }) => {
@@ -296,14 +128,11 @@ test.describe('the Magazine body', () => {
     const spread = page.locator('#cat-bread');
     await expect(spread.locator('[data-lead]')).toHaveCount(1);
     await expect(spread.getByRole('button', { name: named('sourdough'), exact: true })).toBeVisible();
-    await expect(spread.locator('[data-card]')).toHaveCount(0);
+    await expect(spread.locator('.mg-tile')).toHaveCount(1);
   });
 
   test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {
-    await page.goto(`/${magSlug}/ar?stage=off`);
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(magazine(page).locator('[data-lead]').first()).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await expectArabicRtl(page, magSlug, (p) => magazine(p).locator('[data-lead]').first(), { phone: false });
   });
 
   test('the lead price is white on the caption scrim', async ({ page }) => {
@@ -332,8 +161,7 @@ test.describe('the departures Board', () => {
   const gate = (page: Page, letter: string) => page.getByRole('button', { name: new RegExp(`^Gate ${letter}:`) });
 
   test('on a phone the first screen shows at least five dishes with prices', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/${boardSlug}/en?stage=off`);
+    await openMenu(page, boardSlug);
     await expect(board(page)).toBeVisible();
     const viewport = page.viewportSize()!;
     const boxes = await rows(page).evaluateAll((nodes) =>
@@ -344,14 +172,14 @@ test.describe('the departures Board', () => {
     );
     const whole = boxes.filter((box) => box.top >= 0 && box.bottom <= viewport.height && box.price);
     expect(whole.length).toBeGreaterThanOrEqual(5);
+    await expectFirstScreen(page, rows(page), { min: 5 });
+    await expectEverySectionReachable(page.getByRole('navigation', { name: 'Categories' }));
   });
 
   test('gate tabs carry letters and gate C jumps to the third section', async ({ page }) => {
     await page.goto(`/${boardSlug}/en?stage=off`);
     for (const letter of ['A', 'B', 'C', 'D', 'E']) await expect(gate(page, letter)).toBeVisible();
-    await gate(page, 'C').click();
-    await expect(page.locator('#cat-celebration')).toBeInViewport();
-    await expect(page.locator('#cat-celebration [data-heading]')).toBeFocused();
+    await expectJumpsTo(page, gate(page, 'C'), 'celebration');
     await expect(gate(page, 'C')).toHaveAttribute('aria-current', 'true');
   });
 
@@ -362,6 +190,11 @@ test.describe('the departures Board', () => {
     const tabs = (await page.getByRole('navigation', { name: 'Categories' }).boundingBox())!;
     expect(tabs.y).toBeLessThanOrEqual(1);
     expect(tabs.y + tabs.height).toBeGreaterThan(0);
+  });
+
+  test('scrolled to the end, the gate tabs are still at the top and gate A jumps', async ({ page }) => {
+    await openMenu(page, boardSlug);
+    await expectStripStays(page, page.getByRole('navigation', { name: 'Categories' }), gate(page, 'A'), BODY_CATEGORIES[0]!.slug);
   });
 
   test('each row has a photo, a name, a gate code and a price', async ({ page }) => {
@@ -376,10 +209,7 @@ test.describe('the departures Board', () => {
 
   test('add updates the cart and does not open the sheet', async ({ page }) => {
     await page.goto(`/${boardSlug}/en?stage=off`);
-    await expect(page.getByTestId('cart-bar')).toBeHidden();
-    await page.locator('#cat-patisserie').getByRole('button', { name: `Add ${named('mille-feuille')} to your order` }).click();
-    await expect(page.getByTestId('cart-bar')).toContainText('1');
-    await expect(page.getByRole('dialog')).toBeHidden();
+    await expectQuickAdd(page, page.locator('#cat-patisserie'), 'mille-feuille');
   });
 
   test('the whole row opens the detail sheet', async ({ page }) => {
@@ -392,8 +222,7 @@ test.describe('the departures Board', () => {
     await expect(dialog).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-    await row.getByRole('button', { name: named('mille-feuille'), exact: true }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expectOpensProduct(page, row, 'mille-feuille');
   });
 
   test('an address with #cat-<slug> reaches that section', async ({ page }) => {
@@ -449,10 +278,28 @@ test.describe('the departures Board', () => {
   });
 
   test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/${boardSlug}/ar?stage=off`);
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(rows(page).first()).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+    await expectArabicRtl(page, boardSlug, (p) => rows(p).first());
+  });
+});
+
+test.describe('every body keeps the phone page its own width', () => {
+  const wide = bodyMenus();
+  // Every shape, drawn from its own preset (or, for the batch-1 bodies, as an override on Maison's), with twenty-five
+  // sections, so a strip that scrolls sideways is at its fullest.
+  const kinds = BODY_KINDS.filter((kind) => kind !== 'scroll').map((kind) => ({ kind, templateId: templateList().find((preset) => bodyOf(preset.layout) === kind)?.id }));
+  const slugOf = (kind: string) => wide.slug(`wide-${kind}`);
+  test.beforeAll(async () => {
+    test.setTimeout(240_000);
+    for (const { kind, templateId } of kinds) await wide.create(slugOf(kind), kind, { ...(templateId ? { templateId } : { layout: { body: kind } }), extraSections: 20 });
+  });
+  test.afterAll(() => wide.remove());
+
+  test('with twenty-five sections no body widens the layout viewport or scrolls sideways at 390px', async ({ page }) => {
+    test.setTimeout(240_000);
+    for (const { kind } of kinds) {
+      await openMenu(page, slugOf(kind));
+      await expect(page.locator(`[data-body="${kind}"]`), kind).toBeVisible();
+      await expectNoPageWiden(page);
+    }
   });
 });

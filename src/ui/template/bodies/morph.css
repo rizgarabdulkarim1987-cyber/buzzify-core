@@ -1,0 +1,176 @@
+/*
+ * The Photo to Details body (poster motion-mor; a browse shape of a template menu): a calm, photo-first menu. A strip of
+ * pill chips stays at the top and jumps; every section is a plain heading over a two-column grid of big rounded square
+ * photos with a soft shadow, the name under each, the price and the add on a row. Everything is scoped under
+ * [data-body='morph']. The colours are the template's own (the lit chip is `--text` on `--bg` reversed, the add is the
+ * accent pair). Logical properties only (RTL mirrors). The tapped photo growing into the details is a clone drawn by
+ * `morphOpen` (morph-open.ts), outside this body; less motion: no clone and no entrance.
+ */
+[data-body='morph'] {
+  --mo-line: color-mix(in srgb, var(--text) 18%, transparent);
+  /* The sticky strip's height (a 2.5rem chip and the list's 0.25rem padding each side), so a jumped-to section lands
+     just below it and the pinned heading meets the strip with no slit between them. */
+  --nav-room: 3rem;
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 22%;
+  --column: 72rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of chips (sticky: shared/shapes.css): pills, the lit one reversed. */
+[data-body='morph'] .mo-strip-list {
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.25rem;
+}
+[data-body='morph'] .mo-chip {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-inline: 0.875rem;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--text) 78%, var(--bg));
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 160ms, color 160ms;
+}
+[data-body='morph'] .mo-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+@media (hover: hover) {
+  [data-body='morph'] .mo-chip:hover:not([aria-current='true']) {
+    color: var(--text);
+  }
+}
+
+/* A section: a plain heading, then the grid. */
+[data-body='morph'] .mo-section {
+  padding-block-start: 0.5rem;
+  padding-inline: 0.875rem;
+}
+[data-body='morph'] .mo-title {
+  display: block;
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
+}
+[data-body='morph'] .mo-title span {
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+/* The dish count is not part of this heading. */
+[data-body='morph'] .mo-title b {
+  display: none;
+}
+
+/* The grid: two columns of tiles. */
+[data-body='morph'] .mo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A tile: a big rounded square photo, the name, then the price and the add; the whole tile is the dish's tap area. */
+[data-body='morph'] .mo-tile {
+  --tpl-ring-radius: 1.375rem;
+  --tpl-ring-inset: 2px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: 0.25rem;
+  background: transparent;
+}
+[data-body='morph'] .mo-photo {
+  aspect-ratio: 1;
+  border-radius: 1.375rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  box-shadow: 0 0.625rem 1.25rem color-mix(in srgb, var(--text) 14%, transparent);
+}
+/* The discount on the photo's foot. */
+[data-body='morph'] .mo-off {
+  inset-block-start: auto;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
+}
+[data-body='morph'] .mo-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name'
+    'price add';
+  align-items: center;
+  align-content: space-between;
+  gap: 0 0.25rem;
+  padding: 0.25rem 0.125rem 0;
+}
+[data-body='morph'] .mo-name {
+  grid-area: name;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: start;
+}
+[data-body='morph'] .mo-price {
+  grid-area: price;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+/* The add: a round button on the row, beside the price. */
+[data-body='morph'] .mo-tile .mo-add {
+  --rim-add-size: 2.5rem;
+  --rim-add-bg: var(--text);
+  --rim-add-ink: var(--bg);
+  grid-area: add;
+  position: relative;
+  z-index: 3;
+  inset: auto;
+}
+[data-body='morph'] .mo-tile .mo-add:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: -4px;
+}
+
+/* No transform on the tile: it would trap the add button under the tap area. Feedback is the shadow. */
+@media (hover: hover) {
+  [data-body='morph'] .mo-tile:hover .mo-photo {
+    box-shadow: 0 0.75rem 1.5rem color-mix(in srgb, var(--text) 24%, transparent);
+  }
+}
+[data-body='morph'] .mo-tile:active .mo-photo {
+  box-shadow: 0 0 0 2px var(--accent-ink);
+}
+
+/* A wide screen: more columns, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='morph'] .mo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 0.875rem;
+  }
+  [data-body='morph'] .mo-title span {
+    font-size: 1.5rem;
+  }
+  [data-body='morph'] .mo-price {
+    font-size: 0.9375rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='morph'] .mo-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the tiles are simply there and the chip does not fade. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='morph'] .mo-chip {
+    transition: none;
+  }
+}

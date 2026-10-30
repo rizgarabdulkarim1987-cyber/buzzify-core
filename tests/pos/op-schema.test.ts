@@ -11,6 +11,8 @@ const samples = {
   requestBill: { ...base, ...onOrder, kind: 'requestBill', payload: {} },
   cancelOrder: { ...base, ...onOrder, kind: 'cancelOrder', payload: { reason: 'left' } },
   payCash: { ...base, ...onOrder, kind: 'payCash', payload: { expectedTotal: 10_000, amountReceived: 12_000 } },
+  drawerOpen: { ...base, kind: 'drawerOpen', payload: { reason: 'change' } },
+  receiptCopy: { ...base, ...onOrder, kind: 'receiptCopy', payload: {} },
 } as const;
 
 describe('the queueable operations', () => {

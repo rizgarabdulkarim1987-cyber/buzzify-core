@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { canPos } from '@/server/domain/pos/permissions';
+import { approvalField, DISCOUNT_REASONS, requireApprovalIn } from '@/server/pos/approval';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
+import { mergeOrdersIn } from '@/server/pos/merge';
 import { addLineIn, cancelLineIn, updateLineIn } from '@/server/pos/order-lines';
 import { cancelOrderIn, moveToTableIn, openOrderIn, requestBillIn, setInvoiceDiscountIn } from '@/server/pos/orders';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -22,10 +24,19 @@ const expectedVersion = z.number().int().min(1).max(INT32);
 const quantity = z.number().int().min(1).max(999);
 const note = z.string().trim().max(300, 'Use at most 300 characters');
 const reason = z.string().trim().max(300, 'Use at most 300 characters');
-const discount = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('AMOUNT'), value: z.number().int().min(0).max(INT32) }),
-  z.object({ kind: z.literal('PERCENT'), value: z.number().int().min(0).max(100) }),
-]);
+const why = { reason: z.enum(DISCOUNT_REASONS), note: z.string().trim().max(300, 'Use at most 300 characters').optional() };
+/** A discount always says why; the last reason on the list asks for a note. */
+const discount = z
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('AMOUNT'), value: z.number().int().min(0).max(INT32), ...why }),
+    z.object({ kind: z.literal('PERCENT'), value: z.number().int().min(0).max(100), ...why }),
+  ])
+  .refine((d) => d.reason !== 'OTHER' || (d.note ?? '') !== '', { message: 'Enter a note', path: ['note'] })
+  // A comp (a dish on the house) is always the whole price, whatever the screen sent.
+  .transform((d): typeof d => (d.reason === 'COMP' ? { ...d, kind: 'PERCENT', value: 100 } : d));
+type GivenDiscount = z.infer<typeof discount>;
+const plainDiscount = ({ kind, value }: GivenDiscount) => ({ kind, value });
+const whyOf = (d: GivenDiscount, approvedByStaffId: string | null) => ({ reason: d.reason, note: d.note ? d.note : null, approvedByStaffId });
 
 const OPEN_ATTEMPTS = 3;
 
@@ -71,6 +82,8 @@ export const addPosLine = defineAction({
     variantId: idField.optional(),
     optionIds: z.array(idField).max(50),
     expectedVersion,
+    /** A till device's own time for the tap, when it replays a line added offline. */
+    clientAt: z.iso.datetime().optional(),
   }),
   target: () => CATALOG,
   run: (ctx, input) => {
@@ -78,7 +91,8 @@ export const addPosLine = defineAction({
     if (ctx.menuId === null) throw new StudioError('NOT_FOUND');
     const menuId = ctx.menuId;
     return ctx.transaction(async (tx) => {
-      const added = await addLineIn(delegates(tx), restaurantId, menuId, input);
+      const { clientAt, ...line } = input;
+      const added = await addLineIn(delegates(tx), restaurantId, menuId, { ...line, ...(clientAt ? { clientAt: new Date(clientAt) } : {}) });
       ctx.audit({
         action: 'pos.order.line.add',
         entityType: 'PosOrderLine',
@@ -95,15 +109,25 @@ export const updatePosLine = defineAction({
   permission: null,
   pos: 'order.handle',
   input: z
-    .object({ lineId: idField, expectedVersion, quantity: quantity.optional(), note: note.optional(), discount: discount.nullable().optional() })
+    .object({ lineId: idField, expectedVersion, quantity: quantity.optional(), note: note.optional(), discount: discount.nullable().optional(), approval: approvalField })
     .refine((v) => v.quantity !== undefined || v.note !== undefined || v.discount !== undefined, { message: 'Nothing to change', path: ['quantity'] }),
   target: () => TILL,
-  run: (ctx, input) => {
+  run: async (ctx, input) => {
     const { pos, restaurantId } = till(ctx);
     // A discount is a permission of its own on top of handling orders.
     if (input.discount !== undefined && !canPos(pos.role, 'order.discount')) throw new StudioError('FORBIDDEN');
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: Boolean(input.discount), always: input.discount?.reason === 'COMP', approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
-      const done = await updateLineIn(delegates(tx), restaurantId, input);
+      const given = input.discount ?? null;
+      const done = await updateLineIn(delegates(tx), restaurantId, {
+        lineId: input.lineId,
+        expectedVersion: input.expectedVersion,
+        quantity: input.quantity,
+        note: input.note,
+        discount: input.discount === undefined ? undefined : given && plainDiscount(given),
+        why: given ? whyOf(given, approvedBy) : undefined,
+      });
+      if (given) done.changes.discount = { before: done.changes.discount?.before ?? null, after: { ...plainDiscount(given), reason: given.reason, note: given.note ?? null, approvedByStaffId: approvedBy } };
       ctx.audit({ action: 'pos.order.line.update', entityType: 'PosOrderLine', entityId: done.lineId, changes: done.changes });
       return { orderId: done.orderId, lineId: done.lineId, version: done.version };
     });
@@ -114,17 +138,20 @@ export const cancelPosLine = defineAction({
   name: 'pos.cancelLine',
   permission: null,
   pos: 'order.cancel',
-  input: z.object({ lineId: idField, expectedVersion, reason: reason.min(1, 'Enter a reason') }),
+  input: z.object({ lineId: idField, expectedVersion, reason: reason.min(1, 'Enter a reason'), approval: approvalField }),
   target: () => TILL,
-  run: (ctx, input) => {
-    const { restaurantId } = till(ctx);
+  run: async (ctx, input) => {
+    const { pos, restaurantId } = till(ctx);
+    // Cancelling something the kitchen already has costs the restaurant: a cashier needs a manager for that.
+    const line = await ctx.db.posOrderLine.findFirst({ where: { id: input.lineId, restaurantId }, select: { sentAt: true } });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: line?.sentAt != null, approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const done = await cancelLineIn(delegates(tx), restaurantId, input);
       ctx.audit({
         action: 'pos.order.line.cancel',
         entityType: 'PosOrderLine',
         entityId: done.lineId,
-        changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null }, reason: { before: null, after: input.reason }, sent: { before: done.sent, after: done.sent } },
+        changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null }, reason: { before: null, after: input.reason }, sent: { before: done.sent, after: done.sent }, approvedByStaffId: { before: null, after: approvedBy } },
       });
       return { orderId: done.orderId, lineId: done.lineId, version: done.version };
     });
@@ -135,13 +162,21 @@ export const setPosInvoiceDiscount = defineAction({
   name: 'pos.setInvoiceDiscount',
   permission: null,
   pos: 'order.discount',
-  input: z.object({ orderId: idField, expectedVersion, discount: discount.nullable() }),
+  input: z.object({ orderId: idField, expectedVersion, discount: discount.nullable(), approval: approvalField }),
   target: () => TILL,
-  run: (ctx, input) => {
-    const { restaurantId } = till(ctx);
+  run: async (ctx, input) => {
+    const { pos, restaurantId } = till(ctx);
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: input.discount !== null, always: input.discount?.reason === 'COMP', approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
-      const done = await setInvoiceDiscountIn(delegates(tx), restaurantId, input);
-      ctx.audit({ action: 'pos.order.discount.invoice', entityType: 'PosOrder', entityId: done.orderId, changes: { discount: { before: done.before, after: done.after } } });
+      const given = input.discount;
+      const done = await setInvoiceDiscountIn(delegates(tx), restaurantId, {
+        orderId: input.orderId,
+        expectedVersion: input.expectedVersion,
+        discount: given && plainDiscount(given),
+        why: given ? whyOf(given, approvedBy) : undefined,
+      });
+      const after = given && { ...plainDiscount(given), reason: given.reason, note: given.note ?? null, approvedByStaffId: approvedBy };
+      ctx.audit({ action: 'pos.order.discount.invoice', entityType: 'PosOrder', entityId: done.orderId, changes: { discount: { before: done.before, after } } });
       return { orderId: done.orderId, version: done.version };
     });
   },
@@ -167,19 +202,47 @@ export const cancelPosOrder = defineAction({
   name: 'pos.cancelOrder',
   permission: null,
   pos: 'order.cancel',
-  input: z.object({ orderId: idField, expectedVersion, reason }),
+  input: z.object({ orderId: idField, expectedVersion, reason, approval: approvalField }),
   target: () => TILL,
-  run: (ctx, input) => {
-    const { restaurantId } = till(ctx);
+  run: async (ctx, input) => {
+    const { pos, restaurantId } = till(ctx);
+    // An order with nothing on it can be dropped freely; one with items needs a manager when a cashier cancels it.
+    const live = await ctx.db.posOrderLine.count({ where: { orderId: input.orderId, restaurantId, cancelledAt: null } });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: live > 0, approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const done = await cancelOrderIn(delegates(tx), restaurantId, input);
       ctx.audit({
         action: 'pos.order.cancel',
         entityType: 'PosOrder',
         entityId: done.orderId,
-        changes: { status: { before: done.from, after: 'CANCELLED' }, reason: { before: null, after: done.reason }, lines: { before: done.liveLines, after: 0 } },
+        changes: { status: { before: done.from, after: 'CANCELLED' }, reason: { before: null, after: done.reason }, lines: { before: done.liveLines, after: 0 }, approvedByStaffId: { before: null, after: approvedBy } },
       });
       return { orderId: done.orderId, version: done.version };
+    });
+  },
+});
+
+/** Two tables that sit together asked for one bill: the first order's lines move onto the second, which stays open. */
+export const mergePosOrders = defineAction({
+  name: 'pos.mergeOrders',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ fromOrderId: idField, intoOrderId: idField, fromVersion: expectedVersion, intoVersion: expectedVersion }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await mergeOrdersIn(delegates(tx), restaurantId, input);
+      ctx.audit({
+        action: 'pos.order.merge',
+        entityType: 'PosOrder',
+        entityId: done.intoId,
+        changes: {
+          mergedFrom: { before: null, after: { orderId: done.fromId, number: done.fromNumber } },
+          linesMoved: { before: null, after: done.moved },
+        },
+      });
+      return { orderId: done.intoId, version: done.intoVersion, moved: done.moved };
     });
   },
 });

@@ -1,0 +1,200 @@
+/*
+ * The Fly to Cart body (a browse shape of a template menu), drawn after the motion-fly mockup: a warm, playful ordering
+ * menu. A strip of outlined pill tabs stays at the top and jumps (the lit one filled with the accent); every section is a
+ * plain big heading over two sticker cards across: a thick ink outline, a hard shadow underneath, a square photo, the
+ * name, and the price with a round + at the end of the same row. Everything is scoped under [data-body='fly']. The colours
+ * are the template's own: the card is `--raised` with `--text`; a lit tab and the + are `--accent` with `--on-accent`.
+ * Logical properties only (RTL mirrors). The photo that flies to the cart bar is drawn by `flyToCart` (fly-flight.ts),
+ * outside this body; the bar's pulse is the `.fly-pulse` rule at the end. Less motion: no flight and no pulse.
+ */
+[data-body='fly'] {
+  --fl-ink: var(--text);
+  --fl-edge: 2.5px;
+  /* The sticky strip's height, so a jumped-to section lands just below it. */
+  --nav-room: 3rem;
+  --column: 72rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css); the discount's corner. */
+  --plate-ring: 30%;
+  --photo-off-at: 0.375rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of tabs (sticky: shared/shapes.css): outlined pills, the lit one filled with the accent. */
+[data-body='fly'] .fl-strip-list {
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+  padding-block: 0.25rem;
+}
+[data-body='fly'] .fl-chip {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-inline: 1rem;
+  border: 2px solid var(--fl-ink);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms;
+}
+[data-body='fly'] .fl-chip[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* A section: a plain big heading, then the cards. */
+[data-body='fly'] .fl-section {
+  padding-block-start: 0.5rem;
+}
+[data-body='fly'] .fl-head {
+  padding-inline: 0.75rem;
+}
+[data-body='fly'] .fl-title {
+  display: block;
+  min-block-size: 2.25rem;
+  margin: 0 0 0.25rem;
+  line-height: 1.2;
+}
+[data-body='fly'] .fl-title span {
+  font-size: 1.625rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+/* The dish count is for the shape's tests and screen readers' order only (it is aria-hidden); the mockup has none. */
+[data-body='fly'] .fl-title b {
+  display: none;
+}
+
+/* The section's cards: two across on a phone, equal columns, cards of the same size. */
+[data-body='fly'] .fl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 0.75rem;
+  margin: 0;
+  padding: 0.125rem 0.75rem 0.5rem;
+  list-style: none;
+}
+
+/* A card: the photo above a bar; the whole card is the dish's tap area (the card is the positioned ancestor). */
+[data-body='fly'] .fl-card {
+  --tpl-ring-radius: 1.375rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  padding: 0.4375rem;
+  border: var(--fl-edge) solid var(--fl-ink);
+  border-radius: 1.375rem;
+  box-shadow: 0 5px 0 var(--fl-ink);
+}
+[data-body='fly'] .fl-photo {
+  aspect-ratio: 1;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+}
+
+/* The discount sits on the photo's start corner (shared/photo-card.css). */
+[data-body='fly'] .fl-off {
+  font-size: 0.8125rem;
+}
+
+/* The bar (shared/photo-card.css): the name over a row of the price and the round add. */
+[data-body='fly'] .fl-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  align-items: center;
+  column-gap: 0.375rem;
+  padding: 0.25rem 0.25rem 0;
+}
+[data-body='fly'] .fl-name {
+  grid-column: 1 / -1;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+[data-body='fly'] .fl-price {
+  grid-column: 1;
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+/* The add: the same row as the price, at its end (the card's tap area is under it, so it sits above that). */
+[data-body='fly'] .fl-bar .fl-add {
+  --rim-add-size: 2.25rem;
+  position: relative;
+  grid-column: 2;
+  grid-row: 2;
+  z-index: 3;
+}
+[data-body='fly'] .fl-add svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+/* The add button's focus ring is drawn inside it. */
+[data-body='fly'] .fl-add:focus-visible {
+  outline: 2px solid var(--rim-add-ink, var(--on-accent));
+  outline-offset: -5px;
+}
+
+/* No transform on the card: it would trap the add button under the tap area. Feedback is the shadow. */
+@media (hover: hover) {
+  [data-body='fly'] .fl-card:hover {
+    box-shadow: 0 7px 0 var(--fl-ink);
+  }
+  [data-body='fly'] .fl-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--raised));
+  }
+}
+[data-body='fly'] .fl-card:active {
+  box-shadow: 0 2px 0 var(--fl-ink);
+}
+
+/* A wide screen: four columns, then five, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='fly'] .fl-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.125rem 0.875rem;
+  }
+  [data-body='fly'] .fl-title span {
+    font-size: 1.875rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='fly'] .fl-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/*
+ * The cart bar's one pulse after a photo lands on it (the class is put there by flyToCart; the bar's own code is
+ * untouched). Only flyToCart sets the class, so no document-wide `:has` is needed; not for less motion.
+ */
+[data-testid='cart-bar'].fly-pulse {
+  animation: fly-pulse 360ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes fly-pulse {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Less motion: the tab does not fade, the bar does not pulse. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='fly'] .fl-chip {
+    transition: none;
+  }
+  [data-testid='cart-bar'].fly-pulse {
+    animation: none;
+  }
+}

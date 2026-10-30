@@ -18,6 +18,17 @@ export interface PosSettingsView {
   takeawayEnabled: boolean;
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
+  idleMinutes: number;
+  roundingStep: number;
+  usdEnabled: boolean;
+  usdRate: number;
+  invoiceName: string;
+  invoiceAddress: string;
+  invoicePhone: string;
+  invoiceTaxNumber: string;
+  invoiceFooter: string;
+  requireApproval: boolean;
+  captainApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 }
@@ -36,6 +47,17 @@ export const POS_SETTINGS_DEFAULTS: PosSettingsView = {
   takeawayEnabled: false,
   deliveryEnabled: false,
   complaintsEnabled: false,
+  idleMinutes: 15,
+  roundingStep: 0,
+  usdEnabled: false,
+  usdRate: 0,
+  invoiceName: '',
+  invoiceAddress: '',
+  invoicePhone: '',
+  invoiceTaxNumber: '',
+  invoiceFooter: '',
+  requireApproval: true,
+  captainApproval: false,
   catalogMenuId: null,
   version: 0,
 };
@@ -51,6 +73,17 @@ type Row = {
   takeawayEnabled: boolean;
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
+  idleMinutes: number;
+  roundingStep: number;
+  usdEnabled: boolean;
+  usdRate: number;
+  invoiceName: string;
+  invoiceAddress: string;
+  invoicePhone: string;
+  invoiceTaxNumber: string;
+  invoiceFooter: string;
+  requireApproval: boolean;
+  captainApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 };
@@ -67,6 +100,17 @@ function view(row: Row): PosSettingsView {
     takeawayEnabled: row.takeawayEnabled,
     deliveryEnabled: row.deliveryEnabled,
     complaintsEnabled: row.complaintsEnabled,
+    idleMinutes: row.idleMinutes,
+    roundingStep: row.roundingStep,
+    usdEnabled: row.usdEnabled,
+    usdRate: row.usdRate,
+    invoiceName: row.invoiceName,
+    invoiceAddress: row.invoiceAddress,
+    invoicePhone: row.invoicePhone,
+    invoiceTaxNumber: row.invoiceTaxNumber,
+    invoiceFooter: row.invoiceFooter,
+    requireApproval: row.requireApproval,
+    captainApproval: row.captainApproval,
     catalogMenuId: row.catalogMenuId,
     version: row.version,
   };

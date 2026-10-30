@@ -8,6 +8,7 @@ import { canPos } from '@/server/domain/pos/permissions';
 import { getPosAccess } from '@/server/pos/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posBoard, posOrder, posTillCatalog } from '@/server/studio/queries/pos';
+import { posApprovers } from '@/server/studio/queries/pos-approval';
 import { posDeliveryOptions } from '@/server/studio/queries/pos-delivery';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -19,7 +20,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ pay?: string }> }) {
   const [{ id }, { pay }] = await Promise.all([params, searchParams]);
-  const [{ actor }, order, catalog, board] = await Promise.all([getPosAccess(), query(posOrder, { orderId: id }), query(posTillCatalog, {}), query(posBoard, {})]);
+  const [{ actor }, order, catalog, board, approvers] = await Promise.all([
+    getPosAccess(),
+    query(posOrder, { orderId: id }),
+    query(posTillCatalog, {}),
+    query(posBoard, {}),
+    query(posApprovers, {}),
+  ]);
   if (!actor) return null;
   if (order.status === 'PAID') redirect(`/pos/orders/${id}/receipt`);
   if (order.status === 'CANCELLED' || order.status === 'REJECTED') redirect('/pos/tables');
@@ -30,12 +37,18 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
     .filter((table) => table.status === 'FREE')
     .map((table) => ({ id: table.id, number: table.number, areaName: areaName.get(table.areaId) ?? '' }));
 
+  const mergeTargets = board.tables
+    .filter((table) => table.orderId !== null && table.orderId !== order.id && table.orderVersion !== null)
+    .map((table) => ({ orderId: table.orderId as string, version: table.orderVersion as number, number: table.number, areaName: areaName.get(table.areaId) ?? '' }));
+
   const screen = (
     <OrderScreen
       order={order}
       catalog={catalog}
       freeTables={freeTables}
+      mergeTargets={mergeTargets}
       delivery={delivery}
+      approvers={approvers}
       can={{ discount: canPos(actor.role, 'order.discount'), cancel: canPos(actor.role, 'order.cancel'), pay: canPos(actor.role, 'payment.take') }}
       initialPaying={pay === '1'}
     />

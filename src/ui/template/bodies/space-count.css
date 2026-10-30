@@ -1,0 +1,319 @@
+/*
+ * The Countdown (family `spine`, kind `space-count`): a launch countdown in buzzify.me's deep-space look. A neon line runs
+ * down the middle, in each stage's own hue; every dish is a glass step card (T-NN) on alternate sides, the cards
+ * overlapping down the line so many show at once; each section is a «stage» mark on the line, and the menu ends at
+ * T-00 with a lift-off plume. Text and buttons use the template tokens; the per-stage hue (`--h`) is decoration only
+ * (the line, glows, borders). Logical properties only, so Arabic mirrors.
+ */
+[data-body='space-count'] {
+  --nav-room: 3.5rem;
+  --column: 44rem;
+  --sc-photo: 3.5rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+  background:
+    radial-gradient(1px 1px at 20px 30px, color-mix(in srgb, var(--text) 90%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 60%, transparent), transparent 70%),
+    radial-gradient(1.5px 1.5px at 70px 160px, color-mix(in srgb, var(--accent) 70%, var(--text)), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, color-mix(in srgb, var(--text) 80%, transparent), transparent 70%),
+    var(--bg);
+  background-size: 200px 220px;
+}
+[data-body='space-count'] :is(.sc-chip, .sc-section) {
+  --sc-neon: oklch(0.78 0.17 var(--h, 220));
+}
+
+/* ------------------------------------------------------------------ the strip of stages */
+
+[data-body='space-count'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  backdrop-filter: blur(10px);
+}
+[data-body='space-count'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='space-count'] .sc-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+[data-body='space-count'] .sc-chip-mark {
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--sc-neon);
+  box-shadow: 0 0 8px var(--sc-neon);
+}
+[data-body='space-count'] .sc-chip[aria-current='true'] {
+  border-color: var(--sc-neon);
+  box-shadow: 0 0 16px -3px var(--sc-neon), inset 0 0 12px -6px var(--sc-neon);
+}
+
+/* ------------------------------------------------------------------ the neon line and the stage marks */
+
+[data-body='space-count'] .sc-main {
+  padding: 0.25rem 0.75rem 0;
+}
+[data-body='space-count'] .sc-section {
+  position: relative;
+  padding-block: 0.25rem 0.75rem;
+}
+/* The line: the stage's hue fading into the next, glowing. */
+[data-body='space-count'] .sc-section::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: 2px;
+  margin-inline-start: -1px;
+  background: linear-gradient(var(--sc-neon), color-mix(in oklab, var(--sc-neon) 55%, var(--accent)));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--sc-neon) 60%, transparent);
+}
+/* A light that runs down the line while the stage is on screen. */
+[data-body='space-count'] .sc-section::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: 6px;
+  margin-inline-start: -3px;
+  background: radial-gradient(3px 10px at 50% 50%, var(--sc-neon), transparent) no-repeat;
+  background-size: 6px 3rem;
+  background-position-y: -3rem;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-body='space-count'] .sc-section[data-live]::after {
+  opacity: 1;
+  animation: sc-run 3.2s linear infinite;
+}
+@keyframes sc-run {
+  to {
+    background-position-y: calc(100% + 3rem);
+  }
+}
+
+[data-body='space-count'] .sc-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  margin-block: 0.75rem;
+}
+[data-body='space-count'] .sc-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0 0.625rem;
+  max-inline-size: 18rem;
+  margin: 0;
+  padding: 0.3rem 1rem;
+  border: 1px solid var(--sc-neon);
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 16px -4px var(--sc-neon);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.3;
+  text-align: center;
+}
+[data-body='space-count'] .sc-title small {
+  color: var(--muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+}
+[data-body='space-count'] .sc-title [data-count] {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ the step cards */
+
+[data-body='space-count'] .sc-thread {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* A step: a glass card on one side of the line, its node on the line; each overlaps the one before it. */
+[data-body='space-count'] .sc-bead {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: var(--sc-photo) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  inline-size: 47%;
+  padding: 0.4375rem;
+  border: 1px solid color-mix(in oklab, var(--sc-neon) 55%, transparent);
+  border-radius: 0.875rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, transparent), color-mix(in srgb, var(--text) 2%, transparent)),
+    color-mix(in srgb, var(--bg) 82%, transparent);
+  box-shadow: 0 0 26px -8px var(--sc-neon), inset 0 0 22px -14px var(--sc-neon);
+  transition:
+    opacity 400ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='space-count'] .sc-bead[data-side='end'] {
+  margin-inline-start: auto;
+  transition-delay: 60ms;
+}
+[data-body='space-count'] .sc-bead + .sc-bead {
+  margin-block-start: -2.125rem;
+}
+/* The node on the line (the card is 47% of the column, so the line is 6.4% of a card beyond its edge). */
+[data-body='space-count'] .sc-bead::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(-6.4% - 5px);
+  inline-size: 10px;
+  block-size: 10px;
+  margin-block-start: -5px;
+  border-radius: 50%;
+  background: var(--sc-neon);
+  box-shadow: 0 0 10px var(--sc-neon);
+}
+[data-body='space-count'] .sc-bead[data-side='end']::after {
+  inset-inline-end: auto;
+  inset-inline-start: calc(-6.4% - 5px);
+}
+[data-body='space-count'][data-armed] .sc-bead:not([data-in]) {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+[data-body='space-count'] .sc-ball {
+  inline-size: var(--sc-photo);
+  block-size: var(--sc-photo);
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+[data-body='space-count'] .sc-ball > *,
+[data-body='space-count'] .sc-ball img {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+[data-body='space-count'] .sc-text {
+  min-inline-size: 0;
+}
+[data-body='space-count'] .sc-step {
+  display: inline-block;
+  color: var(--accent-ink);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  unicode-bidi: isolate;
+}
+[data-body='space-count'] .sc-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-body='space-count'] .sc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.375rem;
+  margin-block-start: 0.125rem;
+}
+[data-body='space-count'] .sc-price {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='space-count'] .sc-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+}
+
+/* ------------------------------------------------------------------ lift-off */
+
+[data-body='space-count'] .sc-lift {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding-block: 0.5rem 1.5rem;
+}
+[data-body='space-count'] .sc-plume {
+  inline-size: 1.5rem;
+  block-size: 2.75rem;
+  background: linear-gradient(color-mix(in srgb, var(--text) 90%, transparent), #ffb020 40%, #ff3ea5 80%, transparent);
+  clip-path: polygon(50% 0, 100% 35%, 80% 100%, 50% 80%, 20% 100%, 0 35%);
+  filter: drop-shadow(0 0 10px #ffb020);
+}
+[data-body='space-count'] .sc-lift b {
+  padding: 0.375rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 22px -4px var(--accent);
+  color: var(--accent-ink);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  [data-body='space-count'] .sc-chip:hover:not([aria-current='true']) {
+    border-color: var(--sc-neon);
+  }
+  [data-body='space-count'] .sc-bead:hover {
+    box-shadow: 0 0 30px -4px var(--sc-neon), inset 0 0 22px -12px var(--sc-neon);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='space-count'] {
+    --sc-photo: 4.5rem;
+  }
+  [data-body='space-count'] .sc-name {
+    font-size: 0.9375rem;
+  }
+}
+
+[data-body='space-count'][data-hold] .sc-section::after {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-count'] .sc-section::after {
+    display: none;
+  }
+  [data-body='space-count'] :is(.sc-chip, .sc-bead) {
+    transition: none;
+  }
+}

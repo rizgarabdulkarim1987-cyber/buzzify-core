@@ -1,0 +1,101 @@
+/*
+ * Faqiyana (`faqi`, family `drift`): the long sheer sleeve of a Kurdish dress, tied back and flying while she dances.
+ * Every section is one sleeve of tulle stretched sideways, its cuff rounded at the start and its end cut into a swallow
+ * tail; the dishes are pieces of it, and a wave runs along the sleeve as it drifts. Colours from the template's tokens:
+ * the tulle is a little `--accent` over `--card` (the words in `--text` stay readable), its hems the accent; the heading
+ * in `--accent-ink`, the prices and labels in `--text` (they read on the tulle), the add the accent pair.
+ */
+[data-body='faqi'] {
+  --dr-w: 40%;
+  --dr-max: 11.5rem;
+  --fa-tulle: color-mix(in srgb, var(--accent) 14%, var(--card));
+  --fa-tulle-lo: color-mix(in srgb, var(--accent) 8%, var(--card));
+  --fa-hem: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: linear-gradient(color-mix(in srgb, var(--bg) 90%, var(--accent)), var(--bg) 18rem);
+}
+
+[data-body='faqi'] .dr-chip {
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 1.5px var(--fa-hem);
+}
+[data-body='faqi'] .dr-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+[data-body='faqi'] .dr-section {
+  padding-block: 0.875rem 0.25rem;
+}
+[data-body='faqi'] .dr-title {
+  color: var(--accent-ink);
+  font-size: 1.375rem;
+}
+[data-body='faqi'] .dr-title small {
+  display: none;
+}
+[data-body='faqi'] .dr-title b {
+  color: var(--text);
+}
+
+/* The sleeve: its pieces joined edge to edge, room above and below for the wave. */
+[data-body='faqi'] .dr-row {
+  gap: 0;
+  padding-block: 1.5rem 1.75rem;
+}
+[data-body='faqi'] .dr-dish {
+  margin-inline-end: -1px;
+  padding: 0.75rem 0.625rem;
+  border-block: 2px solid var(--fa-hem);
+  background: linear-gradient(var(--fa-tulle), var(--fa-tulle-lo));
+  animation: fa-wave 3.6s ease-in-out calc(var(--i, 0) * -0.4s) infinite;
+  animation-play-state: var(--dr-play, paused);
+}
+/* The cuff at the sleeve's start. */
+[data-body='faqi'] .dr-dish:first-child {
+  border-start-start-radius: 2.5rem;
+  border-end-start-radius: 0.5rem;
+}
+/* The swallow tail at its end (mirrored in Arabic). */
+[data-body='faqi'] .dr-dish:last-child {
+  padding-inline-end: 1.375rem;
+  clip-path: polygon(0 0, 100% 0, 86% 50%, 100% 100%, 0 100%);
+}
+[data-body='faqi'] .dr-dish:last-child:dir(rtl) {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14% 50%);
+}
+[data-body='faqi'] .dr-photo {
+  inline-size: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow:
+    0 6px 14px color-mix(in srgb, var(--accent) 25%, transparent),
+    0 0 0 3px var(--bg);
+}
+/* On the tinted tulle the price, the crossed-out price and the labels take the text colour, which reads on it. */
+[data-body='faqi'] .dr-dish :is(.dr-price, .tpl-was, .tpl-badge:not(.tpl-badge-sale)) {
+  color: var(--text);
+}
+[data-body='faqi'] .dr-add {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+/* The wave running along the sleeve: each piece a little behind the one before it. */
+@keyframes fa-wave {
+  0%,
+  100% {
+    transform: translateY(-0.75rem) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(0.75rem) rotate(2deg);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='faqi'] {
+    --dr-max: 13rem;
+  }
+}

@@ -1,0 +1,328 @@
+/*
+ * The Baghdadi house (kind `shan`): an old brick house of Baghdad. The page is its brick wall (bricks and mortar mixed
+ * from `--bg`, `--accent` and `--text`), the restaurant's name on a plaque under a carved cornice; every section a floor
+ * whose wooden bridge-beam carries its name; every dish a wooden shanashil oriel: an arched frame, a carved lattice over
+ * a pane of glass, the photo inside, the name and the price on the sill (`--card`, so the words read). The wood is the
+ * text colour warmed by the accent; the beam inverts the page (`--bg` words on `--text` wood). The oriels hang from their
+ * tops and sway lightly; a dish added lights its lattice. Logical properties only, so Arabic mirrors.
+ */
+[data-body='shan'] {
+  --nav-room: 3.25rem;
+  --column: 46rem;
+  --tall-last: var(--tall-last-panel);
+  --shn-wood: color-mix(in srgb, var(--accent) 45%, var(--text));
+  --shn-wood-dark: color-mix(in srgb, var(--accent) 20%, var(--text));
+  --shn-brick: color-mix(in srgb, var(--bg) 78%, var(--accent));
+  --shn-brick-alt: color-mix(in srgb, var(--bg) 70%, var(--accent));
+  --shn-mortar: color-mix(in srgb, var(--bg) 55%, var(--text));
+  --shn-glass: color-mix(in srgb, var(--accent) 35%, var(--bg));
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip: wooden tabs */
+
+[data-body='shan'] .tpl-strip-sticky {
+  border-block-end: 3px solid var(--shn-wood-dark);
+}
+[data-body='shan'] .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem 0;
+}
+[data-body='shan'] .shn-chip {
+  min-block-size: 2.5rem;
+  padding-inline: 0.875rem;
+  border: 1px solid var(--shn-wood);
+  border-block-end: 0;
+  border-radius: 0.375rem 0.375rem 0 0;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+[data-body='shan'] .shn-chip[aria-current='true'] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the house: brick wall and cornice */
+
+[data-body='shan'] .shn-main {
+  padding-block-end: 1rem;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 15px, var(--shn-mortar) 15px 17px),
+    repeating-linear-gradient(90deg, var(--shn-brick) 0 34px, var(--shn-brick-alt) 34px 36px);
+}
+[data-body='shan'] .shn-cornice {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 1rem 0.875rem;
+  background:
+    radial-gradient(circle at 50% 100%, var(--shn-wood) 0 0.375rem, transparent 0.4375rem) 0 100% / 1.25rem 0.625rem repeat-x,
+    linear-gradient(var(--shn-wood-dark), var(--shn-wood));
+  box-shadow: 0 0.375rem 0 var(--shn-wood-dark);
+}
+[data-body='shan'] .shn-plaque {
+  max-inline-size: 100%;
+  overflow: hidden;
+  padding: 0.25rem 1rem;
+  border: 2px solid var(--shn-wood-dark);
+  border-radius: 0.25rem;
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-display-stack);
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ a floor: the bridge-beam and its oriels */
+
+[data-body='shan'] .shn-floor {
+  position: relative;
+  padding: 1rem 0.75rem 1.25rem;
+}
+[data-body='shan'] .shn-beam {
+  position: relative;
+  margin: 0 -0.75rem 1rem;
+}
+[data-body='shan'] .shn-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.4375rem 1.25rem;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 3rem, color-mix(in srgb, var(--bg) 10%, transparent) 3rem 3.0625rem),
+    linear-gradient(color-mix(in srgb, var(--text) 92%, var(--accent)), var(--text));
+  box-shadow: 0 0.375rem 0 color-mix(in srgb, var(--text) 80%, #000);
+  color: var(--bg);
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+/* The beam's two pegs, where it rests in the wall. */
+[data-body='shan'] .shn-title::before,
+[data-body='shan'] .shn-title::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-block-start: -0.25rem;
+  border-radius: 50%;
+  background: var(--shn-glass);
+}
+[data-body='shan'] .shn-title::before {
+  inset-inline-start: 0.4375rem;
+}
+[data-body='shan'] .shn-title::after {
+  inset-inline-end: 0.4375rem;
+}
+[data-body='shan'] .shn-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='shan'] .shn-title [data-count] {
+  flex: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+[data-body='shan'] .shn-wins {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* An oriel: an arched wooden frame hanging from its top. */
+[data-body='shan'] .shn-win {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding: 0.4375rem 0.4375rem 0;
+  border: 4px solid var(--shn-wood);
+  border-radius: 46% 46% 0.375rem 0.375rem / 18% 18% 0.375rem 0.375rem;
+  background: var(--shn-wood-dark);
+  box-shadow:
+    0 0.625rem 0 -0.1875rem color-mix(in srgb, var(--shn-wood-dark) 80%, #000),
+    0.375rem 0.75rem 1rem rgb(0 0 0 / 0.3);
+  transform-origin: 50% 0;
+}
+[data-body='shan'] .shn-floor[data-live] .shn-win {
+  animation: shn-sway var(--t, 6s) ease-in-out var(--dl, 0s) infinite;
+}
+[data-body='shan'][data-hold] .shn-win {
+  animation-play-state: paused;
+}
+@keyframes shn-sway {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0.6deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(-0.6deg);
+  }
+}
+/* The carved lattice: a diagonal grille over the glass, arched to the frame. */
+[data-body='shan'] .shn-lattice {
+  display: block;
+  block-size: 2.375rem;
+  border-radius: 46% 46% 0 0 / 70% 70% 0 0;
+  background:
+    repeating-linear-gradient(45deg, var(--shn-wood-dark) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, var(--shn-wood-dark) 0 2px, transparent 2px 8px),
+    var(--shn-glass);
+  transition:
+    background-color 300ms,
+    box-shadow 300ms;
+}
+[data-body='shan'] .shn-win[data-lit] .shn-lattice {
+  background:
+    repeating-linear-gradient(45deg, var(--shn-wood-dark) 0 2px, transparent 2px 8px),
+    repeating-linear-gradient(-45deg, var(--shn-wood-dark) 0 2px, transparent 2px 8px),
+    color-mix(in srgb, var(--accent) 70%, #fff);
+  box-shadow: 0 0 1.375rem color-mix(in srgb, var(--accent) 80%, transparent);
+}
+[data-body='shan'] .shn-photo {
+  position: relative;
+  aspect-ratio: 2;
+  margin-block-start: 0.25rem;
+  overflow: hidden;
+  border: 3px solid var(--shn-wood-dark);
+  background: var(--shn-glass);
+}
+/* The sill: the board under the window, where the name and the price sit. */
+[data-body='shan'] .shn-sill {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0.375rem -0.6875rem 0;
+  padding: 0.375rem 0.625rem 0.5rem;
+  border-block-start: 4px solid var(--shn-wood);
+  border-radius: 0 0 0.25rem 0.25rem;
+  background: var(--card);
+  color: var(--text);
+}
+[data-body='shan'] .shn-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-body='shan'] .shn-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  margin-block-start: auto;
+  padding-block-start: 0.25rem;
+}
+[data-body='shan'] .shn-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-inline-size: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+[data-body='shan'] .shn-price .tpl-was {
+  margin-inline-start: 0.3em;
+}
+[data-body='shan'] .shn-add {
+  flex: none;
+  min-inline-size: 0;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border-radius: 0.25rem;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+[data-body='shan'] .shn-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='shan'] .shn-badges {
+  margin-block-start: 0.25rem;
+}
+[data-body='shan'] .tpl-open:focus-visible::after {
+  border-radius: 0.5rem;
+}
+
+/* ------------------------------------------------------------------ the progress rail down the side */
+
+[data-body='shan'] .shn-rail {
+  position: fixed;
+  z-index: 25;
+  inset-block-start: 32%;
+  inset-inline-end: 0.4375rem;
+  inline-size: 2px;
+  block-size: 36%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  pointer-events: none;
+  transition: opacity 200ms;
+}
+[data-body='shan'] .shn-rail[data-off] {
+  opacity: 0;
+}
+[data-body='shan'] .shn-rail i {
+  position: absolute;
+  inset-block-start: calc(var(--p, 0) * (100% - 0.5rem));
+  inset-inline-start: -3px;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0.625rem var(--accent);
+}
+
+@media (hover: hover) {
+  [data-body='shan'] .shn-chip:hover:not([aria-current='true']) {
+    border-color: var(--text);
+  }
+  [data-body='shan'] .shn-win:hover .shn-lattice {
+    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='shan'] .shn-wins {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
+  }
+  [data-body='shan'] .shn-name {
+    font-size: 1rem;
+  }
+  [data-body='shan'] .shn-title {
+    font-size: 1.375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='shan'] .shn-floor .shn-win {
+    animation: none;
+  }
+  [data-body='shan'] :is(.shn-chip, .shn-lattice, .shn-rail) {
+    transition: none;
+  }
+}

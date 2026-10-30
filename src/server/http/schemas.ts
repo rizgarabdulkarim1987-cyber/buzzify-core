@@ -98,3 +98,6 @@ export const complaintSchema = z.strictObject({
   consent: z.boolean().default(false),
   website: z.string().max(200).default(''),
 });
+
+/** A spin: the winner is the server's to draw, so the guest sends nothing but the language the prize line is read in. */
+export const wheelSpinSchema = z.strictObject({ locale: z.enum(LOCALES).optional() });

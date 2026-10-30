@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بشكل مختلف ٢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(var(--h, -8px)) rotate(calc(var(--r, 0deg) * -.6)); } }
+  @keyframes sway { 0%, 100% { transform: rotate(var(--r, 4deg)); } 50% { transform: rotate(calc(var(--r, 4deg) * -1)); } }
+  @keyframes tickr { to { transform: translateX(50%); } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes flash { 0% { background: #fff3a8; } 100% { background: transparent; } }
+  .screen .bob { animation: bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite; }
+  .screen .fl { will-change: transform; }
+  .screen .ph { background-size: cover; background-position: center; }
+  .screen .rail { position: fixed; right: 7px; top: 32%; height: 36%; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--rc) 30%, transparent); z-index: 25; pointer-events: none; }
+  .screen .rail i { position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+  .screen .hd { padding: 62px 18px 12px; }
+  .screen .hd h1 { font: 400 36px 'Lalezar'; line-height: 1.15; }
+  .screen .hd p { font-size: 13.5px; opacity: .85; }
+  .screen .chips button { padding: 6px 13px; font-weight: 700; font-size: 13px; border-radius: 999px; }
+  .screen .ln { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  /* masthead shared by the broadsheet and the 1950s paper */
+  .screen .mast { padding: 58px 14px 8px; text-align: center; border-bottom: 4px double currentColor; }
+  .screen .mast small { font-size: 11.5px; letter-spacing: .5px; }
+  .screen .mast h1 { font: 700 40px 'Amiri'; line-height: 1.1; margin: 2px 0 4px; }
+  .screen .mast .dl { display: flex; justify-content: space-between; font-size: 11.5px; border-top: 1px solid currentColor; padding-top: 3px; }
+
+  /* 1. FRONT PAGE — a broadsheet: a lead story per section, the rest in ruled columns; stories print in as they arrive */
+  .m-front { --rc: #111; background: #f4f1e8; color: #151515; font-family: 'Amiri', serif; }
+  .m-front .chips { background: rgba(244,241,232,.96); border-bottom: 1px solid #151515; }
+  .m-front .chips button { font-family: 'Cairo'; background: none; color: #151515; border-radius: 0; padding: 4px 10px; }
+  .m-front .chips button.on { background: #151515; color: #f4f1e8; }
+  .m-front section { padding: 12px 14px 6px; }
+  .m-front h2 { font: 700 13px 'Cairo'; background: #151515; color: #f4f1e8; display: inline-block; padding: 2px 10px; margin-bottom: 8px; }
+  .m-front .lead { padding-bottom: 10px; border-bottom: 2px solid #151515; }
+  .m-front .lead .ph { aspect-ratio: 16/9; filter: contrast(1.05); }
+  .m-front .lead h3 { font: 700 24px/1.25 'Amiri'; margin: 8px 0 4px; }
+  .m-front .lead p { font-size: 15px; line-height: 1.6; }
+  .m-front .lead .add { margin-top: 6px; }
+  .m-front .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .m-front .cols article { padding: 10px 0 10px; border-bottom: 1px solid #b9b3a3; }
+  .m-front .cols article:nth-child(odd) { padding-inline-end: 10px; border-inline-end: 1px solid #b9b3a3; }
+  .m-front .cols article:nth-child(even) { padding-inline-start: 10px; }
+  .m-front .cols .ph { aspect-ratio: 4/3; filter: grayscale(.25); }
+  .m-front h4 { font: 700 17px/1.25 'Amiri'; margin-top: 6px; }
+  .m-front .cols p { font-size: 13.5px; line-height: 1.5; color: #444; }
+  .m-front .ln b { font-family: 'Cairo'; font-size: 13px; }
+  .m-front .add { font: 700 12px 'Cairo'; border: 1.5px solid #151515; padding: 2px 10px; background: #f4f1e8; }
+  .m-front .rv { opacity: 0; filter: blur(3px); transform: none; transition: opacity 500ms cubic-bezier(0.23, 1, 0.32, 1), filter 500ms cubic-bezier(0.23, 1, 0.32, 1); transition-delay: var(--d, 0ms); }
+  .m-front .rv.in { opacity: 1; filter: none; }
+  .m-front .cart { background: #151515; color: #f4f1e8; font-family: 'Cairo'; }
+
+  /* 2. CLASSIFIEDS — dense boxed ads in three columns; a red pen circles the one you pick */
+  .m-ads { --rc: #d0021b; background: #efeadd; color: #1a1a1a; font-family: 'Cairo', sans-serif; }
+  .m-ads .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; }
+  .m-ads .chips { background: rgba(239,234,221,.96); }
+  .m-ads .chips button { background: #1a1a1a; color: #efeadd; border-radius: 2px; }
+  .m-ads .chips button.on { background: #d0021b; }
+  .m-ads section { padding: 10px 8px 6px; }
+  .m-ads h2 { text-align: center; font: 600 16px 'Reem Kufi'; border-block: 2px solid #1a1a1a; padding: 2px; margin-bottom: 6px; }
+  .m-ads .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; grid-auto-flow: dense; }
+  .m-ads .ad { position: relative; border: 1.5px solid #1a1a1a; padding: 5px; background: #faf7ee; }
+  .m-ads .ad.big { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 0 6px; align-content: start; }
+  .m-ads .ad.big .ph { grid-row: span 3; aspect-ratio: auto; height: 100%; min-height: 84px; }
+  .m-ads .ad .ph { aspect-ratio: 1.3; filter: grayscale(1) contrast(1.15); }
+  .m-ads .ad b { display: block; font-size: 12.5px; line-height: 1.2; margin-top: 3px; font-weight: 900; }
+  .m-ads .ad small { display: block; font-size: 10.5px; color: #555; line-height: 1.3; }
+  .m-ads .ad span { font-size: 11.5px; font-weight: 900; }
+  .m-ads .add { font-size: 10.5px; font-weight: 700; padding: 0 6px; border: 1px solid #1a1a1a; }
+  .m-ads .ring { position: absolute; inset: -8px -6px; width: calc(100% + 12px); height: calc(100% + 16px); pointer-events: none; overflow: visible; }
+  .m-ads .ring path { fill: none; stroke: #d0021b; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+  .m-ads .ad.got .ring path { animation: draw 520ms cubic-bezier(0.23, 1, 0.32, 1) forwards; }
+  .m-ads .cart { background: #1a1a1a; color: #efeadd; }
+
+  /* 3. MARKET PAGE — a stock table per section, with a running ticker and green/red moves */
+  .m-bourse { --rc: #0a8f4a; background: #fdfcf7; color: #13202a; font-family: 'Cairo', sans-serif; }
+  .m-bourse .hd h1 { font-family: 'Changa'; font-weight: 800; color: #13202a; }
+  .m-bourse .tick { overflow: hidden; background: #13202a; color: #fff; font: 600 12.5px 'Cairo'; white-space: nowrap; }
+  .m-bourse .tk { display: inline-block; padding: 6px 0; animation: tickr 40s linear infinite; }
+  .m-bourse .tk span { margin-inline-end: 22px; }
+  .m-bourse .u { color: #19c46b; } .m-bourse .d { color: #ff4d4d; }
+  .m-bourse .chips { background: rgba(253,252,247,.96); border-bottom: 1px solid #dfe3e6; }
+  .m-bourse .chips button { background: #eef1f3; color: #13202a; border-radius: 4px; }
+  .m-bourse .chips button.on { background: #13202a; color: #fff; }
+  .m-bourse section { padding: 12px 10px 4px; }
+  .m-bourse h2 { display: flex; justify-content: space-between; align-items: baseline; font: 800 18px 'Changa'; border-bottom: 2px solid #13202a; padding-bottom: 2px; }
+  .m-bourse h2 small { font: 600 11.5px 'Cairo'; color: #6b7780; }
+  .m-bourse .row { display: grid; grid-template-columns: 44px 1fr 40px auto auto; align-items: center; gap: 8px; padding: 7px 2px; border-bottom: 1px solid #e6e9eb; }
+  .m-bourse .row.hit { animation: flash 900ms ease-out; }
+  .m-bourse .row .ph { width: 44px; height: 44px; border-radius: 6px; }
+  .m-bourse .nm { min-width: 0; } .m-bourse .nm b { display: block; font-size: 14px; }
+  .m-bourse .nm small { display: block; font-size: 11px; color: #6b7780; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-bourse .spark { width: 40px; height: 16px; } .m-bourse .spark polyline { fill: none; stroke-width: 1.6; stroke: currentColor; }
+  .m-bourse .px { text-align: end; } .m-bourse .px b { display: block; font-size: 13.5px; } .m-bourse .px span { font-size: 11.5px; font-weight: 700; }
+  .m-bourse .add { background: #0a8f4a; color: #fff; border-radius: 4px; padding: 4px 9px; font-size: 12px; font-weight: 700; }
+  .m-bourse .cart { background: #13202a; color: #fff; }
+
+  /* 4. FOLDED PAPER — each section a paper folded in half; the bottom half unfolds as you scroll */
+  .m-fold { --rc: #444; background: #d9d4c7; color: #1c1c1c; font-family: 'Amiri', serif; }
+  .m-fold .hd h1 { font-family: 'Amiri'; font-weight: 700; }
+  .m-fold .chips { background: rgba(217,212,199,.96); }
+  .m-fold .chips button { background: #f7f4ec; color: #1c1c1c; font-family: 'Cairo'; }
+  .m-fold .chips button.on { background: #1c1c1c; color: #f7f4ec; }
+  .m-fold section { padding: 12px 14px 8px; perspective: 900px; }
+  .m-fold .sheet { box-shadow: 0 10px 20px rgba(0,0,0,.18); }
+  .m-fold .top, .m-fold .flap { background: #f7f4ec; padding: 10px; }
+  .m-fold .top h2 { font: 700 24px 'Amiri'; border-bottom: 3px double #1c1c1c; margin-bottom: 8px; }
+  .m-fold .flap { transform-origin: 50% 0; border-top: 1px dashed #bbb; background: linear-gradient(#e9e4d8, #f7f4ec 30px); }
+  .m-fold .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .m-fold .it .ph { aspect-ratio: 1.2; }
+  .m-fold .it b { display: block; font-size: 16px; margin-top: 4px; line-height: 1.2; }
+  .m-fold .it span { font: 700 13px 'Cairo'; }
+  .m-fold .add { font: 700 12px 'Cairo'; background: #1c1c1c; color: #f7f4ec; padding: 2px 10px; }
+  .m-fold .cart { background: #1c1c1c; color: #f7f4ec; font-family: 'Cairo'; }
+
+  /* 5. NEWSSTAND — papers pegged on a line; each dish is a whole front page with its own masthead */
+  .m-kiosk { --rc: #c0392b; background: linear-gradient(#2c3e50, #1b2631); color: #fff; font-family: 'Cairo', sans-serif; }
+  .m-kiosk .hd h1 { color: #ffcf40; }
+  .m-kiosk .chips { background: rgba(27,38,49,.95); }
+  .m-kiosk .chips button { background: #ffcf40; color: #1b2631; }
+  .m-kiosk .chips button.on { background: #fff; }
+  .m-kiosk section { padding: 14px 0 6px; }
+  .m-kiosk h2 { font: 400 21px 'Lalezar'; color: #ffcf40; padding: 0 14px; }
+  .m-kiosk .line { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 14px 14px 12px; background: linear-gradient(#999, #999) 0 22px / 100% 2px no-repeat; }
+  .m-kiosk .line::-webkit-scrollbar { display: none; }
+  .m-kiosk .pp { position: relative; flex: none; width: 46%; }
+  .m-kiosk .clip { position: absolute; top: 0; left: 50%; width: 10px; height: 22px; margin-left: -5px; background: #c8a165; border-radius: 2px; z-index: 2; }
+  .m-kiosk .pg { margin-top: 12px; padding: 7px; background: #f3efe3; color: #111; transform-origin: 50% 0; animation: sway var(--t, 4s) ease-in-out var(--dl, 0s) infinite; box-shadow: 0 8px 14px rgba(0,0,0,.35); }
+  .m-kiosk .nh { font: 700 15px 'Amiri'; text-align: center; border-bottom: 2px solid #111; }
+  .m-kiosk .pg h3 { font: 400 19px/1.15 'Lalezar'; color: #b3001b; margin: 4px 0; }
+  .m-kiosk .pg .ph { aspect-ratio: 1.15; filter: grayscale(.2); }
+  .m-kiosk .pg p { font: 400 12px/1.4 'Amiri'; margin: 4px 0; color: #333; }
+  .m-kiosk .pg span { font-weight: 900; font-size: 13px; }
+  .m-kiosk .add { background: #b3001b; color: #fff; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .m-kiosk .cart { background: #b3001b; color: #fff; }
+
+  /* 6. TELEGRAM — an official form per section with typed paper strips glued on, one strip per dish */
+  .m-tlgrm { --rc: #b5651d; background: #6b4f3a; color: #2a1f14; font-family: 'IBM Plex Sans Arabic', sans-serif; }
+  .m-tlgrm .hd { color: #f6e7c8; } .m-tlgrm .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; }
+  .m-tlgrm .chips { background: rgba(107,79,58,.95); }
+  .m-tlgrm .chips button { background: #f6e7c8; color: #2a1f14; border-radius: 2px; }
+  .m-tlgrm .chips button.on { background: #b5651d; color: #fff; }
+  .m-tlgrm section { padding: 12px 12px 6px; }
+  .m-tlgrm .form { position: relative; padding: 12px; background: #f6e7c8; box-shadow: 0 8px 16px rgba(0,0,0,.3); background-image: repeating-linear-gradient(transparent 0 33px, rgba(181,101,29,.25) 33px 34px); }
+  .m-tlgrm .fh { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #2a1f14; padding-bottom: 4px; }
+  .m-tlgrm .fh b { font: 600 22px 'Reem Kufi'; } .m-tlgrm .fh span { font: 500 12px 'IBM Plex Mono'; }
+  .m-tlgrm .seal { margin-inline-start: auto; font: 700 12px 'Cairo'; color: #c0261a; border: 2px solid #c0261a; border-radius: 4px; padding: 0 6px; rotate: -8deg; font-style: normal; }
+  .m-tlgrm .to { font-size: 13px; margin: 6px 0 8px; }
+  .m-tlgrm .strip { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .m-tlgrm .stamp { flex: none; width: 46px; padding: 3px; background: #fff; mask: radial-gradient(circle 3px at 3px 3px, #0000 98%, #000) -3px -3px / 8px 8px; }
+  .m-tlgrm .stamp .ph { aspect-ratio: .85; }
+  .m-tlgrm .tape { flex: 1; min-width: 0; padding: 5px 8px; background: #fffdf4; font: 500 12.5px/1.5 'IBM Plex Sans Arabic'; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .m-tlgrm .tape b { font-weight: 700; } .m-tlgrm .tape em { font-style: normal; font-weight: 700; color: #c0261a; }
+  .m-tlgrm .add { flex: none; font: 700 12px 'Cairo'; background: #2a1f14; color: #f6e7c8; padding: 4px 8px; border-radius: 2px; }
+  .m-tlgrm .rv { opacity: 0; transform: translateX(-30px) rotate(-2deg); }
+  .m-tlgrm .rv.in { opacity: 1; transform: none; }
+  .m-tlgrm .cart { background: #2a1f14; color: #f6e7c8; }
+
+  /* 7. CLIPPINGS — a scrapbook wall of torn newspaper cut-outs, each from a different paper, taped on */
+  .m-clips { --rc: #333; background: #cfc6b4 repeating-linear-gradient(0deg, transparent 0 27px, rgba(0,0,0,.05) 27px 28px); color: #1d1d1d; font-family: 'Cairo', sans-serif; }
+  .m-clips .chips { background: rgba(207,198,180,.95); }
+  .m-clips .chips button { background: #1d1d1d; color: #f3efe3; border-radius: 2px; }
+  .m-clips .chips button.on { background: #fff; color: #1d1d1d; }
+  .m-clips section { padding: 12px 10px 6px; }
+  .m-clips h2 { font: 400 22px 'Lalezar'; }
+  .m-clips .wall { columns: 2; column-gap: 10px; }
+  .m-clips .cut { position: relative; break-inside: avoid; margin-bottom: 12px; padding: 10px 8px 12px; background: #f6f2e6;
+    --e: 5px; mask: linear-gradient(#000 0 0) 0 var(--e) / 100% calc(100% - 2 * var(--e)) no-repeat, conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 9px var(--e) repeat-x, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 11px var(--e) repeat-x; }
+  .m-clips .tp { position: absolute; top: 2px; left: 50%; width: 46px; height: 14px; margin-left: -23px; background: rgba(255,240,170,.75); rotate: -4deg; z-index: 2; }
+  .m-clips .cut b { display: block; margin-top: 5px; line-height: 1.2; }
+  .m-clips .cut small { display: block; font-size: 11.5px; color: #555; }
+  .m-clips .cut span { font-weight: 900; font-size: 13px; }
+  .m-clips .f0 b { font: 700 18px 'Amiri'; } .m-clips .f1 b { font: 400 18px 'Lalezar'; color: #b3001b; } .m-clips .f2 b { font: 600 16px 'Reem Kufi'; } .m-clips .f3 b { font: 800 15px 'Changa'; }
+  .m-clips .f1 { background: #fff6d8; } .m-clips .f3 .ph { filter: grayscale(1) contrast(1.2); }
+  .m-clips .add { background: #1d1d1d; color: #fff; padding: 2px 9px; font-size: 12px; font-weight: 700; }
+  .m-clips .cart { background: #1d1d1d; color: #f3efe3; }
+
+  /* 8. 1950s PAPER — yellowed paper, narrow columns, halftone photos that bloom into colour at the middle of the screen */
+  .m-tone { --rc: #3a2a14; background: #e9dcb8; color: #2a1d0c; font-family: 'Amiri', serif; }
+  .m-tone .mast h1 { font-family: 'Rakkas'; font-weight: 400; }
+  .m-tone .chips { background: rgba(233,220,184,.96); border-bottom: 1px solid #2a1d0c; }
+  .m-tone .chips button { font-family: 'Rakkas'; font-size: 15px; background: none; color: #2a1d0c; border-radius: 0; padding: 2px 10px; }
+  .m-tone .chips button.on { background: #2a1d0c; color: #e9dcb8; }
+  .m-tone section { padding: 12px 12px 6px; }
+  .m-tone h2 { font: 400 22px 'Rakkas'; text-align: center; border-block: 1px solid #2a1d0c; margin-bottom: 8px; }
+  .m-tone .cols { columns: 2; column-gap: 14px; column-rule: 1px solid #a8956a; }
+  .m-tone article { break-inside: avoid; margin-bottom: 12px; }
+  .m-tone .ht { position: relative; overflow: hidden; }
+  .m-tone .ht .ph { aspect-ratio: 1.25; filter: grayscale(var(--g, 1)) sepia(calc(var(--g, 1) * .35)) contrast(1.2); }
+  .m-tone .ht::after { content: ''; position: absolute; inset: 0; opacity: var(--g, 1); background: radial-gradient(circle, rgba(42,29,12,.5) 0 1.1px, transparent 1.4px) 0 0 / 4px 4px; mix-blend-mode: multiply; }
+  .m-tone h4 { font: 700 18px/1.2 'Amiri'; margin-top: 5px; }
+  .m-tone p { font-size: 14px; line-height: 1.5; text-align: justify; }
+  .m-tone .orn { color: #8a6a2a; }
+  .m-tone .add { font: 400 14px 'Rakkas'; border: 1px solid #2a1d0c; padding: 0 12px; margin-top: 4px; background: none; color: #2a1d0c; }
+  .m-tone .cart { background: #2a1d0c; color: #e9dcb8; font-family: 'Cairo'; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات بشكل جرايد</h1>
+  <p>الصفحة الأولى، والإعلانات المبوبة، وبورصة الأكل، والجريدة المطوية، وكشك الجرايد، والبرقية، وقصاصات الجرايد، وجريدة الخمسينات. كل وحدة تغيّر شكل المنيو، والأكل بصوره الحقيقية، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const clock = no => `--t:${(5 + rnd(no) * 3).toFixed(2)}s;--dl:-${(rnd(no + 7) * 6).toFixed(2)}s`;
+const rail = '<div class="rail"><i></i></div>';
+const n2 = n => String(n).padStart(2, '0');
+const PAPERS = ['المائدة', 'صوت المطبخ', 'الشوّاية', 'أخبار الصحن', 'الملعقة', 'جريدة الفرن'];
+// a made-up daily change for the market page, steady per dish
+const chg = no => { const v = ((rnd(no + 11) - .42) * 9).toFixed(1); return { v, up: v >= 0 }; };
+const STYLES = [
+ { key: 'front', fam: 'جرايد · الصفحة الأولى', name: 'الصفحة الأولى',
+   desc: 'المنيو جريدة يومية كبيرة: فوق اسم الجريدة والتاريخ ورقم العدد. كل قسم باب بالجريدة بعنوان عريض، أول طبق هو الخبر الرئيسي بصورة كبيرة، والباقي أخبار صغيرة بعمودين بينهم خطوط مثل الجرايد.',
+   mo: '<b>الحركة:</b> الأخبار تنطبع بالحبر وانت تنزل: تطلع باهتة ومغبّشة وتثبت.',
+   render: () => `
+    ${rail}<div class="mast"><small>العدد ١٢٤٧ · الثلاثاء</small><h1>جريدة المائدة</h1><div class="dl"><span>يومية · مستقلة</span><span>السعر: جوعك</span></div></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2>${s.items.slice(0, 1).map(it => `<article class="lead rv"><div class="ph" ${bg(it.img, 520)}></div><h3>${it.n}: الطبق اللي الكل يحچي عليه</h3><p>${it.d}. وصل للمطبخ اليوم بسعر <b>${it.p}</b> د.ع.</p>${addBtn(it, 'اطلبه الآن')}</article>`).join('')}<div class="cols">${s.items.slice(1).map(it => `<article class="rv"><div class="ph" ${bg(it.img, 260)}></div><h4>${it.n}</h4><p>${it.d}</p><div class="ln"><b>${it.p}</b>${addBtn(it, 'اطلب')}</div></article>`).join('')}</div></section>`).join('')}
+    ${cart('اشتراكك')}` },
+
+ { key: 'ads', fam: 'جرايد · الإعلانات المبوبة', name: 'الإعلانات المبوبة',
+   desc: 'صفحة الإعلانات المبوبة: مربعات صغيرة كثيرة مرصوصة بثلاث أعمدة، كل طبق إعلان بإطار وصورة صغيرة وعنوان غامق وسعره. تختار طبق فتنرسم عليه دائرة حمرة بالقلم مثل اللي يدوّر على شي بالجريدة.',
+   mo: '<b>الحركة:</b> قلم أحمر يرسم دائرة حول الإعلان اللي تختاره.',
+   render: () => `
+    ${rail}<div class="hd"><h1>إعلانات مبوّبة</h1><p>دوّر على طبقك · أشّر عليه بالأحمر</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>■ ${s.t} ■</h2><div class="grid">${s.items.map((it, i) => `<div class="ad ${i % 3 === 0 ? 'big' : ''}"><div class="ph" ${bg(it.img, 220)}></div><b>${it.n}</b><small>${it.d}</small><div class="ln"><span>${it.p}</span>${addBtn(it, 'أريده')}</div><svg class="ring" viewBox="0 0 100 100" preserveAspectRatio="none"><path pathLength="1" d="M52 4 C84 3 98 26 96 52 C94 82 70 97 46 96 C18 95 3 74 4 48 C5 22 24 6 58 8"/></svg></div>`).join('')}</div></section>`).join('')}
+    ${cart('أشّرت على')}` },
+
+ { key: 'bourse', fam: 'جرايد · صفحة البورصة', name: 'بورصة الأكل',
+   desc: 'صفحة الأسواق المالية: فوق شريط أسعار عاجل يمشي، وكل قسم جدول أسهم، وكل طبق سهم بصورته واسمه وسعره ونسبة التغيير بالأخضر أو الأحمر وخط بياني صغير. تقرأ عشر أطباق بنظرة وحدة.',
+   mo: '<b>الحركة:</b> الشريط يمشي بلا توقف، والسطر يومض لمن تشتري السهم.',
+   render: () => `
+    ${rail}<div class="hd"><h1>بورصة الأكل</h1><p>أسعار اليوم · إغلاق المطبخ</p></div>
+    <div class="tick"><div class="tk">${[0, 1].map(() => MENU.flatMap(x => x.items).map(it => { const c = chg(it.no); return `<span>${it.n} <b class="${c.up ? 'u' : 'd'}">${c.up ? '▲' : '▼'} ${toAr(Math.abs(c.v))}٪</b></span>`; }).join('')).join('')}</div></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}<small>${toAr(s.items.length)} أسهم</small></h2><div class="tbl">${s.items.map(it => { const c = chg(it.no); return `<div class="row"><div class="ph" ${bg(it.img, 120)}></div><div class="nm"><b>${it.n}</b><small>${it.d}</small></div><svg class="spark ${c.up ? 'u' : 'd'}" viewBox="0 0 40 16"><polyline points="${[0, 1, 2, 3, 4, 5].map(k => `${k * 8},${(8 + Math.sin(it.no * 1.7 + k) * 4 + (c.up ? 4 - k * 1.4 : k * 1.4 - 4)).toFixed(1)}`).join(' ')}"/></svg><div class="px"><b>${it.p}</b><span class="${c.up ? 'u' : 'd'}">${c.up ? '+' : '−'}${toAr(Math.abs(c.v))}٪</span></div>${addBtn(it, 'اشترِ')}</div>`; }).join('')}</div></section>`).join('')}
+    ${cart('محفظتك')}` },
+
+ { key: 'fold', fam: 'جرايد · مطوية', name: 'الجريدة المطوية',
+   desc: 'كل قسم جريدة مطوية على نصّها: تشوف النص الفوقاني بالعنوان وأول طبقين، والنص الثاني مطوي لوره. وانت تنزل الورقة تنفتح من الطوية وتبين باقي الأطباق، مثل اللي يفتح الجريدة على الطاولة.',
+   mo: '<b>الحركة:</b> النص المطوي ينفتح ثلاثي الأبعاد على الطوية مع التمرير.',
+   render: () => `
+    ${rail}<div class="hd"><h1>الجريدة المطوية</h1><p>انزل والجريدة تنفتح</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="sheet"><div class="top"><h2>${s.t}</h2><div class="pair">${s.items.slice(0, 2).map(it => `<div class="it"><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></div>${s.items.length > 2 ? `<div class="flap fl"><div class="pair">${s.items.slice(2).map(it => `<div class="it"><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></div>` : ''}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'kiosk', fam: 'جرايد · كشك', name: 'كشك الجرايد',
+   desc: 'كشك جرايد بالشارع: كل قسم حبل معلّق عليه جرايد بملاقط، وكل طبق جريدة كاملة: اسمها فوق، وصورة الطبق هي صورة الصفحة الأولى، واسم الطبق هو المانشيت. تسحب الجرايد بالعرض.',
+   mo: '<b>الحركة:</b> الجرايد تتمرجح من الملاقط، والجريدة اللي تشتريها تنقلب.',
+   render: () => `
+    ${rail}<div class="hd"><h1>كشك الجرايد</h1><p>كل حبل قسم · كل جريدة طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="line">${s.items.map(it => `<div class="pp"><i class="clip"></i><div class="pg" style="--t:${(3 + rnd(it.no) * 2).toFixed(2)}s;--dl:-${(rnd(it.no + 3) * 3).toFixed(2)}s;--r:${(1.5 + rnd(it.no + 5) * 2).toFixed(1)}deg"><div class="nh">${PAPERS[it.no % PAPERS.length]}</div><h3>${it.n}</h3><div class="ph" ${bg(it.img, 260)}></div><p>${it.d}</p><div class="ln"><span>${it.p}</span>${addBtn(it, 'اشترِ')}</div></div></div>`).join('')}</div></section>`).join('')}
+    ${cart('جرايدك')}` },
+
+ { key: 'clips', fam: 'جرايد · قصاصات', name: 'قصاصات الجرايد',
+   desc: 'دفتر قصاصات: كل طبق مقصوص من جريدة مختلفة بحافة ممزّقة، بأحجام وخطوط مختلفة، ملزوق بشريط لاصق على الدفتر. القصاصات مرصوصة متداخلة مثل الجدار، وكل قسم صفحة من الدفتر.',
+   mo: '<b>الحركة:</b> القصاصات ترفرف شوية من الشريط اللاصق وتطفو.',
+   render: () => `
+    ${rail}<div class="hd"><h1>قصاصات الجرايد</h1><p>كل صفحة قسم · كل قصاصة طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="wall">${s.items.map((it, i) => `<div class="cut f${it.no % 4} bob" style="${clock(it.no)};--h:-3px;--r:${((rnd(it.no + 2) - .5) * 4).toFixed(1)}deg"><i class="tp"></i><div class="ph" ${bg(it.img, 260)} style="aspect-ratio:${[1.4, 1, .85, 1.2][i % 4]}"></div><b>${it.n}</b><small>${it.d}</small><div class="ln"><span>${it.p}</span>${addBtn(it, 'قصّها')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('دفترك')}` },
+
+ { key: 'tone', fam: 'جرايد · قديمة', name: 'جريدة الخمسينات',
+   desc: 'جريدة عراقية قديمة من الخمسينات: ورق أصفر وحبر أسود وأعمدة ضيقة، والصور مطبوعة نقاط حبر بالأبيض والأسود. لمن الطبق يوصل نص الشاشة صورته تتلوّن وتصير حقيقية.',
+   mo: '<b>الحركة:</b> الصورة تتحول من نقاط حبر رمادية لصورة ملوّنة لمن توصل النص.',
+   render: () => `
+    ${rail}<div class="mast"><small>تأسست ١٩٥٣ · بغداد</small><h1>المائدة البغدادية</h1><div class="dl"><span>تصدر صباح كل يوم</span><span>الثمن ١٠ فلوس</span></div></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="cols">${s.items.map(it => `<article><div class="ht fl"><div class="ph" ${bg(it.img, 300)}></div></div><h4>${it.n}</h4><p><span class="orn">❦</span> ${it.d}، يقدّم بالمطعم بثمن قدره ${it.p} دينار.</p>${addBtn(it, 'اطلب')}</article>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const pulse = (el, k = 1.08) => { if (!reduce && el) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+const twirl = el => { if (!reduce && el) el.animate([{ transform: 'perspective(500px) rotateY(0)' }, { transform: 'perspective(500px) rotateY(360deg)' }], { duration: 700, easing: ease }); };
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+// fn(el, d) on scroll, d = how far the element sits below the middle of the screen
+function onDepth(sel, fn) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); fn(el, b.top + b.height / 2 - cy); }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+const WIRE = {
+  front: { added(a) { pulse(a.closest('article').querySelector('.ph'), 1.04); } },
+  ads: { added(a) { a.closest('.ad').classList.add('got'); } },
+  bourse: { added(a) { const r = a.closest('.row'); r.classList.remove('hit'); void r.offsetWidth; r.classList.add('hit'); } },
+  fold: {
+    // the bottom half lies folded back until it nears the middle of the screen
+    init() { onDepth('.flap', (el, d) => { el.style.transform = `rotateX(${clamp((d - 40) / 3, 0, 85).toFixed(1)}deg)`; }); },
+    added(a) { pulse(a.closest('.it').querySelector('.ph'), 1.06); },
+  },
+  kiosk: { added(a) { twirl(a.closest('.pg')); } },
+  tlgrm: { added(a) { pulse(a.closest('.strip').querySelector('.stamp'), 1.15); } },
+  clips: { added(a) { pulse(a.closest('.cut'), 1.04); } },
+  tone: {
+    // halftone photos bloom into colour near the middle of the screen
+    init() {
+      if (reduce) return screen.querySelectorAll('.ht').forEach(el => el.style.setProperty('--g', 0));
+      onDepth('.ht', (el, d) => { el.style.setProperty('--g', clamp(Math.abs(d) / 220 - .2, 0, 1).toFixed(2)); });
+    },
+    added(a) { const h = a.closest('article').querySelector('.ht'); h.style.setProperty('--g', 0); pulse(h, 1.04); },
+  },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

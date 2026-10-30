@@ -1,6 +1,7 @@
 import type { Locale } from '@/lib/locale';
 import type { OrderStatus } from '@/server/domain/pos/order-state';
 import type { Discount, Rates } from '@/server/domain/pos/totals';
+import type { PrinterView } from '@/server/pos/printers';
 import type { TillCatalog } from '@/server/pos/till-catalog';
 
 /**
@@ -14,6 +15,8 @@ export interface SnapshotLine {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** What the menu's offer took off one unit, in whole IQD (0: none). */
+  promoPerUnit: number;
   options: { id: string; name: string; priceDelta: number }[];
   note: string;
   discount: Discount | null;
@@ -29,6 +32,8 @@ export interface SnapshotOrder {
   tableId: string;
   seatedAt: string;
   invoiceDiscount: Discount | null;
+  /** A part of the bill is already paid: the rest is priced online, so the offline till cannot take it. */
+  partPaid?: boolean;
   lines: SnapshotLine[];
 }
 
@@ -36,11 +41,16 @@ export interface SyncSnapshot {
   serverTime: string;
   restaurantId: string;
   user: { id: string; name: string; locale: Locale; can: { discount: boolean; cancel: boolean; pay: boolean } };
-  rates: Rates;
+  /** The service and tax rates, and the dinar step the payable total rounds to (absent: no rounding). */
+  rates: Rates & { roundingStep?: number };
   kitchen: { print: boolean; screen: boolean };
   catalog: TillCatalog | null;
   areas: { id: string; name: string; tables: { id: string; number: number }[] }[];
   /** Live dine-in orders, one per table at most. */
   orders: SnapshotOrder[];
   openShift: { id: string } | null;
+  /** The restaurant's printers, so the offline till can print through the bridge. Absent in a snapshot stored before this existed. */
+  printers?: PrinterView[];
+  /** What the receipt prints at its top and bottom. Absent in an older stored snapshot. */
+  business?: { name: string; address: string; phone: string; taxNumber: string; footer: string };
 }

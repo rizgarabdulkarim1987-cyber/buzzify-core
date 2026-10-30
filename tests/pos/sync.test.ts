@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpAnswer } from '@/lib/pos-sync/op-schema';
 import { applyOperations } from '@/server/pos/sync';
+import { localClock } from '@/server/domain/schedule';
 import { createPosArea, createPosTables } from '@/server/studio/actions/pos';
 import { addPosLine, cancelPosOrder, openPosOrder } from '@/server/studio/actions/pos-orders';
 import { closePosShift, openPosShift } from '@/server/studio/actions/pos-shifts';
@@ -107,14 +108,15 @@ describe('replaying an offline sale', () => {
     const { ops } = sale(tables[0]!.id);
     const answers = await send(cashier, ops);
     expect(codes(answers)).toEqual(['done', 'done', 'done', 'done']);
-    const order = await prisma().posOrder.findFirstOrThrow({ where: { restaurantId: a.id }, include: { payment: true, lines: true } });
+    const order = await prisma().posOrder.findFirstOrThrow({ where: { restaurantId: a.id }, include: { payments: true, lines: true } });
     expect(order.status).toBe('PAID');
     expect(order.lines).toHaveLength(1);
     expect(order.lines[0]?.sentAt).not.toBeNull();
-    expect(order.payment?.amountReceived).toBe(12_000);
+    const payment = order.payments[0]!;
+    expect(payment.amountReceived).toBe(12_000);
     const shift = await prisma().posShift.findFirstOrThrow({ where: { restaurantId: a.id, userId: cashier.userId } });
-    expect(order.payment?.shiftId).toBe(shift.id);
-    expect(order.payment!.paidAt.getTime()).toBeGreaterThan(new Date(at).getTime());
+    expect(payment.shiftId).toBe(shift.id);
+    expect(payment.paidAt.getTime()).toBeGreaterThan(new Date(at).getTime());
     const stored = await prisma().posSyncOperation.findMany({ where: { restaurantId: a.id } });
     expect(stored).toHaveLength(4);
     expect(stored.every((row) => row.clientAt.toISOString() === at)).toBe(true);
@@ -235,3 +237,28 @@ describe('another restaurant', () => {
   });
 });
 
+
+describe('replaying a sale whose menu offer ended while the device was offline', () => {
+  it('prices the line at the time it was tapped, so the total the device showed is the total the server asks for', async () => {
+    await prisma().restaurant.update({ where: { id: a.id }, data: { plan: 'PRO' } });
+    const menu = await prisma().menu.findFirstOrThrow({ where: { restaurantId: a.id } });
+    // Live from two hours to half an hour ago, in the menu's own clock: over by the time the device is back online.
+    const minute = localClock(new Date(), 'Asia/Baghdad').minute;
+    const wrap = (m: number) => (m + 1440) % 1440;
+    await prisma().promotion.create({
+      data: { menuId: menu.id, kind: 'DISCOUNT', percentOff: 20, productIds: [burger], startMinute: wrap(minute - 120), endMinute: wrap(minute - 30), translations: { en: { title: 'Lunch', text: '' } } },
+    });
+    const tapped = new Date(Date.now() - 60 * 60_000).toISOString();
+    const openId = uuid();
+    const withTime = (draft: Draft): Draft => ({ ...draft, clientAt: tapped });
+    const answers = await send(cashier, [
+      withTime(open(tables[0]!.id, openId)),
+      withTime(line({ op: openId }, 1, 2)),
+      // 2 x 5,000 less 20% = 8,000, plus 10% tax = 8,800.
+      withTime(onOrder('payCash', { op: openId }, 2, { expectedTotal: 8_800, amountReceived: 9_000 })),
+    ]);
+    expect(codes(answers)).toEqual(['done', 'done', 'done']);
+    const stored = await prisma().posOrderLine.findFirstOrThrow({ where: { restaurantId: a.id } });
+    expect(stored).toMatchObject({ unitPriceSnapshot: 5000, promoDiscountPerUnit: 1000 });
+  });
+});

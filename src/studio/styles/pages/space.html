@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات فضاء</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spinr { to { transform: rotate(-360deg); } }
+  @keyframes blink { 50% { opacity: .25; } }
+  @keyframes fl { from { transform: scaleY(1); opacity: .9; } to { transform: scaleY(1.18); opacity: 1; } }
+  @keyframes tw { 50% { opacity: .35; } }
+
+  /* ===== shared deep-space look: black, starfield, neon glass, mono labels ===== */
+  [class*="m-sp-"] {
+    background:
+      radial-gradient(1px 1px at 20px 30px, #fff, transparent 70%),
+      radial-gradient(1px 1px at 130px 90px, rgba(255,255,255,.7), transparent 70%),
+      radial-gradient(1.5px 1.5px at 70px 160px, #b9c8ff, transparent 70%),
+      radial-gradient(1px 1px at 175px 200px, #fff, transparent 70%),
+      radial-gradient(2px 2px at 100px 60px, rgba(138,91,255,.9), transparent 70%),
+      radial-gradient(ellipse at 85% 0, rgba(138,91,255,.22), transparent 55%),
+      radial-gradient(ellipse at 0 55%, rgba(0,212,255,.12), transparent 50%),
+      #000;
+    background-size: 200px 220px, 200px 220px, 200px 220px, 200px 220px, 230px 260px, 100% 100%, 100% 100%;
+    color: #fff; font-family: 'Space Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+  }
+  [class*="m-sp-"] .ml { font: 500 11px 'Geist Mono', 'IBM Plex Mono', 'IBM Plex Sans Arabic'; letter-spacing: .18em; text-transform: uppercase; color: rgba(214,226,255,.85); }
+  [class*="m-sp-"] .top { padding: 60px 18px 14px; position: relative; }
+  [class*="m-sp-"] .top h1 { font: 700 34px 'Space Grotesk', 'IBM Plex Sans Arabic'; letter-spacing: -.01em; margin-top: 6px; }
+  [class*="m-sp-"] .top p { color: rgba(214,226,255,.7); font-size: 13.5px; margin-top: 2px; }
+  [class*="m-sp-"] .chips { background: rgba(0,0,0,.72); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,.08); }
+  [class*="m-sp-"] .chips button { font: 500 11.5px 'Geist Mono', 'IBM Plex Sans Arabic'; letter-spacing: .08em; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 6px 12px 6px 10px; color: rgba(255,255,255,.78); display: inline-flex; gap: 7px; align-items: center; }
+  [class*="m-sp-"] .chips button::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  [class*="m-sp-"] .chips button.on { border-color: var(--c); color: #fff; box-shadow: 0 0 16px -3px var(--c), inset 0 0 12px -6px var(--c); }
+  [class*="m-sp-"] .glass { background: linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.015)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-radius: 14px; box-shadow: 0 0 26px -8px var(--c), inset 0 0 22px -14px var(--c); }
+  [class*="m-sp-"] .num { font: 500 11px 'Geist Mono'; color: var(--c); letter-spacing: .1em; }
+  [class*="m-sp-"] .pr { font: 500 12.5px 'Geist Mono', 'IBM Plex Sans Arabic'; color: #fff; }
+  [class*="m-sp-"] .gadd { font: 500 11.5px 'Geist Mono', 'IBM Plex Sans Arabic'; letter-spacing: .12em; color: var(--c); text-transform: uppercase; }
+  [class*="m-sp-"] .cart { background: rgba(6,8,18,.92); border-top: 1px solid rgba(255,255,255,.12); font-family: 'Geist Mono', 'IBM Plex Sans Arabic'; backdrop-filter: blur(10px); }
+  [class*="m-sp-"] .cart .sum { color: #00d4ff; }
+  [class*="m-sp-"] .sl { display: flex; justify-content: space-between; align-items: baseline; padding: 0 18px 10px; }
+  [class*="m-sp-"] .sl b { font: 700 20px 'Space Grotesk', 'IBM Plex Sans Arabic'; }
+  [class*="m-sp-"] .rail { position: fixed; right: 12px; top: 32%; height: 36%; width: 1px; background: rgba(255,255,255,.18); z-index: 25; pointer-events: none; }
+  [class*="m-sp-"] .rail i { position: absolute; left: -3px; top: 0; width: 7px; height: 7px; border-radius: 50%; background: #4d7cff; box-shadow: 0 0 10px #4d7cff; }
+  [class*="m-sp-"] .orb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d8e6ff, #3b6cff 38%, #0b1a4a 75%); box-shadow: 0 0 40px rgba(77,124,255,.55); }
+
+  /* 1. GLASS DECK — every section a row of neon glass cards that come forward in the middle */
+  .m-sp-deck .top .orb { width: 70px; height: 70px; top: 52px; inset-inline-end: 22px; }
+  .m-sp-deck section { padding: 16px 0 6px; }
+  .m-sp-deck .deck { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; padding: 8px 18% 16px; }
+  .m-sp-deck .deck::-webkit-scrollbar { display: none; }
+  .m-sp-deck .card { flex: none; width: 64%; scroll-snap-align: center; padding: 12px; transform: scale(calc(.86 + .14 * var(--k, 1))); opacity: calc(.4 + .6 * var(--k, 1)); }
+  .m-sp-deck .card .hdr { display: flex; justify-content: space-between; }
+  .m-sp-deck .card .ph { height: 150px; border-radius: 10px; margin: 8px 0 12px; }
+  .m-sp-deck .card h3 { font: 700 21px 'Space Grotesk', 'IBM Plex Sans Arabic'; line-height: 1.2; }
+  .m-sp-deck .card p { font-size: 13px; color: rgba(214,226,255,.72); margin-top: 3px; }
+  .m-sp-deck .card .ft { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .m-sp-deck .ctl { display: flex; justify-content: center; align-items: center; gap: 12px; font: 500 12px 'Geist Mono'; color: rgba(214,226,255,.85); }
+  .m-sp-deck .cnt { direction: ltr; unicode-bidi: isolate; }
+  .m-sp-deck .ctl button { width: 36px; height: 36px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; font-size: 15px; }
+
+  /* 2. ORBITS — every section a planet, its dishes are moons circling it */
+  .m-sp-orbit .sys { position: relative; aspect-ratio: 1; margin: 0 8px 18px; }
+  .m-sp-orbit .oline { position: absolute; inset: 13%; border: 1px dashed rgba(255,255,255,.18); border-radius: 50%; }
+  .m-sp-orbit .planet { position: absolute; left: 50%; top: 50%; width: 34%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0, var(--c) 32%, color-mix(in srgb, var(--c) 35%, #000) 78%); box-shadow: 0 0 46px -4px var(--c); display: grid; place-content: center; text-align: center; }
+  .m-sp-orbit .planet b { font: 700 16px 'Space Grotesk', 'IBM Plex Sans Arabic'; text-shadow: 0 1px 6px rgba(0,0,0,.6); }
+  .m-sp-orbit .planet span { font: 500 10px 'Geist Mono'; letter-spacing: .14em; }
+  .m-sp-orbit .ring { position: absolute; inset: 0; animation: spin 120s linear infinite; }
+  .m-sp-orbit .moon { position: absolute; width: 25%; transform: translate(-50%, -50%); }
+  .m-sp-orbit .mi { display: flex; flex-direction: column; align-items: center; text-align: center; animation: spinr 120s linear infinite; position: relative; }
+  .m-sp-orbit .sys:hover .ring, .m-sp-orbit .sys:hover .mi, .m-sp-orbit .sys:focus-within .ring, .m-sp-orbit .sys:focus-within .mi { animation-play-state: paused; }
+  .m-sp-orbit .mi .ph { width: 100%; aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--c); box-shadow: 0 0 16px -2px var(--c); }
+  .m-sp-orbit .mi b { font-size: 11.5px; line-height: 1.2; margin-top: 4px; background: rgba(0,0,0,.6); padding: 0 5px; border-radius: 4px; }
+  .m-sp-orbit .mi .pr { font-size: 10.5px; background: rgba(0,0,0,.6); padding: 0 5px; border-radius: 4px; }
+  .m-sp-orbit .mi .add { position: absolute; top: -4px; inset-inline-end: -4px; width: 24px; height: 24px; border-radius: 50%; background: var(--c); color: #000; font-weight: 800; }
+
+  /* 3. STAR MAP — every section a constellation, dishes are its stars */
+  .m-sp-const .sky { position: relative; margin: 0 8px 10px; }
+  .m-sp-const svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .m-sp-const svg line { stroke: rgba(214,226,255,.45); stroke-width: 1; stroke-dasharray: 3 4; }
+  .m-sp-const .star { position: absolute; width: 31%; transform: translate(-50%, -42px); text-align: center; }
+  .m-sp-const .star .ph { width: 68%; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 26px 4px var(--c); }
+  .m-sp-const .star .gk { display: block; font: 500 11px 'Geist Mono'; color: var(--c); margin-top: 7px; letter-spacing: .1em; }
+  .m-sp-const .star b { display: block; font-size: 13.5px; line-height: 1.25; }
+  .m-sp-const .star .add { margin-top: 3px; border: 1px solid var(--c); border-radius: 999px; padding: 2px 10px; }
+  .m-sp-const .star.lit .ph { box-shadow: 0 0 0 2px #fff, 0 0 40px 10px var(--c); }
+
+  /* 4. MISSION CONTROL — the menu as a wall of HUD modules */
+  .m-sp-ctrl .top { display: flex; gap: 14px; align-items: center; }
+  .m-sp-ctrl .radar { flex: none; width: 66px; height: 66px; border-radius: 50%; border: 1px solid rgba(34,230,168,.6); background: radial-gradient(circle, transparent 30%, rgba(34,230,168,.15) 31%, transparent 33%, transparent 62%, rgba(34,230,168,.15) 63%, transparent 65%); position: relative; overflow: hidden; }
+  .m-sp-ctrl .radar::after { content: ''; position: absolute; inset: 0; background: conic-gradient(from 0deg, rgba(34,230,168,.55), transparent 25%); animation: spin 3s linear infinite; }
+  .m-sp-ctrl .panel { margin: 12px 12px 16px; border: 1px solid rgba(34,230,168,.3); border-radius: 12px; background: rgba(6,16,14,.6); }
+  .m-sp-ctrl .ph1 { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(34,230,168,.2); }
+  .m-sp-ctrl .ph1 .go { color: #22e6a8; }
+  .m-sp-ctrl .mods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 10px; }
+  .m-sp-ctrl .mod { border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 8px; background: rgba(255,255,255,.03); }
+  .m-sp-ctrl .mod .tp { display: flex; justify-content: space-between; align-items: center; }
+  .m-sp-ctrl .led { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); animation: blink 1.6s steps(1) infinite; }
+  .m-sp-ctrl .cam { position: relative; height: 96px; margin: 7px 0; }
+  .m-sp-ctrl .cam .ph { position: absolute; inset: 0; border-radius: 4px; }
+  .m-sp-ctrl .cam::after { content: ''; position: absolute; inset: 0; border-radius: 4px; background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.22) 2px 3px); }
+  .m-sp-ctrl .cam::before { content: ''; position: absolute; inset: -3px; z-index: 1; background:
+      linear-gradient(var(--c), var(--c)) top left / 12px 2px no-repeat, linear-gradient(var(--c), var(--c)) top left / 2px 12px no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / 12px 2px no-repeat, linear-gradient(var(--c), var(--c)) top right / 2px 12px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom left / 12px 2px no-repeat, linear-gradient(var(--c), var(--c)) bottom left / 2px 12px no-repeat,
+      linear-gradient(var(--c), var(--c)) bottom right / 12px 2px no-repeat, linear-gradient(var(--c), var(--c)) bottom right / 2px 12px no-repeat; }
+  .m-sp-ctrl .mod b { font-size: 13.5px; display: block; line-height: 1.25; }
+  .m-sp-ctrl .ro { display: flex; justify-content: space-between; font: 500 10.5px 'Geist Mono', 'IBM Plex Sans Arabic'; color: rgba(214,226,255,.75); margin-top: 3px; }
+  .m-sp-ctrl .ro em { font-style: normal; color: #fff; }
+  .m-sp-ctrl .mod .add { width: 100%; margin-top: 7px; border: 1px solid var(--c); border-radius: 6px; padding: 4px 0; }
+
+  /* 5. ROCKET — the whole menu is one rocket, every section a stage */
+  .m-sp-rocket .nose { padding: 58px 0 0; text-align: center; }
+  .m-sp-rocket .cone { width: 44%; height: 110px; margin: 0 auto; clip-path: polygon(50% 0, 86% 66%, 100% 100%, 0 100%, 14% 66%); background: linear-gradient(90deg, #2b3038, #e8ecf2 45%, #9aa3b2 62%, #23272f); }
+  .m-sp-rocket .nose h1 { margin-top: 10px; }
+  .m-sp-rocket section { padding-top: 8px; }
+  .m-sp-rocket .stage { width: 90%; margin: 0 auto; background: linear-gradient(90deg, #191c23, #3b414d 10%, #12151b 50%, #3b414d 90%, #191c23); border-inline: 2px solid #4b5262; border-top: 3px solid var(--c); padding: 10px 10px 14px; }
+  .m-sp-rocket .stage .sl { padding: 0 2px 10px; }
+  .m-sp-rocket .ports { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 10px; }
+  .m-sp-rocket .port { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+  .m-sp-rocket .win { width: 78%; aspect-ratio: 1; border-radius: 50%; border: 6px solid #8a93a5; box-shadow: inset 0 0 0 2px #1a1d24, 0 0 18px -4px var(--c); position: relative; overflow: hidden; }
+  .m-sp-rocket .win .ph { position: absolute; inset: 0; }
+  .m-sp-rocket .win::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(135deg, rgba(255,255,255,.4), transparent 45%); }
+  .m-sp-rocket .port b { font-size: 13.5px; }
+  .m-sp-rocket .eng { position: relative; width: 90%; margin: 0 auto; height: 70px; }
+  .m-sp-rocket .eng::before, .m-sp-rocket .eng::after { content: ''; position: absolute; top: -60px; width: 16%; height: 120px; background: linear-gradient(90deg, #3b414d, #9aa3b2); }
+  .m-sp-rocket .eng::before { right: -14%; clip-path: polygon(0 0, 100% 50%, 100% 100%, 0 100%); }
+  .m-sp-rocket .eng::after { left: -14%; clip-path: polygon(100% 0, 0 50%, 0 100%, 100% 100%); }
+  .m-sp-rocket .noz { width: 56%; height: 34px; margin: 0 auto; background: linear-gradient(90deg, #23272f, #8a93a5, #23272f); clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%); }
+  .m-sp-rocket .flame { width: 40%; height: 80px; margin: 0 auto 6px; transform-origin: top; background: radial-gradient(ellipse at 50% 0, #fff 0, #ffd23f 22%, #ff7a1a 48%, transparent 70%); animation: fl .12s ease-in-out infinite alternate; }
+
+  /* 6. TERMINAL — the menu as a deep-space console */
+  .m-sp-term { font-family: 'Geist Mono', 'IBM Plex Sans Arabic', monospace; }
+  .m-sp-term .top { font: 500 13px 'Geist Mono', 'IBM Plex Sans Arabic'; color: #22e6a8; line-height: 1.9; }
+  .m-sp-term .top .cur { display: inline-block; width: 8px; height: 15px; background: #22e6a8; vertical-align: middle; animation: blink 1s steps(1) infinite; }
+  .m-sp-term .top h1 { color: #fff; font-family: 'Space Grotesk', 'IBM Plex Sans Arabic'; }
+  .m-sp-term section { padding: 10px 14px 14px; }
+  .m-sp-term .cmd { color: #8a5bff; font-size: 12.5px; margin-bottom: 8px; direction: ltr; text-align: left; }
+  .m-sp-term .cmd em { color: var(--c); font-style: normal; }
+  .m-sp-term .row { display: grid; grid-template-columns: 58px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px dashed rgba(34,230,168,.18); }
+  .m-sp-term .thumb { position: relative; height: 58px; border-radius: 4px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
+  .m-sp-term .thumb .ph { position: absolute; inset: 0; }
+  .m-sp-term .thumb::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.3) 2px 3px); }
+  .m-sp-term .row b { display: block; font: 600 14px 'IBM Plex Sans Arabic'; color: #fff; }
+  .m-sp-term .lead { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: rgba(214,226,255,.7); }
+  .m-sp-term .lead i { flex: 1; border-bottom: 1px dotted rgba(214,226,255,.35); }
+  .m-sp-term .lead span { color: #22e6a8; }
+  .m-sp-term .row .add { color: #22e6a8; font: 500 13px 'Geist Mono'; }
+
+  /* 7. METEOR SHOWER — dishes fall across the page with glowing tails */
+  .m-sp-comet section { overflow: hidden; padding: 14px 0 10px; }
+  .m-sp-comet .shower { display: flex; flex-direction: column; gap: 16px; padding: 6px 14px 14px; }
+  .m-sp-comet .met { width: 76%; margin-inline-start: var(--o); display: grid; grid-template-columns: 82px 1fr; gap: 10px; align-items: center; padding: 8px; position: relative; }
+  .m-sp-comet .met::before { content: ''; position: absolute; top: 18px; left: 100%; width: 110px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--c), transparent); transform-origin: left center; transform: rotate(-28deg); filter: drop-shadow(0 0 6px var(--c)); }
+  .m-sp-comet .met .ph { height: 82px; border-radius: 50%; box-shadow: 0 0 22px -2px var(--c); }
+  .m-sp-comet .met b { display: block; font: 700 15.5px 'Space Grotesk', 'IBM Plex Sans Arabic'; }
+  .m-sp-comet .met .ft { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+
+  /* 8. BLACK HOLE — dishes near the top get pulled in, stretched and spun into the event horizon */
+  .m-sp-hole { background-color: #000; }
+  .m-sp-hole .hole { position: fixed; z-index: 0; left: 50%; top: 18px; width: 330px; height: 330px; margin-left: -165px; pointer-events: none; transform: scale(var(--hs, 1)); }
+  .m-sp-hole .disk { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, #ff7a1a, #ffd23f, #ff3ea5, #8a5bff, #00d4ff, #ff7a1a); -webkit-mask: radial-gradient(circle, transparent 30%, #000 33%, #000 44%, transparent 66%); mask: radial-gradient(circle, transparent 30%, #000 33%, #000 44%, transparent 66%); filter: blur(6px); opacity: .9; animation: spin 14s linear infinite; transform: rotateX(68deg); }
+  .m-sp-hole .lens { position: absolute; inset: 24%; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,210,63,.85), 0 0 30px 6px rgba(255,122,26,.7), 0 0 80px 20px rgba(138,91,255,.35); }
+  .m-sp-hole .core { position: absolute; inset: 27%; border-radius: 50%; background: #000; box-shadow: 0 0 40px 18px #000; }
+  .m-sp-hole .top, .m-sp-hole .chips, .m-sp-hole section, .m-sp-hole .cart { position: relative; z-index: 1; }
+  .m-sp-hole .top { text-align: center; padding-top: 250px; }
+  .m-sp-hole .chips { position: sticky; }
+  .m-sp-hole section { padding: 14px 14px 8px; }
+  .m-sp-hole .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .m-sp-hole .bh { padding: 8px; will-change: transform; transform-origin: 50% 0; }
+  .m-sp-hole .bh .ph { height: 108px; border-radius: 10px; }
+  .m-sp-hole .bh b { display: block; font: 700 14.5px 'Space Grotesk', 'IBM Plex Sans Arabic'; margin-top: 7px; line-height: 1.25; }
+  .m-sp-hole .bh .ft { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .m-sp-hole .bh .add { border: 1px solid var(--c); border-radius: 999px; padding: 2px 10px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات فضاء · بستايل نيون وزجاج</h1>
+  <p>خلفية سودة بنجوم، وكروت زجاج بحافة نيون، وأرقام وعناوين بخط مونو، ونفس ألوان الكهرماني والوردي والسماوي. بس كل وحدة تغيّر شكل المنيو: رفوف زجاج، ومدارات، وأبراج نجوم، وغرفة تحكم، وصاروخ، وطرفية، وشهب، و<b>دخول الثقب الأسود</b>. كلها بصور أكل حقيقية وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const NEON = { grill: '#ff5a4d', fast: '#ffb020', fresh: '#22e6a8', sweet: '#ff3ea5', drink: '#00d4ff' };
+const CODE = { grill: 'GRILL', fast: 'FAST', fresh: 'FRESH', sweet: 'SWEET', drink: 'DRINKS' };
+MENU.forEach(s => s.c = NEON[s.id]);
+const pad = n => String(n).padStart(2, '0');
+const GK = 'αβγδεζ';
+const rail = '<div class="rail"><i></i></div>';
+const sl = (s, si) => `<div class="sl"><b>${s.t}</b><span class="ml">${pad(si + 1)} — ${CODE[s.id]}</span></div>`;
+const head = (h, p, lab = '00 — MENU') => `<div class="top"><span class="ml">${lab}</span><h1>${h}</h1><p>${p}</p></div>`;
+// orbit: moons on a ring around the planet, starting at the top
+const moonAt = (i, n) => { const a = (-90 + i * 360 / n) * Math.PI / 180; return `left:${(50 + 38 * Math.cos(a)).toFixed(1)}%;top:${(50 + 38 * Math.sin(a)).toFixed(1)}%`; };
+const SX = [24, 72, 40, 78, 22, 62];
+const sy = i => 60 + i * 128;
+const OFF = ['8%', '22%', '12%', '24%', '10%', '20%'];
+const STYLES = [
+ { key: 'sp-deck', fam: 'فضاء · زجاج نيون', name: 'رفوف الزجاج',
+   desc: 'كل قسم صف كروت زجاج داكن بحافة نيون بلون القسم، والكرت اللي بالنص يتقدم ويكبر واللي جنبه يبعد ويخفت. فوق كل كرت رقمه بخط مونو، وتحت الصف أسهم مربعة وعدّاد «٠٣ / ٠٦».',
+   mo: '<b>الشكل:</b> عرض دوّار بالعرض لكل قسم بدل الشبكة، والكرت الوسطاني هو البطل.',
+   render: () => `
+    ${rail}<div class="top"><span class="orb"></span><span class="ml">00 — MENU</span><h1>منيو المدار</h1><p>اسحب الصف، والطبق بالنص يتقدم</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="deck">${s.items.map((it, i) => `<div class="card glass"><div class="hdr"><span class="num">${pad(i + 1)}</span><span class="ml">${CODE[s.id]}</span></div><div class="ph" ${bg(it.img, 360)}></div><h3>${it.n}</h3><p>${it.d}</p><div class="ft"><span class="pr">${it.p} د.ع</span>${addBtn(it, 'أضف →', 'add gadd')}</div></div>`).join('')}</div><div class="ctl"><button data-dir="-1" aria-label="السابق">→</button><span class="cnt">01 / ${pad(s.items.length)}</span><button data-dir="1" aria-label="التالي">←</button></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-orbit', fam: 'فضاء · مدارات', name: 'المجموعة الشمسية',
+   desc: 'كل قسم كوكب لامع بلونه، وأطباقه أقمار تدور حواليه على مدار منقّط ببطء شديد، والصورة تبقى عدلة. تحط إصبعك على المدار فيوقف، وزر + على كل قمر.',
+   mo: '<b>الشكل:</b> دوائر مدارات بدل الصفوف، كل قسم نظام شمسي صغير.',
+   render: () => `
+    ${rail}${head('المجموعة الشمسية', 'كل كوكب قسم · كل قمر طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="sys"><div class="oline"></div><div class="planet"><b>${s.t}</b><span>${toAr(s.items.length)} أقمار</span></div><div class="ring">${s.items.map((it, i, a) => `<div class="moon" style="${moonAt(i, a.length)}"><div class="mi"><div class="ph" ${bg(it.img, 200)}></div><b>${it.n}</b><span class="pr">${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-const', fam: 'فضاء · خريطة نجوم', name: 'الأبراج',
+   desc: 'كل قسم برج نجوم: الأطباق نجوم مدوّرة بصورها ووهج بلون القسم، مربوطة بخطوط منقّطة مثل خرائط السما، وكل نجمة إلها حرف يوناني α β γ. تضيف طبق فتلمع نجمته.',
+   mo: '<b>الشكل:</b> نقاط متفرقة مربوطة بخطوط بدل الشبكة، كل قسم شكل برج.',
+   render: () => `
+    ${rail}${head('خريطة الأبراج', 'كل برج قسم · كل نجمة طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="sky" style="height:${sy(s.items.length - 1) + 130}px"><svg aria-hidden="true">${s.items.slice(1).map((_, i) => `<line x1="${SX[i]}%" y1="${sy(i)}" x2="${SX[i + 1]}%" y2="${sy(i + 1)}"/>`).join('')}</svg>${s.items.map((it, i) => `<div class="star" style="left:${SX[i]}%;top:${sy(i)}px"><div class="ph" ${bg(it.img, 220)}></div><span class="gk">${GK[i]} ${CODE[s.id]}</span><b>${it.n}</b><span class="pr">${it.p}</span><br>${addBtn(it, '+ أضف', 'add gadd')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-ctrl', fam: 'فضاء · غرفة التحكم', name: 'غرفة التحكم',
+   desc: 'المنيو شاشات مركز تحكم: رادار يلف بالراس، وكل قسم لوحة بحالة «جاهز»، وكل طبق وحدة بلمبة تومض، وصورته كأنها كاميرا بخطوط مسح وزوايا تصويب، وقراءات مونو للسعر والوقت.',
+   mo: '<b>الشكل:</b> لوحات HUD بشبكة وحدات صغيرة، كثيفة وتبين أطباق هوايه مرة وحدة.',
+   render: () => `
+    ${rail}<div class="top"><div class="radar"></div><div><span class="ml">SYS — ONLINE</span><h1>غرفة التحكم</h1><p>كل الوحدات جاهزة للطلب</p></div></div>
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="panel"><div class="ph1"><span class="ml">${pad(si + 1)} — ${CODE[s.id]} · ${s.t}</span><span class="ml go">● READY</span></div><div class="mods">${s.items.map((it, i) => `<div class="mod"><div class="tp"><span class="num">M-${pad(it.no)}</span><span class="led" style="animation-delay:-${(i * .37).toFixed(2)}s"></span></div><div class="cam"><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b><div class="ro"><span>السعر <em>${it.p}</em></span><span>⏱ <em>${toAr(8 + (it.no % 5) * 3)}د</em></span></div>${addBtn(it, 'تشغيل +', 'add gadd')}</div>`).join('')}</div></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-comet', fam: 'فضاء · شهب', name: 'زخّة الشهب',
+   desc: 'الأطباق شهب نازلة بالمايل: كل طبق كرت زجاج بصورة مدوّرة متوهجة وذيل نيون وراه بلون القسم، والكروت متدرّجة يمين ويسار مثل زخّة شهب.',
+   mo: '<b>الشكل:</b> عمود متعرّج بالمايل بدل الشبكة المستقيمة، والذيول تعطي اتجاه.',
+   render: () => `
+    ${rail}${head('زخّة الشهب', 'كل شهاب طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="shower">${s.items.map((it, i) => `<div class="met glass" style="--o:${OFF[i]}"><div class="ph" ${bg(it.img, 200)}></div><div><span class="num">${pad(i + 1)}</span><b>${it.n}</b><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div></div></div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-hole', fam: 'فضاء · ثقب أسود', name: 'دخول الثقب الأسود',
+   desc: 'فوق المنيو ثقب أسود بقرص نار ملوّن يلف حواليه. كل ما تنزل، الأطباق اللي توصل للفوق تنسحب لجوّا: تصغر وتتمطّط وتلتف وتختفي بأفق الحدث، والأطباق اللي تحت تبقى عدلة تقراها.',
+   mo: '<b>الشكل:</b> التمرير نفسه يصير سقوط بالثقب، والأطباق تنشفط للنص بدل ما تطلع من الشاشة.',
+   render: () => `
+    <div class="hole"><div class="disk"></div><div class="lens"></div><div class="core"></div></div>${rail}
+    ${head('أفق الحدث', 'انزل… والأطباق تنشفط للثقب', '00 — EVENT HORIZON')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="grid">${s.items.map(it => `<div class="bh glass"><div class="ph" ${bg(it.img, 260)}></div><b>${it.n}</b><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+// shared: the thin right rail shows how far down the menu you are
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+const pulse = (el, k = 1.12) => { if (!reduce) el.animate([{ transform: 'scale(1)' }, { transform: `scale(${k})` }, { transform: 'scale(1)' }], { duration: 380, easing: ease }); };
+const WIRE = {
+  'sp-deck': {
+    init() {
+      screen.querySelectorAll('.deck').forEach(d => {
+        const cards = [...d.children], cnt = d.parentElement.querySelector('.cnt');
+        const run = () => {
+          const r = d.getBoundingClientRect(), mid = r.left + r.width / 2;
+          let best = 0, bk = -1;
+          cards.forEach((c, i) => { const b = c.getBoundingClientRect(); const k = Math.max(0, 1 - Math.abs(b.left + b.width / 2 - mid) / (b.width * 1.1)); c.style.setProperty('--k', k.toFixed(3)); if (k > bk) { bk = k; best = i; } });
+          cnt.textContent = `${pad(best + 1)} / ${pad(cards.length)}`;
+        };
+        d.addEventListener('scroll', run, { passive: true }); cleanups.push(() => d.removeEventListener('scroll', run)); run();
+      });
+    },
+    click(e) {
+      const b = e.target.closest('[data-dir]'); if (!b) return;
+      const d = b.closest('section').querySelector('.deck'), step = d.firstElementChild.offsetWidth + 12;
+      // RTL: the next card sits to the left
+      d.scrollBy({ left: -Number(b.dataset.dir) * step, behavior: reduce ? 'instant' : 'smooth' });
+    },
+    added(a) { pulse(a.closest('.card'), 1.04); },
+  },
+  'sp-orbit': { added(a) { pulse(a.closest('.mi').querySelector('.ph'), 1.18); } },
+  'sp-const': { added(a) { a.closest('.star').classList.add('lit'); pulse(a.closest('.star').querySelector('.ph'), 1.15); } },
+  'sp-ctrl': { added(a) { const m = a.closest('.mod'); m.style.borderColor = getComputedStyle(m).getPropertyValue('--c'); a.textContent = 'تم ✓'; } },
+  'sp-rocket': {
+    added(a) { if (!reduce) a.closest('.stage').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(0)' }], { duration: 300, easing: 'linear' }); },
+  },
+  'sp-term': {
+    added(a) { const r = a.closest('.row'); if (!reduce) r.animate([{ background: 'rgba(34,230,168,.25)' }, { background: 'transparent' }], { duration: 500, easing: ease }); a.textContent = '[ ✓ ]'; },
+  },
+  'sp-comet': { added(a) { pulse(a.closest('.met'), 1.05); } },
+  'sp-hole': {
+    // cards near the top fall into the hole: pulled to the middle, stretched, spun and faded
+    init() {
+      const hole = screen.querySelector('.hole'), cards = [...screen.querySelectorAll('.bh')];
+      if (reduce) return;
+      let raf = 0;
+      const run = () => {
+        raf = 0;
+        const sr = screen.getBoundingClientRect(), cx = sr.left + sr.width / 2, edge = sr.top + navH() + 40, zone = 230;
+        cards.forEach(c => {
+          const b = c.getBoundingClientRect(), d = b.top - edge;
+          if (d >= zone) { c.style.transform = ''; c.style.opacity = ''; return; }
+          const t = Math.min(1, 1 - d / zone), dx = (cx - (b.left + b.width / 2)) * t, dir = b.left + b.width / 2 < cx ? 1 : -1;
+          c.style.transform = `translate(${dx.toFixed(1)}px, ${(-t * 60).toFixed(1)}px) rotate(${(dir * t * t * 70).toFixed(1)}deg) scale(${(1 - .8 * t).toFixed(3)}, ${(1 - .55 * t).toFixed(3)})`;
+          c.style.opacity = (1 - t * t).toFixed(3);
+        });
+        hole.style.setProperty('--hs', (1 + .12 * Math.min(1, screen.scrollTop / 900)).toFixed(3));
+      };
+      const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+      screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+    },
+    added(a) { pulse(a.closest('.bh'), 1.05); },
+  },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

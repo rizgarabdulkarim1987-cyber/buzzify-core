@@ -6,7 +6,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { canAdvance, isFinished, type Fulfillment } from '@/server/domain/pos/fulfillment';
-import { assertNotHandedOver, bumpOrder, loadOrderForChange, orderTotals, readRates, reopened } from './orders';
+import { assertNotHandedOver, bumpOrder, loadOrderForChange, payableTotal, readRates, reopened } from './orders';
 
 /**
  * Takeaway and delivery orders: the same `PosOrder` as a table's, with no table, a queue number that restarts every Baghdad
@@ -265,7 +265,7 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string, now: 
       },
       orderBy: [{ seatedAt: 'asc' }, { id: 'asc' }],
       take: OFF_PREMISE_LIMIT,
-      include: { lines: true, payment: { select: { totalsSnapshot: true } } },
+      include: { lines: true, payments: { select: { id: true, totalsSnapshot: true } } },
     }),
     readRates(db, restaurantId),
   ]);
@@ -284,7 +284,7 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string, now: 
     driverId: o.driverId,
     driverName: o.driverNameSnapshot,
     seatedAt: o.seatedAt,
-    total: o.payment ? paidTotal.parse(o.payment.totalsSnapshot).total : orderTotals(o, o.lines, rates).totals.total,
+    total: o.status === 'PAID' && o.payments.length > 0 ? o.payments.reduce((sum, p) => sum + paidTotal.parse(p.totalsSnapshot).total, 0) : payableTotal(o, o.lines, rates),
     paid: o.status === 'PAID',
     cashWithDriver: isUnsettled(o),
   }));
@@ -309,7 +309,7 @@ export async function readUnsettledDeliveries(db: AnyDb, restaurantId: string): 
     db.posOrder.findMany({ where: { restaurantId, ...UNSETTLED_WHERE }, take: 1000, include: { lines: true } }),
     readRates(db, restaurantId),
   ]);
-  return { count: orders.length, amount: orders.reduce((sum, o) => sum + orderTotals(o, o.lines, rates).totals.total, 0) };
+  return { count: orders.length, amount: orders.reduce((sum, o) => sum + payableTotal(o, o.lines, rates), 0) };
 }
 
 /** Which kinds show their tab: switched on, or still holding live orders that must be finished. */

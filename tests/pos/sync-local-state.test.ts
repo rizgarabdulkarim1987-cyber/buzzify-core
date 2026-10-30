@@ -4,6 +4,7 @@ import { currentKey, deriveLocalState, localTotals } from '@/lib/pos-sync/local-
 import type { Op } from '@/lib/pos-sync/op-schema';
 import type { OpDraft, QueuedOp } from '@/lib/pos-sync/queue';
 import type { SyncSnapshot } from '@/lib/pos-sync/snapshot';
+import type { TillOffer } from '@/server/domain/pos/line-offer';
 import { computeTotals } from '@/server/domain/pos/totals';
 
 const device = '11111111-1111-4111-8111-111111111111';
@@ -22,6 +23,8 @@ function snapshot(over: Partial<SyncSnapshot> = {}): SyncSnapshot {
       currency: 'IQD',
       locales: ['ar', 'en'],
       defaultLocale: 'ar',
+      timeZone: 'Asia/Baghdad',
+      offers: [],
       categories: [{ id: 'c1', sortOrder: 1, names: { ar: 'أكل' }, sectionId: null }],
       products: [
         {
@@ -33,6 +36,7 @@ function snapshot(over: Partial<SyncSnapshot> = {}): SyncSnapshot {
           available: true,
           hiddenFromGuests: false,
           sectionId: null,
+          barcode: null, image: null,
           variants: [
             { id: 'small', names: { ar: 'صغير' }, priceDelta: 0, isDefault: true },
             { id: 'large', names: { ar: 'كبير' }, priceDelta: 1000, isDefault: false },
@@ -81,8 +85,34 @@ describe('the order as the device sees it', () => {
     expect(localTotals(order, snapshot().rates).total).toBe(15_015);
   });
 
+  describe('with a menu offer', () => {
+    // The ops are stamped 2026-10-25T08:00Z, which is 11:00 on a Sunday in Baghdad.
+    const offer: TillOffer = { id: 'o1', percentOff: 20, productIds: ['burger'], categoryIds: [], startsOn: null, endsOn: null, startMinute: null, endMinute: null, daysOfWeek: 0b1111111, roundTo: 250 };
+    const withOffers = (offers: TillOffer[]) => {
+      const base = snapshot();
+      return { ...base, catalog: { ...base.catalog!, offers } };
+    };
+
+    it('prices a tapped dish with the offer, so the device total is the total the server will ask for', () => {
+      const open = queued({ kind: 'openOrder', payload: { tableId: 't1' } });
+      const snap = withOffers([offer]);
+      const order = deriveLocalState(snap, [open, add({ op: open.operationId }, 1, { quantity: 2, variantId: 'large', optionIds: ['cheese'] })]).live[0]!;
+      // (5000 + 1000 + 500) = 6500; 20% off = 5200 -> 5250 at the 250 step: 1250 off each.
+      expect(order.lines[0]).toMatchObject({ unitPrice: 5000, promoPerUnit: 1250 });
+      expect(localTotals(order, snap.rates)).toEqual(computeTotals([{ unitPrice: 5000, optionsTotal: 1500, quantity: 2, promoPerUnit: 1250 }], undefined, snap.rates));
+      expect(localTotals(order, snap.rates).subtotal).toBe(10_500);
+    });
+
+    it('reads the offer at the time of the tap: one that had not started, or has ended by then, gives nothing', () => {
+      const open = queued({ kind: 'openOrder', payload: { tableId: 't1' } });
+      const evening = { ...offer, startMinute: 18 * 60, endMinute: 23 * 60 };
+      const order = deriveLocalState(withOffers([evening]), [open, add({ op: open.operationId }, 1)]).live[0]!;
+      expect(order.lines[0]!.promoPerUnit).toBe(0);
+    });
+  });
+
   it('handles a 100 percent invoice discount over a discounted line', () => {
-    const order = { lines: [{ id: 'l', productId: 'p', name: 'x', quantity: 2, unitPrice: 3000, options: [], note: '', discount: { kind: 'PERCENT' as const, value: 50 }, cancelled: false, sent: false }], invoiceDiscount: { kind: 'PERCENT' as const, value: 100 } };
+    const order = { lines: [{ id: 'l', productId: 'p', name: 'x', quantity: 2, unitPrice: 3000, promoPerUnit: 0, options: [], note: '', discount: { kind: 'PERCENT' as const, value: 50 }, cancelled: false, sent: false }], invoiceDiscount: { kind: 'PERCENT' as const, value: 100 } };
     expect(localTotals({ lines: [...order.lines], invoiceDiscount: order.invoiceDiscount }, { serviceRatePercent: 0, taxRatePercent: 10 }).total).toBe(0);
   });
 

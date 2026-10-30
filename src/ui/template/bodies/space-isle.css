@@ -1,0 +1,195 @@
+/*
+ * The Floating Islands (family `isle`, kind `space-isle`), in buzzify.me's deep-space look: a starfield, every section a
+ * glass deck on a rock island drifting in space, crystals in the section's hue glowing in the rock under it and pebbles
+ * floating round it. Text and buttons use the template tokens on `--bg`/`--card`; the section hue (`--h`, as the
+ * Countdown's) is decoration only: borders, glows, crystals. The rock is the palette's `--raised` sunk towards black.
+ */
+[data-body='space-isle'] {
+  --is-h: -8px;
+  --is-rock-hi: color-mix(in srgb, var(--raised) 70%, var(--accent));
+  --is-rock-lo: color-mix(in srgb, var(--bg) 70%, #000);
+  background:
+    radial-gradient(1px 1px at 20px 30px, color-mix(in srgb, var(--text) 90%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 60%, transparent), transparent 70%),
+    radial-gradient(1.5px 1.5px at 70px 160px, color-mix(in srgb, var(--accent) 70%, var(--text)), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, color-mix(in srgb, var(--text) 80%, transparent), transparent 70%),
+    radial-gradient(2px 2px at 100px 60px, color-mix(in srgb, var(--accent) 80%, transparent), transparent 70%),
+    var(--bg);
+  background-size:
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    230px 260px,
+    auto;
+}
+/* A nebula glow behind the top of the page, in the accent. */
+[data-body='space-isle']::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: 30rem;
+  background:
+    radial-gradient(ellipse at 85% 0, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
+    radial-gradient(ellipse at 0 60%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 50%);
+  pointer-events: none;
+}
+[data-body='space-isle'] :is(.is-chip, .is-section) {
+  --is-neon: oklch(0.78 0.17 var(--h, 280));
+}
+
+/* ------------------------------------------------------------------ the strip: neon dots */
+
+[data-body='space-isle'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  backdrop-filter: blur(10px);
+}
+[data-body='space-isle'] .is-chip {
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+[data-body='space-isle'] .is-chip-mark {
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--is-neon);
+  box-shadow: 0 0 8px var(--is-neon);
+}
+[data-body='space-isle'] .is-chip[aria-current='true'] {
+  border-color: var(--is-neon);
+  box-shadow:
+    0 0 16px -3px var(--is-neon),
+    inset 0 0 12px -6px var(--is-neon);
+}
+
+/* ------------------------------------------------------------------ the island: deck, rock, crystals, pebbles */
+
+[data-body='space-isle'] .is-section {
+  padding-block: 1.25rem 1.5rem;
+}
+[data-body='space-isle'] .is-deck {
+  padding: 0.75rem 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--is-neon) 55%, transparent);
+  border-block-end: 3px solid var(--is-neon);
+  border-radius: 1.375rem 1.375rem 0.5rem 0.5rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 7%, transparent), color-mix(in srgb, var(--text) 2%, transparent)),
+    color-mix(in srgb, var(--card) 88%, transparent);
+  box-shadow: 0 0 30px -10px var(--is-neon);
+}
+[data-body='space-isle'] .is-title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+[data-body='space-isle'] .is-title small {
+  color: var(--is-neon);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+[data-body='space-isle'] .is-title [data-count] {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  font-weight: 500;
+}
+
+/* The rock hanging under the deck, its jagged foot cut by a clip path, glowing crystals inside it. */
+[data-body='space-isle'] .is-rock {
+  position: relative;
+  block-size: 4.5rem;
+  margin: -2px 6% 0;
+  clip-path: polygon(0 0, 100% 0, 92% 30%, 84% 52%, 70% 64%, 62% 88%, 50% 100%, 40% 84%, 28% 70%, 16% 48%, 8% 28%);
+  background: linear-gradient(180deg, var(--is-rock-hi), color-mix(in srgb, var(--is-rock-hi) 40%, var(--is-rock-lo)) 55%, var(--is-rock-lo));
+}
+[data-body='space-isle'] .is-crystal {
+  position: absolute;
+  inline-size: 0.5rem;
+  block-size: 1rem;
+  clip-path: polygon(50% 0, 100% 40%, 50% 100%, 0 40%);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--is-neon) 40%, #fff), var(--is-neon));
+  filter: drop-shadow(0 0 4px var(--is-neon));
+}
+[data-body='space-isle'] .is-crystal:nth-child(1) {
+  inset-block-start: 22%;
+  inset-inline-start: 36%;
+}
+[data-body='space-isle'] .is-crystal:nth-child(2) {
+  inset-block-start: 42%;
+  inset-inline-start: 58%;
+  scale: 0.75;
+}
+[data-body='space-isle'] .is-crystal:nth-child(3) {
+  inset-block-start: 62%;
+  inset-inline-start: 46%;
+  scale: 0.6;
+}
+[data-body='space-isle'] .is-section[data-live] .is-crystal {
+  animation: is-glint 3.2s ease-in-out var(--dl, 0s) infinite;
+}
+[data-body='space-isle'][data-hold] .is-crystal {
+  animation-play-state: paused;
+}
+@keyframes is-glint {
+  50% {
+    opacity: 0.55;
+  }
+}
+[data-body='space-isle'] .is-pebble {
+  position: absolute;
+  inset-block-start: var(--y);
+  inset-inline-start: var(--x);
+  inline-size: var(--w);
+  block-size: var(--w);
+  border-radius: 38% 62% 50% 50%;
+  background: linear-gradient(var(--is-rock-hi), var(--is-rock-lo));
+}
+
+/* ------------------------------------------------------------------ the dishes: glass cards */
+
+[data-body='space-isle'] .is-dish {
+  padding: 0.3125rem;
+  border: 1px solid color-mix(in srgb, var(--is-neon) 40%, transparent);
+  border-radius: 0.875rem;
+  background: var(--card);
+  box-shadow: inset 0 0 22px -14px var(--is-neon);
+}
+[data-body='space-isle'] .is-photo {
+  border-radius: 0.5625rem;
+}
+[data-body='space-isle'] .is-name {
+  color: var(--text);
+  letter-spacing: -0.005em;
+}
+[data-body='space-isle'] .is-price {
+  font-family: ui-monospace, monospace;
+}
+[data-body='space-isle'] .is-add {
+  border: 1px solid var(--is-neon);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  color: var(--text);
+  box-shadow: 0 0 10px -2px var(--is-neon);
+}
+[data-body='space-isle'] .tpl-open:focus-visible::after {
+  border-radius: 0.875rem;
+}
+
+@media (hover: hover) {
+  [data-body='space-isle'] .is-chip:hover:not([aria-current='true']) {
+    border-color: color-mix(in srgb, var(--is-neon) 70%, transparent);
+  }
+  [data-body='space-isle'] .is-dish:hover {
+    border-color: var(--is-neon);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-isle'] .is-section .is-crystal {
+    animation: none;
+  }
+}

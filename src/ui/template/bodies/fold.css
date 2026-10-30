@@ -1,0 +1,108 @@
+/*
+ * The Folded Paper (kind `fold`, family reveal): each section is a newspaper folded in half on the table. The top half
+ * carries the masthead (the restaurant's name), the section's headline and its first two dishes; the lower half, with
+ * the rest, lies tilted back on the fold and swings flat once in 3D, the first time it comes past the middle of the
+ * screen. Tilted, it is foreshortened, never hidden: its names and prices still read. The table is `--bg`, the paper
+ * `--surface`, the ink `--text`.
+ */
+[data-body='fold'] {
+  --fd-paper: var(--surface);
+  --fd-ink: var(--text);
+}
+
+[data-body='fold'] .fd-chip {
+  background: var(--fd-paper);
+  color: var(--fd-ink);
+}
+
+[data-body='fold'] .fd-section {
+  padding: 0.75rem 0.875rem 0.625rem;
+}
+[data-body='fold'] .fd-sheet {
+  perspective: 56rem;
+  box-shadow: 0 0.625rem 1.25rem rgb(0 0 0 / 0.18);
+}
+[data-body='fold'] .fd-top,
+[data-body='fold'] .fd-flap {
+  padding: 0.625rem;
+  background: var(--fd-paper);
+  color: var(--fd-ink);
+}
+/* The masthead: the restaurant's name over a double rule. */
+[data-body='fold'] .fd-mast {
+  margin: 0 0 0.25rem;
+  padding-block-end: 0.25rem;
+  border-block-end: 1px solid var(--fd-ink);
+  font-family: var(--font-display-stack);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: center;
+}
+[data-body='fold'] .fd-head {
+  margin-block-end: 0.5rem;
+}
+[data-body='fold'] .fd-title {
+  padding-block-end: 0.125rem;
+  border-block-end: 3px double var(--fd-ink);
+  font-size: 1.5rem;
+}
+[data-body='fold'] .fd-dishes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.625rem;
+}
+@media (min-width: 640px) {
+  [data-body='fold'] .fd-dishes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+[data-body='fold'] .fd-frame {
+  aspect-ratio: 1.2;
+}
+[data-body='fold'] .fd-text {
+  margin-block-start: 0.25rem;
+}
+[data-body='fold'] .fd-name {
+  font-family: var(--font-display-stack);
+  font-size: 1rem;
+}
+[data-body='fold'] .fd-price {
+  font-size: 0.875rem;
+}
+
+/* The lower half: flat, unless the page is armed and it is not yet seen (then tilted back on the fold). */
+[data-body='fold'] .fd-flap {
+  position: relative;
+  border-block-start: 1px dashed var(--line);
+  background: linear-gradient(color-mix(in srgb, var(--fd-paper) 90%, var(--fd-ink)), var(--fd-paper) 2rem);
+  transform-origin: 50% 0;
+  transform: rotateX(0deg);
+}
+/* The crease's shade, deepest at the fold; it fades as the half lies flat. */
+[data-body='fold'] .fd-crease {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  opacity: 0;
+  background: linear-gradient(rgb(0 0 0 / 0.16), transparent 3rem);
+  pointer-events: none;
+}
+[data-body='fold'][data-armed]:not([data-all]) .fd-flap:not([data-open]) {
+  transform: rotateX(-32deg);
+}
+[data-body='fold'][data-armed]:not([data-all]) .fd-flap:not([data-open]) .fd-crease {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-body='fold'][data-armed] .fd-flap[data-open] {
+    transition: transform 1100ms var(--open-ease) 100ms;
+  }
+  [data-body='fold'][data-armed] .fd-flap[data-open] .fd-crease {
+    transition: opacity 1100ms ease-out 100ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='fold'] :is(.fd-flap, .fd-crease) {
+    transition: none !important;
+  }
+}

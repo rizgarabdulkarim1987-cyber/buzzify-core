@@ -20,8 +20,8 @@ const live = (tier: PlanTier) =>
   [...defaultPlans().features[tier]].filter((key) => FEATURES.find((feature) => feature.key === key)!.status === 'live');
 
 describe('the feature catalog', () => {
-  it('lists the fifteen live features first, in the specs’ order', () => {
-    expect(FEATURE_KEYS.slice(0, 15)).toEqual([
+  it('lists the eighteen live features first, in the specs’ order', () => {
+    expect(FEATURE_KEYS.slice(0, 18)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
@@ -33,12 +33,15 @@ describe('the feature catalog', () => {
       'selling.insights',
       'immersive.explore',
       'immersive.stage',
-      'design.menuMotions',
       'design.backgroundAnimation',
       'design.backgroundVideo',
       'immersive.models3d',
+      'menu.intro',
+      'menu.about',
+      'menu.wheel',
+      'menu.dishCounts',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(15);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(18);
     expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(17);
   });
 
@@ -49,7 +52,7 @@ describe('the feature catalog', () => {
   });
 
   it('starts each live feature where the spec says', () => {
-    expect(live('BASIC')).toEqual([]);
+    expect(live('BASIC')).toEqual(['immersive.explore', 'menu.intro']);
     expect(live('PRO')).toEqual([
       'design.fontPairs',
       'design.railStyles',
@@ -60,10 +63,14 @@ describe('the feature catalog', () => {
       'selling.offers',
       'selling.socialProof',
       'selling.insights',
-      'design.menuMotions',
+      'immersive.explore',
       'design.backgroundAnimation',
+      'menu.intro',
+      'menu.about',
+      'menu.wheel',
+      'menu.dishCounts',
     ]);
-    expect(live('PREMIUM')).toHaveLength(15);
+    expect(live('PREMIUM')).toHaveLength(18);
   });
 
   it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
@@ -108,6 +115,15 @@ describe('stored plans', () => {
     expect(plans.features.PRO).toEqual(defaultPlans().features.PRO);
   });
 
+  it('keeps the intro and Explore in every plan, whatever a stored plan says', () => {
+    const plans = parsePlans({ BASIC: { features: { 'immersive.explore': false, 'menu.intro': false } }, PRO: { features: { 'menu.intro': false } } });
+    for (const tier of PLAN_TIERS) {
+      expect(plans.features[tier].has('immersive.explore')).toBe(true);
+      expect(plans.features[tier].has('menu.intro')).toBe(true);
+    }
+    expect(allows(effectiveEntitlements({ plan: 'BASIC', plans, extras: {} }), 'menu.intro')).toBe(true);
+  });
+
   it('reads anything that is not an object as the defaults', () => {
     for (const json of [null, undefined, 'x', 3, []]) expect(parsePlans(json)).toEqual(defaultPlans());
   });
@@ -146,16 +162,17 @@ describe('a restaurant’s entitlements', () => {
   it('names the lowest plan with a feature, or null', () => {
     const plans = defaultPlans();
     expect(lowestPlanWith(plans, 'qr.branded')).toBe('PRO');
-    expect(lowestPlanWith(plans, 'immersive.explore')).toBe('PREMIUM');
+    expect(lowestPlanWith(plans, 'immersive.explore')).toBe('BASIC');
+    expect(lowestPlanWith(plans, 'immersive.stage')).toBe('PREMIUM');
     expect(lowestPlanWith(plans, 'contact.whatsapp')).toBe('BASIC');
-    const none = parsePlans({ PREMIUM: { features: { 'immersive.explore': false } } });
-    expect(lowestPlanWith(none, 'immersive.explore')).toBeNull();
+    const none = parsePlans({ PREMIUM: { features: { 'immersive.stage': false } } });
+    expect(lowestPlanWith(none, 'immersive.stage')).toBeNull();
   });
 
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 15));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 18).filter((key) => key !== 'immersive.explore' && key !== 'menu.intro'));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });

@@ -1,29 +1,25 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
+import { MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 import { TEMPLATE_IDS } from '@/lib/templates';
+import { STYLE_PRESETS } from '@/lib/templates/presets/styles';
 import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-map';
 
 const ids = MENU_STYLES.map((s) => s.id);
 
 describe('Menu styles catalog', () => {
-  it('holds 35 styles with unique ids, numbered 1 to 35', () => {
-    expect(MENU_STYLES).toHaveLength(35);
-    expect(new Set(ids).size).toBe(35);
-    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
-  });
-
-  it('counts the groups', () => {
-    const counts = Object.fromEntries(STYLE_GROUPS.map((g) => [g, MENU_STYLES.filter((s) => s.group === g).length]));
-    expect(counts).toEqual({ themes: 8, heritage: 3, motion: 8, shapes: 16 });
+  it('holds 123 styles with unique ids, numbered 1 to 123', () => {
+    expect(MENU_STYLES).toHaveLength(123);
+    expect(new Set(ids).size).toBe(123);
+    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 123 }, (_, i) => i + 1));
   });
 
   it('contains the picked styles and none of the dropped ones', () => {
     expect(menuStyleById('motion-dep')).toBeDefined();
     expect(menuStyleById('layout-2-dep')).toBeDefined();
-    for (const gone of ['themed-par', 'kurd-arab-and', 'kurd-arab-jli', 'kurd-arab-hwr', 'kurd-arab-chy', 'kurd-arab-sad']) {
+    for (const gone of ['themed-par', 'signature-2-film', 'kurd-arab-jli', 'kurd-arab-hwr', 'kurd-arab-chy', 'kurd-arab-sad']) {
       expect(menuStyleById(gone), gone).toBeUndefined();
     }
   });
@@ -32,12 +28,11 @@ describe('Menu styles catalog', () => {
 describe('Menu styles messages', () => {
   for (const locale of ['en', 'ar', 'ckb'] as const) {
     const m = STUDIO_MESSAGES[locale];
-    it(`${locale} names every style and group`, () => {
+    it(`${locale} names every style`, () => {
       for (const id of ids) {
         expect(m[`styles.${id}.name`], `${id} name`).toBeTruthy();
         expect(m[`styles.${id}.line`], `${id} line`).toBeTruthy();
       }
-      for (const g of STYLE_GROUPS) expect(m[`styles.group.${g}`], g).toBeTruthy();
     });
     it(`${locale} has no stale style keys`, () => {
       const known = new Set(ids);
@@ -55,9 +50,9 @@ describe('Menu styles messages', () => {
 });
 
 describe('styles made real as templates', () => {
-  it('maps exactly the three first-batch styles', () => {
-    expect(TEMPLATE_FOR_STYLE).toEqual({ 'themed-book': 'the-book', 'layout-mag': 'the-magazine', 'layout-2-dep': 'taste-airport' });
-    expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(3);
+  it('keeps the three first-batch styles and maps every style preset from one catalog style', () => {
+    expect(TEMPLATE_FOR_STYLE).toMatchObject({ 'themed-book': 'the-book', 'layout-mag': 'the-magazine', 'layout-2-dep': 'taste-airport' });
+    expect(Object.values(TEMPLATE_FOR_STYLE).sort()).toEqual(STYLE_PRESETS.map((preset) => preset.id).sort());
   });
   it('maps only catalog styles to known templates', () => {
     for (const [styleId, templateId] of Object.entries(TEMPLATE_FOR_STYLE)) {
@@ -70,8 +65,10 @@ describe('styles made real as templates', () => {
     expect(new Set(targets).size).toBe(targets.length);
   });
   it('makes every catalog style either a template or coming soon', () => {
-    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) !== null)).toHaveLength(3);
-    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) === null)).toHaveLength(32);
+    const real = Object.keys(TEMPLATE_FOR_STYLE).length;
+    expect(real).toBeGreaterThanOrEqual(3);
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) !== null)).toHaveLength(real);
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) === null)).toHaveLength(MENU_STYLES.length - real);
     expect(templateForStyle('nope')).toBeNull();
   });
   for (const locale of ['en', 'ar', 'ckb'] as const) {

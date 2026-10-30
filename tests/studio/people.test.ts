@@ -14,7 +14,7 @@ import type { ActionResult } from '@/server/studio/framework/result';
 import * as session from '@/server/studio/public-actions/session';
 import * as peopleQueries from '@/server/studio/queries/people';
 import { deactivatePerson } from '@/server/studio/services/people';
-import { acceptInvitation, inspectInvitation } from '@/server/studio/services/invitations';
+import { acceptInvitation, createInvitation, inspectInvitation } from '@/server/studio/services/invitations';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { Browser } from '../helpers/browser';
 import { requireTestDb, resetTestData } from '../helpers/db';
@@ -119,16 +119,14 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
-/** Lets the owners of a restaurant invite, as a Super Admin would through the client's policy. */
+/** Stores a policy that grants owners people.invite straight in the database, as an older save could have left it. */
 async function grantOwnersInvite(restaurantId: string) {
-  const restaurant = await prisma().restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { version: true } });
-  dataOf(
-    await run(admin, people.setPermissionPolicy, {
-      restaurantId,
-      version: restaurant.version,
-      policy: { OWNER: { grant: ['people.invite'], revoke: [] } },
-    }),
-  );
+  await prisma().restaurant.update({ where: { id: restaurantId }, data: { permissionPolicy: { OWNER: { grant: ['people.invite'], revoke: [] } } } });
+}
+
+/** An invitation an owner sent before owners lost the right to: the rows stay, so the clean-up rules on them still need a test. */
+async function inviteSentBy(inviter: Person, restaurantId: string, email: string) {
+  return createInvitation(prisma(), { email, restaurantId, role: 'OWNER', asSuperAdmin: false, invitedById: inviter.userId, now: new Date() });
 }
 
 describe('who may use the people actions', () => {
@@ -211,25 +209,24 @@ describe('inviting', () => {
     expect(mail?.text).toContain('Your role: Owner');
   });
 
-  it('lets an owner invite a co-owner only when the client policy grants people.invite', async () => {
+  it('never lets an owner invite a co-owner, even when a stored client policy grants people.invite', async () => {
     const co = { restaurantId: atelier.id, email: address('co-owner') };
     expect(codeOf(await run(olive, people.inviteOwner, co))).toBe('FORBIDDEN');
+    await grantOwnersInvite(atelier.id);
+    expect(codeOf(await run(olive, people.inviteOwner, co))).toBe('FORBIDDEN');
+    expect(codeOf(await run(dee, people.inviteOwner, co))).toBe('FORBIDDEN');
+    expect(codeOf(await run(bea, people.inviteOwner, co))).toBe('NOT_FOUND');
     expect(await prisma().invitation.count()).toBe(0);
 
-    await grantOwnersInvite(atelier.id);
-    const { invitationId } = dataOf(await run(olive, people.inviteOwner, co));
+    // A Super Admin still can, and the audit row names the restaurant and who invited.
+    const { invitationId } = dataOf(await run(admin, people.inviteOwner, co));
     expect(await prisma().invitation.findUniqueOrThrow({ where: { id: invitationId } })).toMatchObject({
       restaurantId: atelier.id,
       role: 'OWNER',
-      invitedById: olive.userId,
+      invitedById: admin.userId,
     });
     await mailTo(co.email);
-    // The row of the audit log names the restaurant and the owner who invited.
-    expect(await audit('invitation.created')).toMatchObject([{ actorId: olive.userId, restaurantId: atelier.id, entityId: invitationId }]);
-
-    // The grant is for owners: the designer still cannot, and the other restaurant's owners are not helped.
-    expect(codeOf(await run(dee, people.inviteOwner, co))).toBe('FORBIDDEN');
-    expect(codeOf(await run(bea, people.inviteOwner, co))).toBe('NOT_FOUND');
+    expect(await audit('invitation.created')).toMatchObject([{ actorId: admin.userId, restaurantId: atelier.id, entityId: invitationId }]);
   });
 
   it('refuses a person who already has this access, a pending duplicate, and a staff invitation that would do nothing', async () => {
@@ -308,24 +305,24 @@ describe('revoking and resending an invitation', () => {
     expect(codeOf(await run(admin, people.resendInvitation, { invitationId, restaurantId: atelier.id }))).toBe('CONFLICT');
   });
 
-  it('lets an owner with people.invite handle the invitations of their own restaurant only', async () => {
+  it('keeps resending and revoking invitations for Super Admins: an owner is refused even with a stored people.invite grant, and a Super Admin stays inside the named restaurant', async () => {
     await grantOwnersInvite(atelier.id);
-    const mine = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: address('mine') }));
+    const mine = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address('mine') }));
     const theirs = dataOf(await run(admin, people.inviteOwner, { restaurantId: bistro.id, email: address('theirs') }));
     const staff = dataOf(await run(admin, people.inviteStaff, { email: address('staff'), asSuperAdmin: false }));
 
-    // Another restaurant's invitation, named through one's own restaurant, and through the other one.
-    expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: theirs.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
-    expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: theirs.invitationId, restaurantId: bistro.id }))).toBe('NOT_FOUND');
-    expect(codeOf(await run(olive, people.resendInvitation, { invitationId: theirs.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
-    // A staff invitation is not any restaurant's.
-    expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: staff.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
-    // Without a restaurant, the action is the platform's.
+    expect(codeOf(await run(olive, people.resendInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('FORBIDDEN');
     expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: mine.invitationId }))).toBe('FORBIDDEN');
     expect(await prisma().invitation.count({ where: { revokedAt: { not: null } } })).toBe(0);
 
-    expect(codeOf(await run(olive, people.resendInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('OK');
-    expect(codeOf(await run(olive, people.revokeInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('OK');
+    // Another restaurant's invitation, named through the wrong restaurant; and a staff invitation, which is not any restaurant's.
+    expect(codeOf(await run(admin, people.revokeInvitation, { invitationId: theirs.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
+    expect(codeOf(await run(admin, people.resendInvitation, { invitationId: theirs.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
+    expect(codeOf(await run(admin, people.revokeInvitation, { invitationId: staff.invitationId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
+
+    expect(codeOf(await run(admin, people.resendInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('OK');
+    expect(codeOf(await run(admin, people.revokeInvitation, { invitationId: mine.invitationId, restaurantId: atelier.id }))).toBe('OK');
   });
 
   it('keeps the staff invitations for Super Admins', async () => {
@@ -405,6 +402,26 @@ describe('memberships', () => {
     expect(codeOf(await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: 'nowhere' }))).toBe('NOT_FOUND');
   });
 
+  it('refuses to make a till account a designer: a person is either till staff or a Studio member', async () => {
+    const till = await person('till');
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    expect(codeOf(await run(admin, people.assignDesigner, { userId: till.userId, restaurantId: atelier.id }))).toBe('CONFLICT');
+    expect(await prisma().membership.count({ where: { userId: till.userId } })).toBe(0);
+  });
+
+  it('refuses to invite a till account into the Studio, and gives no membership on an older invitation', async () => {
+    const till = await person('till');
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    expect(codeOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: till.email }))).toBe('INVALID');
+
+    // An invitation sent before the person became till staff is refused when it is accepted.
+    const other = await person('other');
+    const { url } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: other.email }));
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: other.userId, role: 'CASHIER' } });
+    await expect(acceptInvitation(prisma(), { token: tokenOf(url), signedInUserId: other.userId, now: new Date() })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(await prisma().membership.count({ where: { userId: other.userId } })).toBe(0);
+  });
+
   it('removes a member from one restaurant and leaves their others alone', async () => {
     await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: bistro.id });
     expect(dataOf(await run(admin, people.unassignMember, { userId: dee.userId, restaurantId: atelier.id }))).toEqual({ unassigned: true });
@@ -419,14 +436,12 @@ describe('memberships', () => {
   });
 
   it('withdraws the invitations a removed member sent into the restaurant, so they cannot come back through another address', async () => {
-    // Olive owns both restaurants, and both clients let owners invite.
+    // Olive owns both restaurants.
     await prisma().membership.create({ data: { userId: olive.userId, restaurantId: bistro.id, role: 'OWNER' } });
-    await grantOwnersInvite(atelier.id);
-    await grantOwnersInvite(bistro.id);
     const mine = address('olive-other-address');
-    const toAtelier = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: mine }));
-    const toBistro = dataOf(await run(olive, people.inviteOwner, { restaurantId: bistro.id, email: address('for-bistro') }));
-    const used = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: address('used') }));
+    const toAtelier = await inviteSentBy(olive, atelier.id, mine);
+    const toBistro = await inviteSentBy(olive, bistro.id, address('for-bistro'));
+    const used = await inviteSentBy(olive, atelier.id, address('used'));
     await prisma().invitation.update({ where: { id: used.invitationId }, data: { acceptedAt: new Date() } });
     const byAdmin = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address('by-admin') }));
     expect((await inspectInvitation(prisma(), tokenOf(toAtelier.url), new Date())).status).toBe('valid');
@@ -491,9 +506,8 @@ describe('deactivating and reactivating', () => {
   });
 
   it('revokes the invitations a deactivated person sent that nobody has used yet', async () => {
-    await grantOwnersInvite(atelier.id);
-    const pending = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: address('pending') }));
-    const used = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: address('used') }));
+    const pending = await inviteSentBy(olive, atelier.id, address('pending'));
+    const used = await inviteSentBy(olive, atelier.id, address('used'));
     await prisma().invitation.update({ where: { id: used.invitationId }, data: { acceptedAt: new Date() } });
     const adminsOwn = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address('admins') }));
 
@@ -566,6 +580,67 @@ describe('deactivating and reactivating', () => {
   });
 });
 
+describe('till staff from the restaurant page', () => {
+  const till = (email: string, role = 'CASHIER') => ({ restaurantId: atelier.id, name: 'Sara', email, role, password: GOOD });
+
+  it('lets a Super Admin add a cashier, a manager and a kitchen member, and lists them', async () => {
+    for (const role of ['CASHIER', 'MANAGER', 'KITCHEN']) {
+      expect(codeOf(await run(admin, people.addTillStaff, till(address(`till-${role}`), role)))).toBe('OK');
+    }
+    const rows = dataOf(await ask(admin, peopleQueries.restaurantTillStaff, { restaurantId: atelier.id }));
+    expect(rows.map((r) => r.role).sort()).toEqual(['CASHIER', 'KITCHEN', 'MANAGER']);
+    const created = await prisma().user.findUniqueOrThrow({ where: { email: address('till-CASHIER').toLowerCase() } });
+    expect(await prisma().membership.count({ where: { userId: created.id } })).toBe(0);
+    expect(await audit('pos.staff.create')).toHaveLength(3);
+  });
+
+  it('is for Super Admins only: an owner and a designer are refused', async () => {
+    expect(codeOf(await run(olive, people.addTillStaff, till(address('x1'))))).toBe('FORBIDDEN');
+    expect(codeOf(await run(dee, people.addTillStaff, till(address('x2'))))).toBe('FORBIDDEN');
+    expect(await prisma().posStaff.count()).toBe(0);
+  });
+
+  it('refuses the owner role, an address that has an account, and a weak password', async () => {
+    expect(codeOf(await run(admin, people.addTillStaff, till(address('y1'), 'OWNER')))).toBe('INVALID');
+    expect(codeOf(await run(admin, people.addTillStaff, till(olive.email)))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, people.addTillStaff, { ...till(address('y2')), password: 'short' }))).toBe('INVALID');
+    expect(await prisma().posStaff.count()).toBe(0);
+  });
+});
+
+describe('deleting an account', () => {
+  it('deletes a deactivated account for good, with its memberships and till rows, and records it', async () => {
+    const till = await person('till', { memberships: [[atelier.id, 'DESIGNER']] });
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    dataOf(await run(admin, people.deactivateUser, { userId: till.userId }));
+    expect(dataOf(await run(admin, people.deleteUser, { userId: till.userId }))).toEqual({ deleted: true });
+    expect(await prisma().user.count({ where: { id: till.userId } })).toBe(0);
+    expect(await prisma().membership.count({ where: { userId: till.userId } })).toBe(0);
+    expect(await prisma().posStaff.count({ where: { userId: till.userId } })).toBe(0);
+    expect(await audit('user.deleted')).toMatchObject([{ actorId: admin.userId, entityType: 'User', entityId: till.userId }]);
+  });
+
+  it('refuses an active account, oneself, a Super Admin, an unknown account, and one with a till shift', async () => {
+    expect(codeOf(await run(admin, people.deleteUser, { userId: dee.userId }))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, people.deleteUser, { userId: admin.userId }))).toBe('INVALID');
+    const other = await person('other-admin', { superAdmin: true });
+    dataOf(await run(admin, people.deactivateUser, { userId: other.userId }));
+    expect(codeOf(await run(admin, people.deleteUser, { userId: other.userId }))).toBe('FORBIDDEN');
+    expect(codeOf(await run(admin, people.deleteUser, { userId: 'nobody' }))).toBe('NOT_FOUND');
+
+    const cashier = await person('cashier');
+    await prisma().posShift.create({ data: { restaurantId: atelier.id, userId: cashier.userId, openingFloat: 0 } });
+    dataOf(await run(admin, people.deactivateUser, { userId: cashier.userId }));
+    expect(codeOf(await run(admin, people.deleteUser, { userId: cashier.userId }))).toBe('CONFLICT');
+    expect(await prisma().user.count({ where: { id: cashier.userId } })).toBe(1);
+  });
+
+  it('is for Super Admins only', async () => {
+    dataOf(await run(admin, people.deactivateUser, { userId: dee.userId }));
+    expect(codeOf(await run(olive, people.deleteUser, { userId: dee.userId }))).not.toBe('OK');
+  });
+});
+
 describe('changing a user email', () => {
   it('changes it, tells the old address, and leaves the person signed in', async () => {
     const browser = new Browser('198.51.100.42', 'dee browser').activate();
@@ -611,13 +686,13 @@ describe('permission policies', () => {
         restaurantId: atelier.id,
         version: 1,
         policy: {
-          DESIGNER: { grant: ['menu.delete', 'people.invite', 'people.invite', 'no.such.key', 'audit.view'], revoke: ['publish.schedule'] },
-          OWNER: { grant: ['people.invite', 'prices.bulk'], revoke: [] },
+          DESIGNER: { grant: ['menu.delete', 'publish.schedule', 'publish.schedule', 'no.such.key', 'audit.view'], revoke: ['qr.manage'] },
+          OWNER: { grant: ['publish.schedule', 'prices.bulk'], revoke: [] },
           MANAGER: { grant: ['content.edit'], revoke: [] },
         },
       }),
     );
-    const expected = { DESIGNER: { grant: ['people.invite'], revoke: ['publish.schedule'] }, OWNER: { grant: ['people.invite', 'prices.bulk'], revoke: [] } };
+    const expected = { DESIGNER: { grant: ['publish.schedule'], revoke: ['qr.manage'] }, OWNER: { grant: ['publish.schedule', 'prices.bulk'], revoke: [] } };
     expect(result).toEqual({ policy: expected, version: 2 });
     const row = await prisma().restaurant.findUniqueOrThrow({ where: { id: atelier.id } });
     expect(row).toMatchObject({ permissionPolicy: expected, version: 2 });
@@ -628,10 +703,10 @@ describe('permission policies', () => {
   });
 
   it('answers a stale version with CONFLICT and says who changed it', async () => {
-    dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: 1, policy: { OWNER: { grant: ['people.invite'], revoke: [] } } }));
+    dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: 1, policy: { OWNER: { grant: ['publish.schedule'], revoke: [] } } }));
     const stale = failureOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: 1, policy: {} }));
     expect(stale).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'admin person' } });
-    expect((await prisma().restaurant.findUniqueOrThrow({ where: { id: atelier.id } })).permissionPolicy).toEqual({ OWNER: { grant: ['people.invite'], revoke: [] } });
+    expect((await prisma().restaurant.findUniqueOrThrow({ where: { id: atelier.id } })).permissionPolicy).toEqual({ OWNER: { grant: ['publish.schedule'], revoke: [] } });
   });
 
   it('refuses a designer granting itself menu.delete through a policy', async () => {
@@ -658,13 +733,14 @@ describe('permission policies', () => {
     expect(codeOf(await run(dee, deleteMenu, { restaurantId: atelier.id }))).toBe('FORBIDDEN');
   });
 
-  it('takes effect for the restaurant at once, and revoking undoes it', async () => {
+  it('does not let a client policy hand out people.invite: a save drops it, and a stored one changes nothing', async () => {
     const invite = { restaurantId: atelier.id, email: address('co-owner') };
-    expect(codeOf(await run(olive, people.inviteOwner, invite))).toBe('FORBIDDEN');
+    dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: 1, policy: { OWNER: { grant: ['people.invite', 'content.edit'], revoke: [] } } }));
+    expect((await prisma().restaurant.findUniqueOrThrow({ where: { id: atelier.id } })).permissionPolicy).toEqual({ OWNER: { grant: ['content.edit'], revoke: [] } });
+    expect(effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy: parsePolicy({ OWNER: { grant: ['people.invite'], revoke: [] } }) }).has('people.invite')).toBe(false);
     await grantOwnersInvite(atelier.id);
-    expect(codeOf(await run(olive, people.inviteOwner, invite))).toBe('OK');
-    dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: 2, policy: {} }));
-    expect(codeOf(await run(olive, people.inviteOwner, { ...invite, email: address('second') }))).toBe('FORBIDDEN');
+    expect(codeOf(await run(olive, people.inviteOwner, invite))).toBe('FORBIDDEN');
+    expect(await prisma().invitation.count()).toBe(0);
   });
 
   it('refuses a policy that is not shaped like one, and a missing restaurant', async () => {
@@ -683,10 +759,10 @@ describe('restaurantPolicy', () => {
     expect(dataOf(await ask(admin, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }))).toEqual({ policy: {}, version: 1 });
     await prisma().restaurant.update({
       where: { id: atelier.id },
-      data: { permissionPolicy: { OWNER: { grant: ['people.invite', 'menu.delete', 'no.such.key'], revoke: ['publish.now'] }, MANAGER: { grant: [] } } },
+      data: { permissionPolicy: { OWNER: { grant: ['publish.schedule', 'menu.delete', 'no.such.key'], revoke: ['publish.now'] }, MANAGER: { grant: [] } } },
     });
     const read = dataOf(await ask(admin, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }));
-    expect(read.policy).toEqual({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } });
+    expect(read.policy).toEqual({ OWNER: { grant: ['publish.schedule'], revoke: ['publish.now'] } });
     // What it returns is what the next save names: saving it back moves the version on.
     expect(dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: read.version, policy: read.policy })).version).toBe(read.version + 1);
   });
@@ -740,24 +816,13 @@ describe('the people queries', () => {
     expect(dataOf(await ask(admin, peopleQueries.listPeople, { q: 'fifty _ off', page: 1 })).rows).toEqual([]);
   });
 
-  it('shows an owner with people.invite the members of their restaurant, and no one else', async () => {
-    // Dee also works at the other restaurant: the owner sees Dee, but not that.
+  it('shows the members of a restaurant to a Super Admin only, not to an owner even with a stored people.invite grant', async () => {
     await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: bistro.id });
-    expect(codeOf(await ask(olive, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }))).toBe('FORBIDDEN');
-
     await grantOwnersInvite(atelier.id);
-    const result = dataOf(await ask(olive, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }));
+    for (const who of [olive, dee]) expect(codeOf(await ask(who, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }))).toBe('FORBIDDEN');
+    const result = dataOf(await ask(admin, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }));
     expect(result.rows.map((r) => r.email).sort()).toEqual([dee.email, olive.email].sort());
     expect(result.rows.find((r) => r.email === dee.email)?.memberships).toEqual([{ restaurantId: atelier.id, restaurantName: 'Atelier', role: 'DESIGNER' }]);
-    const json = JSON.stringify(result);
-    for (const outside of [admin.email, bea.email, 'Bistro', bistro.id]) expect(json).not.toContain(outside);
-
-    // Search cannot reach beyond it either.
-    expect(dataOf(await ask(olive, peopleQueries.listPeople, { restaurantId: atelier.id, q: bea.email, page: 1 })).rows).toEqual([]);
-    // Nor can naming another restaurant, or none.
-    expect(codeOf(await ask(olive, peopleQueries.listPeople, { restaurantId: bistro.id, page: 1 }))).toBe('NOT_FOUND');
-    expect(codeOf(await ask(olive, peopleQueries.listPeople, { page: 1 }))).toBe('FORBIDDEN');
-    expect(codeOf(await ask(dee, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }))).toBe('FORBIDDEN');
     expect(codeOf(await runQuery(prisma(), null, peopleQueries.listPeople, { page: 1 }))).toBe('UNAUTHENTICATED');
   });
 
@@ -803,32 +868,29 @@ describe('the people queries', () => {
     expect(json).not.toContain('/studio/invite/');
   });
 
-  it("limits an owner's invitation list to their restaurant, with no staff invitations", async () => {
+  it("limits a restaurant's invitation list to a Super Admin who names it, with no staff invitations", async () => {
     await grantOwnersInvite(atelier.id);
     const mine = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address('mine') })).invitationId;
     dataOf(await run(admin, people.inviteOwner, { restaurantId: bistro.id, email: address('theirs') }));
     dataOf(await run(admin, people.inviteStaff, { email: address('staff'), asSuperAdmin: false }));
 
-    const ok = dataOf(await ask(olive, peopleQueries.listInvitations, { restaurantId: atelier.id, status: 'all', page: 1 }));
+    const ok = dataOf(await ask(admin, peopleQueries.listInvitations, { restaurantId: atelier.id, status: 'all', page: 1 }));
     expect(ok.rows.map((r) => r.id)).toEqual([mine]);
     expect(JSON.stringify(ok)).not.toContain(address('theirs'));
-    expect(codeOf(await ask(olive, peopleQueries.listInvitations, { restaurantId: bistro.id, status: 'all', page: 1 }))).toBe('NOT_FOUND');
-    expect(codeOf(await ask(olive, peopleQueries.listInvitations, { status: 'all', page: 1 }))).toBe('FORBIDDEN');
-    expect(codeOf(await ask(dee, peopleQueries.listInvitations, { restaurantId: atelier.id, status: 'all', page: 1 }))).toBe('FORBIDDEN');
+    for (const who of [olive, dee]) expect(codeOf(await ask(who, peopleQueries.listInvitations, { restaurantId: atelier.id, status: 'all', page: 1 }))).toBe('FORBIDDEN');
     expect(codeOf(await ask(admin, peopleQueries.listInvitations, { status: 'sometimes', page: 1 }))).toBe('INVALID');
   });
 
-  it("lists a restaurant's members for those who may manage them", async () => {
+  it("lists a restaurant's members for a Super Admin, not for an owner or a designer", async () => {
     await grantOwnersInvite(atelier.id);
-    expect(codeOf(await ask(dee, peopleQueries.restaurantMembers, { restaurantId: atelier.id }))).toBe('FORBIDDEN');
+    for (const who of [dee, olive]) expect(codeOf(await ask(who, peopleQueries.restaurantMembers, { restaurantId: atelier.id }))).toBe('FORBIDDEN');
     await prisma().user.update({ where: { id: dee.userId }, data: { deactivatedAt: new Date() } });
-    const members = dataOf(await ask(olive, peopleQueries.restaurantMembers, { restaurantId: atelier.id }));
+    const members = dataOf(await ask(admin, peopleQueries.restaurantMembers, { restaurantId: atelier.id }));
     expect(members.map((m) => [m.email, m.role, m.deactivated])).toEqual([
       [olive.email, 'OWNER', false],
       [dee.email, 'DESIGNER', true],
     ]);
     expect(members[0]).toMatchObject({ userId: olive.userId, name: 'olive person' });
-    expect(codeOf(await ask(olive, peopleQueries.restaurantMembers, { restaurantId: bistro.id }))).toBe('NOT_FOUND');
     expect(dataOf(await ask(admin, peopleQueries.restaurantMembers, { restaurantId: bistro.id }))).toHaveLength(1);
   });
 });

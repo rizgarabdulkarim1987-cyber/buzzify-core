@@ -1,0 +1,329 @@
+/*
+ * The Treasure Map body (a browse shape of a template menu): an old map on parchment. Every section is an island (a
+ * blob with the coast drawn by a ring), its name on a banner with the dish count, its dishes pins (a round photo with the
+ * price on a flag hung from it, the name below) three across on a phone. A dotted route runs down the page past the
+ * islands, each with an X on it, and a strip of compass points stays at the top and jumps. Everything is scoped under
+ * [data-body='treasure']. The parchment is the template's own --bg with a vignette and hatching over it; the land is its
+ * --card, text is --text, flags and banners are the inverse pair (--bg on --text), buttons --on-accent on --accent, so
+ * contrast holds on every palette. Logical properties only (RTL mirrors).
+ */
+[data-body='treasure'] {
+  --tm-ink: var(--text);
+  --tm-land: color-mix(in srgb, var(--card) 88%, var(--bg));
+  --tm-coast: color-mix(in srgb, var(--card) 70%, var(--text) 18%);
+  --tm-shallow: color-mix(in srgb, var(--accent) 22%, var(--bg));
+  --tm-sea: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  --tm-route: color-mix(in srgb, var(--accent) 78%, var(--text));
+  /* The sticky strip's height, so a jumped-to island lands just below it. */
+  --nav-room: 3.25rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--tm-ink);
+  background-image:
+    radial-gradient(ellipse at 50% 30%, transparent 40%, color-mix(in srgb, var(--text) 14%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--text) 5%, transparent) 0 2px, transparent 2px 6px);
+}
+
+/*
+ * The compass strip (sticky: shared/shapes.css): a rose at its start, then one point per island, in a row that scrolls
+ * sideways. A dashed line under it, like a map's border.
+ */
+[data-body='treasure'] .tm-compass {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border-block-end: 2px dashed var(--tm-route);
+}
+[data-body='treasure'] .tm-compass::before {
+  content: '';
+  flex: none;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  background: var(--tm-ink);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 2 60 40 98 50 60 60 50 98 40 60 2 50 40 40Z'/%3E%3Cpath d='M50 22 54 46 78 50 54 54 50 78 46 54 22 50 46 46Z' transform='rotate(45 50 50)' opacity='.55'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 2 60 40 98 50 60 60 50 98 40 60 2 50 40 40Z'/%3E%3Cpath d='M50 22 54 46 78 50 54 54 50 78 46 54 22 50 46 46Z' transform='rotate(45 50 50)' opacity='.55'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: tm-spin 4s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes tm-spin {
+  from {
+    transform: rotate(-200deg);
+  }
+  to {
+    transform: none;
+  }
+}
+[data-body='treasure'] .tm-strip-list {
+  flex: 1;
+  min-inline-size: 0;
+  gap: 0.375rem;
+  padding: 0.125rem 0;
+}
+[data-body='treasure'] .tm-point {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-block: 0;
+  padding-inline: 0.3125rem 0.75rem;
+  border: 2px solid var(--tm-ink);
+  border-radius: 999px;
+  color: var(--tm-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+[data-body='treasure'] .tm-bearing {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+[data-body='treasure'] .tm-point[aria-current='true'] {
+  background: var(--tm-ink);
+  color: var(--bg);
+}
+@media (hover: hover) {
+  [data-body='treasure'] .tm-point:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--tm-ink) 12%, transparent);
+  }
+}
+
+/* The sea: the route runs down its start edge; each island sits beside it. */
+[data-body='treasure'] .tm-sea {
+  position: relative;
+  padding-block: 0.5rem 0.25rem;
+}
+[data-body='treasure'] .tm-sea::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0.875rem;
+  border-inline-start: 3px dotted var(--tm-route);
+  pointer-events: none;
+}
+
+/* An island: a blob of land (its coastline is the section's --coast), ringed by shore and shallow water. */
+[data-body='treasure'] .tm-island {
+  position: relative;
+  isolation: isolate;
+  margin-block: 0.875rem;
+  margin-inline: 2.25rem 0.75rem;
+  padding: 0.625rem 0.5rem 1.25rem;
+}
+[data-body='treasure'] .tm-island::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--coast);
+  background: radial-gradient(ellipse at 50% 40%, var(--tm-land) 55%, var(--tm-coast) 70%, var(--tm-shallow) 74%, var(--tm-sea) 84%);
+  box-shadow: 0 0.5rem 1rem color-mix(in srgb, var(--text) 16%, transparent);
+}
+/* The island's mark on the route: an X where the route meets it. */
+[data-body='treasure'] .tm-island::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 1.375rem;
+  inset-inline-start: -1.6875rem;
+  inline-size: 1.0625rem;
+  block-size: 1.0625rem;
+  background:
+    linear-gradient(45deg, transparent 38%, var(--tm-route) 38% 62%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, var(--tm-route) 38% 62%, transparent 62%);
+  pointer-events: none;
+}
+
+/* The banner: the island's name on a card pinned across its top, with the dish count in a round seal. */
+[data-body='treasure'] [data-heading].tm-head {
+  margin-block: 0 0.5rem;
+  padding-inline: 0;
+  text-align: center;
+}
+[data-body='treasure'] .tm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0.125rem 0.625rem;
+  border: 2px solid var(--tm-ink);
+  border-radius: 0.25rem;
+  background: var(--raised, var(--bg));
+  color: var(--tm-ink);
+  font-size: 1.375rem;
+  line-height: 1.2;
+  transform: rotate(-2deg);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 30%, transparent);
+}
+[data-body='treasure'] .tm-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='treasure'] .tm-title b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* The pins: three across on a phone, a row centred on the island, a small stagger so it reads hand placed. */
+[data-body='treasure'] .tm-pins {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='treasure'] .tm-pin {
+  position: relative;
+  display: flex;
+  flex: 0 0 33.3333%;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding-inline: 0.125rem;
+}
+[data-body='treasure'] .tm-pin:nth-child(3n + 2) {
+  margin-block-start: 0.5rem;
+}
+[data-body='treasure'] .tm-disc {
+  position: relative;
+  inline-size: 4.75rem;
+  margin-block-end: 0;
+}
+/* The pin's point: a small flag under the photo, in the photo's ring colour, like a map pin. */
+[data-body='treasure'] .tm-disc::after {
+  content: '';
+  position: absolute;
+  inset-block-start: calc(100% - 0.125rem);
+  inset-inline-start: calc(50% - 0.375rem);
+  border: 0.375rem solid transparent;
+  border-block-start: 0.5rem solid var(--raised, #fff);
+  pointer-events: none;
+}
+/* The pin's head: the photo in a round frame with a white ring and a shadow on the land. */
+[data-body='treasure'] .tm-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 4px solid var(--raised, #fff);
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 5px 8px color-mix(in srgb, var(--text) 38%, transparent);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* A discount (shared/shapes.css) on the pin's upper start rim, since the flag has no room for the regular price. */
+[data-body='treasure'] .tm-off {
+  position: absolute;
+  inset-block-start: -0.25rem;
+  inset-inline-start: -0.5rem;
+  z-index: 1;
+}
+/* The add button (shared/shapes.css) on the pin's upper end rim: a dark round plus, as in the mockup. */
+[data-body='treasure'] .tm-add {
+  inset-block-start: -0.25rem;
+  inset-inline-end: -0.5rem;
+  --rim-add-bg: var(--tm-ink);
+  --rim-add-ink: var(--bg);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--text) 40%, transparent);
+}
+/*
+ * The price flag: it hangs from the photo (swallowtail end on the inline-end side), the inverse pair so it reads on any
+ * palette. A long price wraps inside the pin rather than running past it. Taps go through it to the pin.
+ */
+[data-body='treasure'] .tm-tag {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin-block: -0.875rem 0.1875rem;
+  padding-block: 0.0625rem;
+  padding-inline: 0.5rem 0.75rem;
+  background: var(--tm-ink);
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.3125rem) 50%, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+[dir='rtl'] [data-body='treasure'] .tm-tag {
+  padding-inline: 0.75rem 0.5rem;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0.3125rem 50%);
+}
+/* The name below (two lines at most, the whole pin its tap area: shared/shapes.css). */
+[data-body='treasure'] .tm-name {
+  color: var(--tm-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  [data-body='treasure'] .tm-pin:hover .tm-photo {
+    transform: scale(1.05);
+  }
+}
+[data-body='treasure'] .tm-pin:active .tm-photo {
+  transform: scale(0.95);
+}
+
+@media (min-width: 640px) {
+  [data-body='treasure'] .tm-compass,
+  [data-body='treasure'] .tm-sea {
+    max-inline-size: 52rem;
+    margin-inline: auto;
+  }
+  [data-body='treasure'] .tm-island {
+    margin-inline-start: 3rem;
+  }
+  [data-body='treasure'] .tm-pin {
+    flex-basis: 25%;
+  }
+  [data-body='treasure'] .tm-pin:nth-child(3n + 2) {
+    margin-block-start: 0;
+  }
+  [data-body='treasure'] .tm-pin:nth-child(4n + 2),
+  [data-body='treasure'] .tm-pin:nth-child(4n + 4) {
+    margin-block-start: 0.625rem;
+  }
+  [data-body='treasure'] .tm-name {
+    font-size: 0.8125rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='treasure'] .tm-pin {
+    flex-basis: 20%;
+  }
+}
+
+/* Less motion: the pins are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='treasure'] .tm-photo,
+  [data-body='treasure'] .tm-point {
+    transition: none;
+  }
+  [data-body='treasure'] .tm-compass::before {
+    animation: none;
+  }
+}

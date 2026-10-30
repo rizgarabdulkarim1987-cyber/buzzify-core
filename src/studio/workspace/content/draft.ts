@@ -119,7 +119,7 @@ function texts(names: Names): Names {
 }
 
 /** A whole number typed in a field, or null when it is not one. */
-function wholeNumber(text: string): number | null {
+export function wholeNumber(text: string): number | null {
   const value = text.trim().replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
   return /^\d{1,6}$/.test(value) ? Number(value) : null;
 }

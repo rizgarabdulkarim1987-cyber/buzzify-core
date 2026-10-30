@@ -6,6 +6,7 @@ import { FONT_PAIR_VARIABLES } from '@/lib/font-pairs';
 import { BUSINESS_TYPES, STYLE_TAGS, TEMPLATES, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
 import { useT } from '@/studio/i18n';
 import { MENU_STYLES, menuStyleById, type MenuStyle } from '@/studio/styles/catalog';
+import { STYLE_CATEGORIES, type StyleCategory } from '@/studio/styles/categories';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { cx } from '@/studio/ui/cx';
 import { face } from '@/studio/workspace/brand/FontPairPicker';
@@ -173,8 +174,8 @@ function ClassicCard({ selected, current, onSelect }: { selected: boolean; curre
 }
 
 /**
- * The template gallery: Classic and the thirty presets, filtered by business type (starting with the restaurant's own)
- * and by style. Choosing a card previews it on the menu's own products; nothing changes until it is applied.
+ * The template gallery: Classic and the presets, filtered by category (the menu styles by theme), business type
+ * (starting with the restaurant's own) and by look. Choosing a card previews it on the menu's own products; nothing changes until it is applied.
  */
 export function Gallery({
   restaurantType,
@@ -187,15 +188,20 @@ export function Gallery({
   current: GallerySelection;
   selected: GallerySelection;
   onSelect: (selection: GallerySelection) => void;
-  /** Whether the visitor may read the style files (posters and mockups); without them the Styles view is not offered. */
+  /** Whether the visitor may read the style files (posters and mockups); without them a category lists only styles that are templates. */
   canSeeStyles: boolean;
 }) {
   const t = useT();
   const [business, setBusiness] = useState<BusinessType | 'all'>(() => businessOf(restaurantType));
   const [styles, setStyles] = useState<ReadonlySet<StyleTag>>(new Set());
-  // The catalog view: the 35 picked styles in the library's order. The three that are real show as their templates.
-  const [catalogOn, setCatalog] = useState(false);
-  const catalog = canSeeStyles && catalogOn;
+  // The category filter sits first. "All" is the ordinary gallery; a category lists that category's menu styles instead.
+  const [category, setCategory] = useState<StyleCategory | 'all'>('all');
+  const catalog = category !== 'all';
+  // A coming-soon style needs the style files (its poster), which not everyone may read.
+  const visibleStyles = useMemo(
+    () => MENU_STYLES.filter((style) => style.category === category && (canSeeStyles || templateForStyle(style.id))),
+    [category, canSeeStyles],
+  );
   const presets = useMemo(
     () => templateList().filter((preset) => (business === 'all' || preset.business === business) && [...styles].every((style) => preset.tags.includes(style))),
     [business, styles],
@@ -204,20 +210,23 @@ export function Gallery({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        {canSeeStyles && (
-          <button
-            type="button"
-            aria-pressed={catalog}
-            onClick={() => {
-              // A coming-soon card exists only in the Styles view: leaving it goes back to the template in use.
-              if (catalog && isSoon(selected)) onSelect(current);
-              setCatalog(!catalog);
-            }}
-            className={cx('h-7 self-start rounded-full border px-3 text-sm transition-colors', catalog ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
-          >
-            {t('design.filter.styles')}
-          </button>
-        )}
+        <div role="group" aria-label={t('design.filter.category')} className="flex flex-wrap gap-1.5">
+          {(['all', ...STYLE_CATEGORIES] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={category === value}
+              onClick={() => {
+                // A coming-soon card exists only in a category's list: leaving it goes back to the template in use.
+                if (isSoon(selected) && value !== category) onSelect(current);
+                setCategory(value);
+              }}
+              className={cx('h-7 rounded-full border px-3 text-sm transition-colors', category === value ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
+            >
+              {value === 'all' ? t('design.filter.categoryAll') : t(`styles.category.${value}`)}
+            </button>
+          ))}
+        </div>
         {!catalog && (
           <>
             <div role="group" aria-label={t('design.filter.business')} className="flex flex-wrap gap-1.5">
@@ -256,12 +265,12 @@ export function Gallery({
           </>
         )}
         <p className="text-sm text-muted" aria-live="polite">
-          {catalog ? t('design.filter.stylesCount', { count: MENU_STYLES.length }) : t('design.filter.count', { count: presets.length })}
+          {catalog ? t('design.filter.stylesCount', { count: visibleStyles.length }) : t('design.filter.count', { count: presets.length })}
         </p>
       </div>
       <ul data-styles={catalog ? '' : undefined} className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
         {catalog ? (
-          MENU_STYLES.map((style) => {
+          visibleStyles.map((style) => {
             const templateId = templateForStyle(style.id);
             return templateId ? (
               <TemplateCard key={style.id} preset={TEMPLATES[templateId]} selected={selected === templateId} current={current === templateId} onSelect={() => onSelect(templateId)} />

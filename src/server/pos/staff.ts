@@ -74,7 +74,7 @@ export async function listPosStaff(db: PrismaClient, restaurantId: string): Prom
 export function mayAssign(actor: PosRole, role: PosRole, current: PosRole | null): boolean {
   if (actor === 'OWNER') return true;
   if (actor !== 'MANAGER') return false;
-  const floor = (r: PosRole | null) => r === null || r === 'CASHIER' || r === 'KITCHEN';
+  const floor = (r: PosRole | null) => r === null || r === 'CASHIER' || r === 'KITCHEN' || r === 'CAPTAIN';
   return floor(role) && floor(current);
 }
 

@@ -1,0 +1,272 @@
+/*
+ * The Fridge body (a browse shape of a template menu; the mockup layout-2-frg): the inside of a fridge. Every section is
+ * a glass shelf: a label box above two big containers a row (a coloured lid on top, the square photo with the price on
+ * a tilted yellow sticker, the name below, the add button beside it) and a glass rail under the rows. A strip of coloured
+ * magnets (each section its own hue, a little tilted) stays at the top and jumps. Everything is scoped under
+ * [data-body='fridge']. Text sits on the template --bg / --text pair, on a card, on --accent with --on-accent, on the
+ * price sticker (--button with --on-button) or on a magnet of a fixed lightness in every hue (white on it), never on a
+ * photo, so contrast holds on every palette and Customize colours reach the whole fridge. Logical properties only (RTL
+ * mirrors).
+ */
+[data-body='fridge'] {
+  --fr-glass: color-mix(in srgb, var(--accent) 9%, var(--bg));
+  --fr-edge: color-mix(in srgb, var(--accent) 30%, var(--bg));
+  --fr-card: color-mix(in srgb, var(--card) 70%, var(--bg));
+  /* The sticky strip's height, so a jumped-to shelf lands just below it. */
+  --nav-room: 4.75rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of magnets (sticky: shared/shapes.css): a pill in the shelf's hue, white text, each tilted a little. */
+[data-body='fridge'] .fr-doors {
+  padding: 0.375rem 0.5rem;
+  border-block-end: 3px solid var(--fr-edge);
+}
+[data-body='fridge'] .fr-strip-list {
+  gap: 0.5rem;
+  padding: 0.3125rem 0.25rem 0.375rem;
+}
+[data-body='fridge'] .fr-door {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-block: 0;
+  padding-inline: 0.875rem;
+  border-radius: 999px;
+  background: hsl(var(--s-h) 68% 36%);
+  box-shadow:
+    0 3px 0 rgb(0 0 0 / 0.2),
+    inset 0 -3px 0 rgb(0 0 0 / 0.15);
+  color: #fff; /* fixed: the magnet fill has a fixed lightness in every hue, so its ink is fixed too */
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: box-shadow 160ms;
+}
+[data-body='fridge'] .fr-strip-list > li:nth-child(5n + 1) .fr-door {
+  transform: rotate(-3deg);
+}
+[data-body='fridge'] .fr-strip-list > li:nth-child(5n + 2) .fr-door {
+  transform: rotate(2deg);
+}
+[data-body='fridge'] .fr-strip-list > li:nth-child(5n + 3) .fr-door {
+  transform: rotate(-1deg);
+}
+[data-body='fridge'] .fr-strip-list > li:nth-child(5n + 4) .fr-door {
+  transform: rotate(3deg);
+}
+[data-body='fridge'] .fr-strip-list > li:nth-child(5n) .fr-door {
+  transform: rotate(-2deg);
+}
+/* The lit magnet is ringed (inside, in the page colour) as the mockup outlines the open section. */
+[data-body='fridge'] .fr-door[aria-current='true'] {
+  box-shadow:
+    inset 0 0 0 3px var(--bg),
+    0 3px 0 rgb(0 0 0 / 0.2);
+}
+
+/* A shelf: the label, the containers, the glass rail. */
+[data-body='fridge'] .fr-shelf {
+  position: relative;
+  margin: 0.875rem 0 0;
+  padding: 0 0.75rem;
+}
+/* The glass rail under the shelf's rows, edge to edge. */
+[data-body='fridge'] .fr-shelf::after {
+  content: '';
+  display: block;
+  block-size: 0.75rem;
+  margin: 0.75rem -0.75rem 0;
+  background: linear-gradient(color-mix(in srgb, var(--card) 95%, var(--bg)), color-mix(in srgb, var(--accent) 20%, var(--bg)));
+  border-block-start: 1px solid var(--card);
+  box-shadow: 0 6px 10px color-mix(in srgb, var(--text) 15%, transparent);
+}
+
+/* The label: a box in the shelf's hue border, over the shelf's start edge: the number, the name, the dish count. */
+[data-body='fridge'] [data-heading].fr-head {
+  margin-block-end: 0.5rem;
+  padding-inline: 0;
+  text-align: start;
+}
+[data-body='fridge'] .fr-frost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0.0625rem;
+  padding-inline: 0.625rem;
+  border: 2px solid hsl(var(--s-h) 68% 36%);
+  border-radius: 0.25rem;
+  background: var(--card, var(--bg));
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+[data-body='fridge'] .fr-frost small {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='fridge'] .fr-frost span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='fridge'] .fr-frost b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* The containers: two a row. */
+[data-body='fridge'] .fr-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A container: a card with a coloured lid on its top edge. The whole card is the dish tap area. */
+[data-body='fridge'] .fr-jar {
+  --tpl-ring-radius: 0.875rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.75rem 0.375rem 0.375rem;
+  border: 2px solid var(--card);
+  border-radius: 0.875rem;
+  background: var(--fr-card);
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--text) 12%, transparent);
+}
+[data-body='fridge'] .fr-jar::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline: 10%;
+  block-size: 0.625rem;
+  border-radius: 0.375rem 0.375rem 0.125rem 0.125rem;
+  background: hsl(var(--s-h) 70% 46%);
+  pointer-events: none;
+}
+
+/* The glass: the square photo, with the price sticker and the discount chip over it. */
+[data-body='fridge'] .fr-glass {
+  min-inline-size: 0;
+}
+[data-body='fridge'] .fr-photo {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.625rem;
+  background: var(--card, var(--bg));
+  transition: box-shadow 160ms;
+}
+/* The photo (laid over its frame: shared/shapes.css) is clipped by its own wrapper. */
+[data-body='fridge'] .fr-photo > :first-child {
+  overflow: hidden;
+  border-radius: inherit;
+}
+/* The price: a yellow sticker, tilted, on the photo's upper start corner (placed on the card, which is the positioned box). A long price wraps. Taps go through. */
+[data-body='fridge'] .fr-lid {
+  position: absolute;
+  inset-block-start: 1.125rem;
+  inset-inline-start: 0.75rem;
+  z-index: 1;
+  box-sizing: border-box;
+  max-inline-size: calc(100% - 1.5rem);
+  padding: 0.125rem 0.375rem;
+  background: var(--button);
+  color: var(--on-button);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 3px rgb(0 0 0 / 0.25);
+  transform: rotate(-6deg);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+[data-body='fridge'] .fr-lid:dir(rtl) {
+  transform: rotate(6deg);
+  transform-origin: 100% 0;
+}
+/* A discount (shared/shapes.css) on the photo's lower start corner, clear of the sticker. */
+[data-body='fridge'] .fr-off {
+  position: absolute;
+  inset-block-end: 0.375rem;
+  inset-inline-start: 0.375rem;
+}
+/* The add button (shared/shapes.css): the round dark button at the card's foot start, beside the name. */
+[data-body='fridge'] .fr-add {
+  --rim-add-size: 1.75rem;
+  --rim-add-bg: var(--text);
+  --rim-add-ink: var(--bg);
+  inset-block-start: auto;
+  inset-inline-end: auto;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
+}
+/* The name below the photo (two lines at most, the whole card its tap area: shared/shapes.css), room for the add button. */
+[data-body='fridge'] .fr-name {
+  --tpl-ring-radius: 0.875rem;
+  box-sizing: border-box;
+  min-block-size: 2.25rem;
+  margin-block: 0.375rem 0.125rem;
+  padding-block: 0;
+  padding-inline: 2.25rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+/* No transform on the photo: it would trap the add button under the tap area. Feedback is a shadow. */
+@media (hover: hover) {
+  [data-body='fridge'] .fr-jar:hover {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 4px 8px color-mix(in srgb, var(--text) 18%, transparent);
+  }
+}
+[data-body='fridge'] .fr-jar:active {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* A wide screen keeps a shelf tidy: the column stays narrow, three containers a row. */
+@media (min-width: 640px) {
+  [data-body='fridge'] {
+    --column: 38rem;
+  }
+  [data-body='fridge'] .fr-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the containers are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='fridge'] .fr-photo,
+  [data-body='fridge'] .fr-door {
+    transition: none;
+  }
+}

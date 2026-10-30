@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { reversePosPayment } from '@/app/studio/_actions/pos';
+import { formatNumber } from '@/lib/pos-format';
+import { cashRefund, refundIsTerminal } from '@/lib/pos-pay-legs';
+import { refundOpensDrawer } from '@/server/domain/pos/drawer';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import { SERVER_TEXT } from '@/studio/errors';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -10,25 +14,33 @@ import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { useMoney } from './money';
+import { usePrint } from './print/PrintProvider';
 import { useSyncOptional } from './sync/SyncProvider';
 import { usePosCall } from './use-pos-call';
 
 interface Props {
   orderId: string;
+  /** The part to reverse when the bill was split. */
+  paymentId?: string;
   version: number;
   total: number;
   method: PosPaymentMethodKey;
+  /** Every leg of the payment, so a split bill that took any cash opens the drawer on refund, and dollars are handed back as dollars. */
+  legs: readonly { method: string; amount: number; tenderedUsd?: number | null; rate?: number | null }[];
 }
 
 /** The manager's "Reverse payment" button and its dialog: the amount and method are read-only, the reason is required. */
-export function ReverseButton({ orderId, version, total, method }: Props) {
+export function ReverseButton({ orderId, paymentId, version, total, method, legs }: Props) {
   const t = useT();
   const money = useMoney();
   const { call } = usePosCall();
+  const { openDrawer } = usePrint();
   const sync = useSyncOptional();
   const [open, setOpen] = useState(false);
   const online = sync?.online ?? true;
-  const terminal = method !== 'CASH';
+  const terminal = refundIsTerminal(method);
+  // What crosses the counter: dinar cash legs, dollars, and the dinar change of the dollars taken back.
+  const hand = cashRefund(legs);
 
   return (
     <>
@@ -45,10 +57,17 @@ export function ReverseButton({ orderId, version, total, method }: Props) {
         onConfirm={async (form) => {
           const reason = String(form.get('reason') ?? '').trim();
           const reference = String(form.get('reference') ?? '').trim();
-          const result = await call(() => reversePosPayment({ orderId, expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
-          if (result.ok) return true;
+          const result = await call(() => reversePosPayment({ orderId, ...(paymentId ? { paymentId } : {}), expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
+          if (result.ok) {
+            // Cash goes back out of the drawer, so it opens (no paper): for any cash leg, not only when cash was the main method.
+            if (refundOpensDrawer(legs)) void openDrawer();
+            return true;
+          }
           const fields = result.error.fields;
-          return fields?.reason ? { fields: { reason: fields.reason } } : { message: t('pos.order.actionRefused') };
+          if (fields?.reason) return { fields: { reason: fields.reason } };
+          // A refusal the till names (such as "reverse the later parts first") is said in the dialog, not hidden behind a generic line.
+          const known = SERVER_TEXT[result.error.message];
+          return { message: known ? t(known) : t('pos.order.actionRefused') };
         }}
       >
         {(errors) => (
@@ -63,6 +82,13 @@ export function ReverseButton({ orderId, version, total, method }: Props) {
                 <dd>{money(total)}</dd>
               </div>
             </dl>
+            {hand && hand.dollars > 0 ? (
+              <ul className="flex flex-col gap-1 text-base font-semibold">
+                {hand.dinars > 0 ? <li>{t('pos.reverse.dinarGiveBack', { amount: money(hand.dinars) })}</li> : null}
+                <li>{t('pos.reverse.usdGiveBack', { n: formatNumber(hand.dollars) })}</li>
+                {hand.dinarChange > 0 ? <li>{t('pos.reverse.usdTakeChange', { amount: money(hand.dinarChange) })}</li> : null}
+              </ul>
+            ) : null}
             <Field label={t('pos.reverse.reason')} error={errors.reason}>
               <Textarea name="reason" dir="auto" rows={2} maxLength={300} />
             </Field>

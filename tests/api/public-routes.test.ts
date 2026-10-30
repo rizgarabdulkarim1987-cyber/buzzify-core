@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { expireMenu } from '@/server/data/cache';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
@@ -9,16 +10,16 @@ type Handler<P> = (request: Request, ctx: { params: Promise<P> }) => Promise<Res
 let menuEntry: Handler<{ tenant: string }>;
 let tableEntry: Handler<{ tenant: string; table: string }>;
 
-function enter(slug: string, { search = '', language }: { search?: string; language?: string } = {}) {
+function enter(slug: string, { search = '', language, cookie }: { search?: string; language?: string; cookie?: string } = {}) {
   const request = new Request(`http://localhost/${slug}${search}`, {
-    headers: language ? { 'accept-language': language } : {},
+    headers: { ...(language ? { 'accept-language': language } : {}), ...(cookie ? { cookie } : {}) },
   });
   return menuEntry(request, { params: Promise.resolve({ tenant: slug }) });
 }
 
-function enterTable(slug: string, table: string, { search = '', language }: { search?: string; language?: string } = {}) {
+function enterTable(slug: string, table: string, { search = '', language, cookie }: { search?: string; language?: string; cookie?: string } = {}) {
   const request = new Request(`http://localhost/${slug}/t/${table}${search}`, {
-    headers: language ? { 'accept-language': language } : {},
+    headers: { ...(language ? { 'accept-language': language } : {}), ...(cookie ? { cookie } : {}) },
   });
   return tableEntry(request, { params: Promise.resolve({ tenant: slug, table }) });
 }
@@ -36,6 +37,12 @@ beforeAll(async () => {
   await prisma.menu.update({ where: { id: paused.menu.id }, data: { status: 'SUSPENDED' } });
 
   await createMenuFixture(prisma, 'unpublished-cafe', { publish: false });
+
+  // The intro is on for this one (and its plan holds it); every other menu here has it off.
+  const intro = await createMenuFixture(prisma, 'intro-cafe');
+  await prisma.restaurant.update({ where: { id: intro.restaurant.id }, data: { plan: 'PREMIUM' } });
+  await prisma.menu.update({ where: { id: intro.menu.id }, data: { introEnabled: true } });
+  expireMenu(['intro-cafe'], intro.menu.id);
 
   // Offers Arabic and English only, and opens in Arabic.
   const gulf = await createMenuFixture(prisma, 'gulf-cafe', { publish: false });
@@ -122,5 +129,26 @@ describe('GET /{slug}/t/{table}', () => {
     const location = response.headers.get('location') ?? '';
     expect(location.startsWith('/atelier/en/t/')).toBe(true);
     expect(new URL(location, 'http://localhost').pathname.split('/')).toHaveLength(5);
+  });
+});
+
+describe('the intro', () => {
+  it('sends a visitor to the intro, keeping the query', async () => {
+    const response = await enter('intro-cafe', { search: '?src=card' });
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('/intro-cafe/intro?src=card');
+  });
+
+  it('sends a visitor with a language cookie to the intro as well: every scan meets it', async () => {
+    expect((await enter('intro-cafe', { cookie: 'bz_lang_intro-cafe=ar' })).headers.get('location')).toBe('/intro-cafe/intro');
+  });
+
+  it('sends a table link to the intro, carrying the table', async () => {
+    expect((await enterTable('intro-cafe', '04')).headers.get('location')).toBe('/intro-cafe/intro?table=04');
+  });
+
+  it('leaves menus with the intro off as they are, cookie or not', async () => {
+    expect((await enter('atelier', { cookie: 'bz_lang_atelier=ar' })).headers.get('location')).toBe('/atelier/en');
+    expect((await enter('atelier')).headers.get('location')).toBe('/atelier/en');
   });
 });

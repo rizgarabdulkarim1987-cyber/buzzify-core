@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
@@ -12,18 +12,21 @@ import { useApp } from '@/ui/AppProviders';
 import { CartBar } from '@/ui/cart/CartBar';
 import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
+import { TapDebug } from '@/ui/debug/TapDebug';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
+import { isInteractiveTarget } from '@/ui/scenes/signal';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
-import { BoardBody } from './bodies/BoardBody';
-import { BookBody } from './bodies/BookBody';
-import { MagazineBody } from './bodies/MagazineBody';
+import { BODIES } from './bodies';
 import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
-import { Hero } from './heroes';
+import { diagFlags, withDiag } from './diag';
+import { openerForPhoto, type OpenerNode } from './photo-opener';
+import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
+import { ShowcaseCarousel } from './ShowcaseCarousel';
 import { useFavorites } from './favorites';
 import './skins.css';
 
@@ -33,13 +36,16 @@ const TemplateDetail = dynamic(() => import('@/ui/product/TemplateDetail'));
 /** How many products the hero features when the business picked none. */
 const FEATURED_FALLBACK = 6;
 
+// The address does not change under the menu: nothing to subscribe to.
+const noSubscription = () => () => {};
+
 /**
  * A menu drawn with a template preset (spec `2026-10-18-template-studio-design.md`, section 5). The design is the
  * snapshot's resolved one, so what guests see is exactly what was published; the Studio's preview passes a design of
  * its own to show changes before they are saved.
  */
 export function TemplateMenu({
-  view,
+  view: served,
   design,
   tagline,
   fontClass,
@@ -54,6 +60,10 @@ export function TemplateMenu({
   initialProductId?: string | null;
 }) {
   const { t, tenant, preview, addLine, announce } = useApp();
+  // `?diag=` switches (diag.ts), read after hydration: null until then.
+  const search = useSyncExternalStore(noSubscription, () => window.location.search, () => null);
+  const diag = useMemo(() => (search === null ? null : diagFlags(search)), [search]);
+  const view = useMemo(() => (diag ? withDiag(served, diag) : served), [served, diag]);
   const reduced = usePrefersReducedMotion();
   const [query, setQuery] = useState('');
   const [dietary, setDietary] = useState<ReadonlySet<DietaryTag>>(new Set());
@@ -69,9 +79,10 @@ export function TemplateMenu({
 
   // Warm the product surface shortly after the menu is interactive so the first tap feels instant.
   useEffect(() => {
+    if (diag === null || diag.has('nowarm')) return;
     const warm = setTimeout(() => void import('@/ui/product/TemplateDetail'), 1500);
     return () => clearTimeout(warm);
-  }, []);
+  }, [diag]);
 
   const dietaryAvailable = useMemo(() => new Set(view.products.flatMap((product) => (product.dietary ?? []).filter(isDietaryTag))), [view.products]);
 
@@ -94,6 +105,7 @@ export function TemplateMenu({
   const [activeId, setActiveId] = useState<string | null>(view.categories[0]?.id ?? null);
 
   const signature = view.products.find((product) => product.id === view.signatureProductId);
+  const picks = useMemo(() => chosenFeatured(view.products, design.featured.slugs).filter((product) => product.id !== view.signatureProductId), [view.products, view.signatureProductId, design.featured.slugs]);
   const featured = useMemo(() => {
     const bySlug = new Map(view.products.map((product) => [product.slug, product]));
     const chosen = design.featured.slugs.map((slug) => bySlug.get(slug)).filter((product): product is MenuProductView => product !== undefined);
@@ -151,6 +163,17 @@ export function TemplateMenu({
     [openSheet],
   );
 
+  // A tap on a dish photo opens the dish, whatever the template draws the photo as.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (event.defaultPrevented || isInteractiveTarget(target)) return;
+      openerForPhoto(target as unknown as OpenerNode | null)?.click();
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+
   const canOrder = design.ordering === 'list' && !preview;
   const quickAdd = useCallback(
     (product: MenuProductView) => {
@@ -160,6 +183,9 @@ export function TemplateMenu({
     },
     [addLine, announce, t],
   );
+
+  const toggleFavorites = favorites.toggle;
+  const toggleFavorite = useCallback((product: MenuProductView) => toggleFavorites(product.id), [toggleFavorites]);
 
   const context = useMemo<TemplateContextValue>(
     () => ({
@@ -176,10 +202,10 @@ export function TemplateMenu({
       canOrder,
       quickAdd,
       isFavorite: favorites.has,
-      toggleFavorite: (product) => favorites.toggle(product.id),
+      toggleFavorite,
       reduced,
     }),
-    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites, reduced],
+    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites.has, toggleFavorite, reduced],
   );
 
   const toggleDietary = (tag: DietaryTag) =>
@@ -195,6 +221,8 @@ export function TemplateMenu({
   // A browse shape that sets the hero or the navigation replaces them: a big hero or a scroll-only navigation left in
   // the layout (from the template it started on) must not reach it. For `scroll` nothing is set, so nothing changes.
   const shapeSets = SHAPE_SETS[body];
+  // A shape's own component (`BODIES`); `scroll` is drawn below and never looked up.
+  const Body = body === 'scroll' ? null : BODIES[body];
   const heroKind = shapeSets.includes('hero') ? 'compact' : layout.hero;
   const navKind = shapeSets.includes('nav') ? undefined : layout.nav;
   const noResults = <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>;
@@ -220,10 +248,14 @@ export function TemplateMenu({
           </a>
           <TemplateHeader />
           {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
+          {query.trim() === '' && showsSignatureStrip(heroKind, body, signature !== undefined) && <SignatureStrip />}
+          {query.trim() === '' && showsFeaturedStrip(heroKind, body, picks.length) && <FeaturedStrip items={picks} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
+          {query.trim() === '' && <ShowcaseCarousel slot="aboveSearch" />}
           <div className="tpl-tools flex flex-col gap-3">
-            <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />
+            {/* The Book has no search box: its index is how guests find a section (the owner's wish). */}
+            {body !== 'book' && <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />}
             <FilterBar
               available={dietaryAvailable}
               chosen={dietary}
@@ -237,6 +269,7 @@ export function TemplateMenu({
               }}
             />
           </div>
+          {query.trim() === '' && <ShowcaseCarousel slot="belowSearch" />}
           {body === 'scroll' ? (
             <div className="tpl-body">
               {categories.length > 0 && <Nav kind={layout.nav} />}
@@ -261,17 +294,14 @@ export function TemplateMenu({
             <main id="menu" className="tpl-main min-w-0">
               {noResults}
             </main>
-          ) : body === 'magazine' ? (
-            <MagazineBody />
-          ) : body === 'board' ? (
-            <BoardBody />
           ) : (
-            <BookBody />
+            Body && <Body />
           )}
           <InfoSection info={design.info} />
           <TemplateFooter poweredBy={design.poweredBy} motion={animated ? { paused: motionPaused, toggle: () => setMotionPaused((value) => !value) } : null} />
         </div>
         {canOrder && <CartBar />}
+        <TapDebug />
         {opened && (
           <TemplateDetail
             product={opened}

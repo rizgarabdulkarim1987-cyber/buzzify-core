@@ -56,6 +56,16 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
     orderBy: { slug: 'asc' },
   });
   const promotions = await db.promotion.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder });
+  // Occasions load switched off too: whether one is on is part of what decides its cards (`isOccasionLive`).
+  const occasions = await db.occasion.findMany({ where: { menuId }, orderBy: bySortOrder });
+  // A card is loaded only with what it points at: one on an offer or set that is switched off (or an occasion that is
+  // gone) could never show, and a snapshot holding it without its offer or set could not be restored.
+  const ids = (rows: Array<{ id: string }>) => new Set(rows.map((row) => row.id));
+  const [promotionIds, bundleIds, occasionIds] = [ids(promotions), ids(bundles), ids(occasions)];
+  const holds = (set: Set<string>, id: string | null) => id === null || set.has(id);
+  const showcaseCards = (await db.showcaseCard.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder })).filter(
+    (card) => holds(promotionIds, card.promotionId) && holds(bundleIds, card.bundleId) && holds(occasionIds, card.occasionId),
+  );
   const schedule = await db.daypartSchedule.findMany({ where: { menuId }, orderBy: { startMinute: 'asc' } });
   const roundTo = menuPriceStep(menu);
 
@@ -149,6 +159,7 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       dayparts: b.dayparts as Daypart[],
       translations: translationMap(b.translations),
       items: b.items.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity })),
+      people: b.people,
     })),
     promotions: promotions.map((p) => ({
       id: p.id,
@@ -164,6 +175,27 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       roundTo,
       translations: translationMap(p.translations),
       sortOrder: p.sortOrder,
+    })),
+    occasions: occasions.map((o) => ({
+      id: o.id,
+      startsOn: o.startsOn,
+      endsOn: o.endsOn,
+      isActive: o.isActive,
+      translations: translationMap(o.translations),
+    })),
+    showcaseCards: showcaseCards.map((c) => ({
+      id: c.id,
+      slot: c.slot,
+      kind: c.kind,
+      sortOrder: c.sortOrder,
+      occasionId: c.occasionId,
+      promotionId: c.promotionId,
+      bundleId: c.bundleId,
+      price: c.price,
+      startMinute: c.startMinute,
+      endMinute: c.endMinute,
+      daysOfWeek: c.daysOfWeek,
+      translations: translationMap(c.translations),
     })),
     schedule: schedule.map((s) => ({
       daypart: s.daypart as Daypart,

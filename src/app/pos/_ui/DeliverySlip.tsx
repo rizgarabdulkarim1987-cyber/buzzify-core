@@ -5,11 +5,13 @@ import type { OrderView } from '@/server/pos/orders';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { useMoney } from './money';
+import { usePrint } from './print/PrintProvider';
 
 /** The driver's paper: where to go, what is in the bag (no prices) and the cash to collect. Printable at 80 mm. */
 export function DeliverySlip({ order }: { order: OrderView }) {
   const t = useT();
   const money = useMoney();
+  const { hasReceiptPrinter, printDelivery } = usePrint();
   const info = order.offPremise;
   if (info === null || order.kind !== 'DELIVERY') return null;
   const paid = order.status === 'PAID';
@@ -44,7 +46,11 @@ export function DeliverySlip({ order }: { order: OrderView }) {
         <span>{paid ? money(0) : money(order.totals.total)}</span>
       </p>
       <div className="flex flex-col gap-2 print:hidden">
-        <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
+        <Button variant="primary" size="lg" className="min-h-12" onClick={async () => {
+            // The receipt printer takes it silently; the browser's print dialog stays the way out when there is none or it fails.
+            if (hasReceiptPrinter && (await printDelivery(order)).ok) return;
+            window.print();
+          }}>
           {t('pos.receipt.print')}
         </Button>
       </div>

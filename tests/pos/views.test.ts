@@ -13,6 +13,8 @@ const product = (id: string, categoryId: string, sortOrder: number, names: TillP
   available: true,
   hiddenFromGuests: false,
   sectionId: null,
+  barcode: null,
+  image: null,
   variants: [],
   groups: [],
   ...extra,
@@ -24,7 +26,8 @@ describe('the nav', () => {
   it('lists exactly what each role may open', () => {
     expect(keys('CASHIER')).toEqual(['tables', 'shift', 'inventory']);
     expect(keys('KITCHEN')).toEqual(['kitchen']);
-    expect(keys('MANAGER')).toEqual(['tables', 'shift', 'kitchen', 'report', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'settings']);
+    expect(keys('CAPTAIN')).toEqual(['captain']);
+    expect(keys('MANAGER')).toEqual(['tables', 'shift', 'kitchen', 'report', 'activity', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'settings']);
     expect(keys('OWNER')).toEqual(keys('MANAGER'));
   });
 
@@ -32,11 +35,25 @@ describe('the nav', () => {
     const withQr = (role: (typeof POS_ROLES)[number]) => tillNav(role, { qrOrdering: true }).map((page) => page.key);
     expect(withQr('CASHIER')).toEqual(['tables', 'requests', 'shift', 'inventory']);
     expect(withQr('KITCHEN')).toEqual(['kitchen']);
-    expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'qr', 'settings']);
+    expect(withQr('CAPTAIN')).toEqual(['captain', 'requests']);
+    expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'activity', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'qr', 'settings']);
     expect(tillNav('MANAGER').map((page) => page.key)).not.toContain('complaints');
     expect(tillNav('MANAGER', { complaints: true }).map((page) => page.key)).toContain('complaints');
     expect(tillNav('CASHIER', { complaints: true }).map((page) => page.key)).not.toContain('complaints');
     expect(tillNav('MANAGER', { qrOrdering: false }).map((page) => page.key)).not.toContain('requests');
+  });
+
+  it('lists the captain page for an owner or manager only while captain approval is on, and always for the captain', () => {
+    const withCaptain = (role: (typeof POS_ROLES)[number], captainApproval: boolean) => tillNav(role, { captainApproval }).map((page) => page.key);
+    expect(withCaptain('MANAGER', false)).not.toContain('captain');
+    expect(withCaptain('OWNER', false)).not.toContain('captain');
+    expect(withCaptain('MANAGER', true)).toEqual(['tables', 'captain', 'shift', 'kitchen', 'report', 'activity', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'settings']);
+    expect(withCaptain('OWNER', true)).toContain('captain');
+    expect(withCaptain('CAPTAIN', false)).toEqual(['captain']);
+    expect(withCaptain('CAPTAIN', true)).toEqual(['captain']);
+    expect(withCaptain('CASHIER', true)).not.toContain('captain');
+    // The page itself stays reachable by its address for the roles that may place a captain's order.
+    expect(canOpenTillPage('MANAGER', 'captain')).toBe(true);
   });
 });
 
@@ -45,6 +62,9 @@ describe('opening a till page by address', () => {
     expect(canOpenTillPage('CASHIER', 'floor')).toBe(false);
     expect(canOpenTillPage('CASHIER', 'tables')).toBe(true);
     expect(canOpenTillPage('KITCHEN', 'shift')).toBe(false);
+    expect(canOpenTillPage('CAPTAIN', 'captain')).toBe(true);
+    expect(canOpenTillPage('CAPTAIN', 'tables')).toBe(false);
+    expect(canOpenTillPage('CASHIER', 'captain')).toBe(false);
     expect(canOpenTillPage('MANAGER', 'floor')).toBe(true);
     for (const role of POS_ROLES) for (const page of tillNav(role)) expect(canOpenTillPage(role, page.key)).toBe(true);
   });

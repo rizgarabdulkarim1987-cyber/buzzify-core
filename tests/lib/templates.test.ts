@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@/lib/palette';
-import { bodyOf, BODY_KINDS, isTemplateId, presetsFor, SHAPE_SETS, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
+import { bodyOf, BODY_KINDS, BUSINESS_TYPES, isTemplateId, presetsFor, SHAPE_SETS, TEMPLATE_IDS, TEMPLATES, templateList, type BusinessType, type DesignPalette } from '@/lib/templates';
+import { STYLE_PRESETS } from '@/lib/templates/presets/styles';
 import { menuDesignSchema } from '@/server/domain/design-schema';
 import { accentInk, derivePalette, designPaletteProblems, mix, readableOn, themeOf } from '@/lib/templates/palette';
 import { ALL_INFO, businessInfo, parseOverrides, parseSceneMedia, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
@@ -16,25 +17,39 @@ const DETAILS: RestaurantDetails = {
 };
 
 describe('template presets', () => {
-  it('lists thirty-three presets numbered 1 to 33 in the brief order, each id once', () => {
+  it('lists every preset numbered 1 to N in the brief order, each id once, at least the first thirty-three', () => {
     const list = templateList();
-    expect(list.map((preset) => preset.number)).toEqual(Array.from({ length: 33 }, (_, i) => i + 1));
-    expect(new Set(list.map((preset) => preset.id)).size).toBe(33);
+    expect(list.length).toBeGreaterThanOrEqual(33);
+    expect(list).toHaveLength(TEMPLATE_IDS.length);
+    expect(list.map((preset) => preset.number)).toEqual(Array.from({ length: TEMPLATE_IDS.length }, (_, i) => i + 1));
+    expect(new Set(list.map((preset) => preset.id)).size).toBe(TEMPLATE_IDS.length);
+    // The first thirty-three keep their numbers: a new style is appended, never inserted.
+    expect(list.slice(0, 33).map((preset) => preset.id)).toEqual(TEMPLATE_IDS.slice(0, 33));
+    expect(TEMPLATE_IDS.slice(30, 33)).toEqual(['the-book', 'the-magazine', 'taste-airport']);
     expect(list.map((preset) => preset.id).sort()).toEqual([...TEMPLATE_IDS].sort());
     expect(isTemplateId('obsidian-gold')).toBe(true);
     expect(isTemplateId('classic')).toBe(false);
   });
 
-  it('has thirteen restaurant, eight café, seven bakery and five ice cream presets', () => {
-    expect(presetsFor('restaurant')).toHaveLength(13);
-    expect(presetsFor('cafe')).toHaveLength(8);
-    expect(presetsFor('bakery')).toHaveLength(7);
-    expect(presetsFor('icecream')).toHaveLength(5);
+  it('has ten restaurant, eight café, seven bakery and five ice cream presets among the first thirty, and the styles after them', () => {
+    const early = (business: BusinessType) => presetsFor(business).filter((preset) => preset.number <= 30);
+    expect(early('restaurant')).toHaveLength(10);
+    expect(early('cafe')).toHaveLength(8);
+    expect(early('bakery')).toHaveLength(7);
+    expect(early('icecream')).toHaveLength(5);
+    for (const business of BUSINESS_TYPES) {
+      expect(presetsFor(business), business).toHaveLength(early(business).length + STYLE_PRESETS.filter((preset) => preset.business === business).length);
+    }
+    expect(STYLE_PRESETS.map((preset) => preset.number)).toEqual(Array.from({ length: STYLE_PRESETS.length }, (_, i) => i + 31));
+  });
+
+  it('starts every style preset (31 and after) on a shape of its own', () => {
+    for (const preset of STYLE_PRESETS) expect(bodyOf(preset.layout), preset.id).not.toBe('scroll');
   });
 
   it('adds the three shapes as presets 31 to 33, each with its body, theme and a fonts pair', () => {
     const expected = [
-      ['the-book', 31, 'book', 'light'],
+      ['the-book', 31, 'book', 'dark'],
       ['the-magazine', 32, 'magazine', 'light'],
       ['taste-airport', 33, 'board', 'dark'],
     ] as const;
@@ -250,9 +265,15 @@ describe('resolveDesign', () => {
 });
 
 describe('the browse shape (body)', () => {
-  it('lists the four bodies and the knobs each one sets', () => {
-    expect(BODY_KINDS).toEqual(['scroll', 'book', 'magazine', 'board']);
-    expect(SHAPE_SETS).toEqual({ scroll: [], book: ['hero', 'nav'], magazine: ['hero'], board: ['hero', 'nav', 'card', 'heading'] });
+  it('starts with the four first bodies and keeps the knobs each one sets', () => {
+    expect(BODY_KINDS.slice(0, 4)).toEqual(['scroll', 'book', 'magazine', 'board']);
+    expect(new Set(BODY_KINDS).size).toBe(BODY_KINDS.length);
+    expect(SHAPE_SETS).toMatchObject({ scroll: [], book: ['hero', 'nav'], magazine: ['hero', 'card', 'imageRatio'], board: ['hero', 'nav', 'card', 'heading'] });
+    expect(Object.keys(SHAPE_SETS).sort()).toEqual([...BODY_KINDS].sort());
+  });
+
+  it('lets every shape set the hero, so a guest meets dishes on the first screen', () => {
+    for (const kind of BODY_KINDS.filter((k) => k !== 'scroll')) expect(SHAPE_SETS[kind], kind).toContain('hero');
   });
 
   it.each(templateList().filter((preset) => preset.number <= 30).map((preset) => [preset.id, preset] as const))('%s names no body, so it scrolls', (_, preset) => {

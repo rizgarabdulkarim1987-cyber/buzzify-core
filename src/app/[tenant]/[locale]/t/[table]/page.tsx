@@ -5,6 +5,7 @@ import { searchString, withPublicMenu, type SearchParams } from '@/server/public
 import { loadMenuView } from '@/server/route-context';
 import { RouteTable } from '@/ui/AppProviders';
 import { MenuApp } from '@/ui/menu/MenuApp';
+import { TemplateMenu } from '@/ui/template/TemplateMenu';
 
 const TABLE_NUMBER = /^\d{1,3}$/;
 
@@ -25,10 +26,15 @@ export default async function Page({
     if (!table) notFound();
 
     const view = await loadMenuView(route);
+    const { design } = route.tenant.brand;
     return (
       <>
         <RouteTable number={number} />
-        <MenuApp view={view} />
+        {design ? (
+          <TemplateMenu view={view} design={design} tagline={route.tenant.seo[route.locale]?.description || undefined} />
+        ) : (
+          <MenuApp view={view} />
+        )}
       </>
     );
   });

@@ -1,0 +1,176 @@
+/*
+ * Sumerian Tablets (kind `clay`, family vitrine): the strip is a cylinder seal rolled across the page, its sections
+ * impressed between wedge marks; each section is headed by its tablet number and a small rolled seal; each dish is a
+ * clay tablet with cuneiform wedges along its top and foot, the photo pressed into the clay, the name incised, the price
+ * and «inscribe» (add), which presses a seal mark into the tablet (`data-cut`). The clay is `--raised`, the incisions
+ * `--text`, the seal mark `--text` with `--bg`.
+ */
+[data-body='clay'] {
+  --cy-clay-hi: color-mix(in srgb, var(--raised) 75%, #fff);
+  --cy-clay-lo: color-mix(in srgb, var(--raised) 70%, #000);
+  --cy-wedge: color-mix(in srgb, var(--text) 70%, var(--raised));
+}
+
+/* The cylinder seal: a rolled clay band whose impressions are the sections. */
+[data-body='clay'] .vt-strip {
+  background: linear-gradient(var(--cy-clay-hi), var(--raised) 45%, var(--cy-clay-lo));
+  box-shadow:
+    inset 0 3px 6px rgb(0 0 0 / 0.22),
+    inset 0 -3px 6px rgb(0 0 0 / 0.18);
+}
+[data-body='clay'] .tpl-strip-list {
+  gap: 0;
+}
+[data-body='clay'] .vt-chip {
+  border-inline-end: 2px dotted color-mix(in srgb, var(--text) 45%, transparent);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.3);
+}
+[data-body='clay'] .vt-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+  text-shadow: none;
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.35);
+}
+
+[data-body='clay'] .cy-head {
+  padding-inline: 0.25rem;
+  margin-block-end: 0.625rem;
+}
+[data-body='clay'] .cy-title {
+  align-items: center;
+  font-size: 1.25rem;
+}
+[data-body='clay'] .cy-title small {
+  display: grid;
+  place-items: center;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 0.375rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+[data-body='clay'] .cy-title b {
+  color: var(--muted);
+}
+/* The small rolled seal beside the tablet's number. */
+[data-body='clay'] .cy-roll {
+  inline-size: 0.875rem;
+  block-size: 1.75rem;
+  border-radius: 0.25rem;
+  background:
+    repeating-linear-gradient(0deg, var(--cy-wedge) 0 2px, transparent 2px 5px),
+    linear-gradient(90deg, var(--cy-clay-lo), var(--cy-clay-hi) 50%, var(--cy-clay-lo));
+}
+
+/* A tablet: rounded, never quite square, with wedge marks along its top and foot. */
+[data-body='clay'] .cy-grid {
+  gap: 0.75rem;
+}
+[data-body='clay'] .cy-tile {
+  align-items: stretch;
+  gap: 0.3125rem;
+  padding: 1rem 0.5625rem 1rem;
+  border-radius: 0.875rem 1.125rem 0.75rem 1rem;
+  background: radial-gradient(circle at 30% 20%, var(--cy-clay-hi), var(--raised) 70%);
+  box-shadow:
+    0 0.375rem 0 var(--cy-clay-lo),
+    0 0.625rem 1.125rem rgb(0 0 0 / 0.2);
+  text-align: start;
+}
+[data-body='clay'] .cy-tile::before,
+[data-body='clay'] .cy-tile::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.5rem;
+  block-size: 0.3125rem;
+  background: repeating-linear-gradient(90deg, var(--cy-wedge) 0 2px, transparent 2px 5px, var(--cy-wedge) 5px 6px, transparent 6px 11px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+[data-body='clay'] .cy-tile::before {
+  inset-block-start: 0.375rem;
+}
+[data-body='clay'] .cy-tile::after {
+  inset-block-end: 0.375rem;
+}
+/* The photo pressed into the clay. */
+[data-body='clay'] .cy-window {
+  block-size: 6.5rem;
+  border-radius: 0.5rem;
+  box-shadow:
+    inset 0 0 0 3px color-mix(in srgb, var(--text) 50%, transparent),
+    inset 0 0.25rem 0.625rem rgb(0 0 0 / 0.5);
+}
+[data-body='clay'] .cy-window > :first-child {
+  border-radius: 0.5rem;
+}
+/* The name incised in the clay. */
+[data-body='clay'] .cy-name {
+  color: var(--text);
+  font-size: 0.9375rem;
+  text-align: start;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.35);
+}
+[data-body='clay'] .cy-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+[data-body='clay'] .cy-price {
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+[data-body='clay'] .cy-badges {
+  justify-content: flex-start;
+}
+[data-body='clay'] .cy-add {
+  min-block-size: 2rem;
+  padding-inline: 0.625rem;
+  border-radius: 0.375rem;
+  background: var(--text);
+  color: var(--bg);
+}
+/* The seal mark the tablet takes when inscribed. */
+[data-body='clay'] .cy-seal {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 1.375rem;
+  inset-inline-start: 0.875rem;
+  display: none;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  rotate: -8deg;
+  box-shadow: 0 0 0 2px var(--text), inset 0 2px 4px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+}
+[data-body='clay'] [data-cut] .cy-seal {
+  display: grid;
+}
+[data-body='clay'] .cy-seal svg {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+}
+
+@media (min-width: 640px) {
+  [data-body='clay'] .cy-window {
+    block-size: 8rem;
+  }
+}
+
+@media (hover: hover) {
+  [data-body='clay'] .vt-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--text) 12%, transparent);
+  }
+}

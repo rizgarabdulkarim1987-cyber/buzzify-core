@@ -27,6 +27,8 @@ function catalog(products: CatalogProduct[], currency = 'IQD'): Catalog {
     pairingRules: [],
     bundles: [],
     promotions: [],
+    occasions: [],
+    showcaseCards: [],
     schedule: [],
   };
 }

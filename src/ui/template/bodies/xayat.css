@@ -1,0 +1,222 @@
+/*
+ * The Shawl Tailor (family `pinboard`, kind `xayat`): the shal u shapik is sewn at the tailor's from wool. The page is
+ * the tailor's board; every section opens with a numbered tape measure that unrolls as you reach it (`data-in`, the
+ * section's name on a patch of it); every dish is a piece of wool cloth cut with pinking shears (a zigzag foot), its
+ * photo on it, held by one round pin, and the cloth flutters a little from its pin while it is on the screen
+ * (`data-live`), still while a finger is down (`data-hold`) and with less motion. Colours from the template tokens: the
+ * board `--bg` with a felt weave, the tape `--accent` with `--on-accent` marks, the cloth the text colour (the light of
+ * wool on a dark board) in four shades with the words in `--bg`, so the pair keeps the template's main contrast; the
+ * pin's red head is decoration.
+ */
+[data-body='xayat'] {
+  background:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--text) 3%, transparent) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--text) 3%, transparent) 0 2px, transparent 2px 6px),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: tape-measure tabs */
+
+[data-body='xayat'] .xy-chip {
+  border-radius: 0.1875rem;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+}
+[data-body='xayat'] .xy-chip-mark {
+  inline-size: 0.875rem;
+  block-size: 0.5rem;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 3px);
+  opacity: 0.7;
+}
+[data-body='xayat'] .xy-chip[aria-current='true'] {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the tape measure */
+
+[data-body='xayat'] .xy-section {
+  padding-block-start: 1rem;
+}
+[data-body='xayat'] .xy-tape {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-block-size: 2.25rem;
+  margin-inline: -0.75rem 0;
+  padding-inline: 0.75rem;
+}
+/* The ruler alone unrolls (from the start edge), so the section's name never squashes. */
+[data-body='xayat'] .xy-ruler {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, var(--on-accent) 0 1px, transparent 1px 0.5rem) bottom / 100% 0.5625rem no-repeat,
+    repeating-linear-gradient(90deg, var(--on-accent) 0 2px, transparent 2px 2.5rem) bottom / 100% 0.9375rem no-repeat,
+    var(--accent);
+  box-shadow: 0 0.25rem 0 rgb(0 0 0 / 0.25);
+  color: var(--on-accent);
+  transform-origin: 0 50%;
+  transition: transform 700ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='xayat'] .xy-tape:dir(rtl) .xy-ruler {
+  transform-origin: 100% 50%;
+}
+/* The numbers sit just after each long mark, a mark every 2.5rem. */
+[data-body='xayat'] .xy-ruler i {
+  flex: none;
+  inline-size: 2.5rem;
+  padding-inline-start: 0.1875rem;
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 0.75;
+}
+[data-body='xayat'][data-armed] .xy-tape:not([data-in]) .xy-ruler {
+  transform: scaleX(0.2);
+}
+[data-body='xayat'] .xy-head {
+  position: relative;
+  padding-block-start: 0.6875rem;
+}
+[data-body='xayat'] .xy-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0 0.375rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+[data-body='xayat'] .xy-title [data-count] {
+  font-size: 0.8125rem;
+  opacity: 0.8;
+}
+
+/* ------------------------------------------------------------------ the cloth */
+
+[data-body='xayat'] .xy-board {
+  gap: 1rem 0.75rem;
+  padding-block-start: 1.125rem;
+}
+[data-body='xayat'] .xy-piece {
+  --cloth: color-mix(in srgb, var(--text) 96%, var(--bg));
+  --zig: 0.4375rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.5rem 1rem;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--bg) 6%, transparent) 0 1px, transparent 1px 3px),
+    var(--cloth);
+  color: var(--bg);
+  transform-origin: 50% 0.5rem;
+  /* The pinking-shears foot: a zigzag cut along the bottom edge. */
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / calc(2 * var(--zig)) 100%;
+}
+[data-body='xayat'] .xy-piece:nth-child(4n + 2) {
+  --cloth: color-mix(in srgb, var(--text) 88%, var(--accent));
+}
+[data-body='xayat'] .xy-piece:nth-child(4n + 3) {
+  --cloth: color-mix(in srgb, var(--text) 92%, var(--bg));
+}
+[data-body='xayat'] .xy-piece:nth-child(4n) {
+  --cloth: color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+/* The flutter: the cloth swings a little from its pin, each at its own pace; only on the screen, never under a finger. */
+[data-body='xayat'] .xy-section[data-live] .xy-piece {
+  animation: xayat-flutter var(--t, 4s) ease-in-out var(--dl, 0s) infinite;
+}
+[data-body='xayat'][data-hold] .xy-piece {
+  animation-play-state: paused;
+}
+@keyframes xayat-flutter {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(1.6deg);
+  }
+}
+/* The pin: a round red head, its shadow on the cloth. */
+[data-body='xayat'] .xy-pin {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 50%;
+  z-index: 3;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  margin-inline-start: -0.375rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff8a7a, #c0261a);
+  box-shadow: 0 2px 2px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+}
+[data-body='xayat'] .xy-photo {
+  aspect-ratio: 6 / 5;
+  border-radius: 2px;
+}
+[data-body='xayat'] .xy-img {
+  border-radius: 0;
+}
+[data-body='xayat'] .xy-name {
+  margin-block-start: 0.375rem;
+  color: var(--bg);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-body='xayat'] .xy-badges {
+  margin-block-start: 0.25rem;
+}
+[data-body='xayat'] .xy-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.375rem;
+  margin-block-start: 0.25rem;
+}
+/* On the cloth the words take the board's colour: the price, the struck price, the labels, the add button. */
+[data-body='xayat'] .xy-price {
+  color: var(--bg);
+  font-size: 0.875rem;
+  font-weight: 900;
+}
+[data-body='xayat'] .xy-piece .tpl-was {
+  color: color-mix(in srgb, var(--bg) 78%, var(--cloth));
+}
+[data-body='xayat'] .xy-piece .tpl-badge:not(.tpl-badge-sale) {
+  color: var(--bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 45%, transparent);
+}
+[data-body='xayat'] .xy-add {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.1875rem;
+  background: var(--bg);
+  box-shadow: none;
+  color: var(--text);
+}
+[data-body='xayat'] .xy-piece .tpl-open:focus-visible::after {
+  outline-color: var(--bg);
+}
+
+@media (hover: hover) {
+  [data-body='xayat'] .xy-chip:hover:not([aria-current='true']) {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  [data-body='xayat'] .xy-add:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+}

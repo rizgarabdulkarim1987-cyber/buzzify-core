@@ -1,0 +1,277 @@
+/*
+ * The Periodic Table body (a browse shape of a template menu): the whole menu as a grid of element tiles, sections as
+ * coloured groups, a legend of the groups on top. Everything is scoped under [data-body='periodic']. Each group sets
+ * its hue as --g (degrees); the menu's palette, fonts and corners arrive as the template's CSS variables. Logical
+ * properties only, so the grid and the legend mirror in RTL.
+ */
+
+/* The sticky legend's height (two rows of chips and its padding), so a jumped-to group lands just below it. */
+[data-body='periodic'] {
+  --nav-room: 5.75rem;
+}
+
+/* The legend (sticky: shared/shapes.css): one chip per group, in the group's colour, wrapping to at most two rows (then
+ * scrolling inside itself) so every group is one tap away without the legend eating the first screen. */
+[data-body='periodic'] .pt-legend {
+  padding: 0.25rem var(--gutter, 1rem) 0.5rem;
+}
+[data-body='periodic'] .pt-legend-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  max-block-size: 4.875rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+[data-body='periodic'] .pt-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-inline: 0.6rem 0.4rem;
+  border: 2px solid oklch(0.62 0.17 var(--g));
+  border-radius: var(--radius-chip, 0.5rem);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: start;
+  overflow-wrap: anywhere;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+[data-body='periodic'] .pt-chip b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-inline-size: 1.25rem;
+  padding-inline: 0.2rem;
+  border-radius: 0.25rem;
+  background: oklch(0.4 0.14 var(--g));
+  color: #fff;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+/* The legend scrolls inside itself, so it clips anything outside a chip: the focus ring is drawn inside, in the chip's
+ * own text colour (which reads on its fill, lit or not). */
+[data-body='periodic'] .pt-chip:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+[data-body='periodic'] .pt-chip[aria-current='true'] {
+  background: oklch(0.4 0.14 var(--g));
+  color: #fff;
+}
+[data-body='periodic'] .pt-chip[aria-current='true'] b {
+  background: #fff;
+  color: oklch(0.35 0.14 var(--g));
+}
+[data-body='periodic'] .pt-chip:active {
+  scale: 0.97;
+}
+@media (hover: hover) {
+  [data-body='periodic'] .pt-chip:hover {
+    background: color-mix(in oklab, oklch(0.62 0.17 var(--g)) 18%, var(--card));
+  }
+  [data-body='periodic'] .pt-chip[aria-current='true']:hover {
+    background: oklch(0.4 0.14 var(--g));
+  }
+}
+
+/* The table: one grid of tiles. A group is a section with no box of its own (display: contents), so its tiles flow on
+ * from the group before it, as in the poster, with only a slim label row (one line, the whole width) between groups. */
+[data-body='periodic'] .pt-table {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3125rem;
+  padding: 0.25rem var(--gutter, 1rem) 25dvh;
+}
+[data-body='periodic'] .pt-group,
+[data-body='periodic'] .pt-group-list {
+  display: contents;
+}
+
+/* A tile (the poster's element): one photo filling it, framed in the group's colour, the number on top, and over the
+ * photo's foot a dark fade with the symbol, the name and the price. The grid stacks the photo and the label in one cell
+ * so the label is not positioned and the name's whole-card tap area still covers the tile. */
+[data-body='periodic'] .pt-anchor {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 1px;
+  scroll-margin-top: calc(var(--nav-room) + 0.5rem);
+}
+[data-body='periodic'] .pt-tile {
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  border: 2.5px solid oklch(0.62 0.17 var(--g));
+  border-radius: var(--radius-image, 0.375rem);
+  background: var(--card);
+  overflow: hidden;
+  animation: pt-pop 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 24ms);
+}
+@keyframes pt-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+[data-body='periodic'] .pt-photo {
+  grid-area: 1 / 1;
+  position: relative;
+  aspect-ratio: 1 / 1.25;
+  overflow: hidden;
+  background: var(--card);
+}
+[data-body='periodic'] .pt-photo > :first-child {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='periodic'] .pt-number {
+  position: absolute;
+  inset-block-start: 0.1875rem;
+  inset-inline-start: 0.25rem;
+  min-inline-size: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 0.1875rem;
+  background: oklch(0.4 0.14 var(--g));
+  color: #fff;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='periodic'] .pt-bar {
+  grid-area: 1 / 1;
+  z-index: 1;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  min-inline-size: 0;
+  padding: 1.5rem 0.3rem 0.25rem;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.82) 55%);
+  color: #fff;
+  pointer-events: none;
+}
+[data-body='periodic'] .pt-symbol {
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+[data-body='periodic'] .pt-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  min-inline-size: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+}
+[data-body='periodic'] .pt-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.25rem;
+  color: #ffe08a;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+/* The crossed-out regular price sits on the dark fade too, so it is a light grey there, not the palette's muted ink. */
+[data-body='periodic'] .pt-price .tpl-was {
+  color: #d6d6d6;
+}
+/* A discount: the "-NN%" chip beside the symbol on the label (shared/shapes.css draws its fill), the struck price below. */
+[data-body='periodic'] .pt-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.0625rem 0.125rem;
+}
+[data-body='periodic'] .pt-off {
+  flex: none;
+}
+/* The add button: small and in the corner, above the tile's own tap area. */
+[data-body='periodic'] .pt-add {
+  position: absolute;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0.125rem;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding-inline: 0.2rem;
+}
+[data-body='periodic'] .pt-add svg {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+/* The tile clips its photo, so the whole-card focus ring is drawn just inside the tile's border. */
+[data-body='periodic'] .pt-name.tpl-open:focus-visible::after {
+  outline-color: #fff;
+  outline-offset: -4px;
+  border-radius: var(--radius-image, 0.375rem);
+}
+[data-body='periodic'] .pt-tile:has(.pt-name:active) {
+  scale: 0.97;
+}
+
+@media (min-width: 640px) {
+  [data-body='periodic'] .pt-table {
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: 0.6rem;
+  }
+  [data-body='periodic'] .pt-name {
+    font-size: 0.8125rem;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  [data-body='periodic'] .pt-symbol {
+    font-size: 1.5rem;
+  }
+  [data-body='periodic'] .pt-price {
+    font-size: 0.8125rem;
+  }
+  [data-body='periodic'] .pt-number {
+    font-size: 0.75rem;
+  }
+}
+
+/* Less motion: tiles are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='periodic'] .pt-tile {
+    animation: none;
+  }
+  [data-body='periodic'] .pt-chip,
+  [data-body='periodic'] .pt-tile {
+    transition: none;
+  }
+  [data-body='periodic'] .pt-chip:active,
+  [data-body='periodic'] .pt-tile:has(.pt-name:active) {
+    scale: none;
+  }
+}

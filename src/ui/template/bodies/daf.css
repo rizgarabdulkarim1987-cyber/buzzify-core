@@ -1,0 +1,130 @@
+/*
+ * The Daf (family orbit, kind `daf`): every section a great Kurdish frame drum. A stretched skin with the section's name
+ * in the middle, a wooden frame with a brass edge, and metal rings all round the rim; the dishes turn slowly inside the
+ * drum, on the skin. Adding one makes the drum shiver and its rings ring (OrbitBody). The skin is mixed from the text
+ * colour, so the words on it take the background colour (the template's own text pair, turned over); the wood and brass
+ * from the accent.
+ */
+[data-body='daf'] {
+  --df-skin: color-mix(in srgb, var(--text) 90%, var(--accent));
+  --df-skin-lo: color-mix(in srgb, var(--text) 72%, var(--accent));
+  --df-wood: color-mix(in srgb, var(--accent) 45%, var(--bg));
+  --df-wood-lo: color-mix(in srgb, var(--accent) 22%, var(--bg));
+  --df-brass: color-mix(in srgb, var(--accent) 80%, var(--text));
+  --df-metal: color-mix(in srgb, var(--text) 50%, #c9c9c9);
+  --ob-turn: 90s;
+  --ob-word-bg: color-mix(in srgb, var(--df-skin) 90%, transparent);
+  --ob-word-ink: var(--bg);
+  --ob-price-ink: var(--bg);
+  background:
+    radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
+    var(--bg);
+}
+
+/* The strip: brass-edged chips. */
+[data-body='daf'] .ob-chip {
+  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent-ink);
+}
+[data-body='daf'] .ob-chip-mark {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--df-metal);
+}
+[data-body='daf'] .ob-chip[aria-current='true'] .ob-chip-mark {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--on-accent);
+}
+
+/* The frame stands out past the circle: the drum is drawn a little narrower so it never leaves the page. */
+[data-body='daf'] .ob-system {
+  inline-size: min(100% - 1.5rem, 34rem);
+}
+
+/* The drum: its skin inside a wooden frame with a brass edge, and a shadow under it. */
+[data-body='daf'] .df-drum {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+[data-body='daf'] .df-skin {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 34%, color-mix(in srgb, var(--df-skin) 80%, #fff) 0, transparent 38%),
+    radial-gradient(circle at 64% 70%, color-mix(in srgb, var(--df-skin-lo) 45%, transparent) 0, transparent 30%),
+    radial-gradient(circle closest-side, var(--df-skin) 0 46%, color-mix(in srgb, var(--df-skin) 70%, var(--df-skin-lo)) 80%, var(--df-skin-lo) 100%);
+  box-shadow:
+    0 0 0 4cqi var(--df-wood),
+    0 0 0 4.8cqi var(--df-wood-lo),
+    0 0 0 5.4cqi var(--df-brass),
+    0 1.25rem 2rem 4cqi rgb(0 0 0 / 0.45);
+}
+/* The frame's grain: thin rings in the wood. */
+[data-body='daf'] .df-skin::before {
+  content: '';
+  position: absolute;
+  inset: -4cqi;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, transparent 0 0.25rem, color-mix(in srgb, var(--df-wood-lo) 45%, transparent) 0.25rem 0.3rem);
+  mask: radial-gradient(circle closest-side, transparent 0 calc(100% - 4cqi), #000 calc(100% - 4cqi));
+}
+/* The ring where the hand strikes, worn into the skin. */
+[data-body='daf'] .df-skin::after {
+  content: '';
+  position: absolute;
+  inset: 8%;
+  border: 1px solid color-mix(in srgb, var(--df-skin-lo) 60%, transparent);
+  border-radius: 50%;
+}
+/* The metal rings hung on the inside of the frame, all round the rim. */
+[data-body='daf'] .df-jingle {
+  position: absolute;
+  inset-block-start: calc(var(--y) * 1%);
+  inset-inline-start: calc(var(--x) * 1%);
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  margin-block-start: -0.375rem;
+  margin-inline-start: -0.375rem;
+  border: 2px solid var(--df-metal);
+  border-radius: 50%;
+  box-shadow: 0 0 0.25rem rgb(255 255 255 / 0.45), inset 0 0 0.125rem rgb(0 0 0 / 0.35);
+}
+
+/* The section's name on the skin, as if painted on it. */
+[data-body='daf'] .ob-core {
+  background: radial-gradient(circle closest-side, color-mix(in srgb, var(--df-skin) 92%, #fff), transparent);
+}
+[data-body='daf'] .ob-title {
+  color: var(--bg);
+  font-size: 0.875rem;
+}
+[data-body='daf'] .ob-title [data-count] {
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--df-skin);
+}
+
+/* The dishes on the skin, in wooden rims. */
+[data-body='daf'] .ob-photo {
+  border: 3px solid var(--df-wood);
+  box-shadow: 0 0.1875rem 0.5rem rgb(0 0 0 / 0.35);
+}
+[data-body='daf'] .ob-add {
+  --rim-add-bg: var(--bg);
+  --rim-add-ink: var(--text);
+}
+[data-body='daf'] .obr-row {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+[data-body='daf'] .obr-photo {
+  border: 2px solid var(--df-wood);
+}
+
+@media (min-width: 640px) {
+  [data-body='daf'] .ob-title {
+    font-size: 1.5rem;
+  }
+}

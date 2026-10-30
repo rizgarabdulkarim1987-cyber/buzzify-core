@@ -4,7 +4,9 @@ import { useApp } from '@/ui/AppProviders';
 
 /** Two ways to browse the same menu. The cart is shared, so switching never loses an order. */
 export function ModeSwitch({ current }: { current: 'menu' | 'explore' }) {
-  const { t, href } = useApp();
+  const { t, href, tenant } = useApp();
+  // With the restaurant's own page on, Explore is that page (the wheel, the offers, the story); otherwise it is the scene-by-scene view.
+  const explorePath = tenant.extras.about ? '/about' : '/explore';
   const item = (mode: 'menu' | 'explore', path: string, label: string) => (
     <a
       href={href(path)}
@@ -20,7 +22,7 @@ export function ModeSwitch({ current }: { current: 'menu' | 'explore' }) {
   );
   return (
     <nav aria-label={t('mode.label')} className="flex items-center text-sm">
-      {item('explore', '/explore', t('mode.explore'))}
+      {item('explore', explorePath, t('mode.explore'))}
       {item('menu', '', t('mode.menu'))}
     </nav>
   );

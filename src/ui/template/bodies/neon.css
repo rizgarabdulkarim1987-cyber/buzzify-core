@@ -1,0 +1,257 @@
+/*
+ * Neon Alley (family club, kind `neon`, ClubBody.tsx): a brick wall in running bond, drawn from the palette (bricks
+ * from --raised warmed by the accent, mortar from --bg, a wash of --bg over it). Every section's name is a neon sign on
+ * a dark board hung by two wires: the letters in --text with a glow in the section's tube colour (--c, a hue), a tube
+ * looped round the board. Every other sign flickers like an old tube ([data-flicker]): only its glow and its tube go,
+ * the letters stay. Every dish is a lightbox outlined in that tube; about one in five buzzes now and then
+ * ([data-buzz], its own clock --t / --dl). Adding a dish switches its tube off and on (ClubBody).
+ *
+ * The flicker and the buzz run only in a section on screen ([data-live]) and never under a finger ([data-hold]); with
+ * less motion ([data-still]) every tube burns steady. The tube colour is decoration only (glows, outlines), never under
+ * words; every word sits on --card.
+ */
+[data-body='neon'] {
+  --nn-brick: color-mix(in oklab, var(--raised) 86%, var(--accent));
+  --nn-mortar: var(--bg);
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg) 40%, transparent), color-mix(in srgb, var(--bg) 66%, transparent)),
+    conic-gradient(from 270deg at 3px 16px, var(--nn-mortar) 0 90deg, transparent 0) 0 0 / 3.5rem 2rem,
+    conic-gradient(from 180deg at 3px 16px, var(--nn-mortar) 0 90deg, transparent 0) 1.75rem 0 / 3.5rem 2rem,
+    repeating-linear-gradient(180deg, var(--nn-mortar) 0 3px, transparent 3px 16px),
+    var(--nn-brick);
+}
+/* The tube of a section (or a chip): a hue turned into a bright neon, a little of the accent in it. */
+[data-body='neon'] :is(.ck-section, .ck-chip) {
+  --nn-tube: color-mix(in oklab, oklch(0.78 0.19 var(--c, 328)) 85%, var(--accent));
+  --nn-glow: 0 0 0.25rem var(--nn-tube), 0 0 0.75rem var(--nn-tube), 0 0 1.5rem color-mix(in srgb, var(--nn-tube) 70%, transparent);
+}
+
+/* ------------------------------------------------------------------ the strip: small unlit tubes, the lit one burns */
+
+[data-body='neon'] .tpl-strip-sticky {
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+}
+[data-body='neon'] .ck-chip {
+  border-radius: 0.375rem;
+  border-color: color-mix(in srgb, var(--nn-tube) 40%, var(--line));
+  background: var(--card);
+}
+[data-body='neon'] .nn-chip-tube {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--nn-tube) 45%, var(--card));
+}
+[data-body='neon'] .ck-chip[aria-current='true'] {
+  border-color: var(--nn-tube);
+  text-shadow: 0 0 0.5rem var(--nn-tube);
+  box-shadow:
+    0 0 0.625rem color-mix(in srgb, var(--nn-tube) 60%, transparent),
+    inset 0 0 0.5rem color-mix(in srgb, var(--nn-tube) 35%, transparent);
+}
+[data-body='neon'] .ck-chip[aria-current='true'] .nn-chip-tube {
+  background: var(--nn-tube);
+  box-shadow: 0 0 0.5rem var(--nn-tube);
+}
+
+/* ------------------------------------------------------------------ the sign */
+
+[data-body='neon'] .ck-section {
+  padding-block-start: 1rem;
+}
+[data-body='neon'] .ck-headrow {
+  justify-content: center;
+  margin-block-end: 0.625rem;
+}
+[data-body='neon'] .nn-title {
+  position: relative;
+  justify-content: center;
+  padding: 0.25rem 1rem 0.3125rem;
+  border-radius: 0.5rem;
+  background: var(--card);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: var(--nn-glow);
+  box-shadow: 0 0.5rem 1rem -0.5rem rgb(0 0 0 / 0.6);
+}
+[data-body='neon'] .nn-title [data-count] {
+  text-shadow: none;
+}
+/* The two wires it hangs from. */
+[data-body='neon'] .nn-title::before {
+  content: '';
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline: 20%;
+  block-size: 0.75rem;
+  border-inline: 1px solid color-mix(in srgb, var(--text) 35%, transparent);
+}
+/* The tube looped round the board, inside its edge (never over the letters). */
+[data-body='neon'] .nn-title::after {
+  content: '';
+  position: absolute;
+  inset: 0.1875rem;
+  border: 1.5px solid var(--nn-tube);
+  border-radius: 0.375rem;
+  box-shadow:
+    0 0 0.5rem var(--nn-tube),
+    inset 0 0 0.375rem color-mix(in srgb, var(--nn-tube) 40%, transparent);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ the lightbox */
+
+[data-body='neon'] .nn-box {
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'photo' 'name' 'price';
+  grid-template-rows: auto 1fr auto;
+  row-gap: 0.25rem;
+  padding: 0.375rem 0.375rem 0.5rem;
+  border-radius: 0.625rem;
+  background: var(--card);
+}
+/* The tube round the box, under its content. */
+[data-body='neon'] .nn-box::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border: 2px solid var(--nn-tube);
+  border-radius: inherit;
+  box-shadow:
+    0 0 0.625rem var(--nn-tube),
+    0 0 1.25rem -0.25rem var(--nn-tube);
+  pointer-events: none;
+}
+[data-body='neon'] .nn-photo {
+  position: relative;
+  grid-area: photo;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: 0.375rem;
+}
+[data-body='neon'] .nn-img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='neon'] .nn-img img {
+  object-fit: cover;
+}
+[data-body='neon'] .ck-badges,
+[data-body='neon'] .nn-add {
+  grid-area: photo;
+}
+[data-body='neon'] .nn-name {
+  grid-area: name;
+  align-self: start;
+  padding-inline: 0.125rem;
+  font-size: 0.9375rem;
+  text-shadow: 0 0 0.5rem color-mix(in srgb, var(--nn-tube) 55%, transparent);
+}
+[data-body='neon'] .nn-price {
+  grid-area: price;
+  padding-inline: 0.125rem;
+}
+/* The add button: a small round tube switch on the photo's end corner. */
+[data-body='neon'] .nn-add {
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 2px var(--nn-tube),
+    0 0 0.5rem var(--nn-tube);
+}
+@media (hover: hover) {
+  [data-body='neon'] .nn-add:hover {
+    background: var(--button);
+    color: var(--on-button);
+  }
+}
+
+/* ------------------------------------------------------------------ the flicker and the buzz */
+
+[data-body='neon'] .ck-section[data-flicker] .nn-title {
+  animation: club-neon-flick 6.5s infinite;
+  animation-play-state: paused;
+}
+[data-body='neon'] .ck-section[data-flicker] .nn-title::after {
+  animation: club-neon-dim 6.5s infinite;
+  animation-play-state: paused;
+}
+[data-body='neon'] .nn-box[data-buzz]::before {
+  animation: club-neon-buzz var(--t, 6s) var(--dl, 0s) infinite;
+  animation-play-state: paused;
+}
+/* Pseudo-elements cannot go inside :is(), so each moving part is named on its own. */
+[data-body='neon']:not([data-hold]) .ck-section[data-live] .nn-title,
+[data-body='neon']:not([data-hold]) .ck-section[data-live] .nn-title::after,
+[data-body='neon']:not([data-hold]) .ck-section[data-live] .nn-box[data-buzz]::before {
+  animation-play-state: running;
+}
+[data-body='neon'][data-still] .ck-section .nn-title,
+[data-body='neon'][data-still] .ck-section .nn-title::after,
+[data-body='neon'][data-still] .nn-box[data-buzz]::before {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='neon'] .ck-section[data-flicker] .nn-title,
+  [data-body='neon'] .ck-section[data-flicker] .nn-title::after,
+  [data-body='neon'] .nn-box[data-buzz]::before {
+    animation: none;
+  }
+}
+
+@keyframes club-neon-flick {
+  0%,
+  17%,
+  21%,
+  24%,
+  52%,
+  56%,
+  100% {
+    text-shadow: var(--nn-glow);
+  }
+  19%,
+  23%,
+  54% {
+    text-shadow: none;
+  }
+}
+@keyframes club-neon-dim {
+  0%,
+  17%,
+  21%,
+  24%,
+  52%,
+  56%,
+  100% {
+    opacity: 1;
+  }
+  19%,
+  23%,
+  54% {
+    opacity: 0.15;
+  }
+}
+@keyframes club-neon-buzz {
+  0%,
+  88%,
+  91%,
+  94%,
+  100% {
+    opacity: 1;
+  }
+  89%,
+  92% {
+    opacity: 0.2;
+  }
+  93% {
+    opacity: 0.7;
+  }
+}

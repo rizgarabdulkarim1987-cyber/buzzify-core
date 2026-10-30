@@ -1,0 +1,329 @@
+/*
+ * The Erbil Citadel body (poster kurd-arab-cit; a browse shape of a template menu): a sunset over the citadel. The page
+ * opens on the scene (a dusk sky, the mound, the wall with its houses, windows that light one after another, a flight of
+ * birds that crosses once), then a sticky strip of flat tabs, then each section: a centred heading over a two-column grid
+ * of arched cards of citadel brick (the photo in a lighter arch, the name, the price and the add). Everything is scoped
+ * under [data-body='citadel'], logical properties only (RTL mirrors).
+ * The scene's colours are the shape's own (citadel-skyline.ts, the same on every palette); everything under it takes the
+ * palette: the brick is the background warmed with the accent, the tabs and the lettering the text colour.
+ */
+[data-body='citadel'] {
+  --ct-brick: color-mix(in srgb, var(--accent) 22%, color-mix(in srgb, var(--text) 14%, var(--bg)));
+  --ct-brick-line: color-mix(in srgb, var(--accent) 24%, color-mix(in srgb, var(--text) 30%, var(--bg)));
+  --ct-rule: color-mix(in srgb, var(--accent) 38%, var(--bg));
+  --ct-price: color-mix(in srgb, var(--accent) 30%, var(--text));
+  /* The sticky strip's height, so a jumped-to section lands just below it. */
+  --nav-room: 4rem;
+  --column: 64rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 30%;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the scene */
+
+[data-body='citadel'] .ct-hero {
+  position: relative;
+  block-size: 6.75rem;
+  overflow: hidden;
+  background: linear-gradient(#24164a, #7a3550 45%, #e98a4a 80%, #f5c27a);
+}
+[data-body='citadel'] .ct-castle {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  inline-size: 100%;
+  block-size: 6rem;
+}
+[data-body='citadel'] .ct-mound {
+  fill: #3a2230;
+}
+[data-body='citadel'] .ct-wall {
+  fill: #4a2c3a;
+}
+[data-body='citadel'] .ct-front {
+  fill: #2a1622;
+}
+[data-body='citadel'] .ct-win[data-window='upper'] {
+  fill: #ffd27a;
+}
+[data-body='citadel'] .ct-win[data-window='lower'] {
+  fill: #ffc35a;
+}
+/* The windows light one after another, once: dark, a glow, a dip, lit. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-body='citadel'] .ct-win {
+    animation: ct-light 1600ms ease-out both;
+  }
+}
+@keyframes ct-light {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* A bird: two wings that flap while it crosses the sky once, then it is gone (past the edge). */
+[data-body='citadel'] .ct-bird {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: 0;
+  inline-size: 18px;
+  block-size: 8px;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-body='citadel'] .ct-bird::before,
+[data-body='citadel'] .ct-bird::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 9px;
+  block-size: 8px;
+  border-block-start: 2px solid #2a1730;
+  border-radius: 50% 50% 0 0;
+}
+[data-body='citadel'] .ct-bird::before {
+  inset-inline-start: 0;
+  transform-origin: right bottom;
+}
+[data-body='citadel'] .ct-bird::after {
+  inset-inline-end: 0;
+  transform-origin: left bottom;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-body='citadel'] .ct-bird {
+    animation: ct-fly var(--ct-fly, 4200ms) linear both;
+  }
+  [data-body='citadel'] .ct-bird:dir(rtl) {
+    animation-name: ct-fly-rtl;
+  }
+  [data-body='citadel'] .ct-bird::before,
+  [data-body='citadel'] .ct-bird::after {
+    animation: ct-flap 500ms ease-in-out 8 alternate;
+  }
+}
+@keyframes ct-fly {
+  from {
+    opacity: 1;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(110vw);
+  }
+}
+@keyframes ct-fly-rtl {
+  from {
+    opacity: 1;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-110vw);
+  }
+}
+@keyframes ct-flap {
+  to {
+    transform: scaleY(0.3);
+  }
+}
+
+/* ------------------------------------------------------------------ the tabs */
+
+[data-body='citadel'] .ct-strip {
+  border-block-end: 3px solid var(--ct-rule);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+}
+[data-body='citadel'] .ct-strip-list {
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+}
+/* A tab: a flat, slightly rounded plank; the one in view is the dark one. */
+[data-body='citadel'] .ct-tab {
+  display: flex;
+  align-items: center;
+  min-inline-size: 2.75rem;
+  max-inline-size: 12rem;
+  block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--text) 12%, var(--bg));
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 150ms;
+}
+[data-body='citadel'] .ct-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-body='citadel'] .ct-tab[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ a section */
+
+[data-body='citadel'] .ct-terrace {
+  padding-block: 0.5rem 0.25rem;
+  padding-inline: 0.75rem;
+}
+[data-body='citadel'] [data-heading].ct-head {
+  display: block;
+}
+[data-body='citadel'] .ct-title {
+  display: block;
+  margin: 0 0 0.375rem;
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+}
+/* The number and the dish count are not part of this heading. */
+[data-body='citadel'] .ct-title :is(small, b) {
+  display: none;
+}
+[data-body='citadel'] .ct-title span {
+  overflow-wrap: anywhere;
+}
+[data-body='citadel'] .ct-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* An arched card of brick: the arch is its own top; the photo stands in a lighter arch inside it. */
+[data-body='citadel'] .ct-card {
+  --tpl-ring-radius: 5rem 5rem 0.25rem 0.25rem;
+  --tpl-ring-inset: -3px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  padding: 0.4375rem 0.4375rem 0.5625rem;
+  border-radius: 5rem 5rem 0.25rem 0.25rem;
+  background-color: var(--ct-brick);
+  box-shadow: 0 0.375rem 0.75rem color-mix(in srgb, var(--text) 25%, transparent);
+}
+/* The courses of brick: thin lines behind the card's content (the card keeps one solid colour, so its text is measurable). */
+[data-body='citadel'] .ct-card {
+  position: relative;
+  isolation: isolate;
+}
+[data-body='citadel'] .ct-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: repeating-linear-gradient(0deg, transparent 0 14px, var(--ct-brick-line) 14px 16px);
+  pointer-events: none;
+}
+[data-body='citadel'] .ct-photo {
+  aspect-ratio: 1 / 0.74;
+  border: 3px solid var(--raised);
+  border-radius: 4.5rem 4.5rem 0.125rem 0.125rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+}
+/* The discount on the photo's foot (the top is the arch). */
+[data-body='citadel'] .ct-off {
+  inset-block-start: auto;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+}
+[data-body='citadel'] .ct-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name'
+    'price add';
+  align-items: center;
+  align-content: space-between;
+  gap: 0.125rem 0.25rem;
+  padding: 0.25rem 0.125rem 0;
+}
+[data-body='citadel'] .ct-name {
+  grid-area: name;
+  justify-self: center;
+  color: color-mix(in srgb, var(--text) 92%, #000);
+  font-size: 0.875rem;
+  text-align: center;
+}
+[data-body='citadel'] .ct-price {
+  grid-area: price;
+  color: var(--ct-price);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+/* The add: a round dark button on the row, beside the price. */
+[data-body='citadel'] .ct-card .ct-add {
+  --rim-add-size: 2.5rem;
+  --rim-add-bg: var(--text);
+  --rim-add-ink: var(--bg);
+  grid-area: add;
+  position: relative;
+  z-index: 3;
+  inset: auto;
+}
+[data-body='citadel'] .ct-card .ct-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='citadel'] .ct-card .ct-add:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: -4px;
+}
+
+@media (hover: hover) {
+  [data-body='citadel'] .ct-card:hover {
+    box-shadow: 0 0.5rem 1rem color-mix(in srgb, var(--text) 35%, transparent);
+  }
+}
+
+/* A wide screen: four columns, then five, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='citadel'] .ct-hero {
+    block-size: 11rem;
+  }
+  [data-body='citadel'] .ct-castle {
+    block-size: 9.5rem;
+  }
+  [data-body='citadel'] .ct-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+  [data-body='citadel'] .ct-price {
+    font-size: 0.9375rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='citadel'] .ct-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='citadel'] .ct-tab {
+    transition: none;
+  }
+}
+
+/* The card's keyboard ring (the name's overlay) is drawn in the text colour, which stands out from the brick. */
+[data-body='citadel'] .ct-card .tpl-open:focus-visible::after {
+  outline-color: var(--text);
+}

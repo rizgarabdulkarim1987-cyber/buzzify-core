@@ -1,9 +1,10 @@
 'use client';
 
-import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
+import { POS_LEG_METHODS } from '@/server/domain/pos/payment-methods';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
+import { toast } from 'sonner';
+import { addPosExpense, closePosShift, openPosDrawer, openPosShift } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
 import { amountDigits, countKind, typedAmount } from '@/lib/pos-view';
 import type { ShiftSummary } from '@/server/pos/shifts';
@@ -14,6 +15,7 @@ import { cx } from '@/studio/ui/cx';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { useMoney } from './money';
+import { usePrint } from './print/PrintProvider';
 import { usePosCall } from './use-pos-call';
 
 const FLOATS = [0, 25_000, 50_000, 100_000] as const;
@@ -56,11 +58,13 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
-  const [dialog, setDialog] = useState<'none' | 'expense' | 'close'>('none');
+  const { hasReceiptPrinter, hasDrawer, printShift, openDrawer } = usePrint();
+  const [dialog, setDialog] = useState<'none' | 'expense' | 'close' | 'drawer'>('none');
   const [counted, setCounted] = useState('');
   const { shift } = summary;
   const open = shift.closedAt === null;
-  const difference = open ? (counted === '' ? null : Number(counted) - summary.expectedCash) : shift.difference;
+  // The count is blind: while the shift is open the screen never shows what the drawer should hold, nor how the count compares.
+  const difference = open ? null : shift.difference;
 
   return (
     <div className="flex max-w-5xl flex-col gap-4 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
@@ -70,19 +74,26 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
       </p>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,22rem)] print:block">
         <section className="flex flex-col gap-4 rounded-[28px] border border-line bg-raised p-6">
-          <div className="rounded-2xl bg-hover p-5">
-            <p className="text-base font-semibold text-muted">{t('pos.shift.expected')}</p>
-            <p className="mt-1 font-bold tracking-tight" style={{ fontSize: '3rem', lineHeight: 1 }}>{money(summary.expectedCash)}</p>
-          </div>
+          {summary.expectedCash !== null ? (
+            <div className="rounded-2xl bg-hover p-5">
+              <p className="text-base font-semibold text-muted">{t('pos.shift.expected')}</p>
+              <p className="mt-1 font-bold tracking-tight" style={{ fontSize: '3rem', lineHeight: 1 }}>{money(summary.expectedCash)}</p>
+            </div>
+          ) : null}
           <dl className="flex flex-col text-base">
             <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
-            <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} />
+            {shift.zNumber !== null ? <Row label={t('pos.shift.zNumber')} value={formatNumber(shift.zNumber)} /> : null}
+            {!open ? <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} /> : null}
             <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
-            {summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
-            {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
+            {!open && summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
+            {POS_LEG_METHODS.filter((m) => m !== 'CASH' && m !== 'CASH_USD' && summary.refundsByMethod[m] > 0).map((m) => (
               <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
             ))}
             {!open && shift.countedCash !== null ? <Row label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}
+            {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.expectedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.expectedUsdAtClose ?? 0) })} /> : null}
+            {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.countedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.countedUsd) })} /> : null}
+            {!open && shift.differenceUsd !== null ? <Row label={t('pos.shift.differenceUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.differenceUsd) })} /> : null}
+            {!open && summary.usdBeyondDrawer !== null && summary.usdBeyondDrawer > 0 ? <Row label={t('pos.shift.usdBeyondDrawer')} value={t('pos.usd.amount', { n: formatNumber(summary.usdBeyondDrawer) })} /> : null}
             {!open && difference !== null ? <Verdict difference={difference} /> : null}
           </dl>
           {shift.note ? <p className="text-base text-muted">{shift.note}</p> : null}
@@ -91,6 +102,11 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
               <Button variant="secondary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('expense')}>
                 {t('pos.shift.addExpense')}
               </Button>
+              {hasDrawer ? (
+                <Button variant="secondary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('drawer')}>
+                  {t('pos.drawer.open')}
+                </Button>
+              ) : null}
               {canClose ? (
                 <Button variant="primary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('close')}>
                   {t('pos.shift.countAndClose')}
@@ -98,9 +114,16 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
               ) : null}
             </div>
           ) : (
-            <Button variant="primary" size="lg" className="min-h-14 print:hidden" onClick={() => window.print()}>
-              {t('pos.receipt.print')}
-            </Button>
+            <div className="flex flex-col gap-2 print:hidden">
+              {hasReceiptPrinter ? (
+                <Button variant="primary" size="lg" className="min-h-14" onClick={() => void printShift(summary)}>
+                  {t('pos.print.slip')}
+                </Button>
+              ) : null}
+              <Button variant={hasReceiptPrinter ? 'secondary' : 'primary'} size="lg" className="min-h-14" onClick={() => window.print()}>
+                {t('pos.receipt.print')}
+              </Button>
+            </div>
           )}
         </section>
         <section aria-label={t('pos.shift.expenses')} className="flex flex-col gap-3 rounded-[28px] border border-line bg-raised p-6">
@@ -148,12 +171,34 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
       </ConfirmDialog>
 
       <ConfirmDialog
+        open={dialog === 'drawer'}
+        onOpenChange={(next) => !next && setDialog('none')}
+        title={t('pos.drawer.title')}
+        confirmLabel={t('pos.drawer.open')}
+        tone="primary"
+        onConfirm={async (form) => {
+          const reason = String(form.get('reason') ?? '').trim();
+          const result = await call(() => openPosDrawer({ reason }), { quiet: true, keepPage: true });
+          if (!result.ok) return { fields: result.error.fields ?? {}, message: result.error.fields ? undefined : t('pos.shift.refused') };
+          const kicked = await openDrawer();
+          if (kicked.ok) toast.success(t('pos.drawer.opened'));
+          return true;
+        }}
+      >
+        {(errors) => (
+          <Field label={t('pos.drawer.reason')} error={errors.reason}>
+            <Input name="reason" autoFocus size="lg" maxLength={200} />
+          </Field>
+        )}
+      </ConfirmDialog>
+
+      <ConfirmDialog
         open={dialog === 'close'}
         onOpenChange={(next) => !next && setDialog('none')}
         title={t('pos.shift.countAndClose')}
         body={
           <>
-            {summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.countHint', { amount: money(summary.expectedCash) })}
+            {summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.blindHint')}
             {summary.unsettledDeliveries.count > 0 ? (
               <span className="mt-2 block font-medium">{t('pos.shift.unsettled', { n: formatNumber(summary.unsettledDeliveries.count), amount: money(summary.unsettledDeliveries.amount) })}</span>
             ) : null}
@@ -163,9 +208,11 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         tone="primary"
         onConfirm={async (form) => {
           const countedCash = typedAmount(String(form.get('counted') ?? ''));
-          if (countedCash === null) return { fields: { countedCash: t('pos.shift.enterCount') } };
+          if (countedCash === null) return { fields: { countedCash: t('pos.shift.enterCount') } as Record<string, string> };
+          const countedUsd = summary.countsDollars ? typedAmount(String(form.get('countedUsd') ?? '')) : undefined;
+          if (countedUsd === null) return { fields: { countedUsd: t('pos.shift.enterUsdCount') } as Record<string, string> };
           const note = String(form.get('note') ?? '').trim();
-          const result = await call(() => closePosShift({ shiftId: shift.id, countedCash, note }), { quiet: true });
+          const result = await call(() => closePosShift({ shiftId: shift.id, countedCash, ...(countedUsd === undefined ? {} : { countedUsd }), note }), { quiet: true });
           if (result.ok) {
             router.push(`/pos/shift/${shift.id}`);
             return true;
@@ -178,10 +225,10 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             <Field label={t('pos.shift.counted')} error={errors.countedCash}>
               <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(amountDigits(event.target.value))} />
             </Field>
-            {difference !== null ? (
-              <dl aria-live="polite">
-                <Verdict difference={difference} />
-              </dl>
+            {summary.countsDollars ? (
+              <Field label={t('pos.shift.countedUsd')} error={errors.countedUsd}>
+                <Input name="countedUsd" size="lg" inputMode="numeric" dir="ltr" />
+              </Field>
             ) : null}
             <Field label={t('pos.shift.note')} optional>
               <Input name="note" size="lg" maxLength={300} />

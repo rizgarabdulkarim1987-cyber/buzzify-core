@@ -5,10 +5,12 @@ const css = readFileSync('src/studio/studio.css', 'utf8');
 const read = (path: string) => readFileSync(path, 'utf8');
 
 describe('the look in the stylesheet', () => {
-  it('keeps the shape radius off round pills and off the till tiles', () => {
-    expect(css).toMatch(/html\[data-shape\] button:not\(\.s-keep-radius\):not\(\[class\*='rounded-full'\]\)/);
-    for (const file of ['src/app/pos/_ui/OrderScreen.tsx', 'src/app/pos/_ui/floor/Floor.tsx', 'src/app/pos/_ui/sync/OfflineTill.tsx']) {
-      expect(read(file), file).toContain('s-keep-radius');
+  it('applies the shape radius to the table tiles only', () => {
+    expect(css).toMatch(/html\[data-shape\] \.s-shape\s*\{\s*border-radius: var\(--s-btn-radius\)/);
+    expect(css).not.toMatch(/html\[data-shape\] button/);
+    expect(css).not.toMatch(/html\[data-shape\] \.s-btn/);
+    for (const file of ['src/app/pos/_ui/floor/Floor.tsx', 'src/app/pos/_ui/sync/OfflineTill.tsx']) {
+      expect(read(file), file).toContain('s-shape');
     }
   });
   it('draws selection, caret and focus edge from the text colour, not the button colour', () => {

@@ -3,8 +3,10 @@ import type { PosOrder, PosOrderLine, Prisma } from '@/generated/prisma/client';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { canTransition, isLocked, LOCKED_STATUSES, type OrderStatus } from '@/server/domain/pos/order-state';
+import { roundTo } from '@/server/domain/pos/rounding';
 import { computeTotals, lineTotal, type Discount, type PricedLine, type Rates, type Totals } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
+import type { DiscountWhy } from './approval';
 import { isUniqueViolation, refuse } from './errors';
 import { kitchenDone } from './kitchen-state';
 
@@ -22,6 +24,7 @@ export function pricedLine(line: PosOrderLine): PricedLine {
     unitPrice: line.unitPriceSnapshot,
     optionsTotal: optionsSnapshotSchema.parse(line.optionsSnapshot).reduce((sum, option) => sum + option.priceDelta, 0),
     quantity: line.quantity,
+    promoPerUnit: line.promoDiscountPerUnit,
     discount: toDiscount(line.discountKind, line.discountValue),
     cancelled: line.cancelledAt !== null,
   };
@@ -42,7 +45,15 @@ export function orderTotals(
   return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates), order.kind === 'DELIVERY' ? order.deliveryFee : 0), invoiceDiscount };
 }
 
+/** What the cashier collects for the whole bill: its total rounded to the restaurant's step, as the order screen shows it. */
+export function payableTotal(order: Parameters<typeof orderTotals>[0], lines: readonly PosOrderLine[], rates: Rates & { roundingStep: number }): number {
+  return roundTo(orderTotals(order, lines, rates).totals.total, rates.roundingStep).total;
+}
+
 export interface TillRates extends Rates {
+  usdEnabled: boolean;
+  usdRate: number;
+  roundingStep: number;
   tableRingMinutes: number;
   kitchenPrintEnabled: boolean;
   kitchenScreenEnabled: boolean;
@@ -52,9 +63,9 @@ export interface TillRates extends Rates {
 export async function readRates(db: AnyDb, restaurantId: string): Promise<TillRates> {
   const settings = await db.posSettings.findFirst({
     where: { restaurantId },
-    select: { serviceRatePercent: true, taxRatePercent: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
+    select: { serviceRatePercent: true, taxRatePercent: true, roundingStep: true, usdEnabled: true, usdRate: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
   });
-  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
+  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, roundingStep: 0, usdEnabled: false, usdRate: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
 }
 
 // The order's version guard ---------------------------------------------------------------------------------------------
@@ -134,12 +145,23 @@ export async function openOrderIn(db: AnyDb, restaurantId: string, tableId: stri
   return { orderId: order.id, number: order.number, version: order.version };
 }
 
-export async function setInvoiceDiscountIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; discount: Discount | null }) {
+export async function setInvoiceDiscountIn(
+  db: AnyDb,
+  restaurantId: string,
+  input: { orderId: string; expectedVersion: number; discount: Discount | null; why?: DiscountWhy },
+) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
+  // Parts already paid took their share of the old discount, so the bill must not be re-priced under them.
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
+  // The reason lives with the discount: clearing the discount clears it too.
+  const why = input.discount ? input.why : undefined;
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {
     invoiceDiscountKind: input.discount?.kind ?? null,
     invoiceDiscountValue: input.discount?.value ?? null,
+    invoiceDiscountReason: why?.reason ?? null,
+    invoiceDiscountNote: why?.note ?? null,
+    invoiceDiscountApprovedByStaffId: why?.approvedByStaffId ?? null,
   });
   return { orderId: order.id, version, before: toDiscount(order.invoiceDiscountKind, order.invoiceDiscountValue) ?? null, after: input.discount };
 }
@@ -158,6 +180,7 @@ export async function requestBillIn(db: AnyDb, restaurantId: string, input: { or
 export async function cancelOrderIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; reason: string }) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   if (!canTransition(order.status, 'CANCELLED')) throw refuse('CONFLICT', 'The order cannot be cancelled');
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
   const liveLines = await db.posOrderLine.count({ where: { orderId: order.id, restaurantId, cancelledAt: null } });
   if (liveLines > 0 && input.reason === '') {
     throw new StudioError('INVALID', 'Enter a reason', { reason: 'Enter a reason' });
@@ -193,10 +216,14 @@ export interface OrderLineView {
   unitPrice: number;
   options: OptionSnapshot[];
   note: string;
+  /** What the menu's offer took off one unit when the line was added, in whole IQD (0: none). */
+  offerPerUnit: number;
   discount: Discount | null;
   /** What the line adds to the subtotal (a cancelled line keeps this amount but is not in the total). */
   lineTotal: number;
   cancelled: boolean;
+  /** Paid by a split payment already: the line can no longer change. */
+  paid: boolean;
   cancelReason: string | null;
   sent: boolean;
   batch: number | null;
@@ -229,13 +256,28 @@ export interface OrderView {
   seatedAt: Date;
   invoiceDiscount: Discount | null;
   lines: OrderLineView[];
-  totals: Totals;
+  /** The bill's components, and `total` as the amount to pay: rounded to the restaurant's step, `rounding` being the difference. */
+  totals: Totals & { rounding: number };
+  /** The restaurant's rounding step in dinars (0: off); the screen needs it to price one guest's part. */
+  roundingStep: number;
+  /** Cash in US dollars: whether the till takes it and the dinars per dollar. */
+  usd: { enabled: boolean; rate: number };
   rates: Rates;
   kitchen: { print: boolean; screen: boolean };
+  /** Set when the whole bill is paid: the last payment taken. */
   paid: { paymentId: string; method: string; amountReceived: number; paidAt: Date } | null;
+  /** Every payment taken so far, in order: one for the whole bill, or one per guest after a split. */
+  parts: { paymentId: string; part: number; method: string; total: number; paidAt: Date; reversed: boolean }[];
+  /** What the parts paid so far took of the invoice discount, service, tax and delivery fee (to price the next part). */
+  taken: { invoiceDiscount: number; service: number; tax: number; deliveryFee: number; billed: number; paid: number };
+  /** The bill minus what the parts paid so far: what the next guest, or the rest of the table, still owes. */
+  leftToPay: number;
   /** The ways the till may take payment now; cash is always among them. */
   paymentMethods: PosPaymentMethodKey[];
 }
+
+/** Only the total of a payment's frozen snapshot (totals-snapshot.ts imports this file, so it cannot be used here). */
+const partTotal = z.object({ total: z.number().int(), rounding: z.number().int().default(0), invoiceDiscount: z.number().int(), service: z.number().int(), tax: z.number().int(), deliveryFee: z.number().int() });
 
 /** The order, all its lines (cancelled ones included, oldest first), its totals and the rates they were computed with. */
 export async function readOrderView(db: AnyDb, restaurantId: string, orderId: string): Promise<OrderView | null> {
@@ -243,7 +285,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     where: { id: orderId, restaurantId },
     include: {
       table: { select: { number: true, area: { select: { name: true } } } },
-      payment: { select: { id: true, method: true, amountReceived: true, paidAt: true } },
+      payments: { orderBy: { part: 'asc' }, select: { id: true, part: true, method: true, amountReceived: true, paidAt: true, totalsSnapshot: true, reversal: { select: { id: true } } } },
     },
   });
   if (!order) return null;
@@ -254,6 +296,17 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
   ]);
   const { totals, invoiceDiscount } = orderTotals(order, lines, settings);
   const rates = effectiveRates(order.kind, settings);
+  const payable = roundTo(totals.total, settings.roundingStep);
+  const paidLast = order.payments[order.payments.length - 1];
+  const earlier = order.payments.map((p) => partTotal.parse(p.totalsSnapshot));
+  const taken = {
+    invoiceDiscount: earlier.reduce((sum, p) => sum + p.invoiceDiscount, 0),
+    service: earlier.reduce((sum, p) => sum + p.service, 0),
+    tax: earlier.reduce((sum, p) => sum + p.tax, 0),
+    deliveryFee: earlier.reduce((sum, p) => sum + p.deliveryFee, 0),
+    billed: earlier.reduce((sum, p) => sum + p.total - p.rounding, 0),
+    paid: earlier.reduce((sum, p) => sum + p.total, 0),
+  };
   return {
     id: order.id,
     number: order.number,
@@ -290,9 +343,11 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
         unitPrice: line.unitPriceSnapshot,
         options: optionsSnapshotSchema.parse(line.optionsSnapshot),
         note: line.note,
+        offerPerUnit: line.promoDiscountPerUnit,
         discount: priced.discount ?? null,
         lineTotal: lineTotal(priced),
         cancelled: line.cancelledAt !== null,
+        paid: line.paymentId !== null,
         cancelReason: line.cancelReason,
         sent: line.sentAt !== null,
         batch: line.batch,
@@ -300,12 +355,16 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
         sectionName: line.sectionNameSnapshot,
       };
     }),
-    totals,
+    totals: { ...totals, total: payable.total, rounding: payable.rounding },
+    roundingStep: settings.roundingStep,
+    usd: { enabled: settings.usdEnabled && settings.usdRate > 0, rate: settings.usdRate },
     rates,
     kitchen: { print: settings.kitchenPrintEnabled, screen: settings.kitchenScreenEnabled },
-    paid: order.payment
-      ? { paymentId: order.payment.id, method: order.payment.method, amountReceived: order.payment.amountReceived, paidAt: order.payment.paidAt }
-      : null,
+    paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,
+    parts: order.payments.map((p) => ({ paymentId: p.id, part: p.part, method: p.method, total: partTotal.parse(p.totalsSnapshot).total, paidAt: p.paidAt, reversed: p.reversal !== null })),
+    taken,
+    // The rounded bill minus what the parts paid: what the last part pays under cumulative rounding (split.ts).
+    leftToPay: order.status === 'PAID' ? 0 : earlier.length === 0 ? payable.total : Math.max(0, payable.total - taken.paid),
     paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }

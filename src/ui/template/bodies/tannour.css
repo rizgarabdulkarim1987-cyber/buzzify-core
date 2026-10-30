@@ -1,0 +1,154 @@
+/*
+ * The Tannour (family orbit, kind `tannour`): every section a clay tannour seen from above. The fire burns in the pit in
+ * the middle round a coal disc with the section's name; the dishes are breads stuck to the oven's wall, round the fire,
+ * each in a baked rim. Adding one makes its photo glow warm (OrbitBody). The clay is mixed from the accent with the
+ * raised and text colours, the pit from the background; the flames are decoration over no words.
+ */
+[data-body='tannour'] {
+  --tn-clay: color-mix(in srgb, var(--accent) 42%, var(--raised));
+  --tn-clay-hi: color-mix(in srgb, var(--accent) 38%, var(--text));
+  --tn-clay-lo: color-mix(in srgb, var(--tn-clay) 62%, #000);
+  --tn-pit: color-mix(in srgb, var(--bg) 72%, #000);
+  --tn-flame: color-mix(in srgb, var(--accent) 80%, #ffd27a);
+  --ob-turn: 220s;
+  --ob-word-bg: color-mix(in srgb, var(--bg) 86%, transparent);
+  background:
+    radial-gradient(ellipse at 50% 0, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    var(--bg);
+}
+
+/* The strip: clay loaves. */
+[data-body='tannour'] .ob-chip {
+  border: 0;
+  border-radius: 1.125rem;
+  background: var(--raised);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--tn-clay-lo) 70%, transparent);
+}
+[data-body='tannour'] .ob-chip-mark {
+  background: radial-gradient(circle, var(--tn-flame), var(--accent) 60%, var(--tn-clay-lo));
+}
+
+/* The oven: the clay rim, its wall sloping down, the dark pit. */
+[data-body='tannour'] .tn-oven {
+  position: absolute;
+  inset: -3%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+[data-body='tannour'] .tn-wall {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      circle closest-side,
+      var(--tn-pit) 0 44%,
+      color-mix(in srgb, var(--tn-clay-lo) 70%, var(--tn-pit)) 52%,
+      var(--tn-clay-lo) 64%,
+      var(--tn-clay) 82%,
+      var(--tn-clay-hi) 92%,
+      var(--tn-clay) 96%,
+      var(--tn-clay-lo) 100%
+    );
+  box-shadow: 0 1.25rem 2rem -0.75rem rgb(0 0 0 / 0.55);
+}
+/* Fine cracks and fingermarks in the clay. */
+[data-body='tannour'] .tn-wall::after {
+  content: '';
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 8deg, color-mix(in srgb, var(--tn-clay-lo) 40%, transparent) 0 1deg, transparent 1deg 23deg);
+  mask: radial-gradient(circle closest-side, transparent 0 58%, #000 62% 96%, transparent 98%);
+}
+/* The flames round the coal disc. */
+[data-body='tannour'] .tn-fire {
+  position: absolute;
+  inset: 29%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, var(--tn-flame) 0 7deg, var(--accent) 12deg, color-mix(in srgb, var(--accent) 60%, #8a1c00) 18deg, var(--tn-flame) 24deg);
+  mask: radial-gradient(circle closest-side, transparent 0 58%, #000 64% 84%, transparent 100%);
+  filter: blur(1.5px);
+}
+[data-body='tannour'] .tn-glow {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, color-mix(in srgb, var(--tn-flame) 55%, transparent), transparent 100%);
+}
+[data-body='tannour'] .ob-system[data-live] .tn-fire {
+  animation: tn-flicker 1.6s ease-in-out infinite alternate;
+}
+[data-body='tannour'] .ob-system[data-live] .tn-glow {
+  animation: tn-breathe 2.4s ease-in-out infinite alternate;
+}
+[data-body='tannour'][data-still] :is(.tn-fire, .tn-glow) {
+  animation: none;
+}
+@keyframes tn-flicker {
+  from {
+    opacity: 0.85;
+    scale: 1;
+    rotate: 0deg;
+  }
+  to {
+    opacity: 1;
+    scale: 1.06;
+    rotate: 9deg;
+  }
+}
+@keyframes tn-breathe {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The coal disc with the section's name in the fire's light. */
+[data-body='tannour'] .ob-core {
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--tn-pit) 70%, var(--accent)), var(--tn-pit) 70%);
+  box-shadow: 0 0 1.25rem 0.25rem color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 0.75rem rgb(0 0 0 / 0.6);
+}
+[data-body='tannour'] .ob-title {
+  padding-inline: 0.375rem;
+  color: var(--text);
+  font-size: 0.8125rem;
+  text-shadow: 0 0 0.75rem color-mix(in srgb, var(--accent) 70%, transparent);
+}
+[data-body='tannour'] .ob-title [data-count] {
+  color: var(--accent-ink);
+  text-shadow: none;
+}
+
+/* The breads: each photo in a baked rim, stuck on the wall. */
+[data-body='tannour'] .ob-photo {
+  box-shadow: 0 0 0 3px var(--tn-clay-hi), 0 0 0 5px color-mix(in srgb, var(--tn-clay-lo) 60%, transparent), 0 0.375rem 0.625rem rgb(0 0 0 / 0.5);
+}
+[data-body='tannour'] .ob-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgb(255 230 190 / 0.18), transparent 45%, rgb(60 20 0 / 0.25) 100%);
+  pointer-events: none;
+}
+[data-body='tannour'] .ob-photo {
+  position: relative;
+}
+[data-body='tannour'] .ob-words {
+  border-radius: 0.5rem;
+}
+[data-body='tannour'] .obr-row {
+  background: color-mix(in srgb, var(--raised) 85%, var(--accent));
+}
+[data-body='tannour'] .obr-photo {
+  box-shadow: 0 0 0 2px var(--tn-clay-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='tannour'] :is(.tn-fire, .tn-glow) {
+    animation: none !important;
+  }
+}

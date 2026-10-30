@@ -1,7 +1,9 @@
 import { pickName } from '@/lib/pos-view';
 import type { OrderStatus } from '@/server/domain/pos/order-state';
+import { tillOfferPerUnit } from '@/server/domain/pos/line-offer';
+import { roundTo } from '@/server/domain/pos/rounding';
 import { computeTotals, type Discount, type Rates, type Totals } from '@/server/domain/pos/totals';
-import type { TillProduct } from '@/server/pos/till-catalog';
+import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import type { QueuedOp } from './queue';
 import type { SnapshotLine, SyncSnapshot } from './snapshot';
 
@@ -10,6 +12,13 @@ import type { SnapshotLine, SyncSnapshot } from './snapshot';
  * in the order they were made. Pure: no storage, no clock. The server stays the authority; this is only a preview of what
  * it will be told, and its totals come from the same rules (`computeTotals`).
  */
+
+/**
+ * A line as the device holds it. `cancelledHere` marks a line cancelled by an operation made on this device (after the
+ * snapshot was taken); a line the snapshot already shows cancelled had its slip printed online, so the offline till never
+ * prints it again. No queued operation cancels a single line yet, so today only the snapshot's own cancellations exist.
+ */
+export type LocalLine = SnapshotLine & { cancelledHere?: boolean };
 
 export interface LocalOrder {
   /** Stable identity on this device: the opening operation id (`op:<id>`), else the server order (`id:<id>`). */
@@ -26,7 +35,9 @@ export interface LocalOrder {
   version: number;
   seatedAt: string | null;
   invoiceDiscount: Discount | null;
-  lines: SnapshotLine[];
+  /** A part of the bill is already paid (from the snapshot): the offline till cannot take the rest. */
+  partPaid?: boolean;
+  lines: LocalLine[];
   /** Operations of this order that have not been applied. */
   waiting: number;
   attention: boolean;
@@ -43,12 +54,18 @@ export interface LocalState {
   byTable: Map<string, LocalOrder>;
 }
 
+/** What is actually taken for a bill: its total rounded to the restaurant's step, and the difference the rounding made. */
+export function payableOf(totals: Pick<Totals, 'total'>, rates: { roundingStep?: number }): { total: number; rounding: number } {
+  return roundTo(totals.total, rates.roundingStep ?? 0);
+}
+
 export function localTotals(order: Pick<LocalOrder, 'lines' | 'invoiceDiscount'>, rates: Rates): Totals {
   return computeTotals(
     order.lines.map((line) => ({
       unitPrice: line.unitPrice,
       optionsTotal: line.options.reduce((sum, option) => sum + option.priceDelta, 0),
       quantity: line.quantity,
+      promoPerUnit: line.promoPerUnit,
       discount: line.discount ?? undefined,
       cancelled: line.cancelled,
     })),
@@ -60,7 +77,7 @@ export function localTotals(order: Pick<LocalOrder, 'lines' | 'invoiceDiscount'>
 type AddLine = Extract<QueuedOp['op'], { kind: 'addLine' }>;
 
 /** The line as the server will store it: names in the menu default language, the chosen size first, then the options. */
-function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<typeof pickName>[2], operationId: string): SnapshotLine {
+function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<typeof pickName>[2], operationId: string, offers: Pick<TillCatalog, 'offers' | 'timeZone'> | null): SnapshotLine {
   const chosen: SnapshotLine['options'] = [];
   const variant = op.payload.variantId
     ? product.variants.find((v) => v.id === op.payload.variantId)
@@ -72,12 +89,16 @@ function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<ty
       if (option) chosen.push({ id: option.id, name: pickName(option.names, defaultLocale, defaultLocale), priceDelta: option.priceDelta });
     }
   }
+  // Priced at the moment the cashier tapped the dish, as the server prices the replay (`pricingMoment`).
+  const regularUnit = product.price + chosen.reduce((sum, option) => sum + option.priceDelta, 0);
+  const promoPerUnit = offers ? tillOfferPerUnit(product, regularUnit, offers.offers ?? [], new Date(op.clientAt), offers.timeZone) : 0;
   return {
     id: `op:${operationId}`,
     productId: product.id,
     name: pickName(product.names, defaultLocale, defaultLocale),
     quantity: op.payload.quantity,
     unitPrice: product.price,
+    promoPerUnit,
     options: chosen,
     note: op.payload.note,
     discount: null,
@@ -110,7 +131,9 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       version: order.version,
       seatedAt: order.seatedAt,
       invoiceDiscount: order.invoiceDiscount,
-      lines: order.lines.map((line) => ({ ...line, options: [...line.options] })),
+      partPaid: order.partPaid,
+      // A snapshot cached by a device before offers reached the till has no `promoPerUnit`: those lines carry none.
+      lines: order.lines.map((line) => ({ ...line, promoPerUnit: line.promoPerUnit ?? 0, options: [...line.options] })),
       waiting: 0,
       attention: false,
       paid: null,
@@ -145,16 +168,19 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       });
       continue;
     }
+    // Notes for the audit log (a drawer opening, a printed copy) change no order: a copy only counts as waiting.
+    if (op.kind === 'drawerOpen') continue;
     const ref = op.orderRef;
     const order = orders.get('id' in ref ? `id:${ref.id}` : (appliedOpen.get(ref.op) ?? `op:${ref.op}`));
     if (!order) continue;
     order.waiting += 1;
     if (q.state === 'attention') order.attention = true;
+    if (op.kind === 'receiptCopy') continue;
     order.version = op.expectedVersion + 1;
     switch (op.kind) {
       case 'addLine': {
         const product = products.get(op.payload.productId);
-        if (product) order.lines.push(newLine(product, op, defaultLocale, q.operationId));
+        if (product) order.lines.push(newLine(product, op, defaultLocale, q.operationId, snapshot.catalog));
         if (order.status === 'READY' || order.status === 'BILL_REQUESTED') order.status = 'OPEN';
         break;
       }
@@ -169,7 +195,7 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
         order.cancelled = true;
         break;
       case 'payCash': {
-        const total = localTotals(order, snapshot.rates).total;
+        const total = payableOf(localTotals(order, snapshot.rates), snapshot.rates).total;
         order.status = 'PAID';
         order.paid = { total, amountReceived: op.payload.amountReceived, change: op.payload.amountReceived - total };
         break;

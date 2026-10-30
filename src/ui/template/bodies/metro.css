@@ -1,0 +1,287 @@
+/*
+ * The Metro Line body (a browse shape of a template menu): one line down the inline-start edge with a station per section in
+ * its own colour, the dishes as stops along it, a route strip of the stations on top. Everything is scoped under
+ * [data-body='metro']. Each station sets its hue as --g (degrees); the menu's palette, fonts and corners arrive as the
+ * template's CSS variables. Logical properties only, so the line is on the right edge in RTL, as in the poster.
+ */
+[data-body='metro'] {
+  --mt-line: 0.5rem;
+  /* The line's centre, from the inline-end edge of the run; the run reserves --mt-room for it. */
+  --mt-edge: 1.125rem;
+  --mt-room: 3rem;
+  /* The sticky route's height, so a jumped-to station lands just below it. */
+  --nav-room: 3.25rem;
+}
+
+/* The route map (sticky: shared/shapes.css): the poster's line across the top, one coloured segment per station with a
+ * ring on it and the name under it, in a row that scrolls sideways, so every station is one tap away. The lit station's
+ * ring becomes the train. */
+[data-body='metro'] .mt-route {
+  padding: 0.5rem var(--gutter, 1rem) 0.375rem;
+}
+[data-body='metro'] .mt-strip-list {
+  gap: 0;
+  padding: 0;
+}
+[data-body='metro'] .mt-strip-list > li {
+  flex: 1 0 auto;
+}
+[data-body='metro'] .mt-stop-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1875rem;
+  inline-size: 100%;
+  min-inline-size: 4.25rem;
+  min-block-size: 2.75rem;
+  padding: 0 0.25rem;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+/* The segment of the line in the station's colour, running behind the rings through the whole chip. */
+[data-body='metro'] .mt-stop-chip::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.5625rem;
+  inset-inline: 0;
+  block-size: 0.3125rem;
+  background: oklch(0.62 0.19 var(--g));
+}
+[data-body='metro'] li:first-child > .mt-stop-chip::before {
+  inset-inline-start: 50%;
+}
+[data-body='metro'] li:last-child > .mt-stop-chip::before {
+  inset-inline-end: 50%;
+}
+[data-body='metro'] .mt-stop-chip i {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 1.4375rem;
+  block-size: 1.4375rem;
+  border: 4px solid oklch(0.62 0.19 var(--g));
+  border-radius: 50%;
+  background: var(--bg);
+  transition:
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 200ms;
+}
+[data-body='metro'] .mt-stop-chip span {
+  max-inline-size: 5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-body='metro'] .mt-stop-chip b {
+  display: none;
+}
+/* The train: a dark rounded body with a window, in place of the ring of the lit station. */
+[data-body='metro'] .mt-stop-chip[aria-current='true'] i {
+  inline-size: 1.625rem;
+  block-size: 0.875rem;
+  margin-block-start: 0.1875rem;
+  border: 0;
+  border-radius: 0.4375rem 0.4375rem 0.1875rem 0.1875rem;
+  background: var(--text);
+}
+[data-body='metro'] .mt-stop-chip[aria-current='true'] i::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.1875rem;
+  inset-inline: 0.25rem;
+  block-size: 0.25rem;
+  border-radius: 1px;
+  background: color-mix(in oklab, var(--bg) 75%, oklch(0.8 0.1 235));
+}
+[data-body='metro'] .mt-stop-chip:active i {
+  scale: 0.92;
+}
+
+/* A station: the line runs down the inline-start edge of its run (the right edge in Arabic, as in the poster), drawn in the station's colour. */
+[data-body='metro'] .mt-station {
+  scroll-margin-top: var(--nav-room);
+  padding-block: 0;
+  margin-block: 0;
+}
+[data-body='metro'] .mt-run {
+  position: relative;
+  padding-inline-start: var(--mt-room);
+  padding-block-start: 0.5rem;
+}
+[data-body='metro'] .mt-run::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--mt-edge) - var(--mt-line) / 2);
+  inline-size: var(--mt-line);
+  background: oklch(0.62 0.19 var(--g));
+}
+/* The line starts at the first station and ends with a rounded cap at the last stop. */
+[data-body='metro'] .mt-station:first-child .mt-run::before {
+  inset-block-start: 1.4rem;
+}
+[data-body='metro'] .mt-station:last-child .mt-run::before {
+  inset-block-end: 0.5rem;
+  border-end-start-radius: 999px;
+  border-end-end-radius: 999px;
+}
+
+/* The station: a big ring on the line beside its number, name and dish count. */
+[data-body='metro'] .mt-title {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  margin: 0;
+  padding-block: 0.25rem;
+  padding-inline: 0 var(--gutter, 1rem);
+  min-block-size: 2.25rem;
+  font-size: 1.375rem;
+  line-height: 1.15;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+[data-body='metro'] .mt-run > [data-heading] {
+  position: relative;
+}
+[data-body='metro'] .mt-run > [data-heading]::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.6rem;
+  inset-inline-start: calc(var(--mt-edge) - var(--mt-room) - 0.6875rem);
+  box-sizing: border-box;
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+  border: 5px solid oklch(0.62 0.19 var(--g));
+  border-radius: 50%;
+  background: var(--bg);
+}
+[data-body='metro'] .mt-title small {
+  order: -1;
+  flex-basis: 100%;
+  color: var(--muted);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-body='metro'] .mt-title b {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+  min-inline-size: 1.5rem;
+  padding-inline: 0.3rem;
+  border-radius: 999px;
+  background: oklch(0.42 0.15 var(--g));
+  color: #fff;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.5rem;
+}
+[data-body='metro'] .mt-stops {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A stop: a card off the line, joined to it by a short tick with a dot on the line. */
+[data-body='metro'] .mt-row {
+  grid-template-columns: 4.375rem minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  margin: 0 0 0.375rem;
+  margin-inline: 0 var(--gutter, 1rem);
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card, 0.75rem);
+  background: var(--card);
+  animation: mt-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes mt-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* The tick: from the card's edge to the line. */
+[data-body='metro'] .mt-row::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 100%;
+  inline-size: calc(var(--mt-room) - var(--mt-edge));
+  block-size: 4px;
+  translate: 0 -50%;
+  background: oklch(0.62 0.19 var(--g));
+  pointer-events: none;
+}
+/* The stop: a small ring on the line. */
+[data-body='metro'] .mt-row::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: calc(var(--mt-edge) - var(--mt-room) - 0.4375rem);
+  box-sizing: border-box;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  translate: 0 -50%;
+  border: 3px solid oklch(0.62 0.19 var(--g));
+  border-radius: 50%;
+  background: var(--bg);
+  pointer-events: none;
+}
+@media (hover: hover) {
+  [data-body='metro'] .mt-row:hover {
+    background: color-mix(in srgb, oklch(0.62 0.19 var(--g)) 8%, var(--card));
+  }
+}
+/* The poster's photo (70px) and its add button: a solid disc in the station's colour. */
+[data-body='metro'] .mt-photo {
+  inline-size: 4.375rem;
+  block-size: 4.375rem;
+  border-radius: 0.5rem;
+}
+[data-body='metro'] .mt-add {
+  border: 0;
+  background: oklch(0.5 0.17 var(--g));
+  color: #fff;
+}
+[data-body='metro'] .mt-price {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+}
+
+@media (min-width: 768px) {
+  [data-body='metro'] .mt-row {
+    grid-template-columns: 5rem minmax(0, 1fr) auto;
+  }
+  [data-body='metro'] .mt-photo {
+    inline-size: 5rem;
+    block-size: 5rem;
+  }
+  [data-body='metro'] .mt-name {
+    font-size: 1.0625rem;
+  }
+}
+
+/* Less motion: stops are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='metro'] .mt-row {
+    animation: none;
+  }
+  [data-body='metro'] .mt-stop-chip i {
+    transition: none;
+  }
+  [data-body='metro'] .mt-stop-chip:active i {
+    scale: none;
+  }
+}

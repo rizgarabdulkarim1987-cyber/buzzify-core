@@ -1,7 +1,9 @@
 import { LOCALES, type Locale } from '@/lib/locale';
 
+import type { CatalogOccasion, CatalogShowcaseCard } from './showcase';
+
 export { LOCALES };
-export type { Locale };
+export type { Locale, CatalogOccasion, CatalogShowcaseCard };
 
 export const DAYPARTS = ['BREAKFAST', 'LUNCH', 'DINNER', 'LATE_NIGHT'] as const;
 export type Daypart = (typeof DAYPARTS)[number];
@@ -124,6 +126,8 @@ export interface Bundle {
   dayparts: Daypart[];
   translations: TranslationMap; // name, description
   items: BundleItem[];
+  /** How many people the set feeds (a package for N people); null when not stated. */
+  people: number | null;
 }
 
 export const PROMOTION_KINDS = ['SPECIAL', 'DISCOUNT'] as const;
@@ -172,6 +176,8 @@ export interface Catalog {
   pairingRules: PairingRule[];
   bundles: Bundle[];
   promotions: CatalogPromotion[];
+  occasions: CatalogOccasion[];
+  showcaseCards: CatalogShowcaseCard[];
   schedule: DaypartWindow[];
 }
 

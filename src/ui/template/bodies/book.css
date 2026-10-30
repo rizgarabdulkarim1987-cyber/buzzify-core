@@ -1,230 +1,490 @@
 /*
- * The Book body (a browse shape of a template menu). Everything is scoped under [data-body='book']; the menu's palette,
- * fonts, corners, shadow and density arrive as the template's CSS variables. Logical properties only; the turn mirrors
- * in right-to-left.
+ * The Book body (a browse shape of a template menu), drawn after the "themed-book" mockup: a printed menu you flip page by
+ * page. A dark-red leather cover with a gold double frame; pages of aged paper that turn in 3D about the spine (transform
+ * and opacity only), one at a time; round arrows at the bottom corners; a top bar with the contents, enlarge and close.
+ * Everything is scoped under [data-body='book'], logical properties only (the spine is the inline-start edge, so in Arabic
+ * the pages turn right to left). The colours are the template's palette, so the default palette is the mockup's:
+ *   stage --bg, cover leather --card, gold --accent, paper --text, its ink --bg, the red of prices, ribbons and add --button.
  */
 [data-body='book'] {
+  /* The colours, from the template palette. */
+  --bk-stage: var(--bg);
+  --bk-glow: var(--raised);
+  --bk-leather: var(--card);
+  --bk-gold: var(--accent);
+  --bk-paper: var(--text);
+  --bk-ink: var(--bg);
+  --bk-red: var(--button);
+  --bk-red-ink: var(--on-button);
+  --bk-rule: color-mix(in srgb, var(--bk-ink) 38%, var(--bk-paper));
+  /* The turn: -1 turns the page to the left (spine on the left), +1 to the right (Arabic). */
   --turn: -1;
   --spine: left;
-  --turn-ms: 260ms;
-  padding-inline: var(--gutter, 1rem);
-  padding-block-start: calc(var(--space) * 1.5rem);
+  --spine-at: 0%;
+  --sx: 1;
+  --turn-ms: 520ms;
+  --bk-h: clamp(34rem, calc(100dvh - 12rem), 46rem);
+  position: relative;
+  box-sizing: border-box;
+  margin-inline: var(--gutter, 1rem);
+  margin-block-start: calc(var(--space) * 1rem);
+  padding: 0.75rem;
+  /* The turning pages swing outside the book for a moment: never widen the page. */
+  overflow: clip;
+  border-radius: var(--radius-card, 1rem);
+  background: radial-gradient(ellipse at 50% 40%, var(--bk-glow), var(--bk-stage) 80%);
+  color: var(--text);
+}
+/*
+ * A light palette (the stage is light): the paper is the card colour with the text as ink, the leather and the gold are the button
+ * and its label, the red of prices the accent as it reads on paper.
+ */
+[data-theme-mode='light'] [data-body='book'] {
+  --bk-stage: var(--raised);
+  --bk-glow: var(--bg);
+  --bk-leather: var(--button);
+  --bk-gold: var(--on-button);
+  --bk-paper: var(--card);
+  --bk-ink: var(--text);
+  --bk-red: var(--accent-ink);
+  --bk-red-ink: var(--card);
 }
 [data-body='book']:dir(rtl) {
   --turn: 1;
   --spine: right;
+  --spine-at: 100%;
+  --sx: -1;
 }
-[data-body='book'] .bk-book {
-  position: relative;
-  max-inline-size: 46rem;
-  margin-inline: auto;
+[data-body='book'][data-far] {
+  --turn-ms: 340ms;
+}
+[data-body='book'][data-tall] {
+  --bk-h: clamp(34rem, calc(100dvh - 7rem), 62rem);
 }
 
-/*
- * A page: paper in the card colour with a shaded spine. The open one is in the flow; a closed one leaves the layout once
- * its turn ends (display: none, kept for the turn by allow-discrete), so it takes no room, its photos are not fetched
- * and the category observer never sees it. The opening page starts turned (@starting-style).
- */
+/* The top bar: the contents, then the enlarge and close buttons. */
+[data-body='book'] .bk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: 36rem;
+  margin-inline: auto;
+  margin-block-end: 0.625rem;
+}
+[data-body='book'] .bk-bar-gap {
+  flex: 1;
+}
+[data-body='book'] :is(.bk-pill, .bk-round, .bk-arrow) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-block-size: 2.75rem;
+  min-inline-size: 2.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bk-paper) 92%, transparent);
+  color: var(--bk-red);
+  font-weight: 700;
+  font-size: 0.875rem;
+  box-shadow: 0 3px 8px color-mix(in srgb, #000 30%, transparent);
+}
+[data-body='book'] .bk-pill {
+  padding-inline: 1rem;
+}
+[data-body='book'] .bk-round[aria-pressed='true'] {
+  background: var(--bk-red);
+  color: var(--bk-red-ink);
+}
+[data-body='book'] :is(.bk-pill, .bk-round, .bk-arrow):focus-visible {
+  outline: 2px solid var(--bk-gold);
+  outline-offset: 2px;
+}
+
+/* The book: the pages are stacked in one place and turn about the spine. */
+[data-body='book'] .bk-book {
+  position: relative;
+  block-size: var(--bk-h);
+  max-inline-size: 36rem;
+  margin-inline: auto;
+  perspective: 1800px;
+  /* A horizontal swipe turns the page; a vertical one still scrolls the page. */
+  touch-action: pan-y;
+}
 [data-body='book'] .bk-page {
-  display: none;
   position: absolute;
-  inset-block-start: 0;
-  inset-inline: 0;
+  inset: 0;
   box-sizing: border-box;
-  min-block-size: 22rem;
-  padding-block: calc(var(--space) * 1.75rem) calc(var(--space) * 2.25rem);
-  padding-inline: 0;
-  background-color: var(--card);
-  background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 14%, transparent), transparent 2.4rem);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  border-start-start-radius: 4px;
+  border-end-start-radius: 4px;
+  border-start-end-radius: 10px;
+  border-end-end-radius: 10px;
+  box-shadow:
+    0 10px 30px color-mix(in srgb, #000 45%, transparent),
+    inset calc(var(--sx) * 10px) 0 18px -14px color-mix(in srgb, #000 35%, transparent);
   transform-origin: var(--spine) center;
-  transform: perspective(1600px) rotateY(calc(var(--turn) * 78deg));
-  opacity: 0;
-  visibility: hidden;
+  transform: rotateY(0deg);
+  backface-visibility: hidden;
   transition:
     transform var(--turn-ms) cubic-bezier(0.32, 0.72, 0, 1),
-    opacity var(--turn-ms) ease,
-    visibility 0s linear var(--turn-ms),
-    display 0s linear var(--turn-ms);
-  transition-behavior: allow-discrete;
+    visibility 0s linear var(--turn-ms);
 }
-[data-body='book']:dir(rtl) .bk-page {
-  background-image: linear-gradient(to left, color-mix(in srgb, var(--text) 14%, transparent), transparent 2.4rem);
-}
-[data-body='book'] .bk-page[data-state='open'] {
-  display: block;
-  position: relative;
-  transform: perspective(1600px) rotateY(0deg);
-  opacity: 1;
+/* The open page is on top of the pages to come and under the one turning away. */
+[data-body='book'] .bk-page[data-pos='open'] {
+  z-index: 2;
   visibility: visible;
   transition-delay: 0s;
 }
+[data-body='book'] .bk-page[data-pos='next'] {
+  z-index: 1;
+  visibility: hidden;
+}
+[data-body='book'] .bk-page[data-pos='past'] {
+  z-index: 3;
+  visibility: hidden;
+  transform: rotateY(calc(var(--turn) * 180deg));
+}
+/* Turning back: the page arrives from the turned side (a page rendered for the first time starts there). */
 @starting-style {
-  [data-body='book'] .bk-page[data-state='open'] {
-    transform: perspective(1600px) rotateY(calc(var(--turn) * 78deg));
-    opacity: 0;
+  [data-body='book'][data-dir='back'] .bk-page[data-pos='open'] {
+    transform: rotateY(calc(var(--turn) * 180deg));
   }
 }
-[data-body='book'] .bk-page.tpl-section {
-  scroll-margin-top: 1rem;
-  padding-top: calc(var(--space) * 1.75rem);
+
+/* A sheet of paper: aged, with the spine's shadow, scrolling inside the page when a long name or a tall font needs room. */
+[data-body='book'] .bk-page:not(.bk-cover-page) {
+  background-color: var(--bk-paper);
+  background-image:
+    radial-gradient(ellipse at var(--spine-at) 50%, color-mix(in srgb, #000 12%, transparent), transparent 18%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--bk-ink) 4%, transparent) 0 1px, transparent 1px 3px);
+  color: var(--bk-ink);
+}
+[data-body='book'] .bk-sheet {
+  /* Inside the paper the ink is the stage's colour and the paper the text's: every pair is the palette's own computed contrast. */
+  --text: var(--bk-ink);
+  --bg: var(--bk-paper);
+  --muted: color-mix(in srgb, var(--bk-ink) 74%, var(--bk-paper));
+  --accent-ink: var(--bk-red);
+  --sale-bg: var(--bk-red);
+  --sale-ink: var(--bk-red-ink);
+  box-sizing: border-box;
+  position: relative;
+  block-size: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: 1rem 3.5rem;
+  padding-inline: 1.125rem 1rem;
+  color: var(--bk-ink);
+}
+/* The page darkens while it turns and the one beneath lights up as it is uncovered. */
+[data-body='book'] .bk-page:not(.bk-cover-page)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: color-mix(in srgb, #000 30%, transparent);
+  opacity: 0;
+  transition: opacity var(--turn-ms) ease;
+}
+[data-body='book'] .bk-page[data-pos='past']::after {
+  opacity: 1;
+}
+[data-body='book'] .bk-page[data-pos='next']::after {
+  opacity: 0.6;
 }
 
-/* The index. */
-[data-body='book'] .bk-title {
-  padding-inline: calc(var(--gutter, 1rem) + 0.5rem);
-  font-size: calc(var(--type-scale) * clamp(1.65rem, 6.2vw, 2.4rem));
-  line-height: 1.08;
+/* The cover: leather, a gold double frame, the name in large gold, a hint that it opens. */
+[data-body='book'] .bk-cover-page {
+  background-color: var(--bk-leather);
+  background-image:
+    radial-gradient(ellipse at 30% 20%, color-mix(in srgb, #fff 8%, transparent), transparent 50%),
+    repeating-linear-gradient(45deg, color-mix(in srgb, #000 6%, transparent) 0 2px, transparent 2px 5px);
+  border: 2px solid var(--line);
+  color: var(--bk-gold);
+}
+[data-body='book'] .bk-cover {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 1rem;
+  color: inherit;
   text-align: center;
 }
-[data-body='book'] .bk-rule {
-  display: block;
-  inline-size: 3rem;
-  block-size: 2px;
-  margin: calc(var(--space) * 0.75rem) auto calc(var(--space) * 1.25rem);
-  background: var(--accent);
+[data-body='book'] .bk-cover:focus-visible {
+  outline: 2px solid var(--bk-gold);
+  outline-offset: -6px;
 }
-[data-body='book'] .bk-contents {
+[data-body='book'] .bk-frame {
   display: grid;
-  gap: calc(var(--space) * 0.5rem);
+  justify-items: center;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  inline-size: 62%;
+  min-block-size: 54%;
+  align-content: center;
+  padding: 1.5rem 0.75rem;
+  border: 2px solid var(--bk-gold);
+  outline: 1px solid var(--bk-gold);
+  outline-offset: 5px;
+}
+[data-body='book'] .bk-since {
+  font-size: 0.75rem;
+  letter-spacing: 0.375rem;
+}
+[data-body='book'] .bk-cover-name {
+  font-size: calc(var(--type-scale) * clamp(1.7rem, 8.5vw, 2.5rem));
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+[data-body='book'] .bk-cover-sub {
+  font-size: 1rem;
+}
+[data-body='book'] .bk-tap {
+  margin-block-start: 1.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  animation: bk-twinkle 1.4s ease-in-out 3 alternate;
+}
+@keyframes bk-twinkle {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+
+/* A page's head: the title in red, three gold diamonds under it. */
+[data-body='book'] .bk-sheet [data-heading] {
+  padding-inline: 0;
+  outline: none;
+}
+[data-body='book'] .bk-title {
+  margin: 0;
+  color: var(--bk-red);
+  font-size: calc(var(--type-scale) * 1.7rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='book'] .bk-title-more {
+  font-size: calc(var(--type-scale) * 1.2rem);
+}
+[data-body='book'] .bk-orn {
+  margin: 0.125rem 0 0.625rem;
+  color: var(--bk-rule);
+  font-size: 0.75rem;
+  letter-spacing: 0.375rem;
+  text-align: center;
+}
+
+/* The index: a line per section with a dotted leader to its page. */
+[data-body='book'] .bk-contents {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-[data-body='book'] .bk-entry {
-  position: relative;
-  padding: calc(var(--space) * 0.9rem) calc(var(--gutter, 1rem) + 0.5rem);
-  border-block-start: 1px solid var(--line);
-}
-[data-body='book'] .bk-entry:first-child {
-  border-block-start: 0;
-}
 [data-body='book'] .bk-chapter {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
+  gap: 0.375rem;
   inline-size: 100%;
   min-block-size: 2.75rem;
-  padding: 0;
-  color: var(--text);
+  padding-block: 0.4rem;
+  color: var(--bk-ink);
   text-align: start;
 }
-/* The whole entry is the target, photos included. */
-[data-body='book'] .bk-chapter::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: var(--radius-card);
-}
 [data-body='book'] .bk-chapter:focus-visible {
-  outline: none;
+  outline: 2px solid var(--bk-red);
+  outline-offset: 2px;
 }
-[data-body='book'] .bk-chapter:focus-visible::after {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: -2px;
-}
-[data-body='book'] .bk-folio {
-  min-inline-size: 1.5rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-[data-body='book'] .bk-name {
-  font-size: calc(var(--type-scale) * 1.28rem);
-  line-height: 1.2;
+[data-body='book'] .bk-chapter .bk-name {
+  font-size: calc(var(--type-scale) * 1.2rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 [data-body='book'] .bk-leader {
-  flex: 1;
-  min-inline-size: 1rem;
-  border-block-end: 2px dotted var(--line);
+  flex: 1 1 0.75rem;
+  min-inline-size: 0.75rem;
+  border-block-end: 2px dotted var(--bk-rule);
   transform: translateY(-0.2em);
 }
 [data-body='book'] .bk-count {
+  color: var(--bk-red);
   font-size: 0.875rem;
-  color: var(--muted);
-  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
-[data-body='book'] .bk-taste {
+
+/* The dish of the house on the index. */
+[data-body='book'] .bk-house {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  margin-block-start: 1rem;
+  text-align: center;
+}
+[data-body='book'] .bk-house-photo {
+  position: relative;
+  inline-size: 100%;
+  block-size: 9.5rem;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 6px solid color-mix(in srgb, var(--bk-paper) 30%, #fff);
+  box-shadow: 0 4px 10px color-mix(in srgb, #000 25%, transparent);
+  transform: rotate(-1.5deg);
+}
+[data-body='book'] .bk-house-name {
+  display: block;
+  padding: 0;
+  color: var(--bk-ink);
+  font-size: calc(var(--type-scale) * 1.15rem);
+  font-weight: 700;
+}
+[data-body='book'] .bk-house-foot {
   display: flex;
-  gap: 0.75rem;
-  margin: calc(var(--space) * 0.5rem) 0 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+}
+
+/* A dish: its photo, the name over a leader to the price, the description, the round add. The whole row opens the dish. */
+[data-body='book'] .bk-dishes {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
-[data-body='book'] .bk-taste li {
+[data-body='book'] .bk-dish {
+  position: relative;
   display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  inline-size: 4.75rem;
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.5rem;
+  border-block-end: 1px solid color-mix(in srgb, var(--bk-ink) 16%, var(--bk-paper));
 }
-[data-body='book'] .bk-thumb {
+[data-body='book'] .bk-photo {
+  position: relative;
   inline-size: 4.75rem;
-  aspect-ratio: var(--ratio);
+  block-size: 4.75rem;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 4px solid color-mix(in srgb, var(--bk-paper) 30%, #fff);
+  box-shadow: 0 2px 6px color-mix(in srgb, #000 20%, transparent);
+}
+[data-body='book'] :is(.bk-photo, .bk-house-photo) > .bk-img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
   object-fit: cover;
-  border: 3px solid var(--bg);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--text) 25%, transparent);
 }
-[data-body='book'] .bk-taste-price {
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-/* A chapter's page. */
-[data-body='book'] .bk-ribbon {
+[data-body='book'] .bk-off {
   position: absolute;
-  inset-block-start: -1px;
-  inset-inline-end: 1.25rem;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  inline-size: 2.75rem;
-  block-size: 3.5rem;
-  padding-block-end: 0.5rem;
-  background: var(--button);
-  color: var(--on-button);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 0.5rem), 0 100%);
-  transition: transform 140ms ease;
+  inset-block-start: 0.1875rem;
+  inset-inline-start: 0.1875rem;
+  z-index: 2;
 }
-[data-body='book'] .bk-ribbon:hover {
-  transform: translateY(2px);
+[data-body='book'] .bk-text {
+  min-inline-size: 0;
 }
-[data-body='book'] .bk-ribbon:focus-visible {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: 2px;
+[data-body='book'] .bk-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
 }
-[data-body='book'] .bk-page [data-heading] {
-  padding-inline-end: 5rem;
+[data-body='book'] .bk-dish-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  padding: 0;
+  color: var(--bk-ink);
+  font-size: calc(var(--type-scale) * 1.1rem);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-[data-body='book'] .bk-next {
+[data-body='book'] .bk-price {
+  flex: none;
+  color: var(--bk-red);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='book'] .bk-sub {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  inline-size: calc(100% - 2 * var(--gutter, 1rem));
-  min-block-size: 3rem;
-  margin: calc(var(--space) * 2rem) var(--gutter, 1rem) 0;
-  padding-inline: 1rem;
-  color: var(--text);
-  text-align: start;
-  border-block: 1px solid var(--line);
+  gap: 0.5rem;
 }
-[data-body='book'] .bk-next:focus-visible {
-  outline: 2px solid var(--accent-ink);
-  outline-offset: 2px;
+[data-body='book'] .bk-desc {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: 0.84rem;
+  font-style: italic;
+  line-height: 1.35;
+}
+[data-body='book'] .bk-sheet .tpl-add {
+  flex: none;
+  background: transparent;
+  color: var(--bk-red);
+  box-shadow: inset 0 0 0 1.5px var(--bk-red);
+}
+@media (hover: hover) {
+  [data-body='book'] .bk-sheet .tpl-add:hover {
+    background: var(--bk-red);
+    color: var(--bk-red-ink);
+  }
+}
+[data-body='book'] .bk-folio {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0.5rem;
+  z-index: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* The round arrows at the bottom corners: back at the spine side, forward at the open side. */
+[data-body='book'] .bk-nav {
+  position: absolute;
+  inset-inline: 0.25rem;
+  inset-block-end: 0.5rem;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
 }
 [data-body='book'] .bk-arrow {
-  color: var(--accent-ink);
+  pointer-events: auto;
+  inline-size: 2.75rem;
+  font-size: 1.125rem;
 }
-[data-body='book']:dir(rtl) .bk-arrow {
+[data-body='book'] .bk-arrow[aria-disabled='true'] {
+  opacity: 0.45;
+}
+[data-body='book']:dir(rtl) .bk-arrow > span {
   display: inline-block;
   transform: scaleX(-1);
 }
 
-/* Less motion: the page changes at once. */
+/* Less motion: the page changes at once, nothing blinks. */
 @media (prefers-reduced-motion: reduce) {
   [data-body='book'] .bk-page,
-  [data-body='book'] .bk-ribbon {
+  [data-body='book'] .bk-page::after {
     transition: none;
+  }
+  [data-body='book'] .bk-tap {
+    animation: none;
   }
 }

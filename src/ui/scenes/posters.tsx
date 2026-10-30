@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import type { DesignPalette, TemplateId } from '@/lib/templates/types';
+import { borrowedArt } from './borrow';
 
 /**
  * Each preset's poster (spec 6): its scene drawn flat in SVG, kept to the edges of the screen so text in front stays
@@ -45,7 +46,7 @@ function RibbonGradient({ from = accent, to = accent }: { from?: string; to?: st
   );
 }
 
-const POSTERS: Record<TemplateId, () => ReactNode> = {
+const POSTERS: Partial<Record<TemplateId, () => ReactNode>> = {
   'obsidian-gold': () => (
     <>
       <Glow className="m-light-scroll start-[-20%] top-[-10%] size-[80vmax]" strength={0.16} />
@@ -573,8 +574,11 @@ const POSTERS: Record<TemplateId, () => ReactNode> = {
   ),
 };
 
-/** The preset's poster. `palette` is accepted so a scene that needs a literal colour can read one. */
-export function ScenePoster({ id }: { id: TemplateId; palette: DesignPalette }) {
-  const Poster = POSTERS[id];
+/**
+ * The preset's poster. A menu style without a poster of its own borrows a neighbour's by its background
+ * (`borrowedArt`), so adding a style needs no line here.
+ */
+export function ScenePoster({ id, palette }: { id: TemplateId; palette: DesignPalette }) {
+  const Poster = POSTERS[id] ?? POSTERS[borrowedArt(palette)];
   return <div className="scene-art">{Poster ? <Poster /> : null}</div>;
 }

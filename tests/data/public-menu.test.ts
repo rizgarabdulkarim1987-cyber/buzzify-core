@@ -45,6 +45,22 @@ describe('public menu read path', () => {
     expect(catalog.products.map((p) => p.id)).toEqual([a.product.id]);
   });
 
+  it('carries the extras gate: off until the menu switches them on, and only while the plan holds them', async () => {
+    const x = await createMenuFixture(prisma, 'public-extras');
+    const before = await resolvePublicMenu('public-extras');
+    expect(before.kind === 'live' && before.tenant.extras).toEqual({ intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } });
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { introEnabled: true, wheelEnabled: true } });
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'PREMIUM' } });
+    const { expireMenu } = await import('@/server/data/cache');
+    expireMenu(['public-extras'], x.menu.id);
+    const on = await resolvePublicMenu('public-extras');
+    expect(on.kind === 'live' && on.tenant.extras).toMatchObject({ intro: true, about: false, wheel: true });
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC' } });
+    expireMenu(['public-extras'], x.menu.id);
+    const basic = await resolvePublicMenu('public-extras');
+    expect(basic.kind === 'live' && basic.tenant.extras).toMatchObject({ intro: false, wheel: false });
+  });
+
   it('does not show draft edits until the next publish', async () => {
     await prisma.product.update({ where: { id: a.product.id }, data: { basePrice: 999 } });
     const tenant = await getTenant(a.menu.slug);

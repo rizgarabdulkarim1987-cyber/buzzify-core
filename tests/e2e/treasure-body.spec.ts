@@ -1,0 +1,266 @@
+import { expect, test, type Page } from '@playwright/test';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  contrastOf,
+  dishName,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectFocusRingShows,
+  expectJumpsTo,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectReadable,
+  expectStripStays,
+  openMenu,
+  paletteIdsOf,
+} from './helpers/body-menu';
+
+/**
+ * The Treasure Map body (spec 2026-10-26-menu-styles-in-templates-design.md): old parchment, every section an island with
+ * its name on a banner and its dish count, every dish a pin with a photo and its price on a flag, a dotted route joining
+ * the islands, and a sticky strip of compass points that jumps. Throwaway copies of the Maison Lumiere demo.
+ */
+
+const menus = bodyMenus();
+const slug = menus.slug('map');
+const arabSlug = menus.slug('mapar');
+/** The shape's own alternative palettes. */
+const alternatives = paletteIdsOf('the-treasure-map').slice(1);
+const paletteSlug = (id: string) => menus.slug(`map-${id}`);
+
+test.beforeAll(async () => {
+  // The preset's own layout (its compact hero, its chips): what a restaurant that picks the template gets.
+  await menus.create(slug, 'treasure', { templateId: 'the-treasure-map' });
+  // Arabic-Indic numerals, and the croissant 20% off: the sale chip.
+  await menus.create(arabSlug, 'treasure', { templateId: 'the-treasure-map', numeralSystem: 'ARAB', discount: ['croissant'] });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'treasure', { templateId: 'the-treasure-map', paletteId: id });
+});
+test.afterAll(() => menus.remove());
+
+const map = (page: Page) => page.locator('[data-body="treasure"]');
+const compass = (page: Page) => map(page).locator('[data-compass]');
+const pins = (page: Page) => map(page).locator('[data-row]');
+const entry = (page: Page, categorySlug: string) => compass(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
+
+test('on a phone the first screen shows at least six pins with photos, prices and names, and every island is one tap away', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(map(page)).toBeVisible();
+  await expectFirstScreen(page, pins(page), { min: 6 });
+  await expectEverySectionReachable(compass(page));
+});
+
+test('every section is an island with its name on a banner and its dish count, all on the page at once', async ({ page }) => {
+  await openMenu(page, slug);
+  const islands = map(page).locator('section[data-island]');
+  expect(await islands.count()).toBe(BODY_CATEGORIES.length);
+  await expect(islands.first()).toHaveAttribute('data-island', '1');
+  await expect(islands.first().locator('[data-count]')).toHaveText('3');
+  await expect(map(page).locator('#cat-bread [data-count]')).toHaveText('1');
+  await expect(islands.first().getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
+});
+
+test('the pins sit three across on the island, round photo, price flag under it', async ({ page }) => {
+  await openMenu(page, slug);
+  const island = page.locator('#cat-viennoiserie [data-row]');
+  expect(await island.count()).toBe(3);
+  const boxes = await Promise.all([0, 1, 2].map(async (i) => (await island.nth(i).boundingBox())!));
+  // They share a row, give or take the small stagger.
+  for (const box of boxes) expect(Math.abs(box.y - boxes[0]!.y)).toBeLessThanOrEqual(12);
+  const photo = (await island.first().locator('[data-photo]').boundingBox())!;
+  expect(Math.abs(photo.width - photo.height)).toBeLessThanOrEqual(1);
+  await expect(island.first().locator('[data-photo]')).toHaveCSS('border-radius', '50%');
+  const tag = (await island.first().locator('.tm-tag').boundingBox())!;
+  expect(tag.y + tag.height, 'the flag hangs from the photo').toBeGreaterThan(photo.y + photo.height);
+});
+
+test('the route is a dotted line down the page beside the islands', async ({ page }) => {
+  await openMenu(page, slug);
+  const route = await map(page)
+    .locator('main')
+    .evaluate((node) => {
+      const style = getComputedStyle(node, '::before');
+      return { border: style.borderInlineStartStyle, content: style.content };
+    });
+  expect(route.border).toBe('dotted');
+  expect(route.content).not.toBe('none');
+});
+
+test('a point on the compass strip takes you to its island and focuses the banner', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectJumpsTo(page, entry(page, 'celebration'), 'celebration');
+});
+
+test('the strip lights the island in view', async ({ page }) => {
+  await openMenu(page, slug);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(compass(page).locator('[aria-current="true"]')).toHaveCount(1);
+  await expect(entry(page, 'bread')).toHaveAttribute('aria-current', 'true');
+});
+
+test('the strip stays at the top: scrolled to the end, the first island is still one tap away', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectStripStays(page, compass(page), entry(page, 'viennoiserie'), 'viennoiserie');
+});
+
+test('a pin opens its dish and adds one, and its photo is a tap target too', async ({ page }) => {
+  await openMenu(page, slug);
+  const first = page.locator('#cat-viennoiserie');
+  await expectOpensProduct(page, first, 'croissant');
+  await expectQuickAdd(page, first, 'croissant');
+  const box = (await pins(page).first().locator('[data-photo]').boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('a long dish name and a long price stay inside the pin without sideways scrolling', async ({ page }) => {
+  await openMenu(page, slug);
+  const cell = pins(page).first();
+  await cell.locator('.tm-name').evaluate((node) => {
+    node.textContent = 'A very long dish name that keeps going and going so that it wraps onto many many lines';
+  });
+  await cell.locator('.tm-tag').evaluate((node) => {
+    node.textContent = 'From 123,456,789 IQD per portion';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const lines = await cell.locator('.tm-name').evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)));
+  expect(lines).toBeLessThanOrEqual(2);
+  const box = (await cell.boundingBox())!;
+  const tag = (await cell.locator('.tm-tag').boundingBox())!;
+  expect(tag.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(tag.x + tag.width).toBeLessThanOrEqual(box.x + box.width + 1);
+});
+
+test('on a wide screen the pins run more across', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/${slug}/en?stage=off`);
+  const first = page.locator('#cat-viennoiserie [data-row]');
+  const a = (await first.nth(0).boundingBox())!;
+  const c = (await first.nth(2).boundingBox())!;
+  expect(Math.abs(a.y - c.y)).toBeLessThanOrEqual(14);
+  expect(a.width).toBeLessThan(200);
+});
+
+test('numbers and counts use the tenant numerals', async ({ page }) => {
+  await page.goto(`/${arabSlug}/en?stage=off`);
+  const first = map(page).locator('section[data-island]').first();
+  await expect(first.locator('[data-count]')).toHaveText('٣');
+  await expect(first).toHaveAttribute('data-island', '١');
+});
+
+test('in Arabic the page is right to left and nothing scrolls sideways', async ({ page }) => {
+  await expectArabicRtl(page, slug, (p) => compass(p));
+});
+
+test('reduced motion removes the pin entrance', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  await expect(pins(page).first()).toHaveCSS('animation-name', 'none');
+});
+
+test('a search that finds nothing keeps main#menu', async ({ page }) => {
+  await openMenu(page, slug);
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
+  await expect(page.locator('main#menu')).toHaveCount(1);
+});
+
+test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
+  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
+  for (const [menu, menuSlug] of menusToCheck) {
+    await openMenu(page, menuSlug);
+    // Scrolled a little, so a strip entry is lit; the first section is still on the screen.
+    await page.evaluate(() => window.scrollBy(0, 40));
+    await expect(compass(page).locator('[aria-current="true"]')).toHaveCount(1);
+    const island = page.locator('#cat-viennoiserie');
+    await expectReadable(menu, {
+      'island banner': island.locator('.tm-title'),
+      'dish count': island.locator('.tm-title b'),
+      'price flag': island.locator('.tm-tag').first(),
+      'add button': island.locator('.tm-add').first(),
+      'lit compass point': compass(page).locator('[aria-current="true"]'),
+    });
+  }
+});
+
+test('keyboard focus rings show in full and stand out, in every palette: a whole pin and a strip entry', async ({ page }) => {
+  for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
+    await openMenu(page, menuSlug);
+    const cell = pins(page).first();
+    const name = cell.locator('.tm-name');
+    await name.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(name).toBeFocused();
+    await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+    const chip = entry(page, 'patisserie');
+    await chip.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(chip).toBeFocused();
+    await expectFocusRingShows(page, chip, { outset: -4 });
+  }
+});
+
+test('a dish on sale shows a −NN% chip in the menu numerals on its pin, and keeps the regular price for screen readers', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const cell = pins(page).filter({ hasText: dishName('croissant') });
+  const chip = cell.locator('.tpl-off');
+  await expect(chip).toHaveText('−٢٠%');
+  await expect(map(page).locator('.tpl-off')).toHaveCount(1);
+  const box = (await cell.boundingBox())!;
+  const at = (await chip.boundingBox())!;
+  expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
+});
+
+/** Colours picked in Customize (a green menu with a pink accent): the map must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('mapcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'treasure', { templateId: 'the-treasure-map', colors: CUSTOM });
+});
+const rgbOf = (node: ReturnType<Page['locator']>, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const near = (actual: number[], hex: string, message: string) =>
+  [1, 3, 5].forEach((at, i) => expect(Math.abs(actual[i]! - parseInt(hex.slice(at, at + 2), 16)), `${message}: channel ${i}`).toBeLessThanOrEqual(3));
+
+test('Customize colours reach the map: banner card, pin ring and flag follow the palette', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const island = page.locator('#cat-viennoiserie');
+  near(await rgbOf(island.locator('.tm-title'), 'background-color'), CUSTOM.raised, 'banner');
+  near(await rgbOf(island.locator('.tm-photo').first(), 'border-top-color'), CUSTOM.raised, 'pin ring');
+  near(await rgbOf(island.locator('.tm-tag').first(), 'background-color'), CUSTOM.text, 'price flag');
+});
+
+test('the island is a washed blob with a sandy centre fading to shallows, and the compass turn ends', async ({ page }) => {
+  await openMenu(page, slug);
+  const wash = await page.locator('#cat-viennoiserie').evaluate((node) => getComputedStyle(node, '::before').backgroundImage);
+  expect(wash).toContain('radial-gradient');
+  const spin = await compass(page).evaluate((node) => getComputedStyle(node, '::before').animationIterationCount);
+  expect(spin).toBe('1');
+});
+
+test('with reduced motion the compass does not turn', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  expect(await compass(page).evaluate((node) => getComputedStyle(node, '::before').animationName)).toBe('none');
+});
+
+test('the sale chip and the add sit on the pin rim, clear of the name', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const pin = pins(page).filter({ hasText: dishName('croissant') });
+  const photo = (await pin.locator('[data-photo]').boundingBox())!;
+  const add = (await pin.locator('.tm-add').boundingBox())!;
+  const name = (await pin.locator('.tm-name').boundingBox())!;
+  expect(add.y + add.height).toBeLessThan(name.y);
+  expect(add.y).toBeLessThan(photo.y + photo.height / 2);
+});

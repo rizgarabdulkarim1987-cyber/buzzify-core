@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
@@ -17,8 +17,15 @@ export function useProductSheet(products: MenuProductView[], homePath = '', init
   // A product page opened from its own address starts with the product open; closing it replaces the address with the menu's.
   const [openId, setOpenId] = useState<string | null>(initialId);
   const pushed = useRef(false);
+  // The actions below keep their identity: template menus hand them to every dish through one context, so a new function
+  // per render would draw every dish again on any tap. They read the latest products and address from here.
+  const latest = useRef({ products, href, homePath });
+  useEffect(() => {
+    latest.current = { products, href, homePath };
+  });
 
-  const openProduct = (id: string, replace = false) => {
+  const openProduct = useCallback((id: string, replace = false) => {
+    const { products, href } = latest.current;
     const product = products.find((candidate) => candidate.id === id);
     if (!product) return;
     track('PRODUCT_VIEW', { productId: id });
@@ -29,9 +36,10 @@ export function useProductSheet(products: MenuProductView[], homePath = '', init
       pushed.current = true;
     }
     setOpenId(id);
-  };
+  }, []);
 
-  const closeProduct = () => {
+  const closeProduct = useCallback(() => {
+    const { href, homePath } = latest.current;
     if (pushed.current) {
       pushed.current = false;
       window.history.back();
@@ -39,7 +47,7 @@ export function useProductSheet(products: MenuProductView[], homePath = '', init
       window.history.replaceState({}, '', href(homePath));
       setOpenId(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const onPop = () => {

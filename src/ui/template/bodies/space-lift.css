@@ -1,0 +1,71 @@
+/*
+ * Levitation (family pedestal, kind `space-lift`): every card hangs over a magnetic pad, a flat ring of the section's
+ * hue with a pool of light on it. The card bobs on its own clock (--t, --dl); as it rises the pool shrinks and fades,
+ * as it sinks the pool grows back, both on the same clock. With less motion the card simply floats still over its pad.
+ */
+[data-body='space-lift'] .pd-card {
+  animation: pd-lift-bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite;
+}
+/* The pad: a flat ring on the floor under the card. */
+[data-body='space-lift'] .pd-spot::before {
+  content: '';
+  position: absolute;
+  inset-inline: 20%;
+  inset-block-end: 0.125rem;
+  block-size: 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--pd-neon) 60%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 6%, var(--bg));
+}
+/* The pool of light on the pad, breathing with the card. */
+[data-body='space-lift'] .pd-spot::after {
+  content: '';
+  position: absolute;
+  inset-inline: 14%;
+  inset-block-end: 0.25rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, var(--pd-neon), transparent 70%);
+  filter: blur(2px);
+  animation: pd-lift-pool var(--t, 6s) ease-in-out var(--dl, 0s) infinite;
+}
+[data-body='space-lift'] .pd-card {
+  box-shadow:
+    0 1.375rem 1.5rem -1.25rem color-mix(in srgb, var(--pd-neon) 70%, transparent),
+    0 0 1.625rem -0.5rem var(--pd-neon),
+    inset 0 0 1.375rem -0.875rem var(--pd-neon);
+}
+
+@keyframes pd-lift-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.875rem);
+  }
+}
+@keyframes pd-lift-pool {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scaleX(0.72);
+    opacity: 0.45;
+  }
+}
+
+[data-body='space-lift'][data-still] :is(.pd-card, .pd-spot) {
+  animation: none;
+}
+[data-body='space-lift'][data-still] .pd-spot::after {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-lift'] .pd-card,
+  [data-body='space-lift'] .pd-spot::after {
+    animation: none;
+  }
+}

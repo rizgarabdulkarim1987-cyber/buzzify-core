@@ -12,7 +12,6 @@ import { useProductSheet } from '@/ui/product/useProductSheet';
 import type { RailStyle } from '@/lib/rail';
 import { CategoryRail, useRailStyle } from './CategoryRail';
 import { Header } from './Header';
-import { MotionSlot } from './MotionSlot';
 import { ProductRow } from './ProductRow';
 import { OfferStrip } from './SalesLabels';
 import { SignatureFeature } from './SignatureFeature';
@@ -92,7 +91,6 @@ export function MenuApp({ view }: { view: MenuView }) {
         {t('menu.skip')}
       </a>
       <Header />
-      {view.motions.hero && <MotionSlot place="hero" motion={view.motions.hero} />}
 
       <div className="px-5 pb-3">
         <label className="relative block">
@@ -132,7 +130,6 @@ export function MenuApp({ view }: { view: MenuView }) {
           daypart={view.daypart}
           onOpen={openProduct}
           covered={opened !== undefined}
-          motion={view.motions.signature}
         />
       )}
 
@@ -143,7 +140,6 @@ export function MenuApp({ view }: { view: MenuView }) {
           <p className="px-5 py-12 text-center text-muted">{t('menu.noResults', { query: query.trim() })}</p>
         ) : (
           categories.map((category) => {
-            const motion = view.motions.categories[category.id];
             return (
               <section
                 key={category.id}
@@ -151,11 +147,9 @@ export function MenuApp({ view }: { view: MenuView }) {
                 aria-labelledby={`h-${category.slug}`}
                 className={RAIL_ROOM[railStyle]}
               >
-                {/* A placed motion is a band above the heading, which sits on the band's faded lower edge. */}
-                {motion && <MotionSlot place="category" motion={motion} className="mt-6" />}
                 <h2
                   id={`h-${category.slug}`}
-                  className={`px-5 pb-1 font-display text-3xl tracking-[-0.005em] ${motion ? 'relative -mt-6' : 'pt-10'}`}
+                  className={`px-5 pb-1 font-display text-3xl tracking-[-0.005em] pt-10`}
                 >
                   {category.name}
                 </h2>

@@ -182,7 +182,7 @@ export function hiddenChoices(stored: BrandChoices, entitlements: Entitlements):
 /**
  * What a menu would show guests that this plan leaves out, in the order the Preview tab lists it: the brand's choices
  * guests do not see, the template's background file, then Explore, the 3D stage when a product has a stage, smart
- * selling when the menu has offers, pairings or bundles, and motions when the menu places any.
+ * selling when the menu has offers, pairings or bundles.
  */
 export function hiddenFromGuests(
   brand: BrandView,
@@ -198,7 +198,6 @@ export function hiddenFromGuests(
     promotions?: readonly unknown[];
   },
   entitlements: Entitlements,
-  motions: readonly unknown[] = [],
 ): FeatureKey[] {
   const stored = { fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR, railStyle: brand.railStyle, motionIntensity: brand.motionIntensity };
   const hidden = hiddenChoices(stored, entitlements);
@@ -217,7 +216,6 @@ export function hiddenFromGuests(
   const selling = upgradable || catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
   if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
   if (!allows(entitlements, 'selling.offers') && (catalog.promotions?.length ?? 0) > 0) hidden.push('selling.offers');
-  if (!allows(entitlements, 'design.menuMotions') && motions.length > 0) hidden.push('design.menuMotions');
   return hidden;
 }
 
@@ -234,7 +232,7 @@ export function servedCatalog(catalog: Catalog, features: Pick<GuestFeatures, 's
 
 /**
  * What the guest pages may show: Explore, the 3D stage, smart selling, timed offers, the labels drawn from guest data
- * and stock, the menu's motions, and the rails `?rail=` may preview.
+ * and stock, and the rails `?rail=` may preview.
  */
 export interface GuestFeatures {
   explore: boolean;
@@ -242,7 +240,12 @@ export interface GuestFeatures {
   smartSelling: boolean;
   offers: boolean;
   socialProof: boolean;
-  motions: boolean;
+  /** The plan holds the intro page, the restaurant's own page and the wheel (each also needs its menu switch). */
+  intro: boolean;
+  about: boolean;
+  wheel: boolean;
+  /** The plan holds the order and view counts on dish cards (also needs the menu's switch). */
+  dishCounts: boolean;
   rails: RailStyle[];
 }
 
@@ -253,7 +256,10 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     smartSelling: allows(entitlements, 'selling.smart'),
     offers: allows(entitlements, 'selling.offers'),
     socialProof: allows(entitlements, 'selling.socialProof'),
-    motions: allows(entitlements, 'design.menuMotions'),
+    intro: allows(entitlements, 'menu.intro'),
+    about: allows(entitlements, 'menu.about'),
+    wheel: allows(entitlements, 'menu.wheel'),
+    dishCounts: allows(entitlements, 'menu.dishCounts'),
     rails: allowedRails(entitlements),
   };
 }

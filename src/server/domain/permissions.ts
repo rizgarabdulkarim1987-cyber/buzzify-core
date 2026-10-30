@@ -75,11 +75,15 @@ export const ROLE_DEFAULTS: Record<MemberRole, readonly Permission[]> = {
   OWNER: ['content.edit', 'content.prices', 'content.media', 'content.availability', 'publish.now', 'prices.bulk'],
 };
 
-/** Keys a client policy can never hand to a designer or an owner. */
+/**
+ * Keys a client policy can never hand to a designer or an owner. `people.invite` is here because accounts are made by
+ * the Super Admin alone: no policy lets an owner invite, or see who has been invited.
+ */
 export const NEVER_GRANTABLE: readonly Permission[] = [
   'restaurant.create',
   'restaurant.delete',
   'menu.delete',
+  'people.invite',
   'people.manage',
   'permissions.manage',
   'audit.view',

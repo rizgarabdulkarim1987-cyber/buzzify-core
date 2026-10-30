@@ -1,0 +1,266 @@
+/*
+ * The Manuscript (family `spine`, kind `manus`): a gilded Arabic manuscript. The menu is one folio in a gold double
+ * frame with a fine blue rule inside it; every section is a chapter headed between two gold rosettes; the dishes are
+ * written into the text block (in the pair's naskh for Arabic and Sorani), a gold rosette between one dish and the next,
+ * and each dish's photo is a miniature in the margin under an arched top, on the right then the left. The rosettes turn
+ * slowly while their chapter is on screen; each entry inks in (from a blur) the first time it is seen. Colours from the
+ * template tokens only: gold is `--accent`, the blue rule `--text`, the page `--raised`. Logical properties only.
+ */
+[data-body='manus'] {
+  --nav-room: 3.5rem;
+  --column: 44rem;
+  --ms-mini: 5rem;
+  --ms-gold-hi: color-mix(in oklab, var(--accent) 55%, #fff);
+  --ms-gold-lo: color-mix(in oklab, var(--accent) 60%, #000);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+[data-body='manus'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='manus'] .ms-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem 0.875rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.25rem;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms;
+}
+/* The chip's mark: a small gold lozenge, an illuminator's stop. */
+[data-body='manus'] .ms-chip-mark {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  background: linear-gradient(135deg, var(--ms-gold-hi), var(--accent), var(--ms-gold-lo));
+  rotate: 45deg;
+}
+[data-body='manus'] .ms-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+[data-body='manus'] .ms-chip[aria-current='true'] .ms-chip-mark {
+  background: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the folio */
+
+[data-body='manus'] .ms-main {
+  box-sizing: border-box;
+  margin-block: 0.375rem 0.875rem;
+  padding: 1.25rem 1rem 0.75rem;
+  border: 6px double var(--accent);
+  outline: 2px solid var(--text);
+  outline-offset: -12px;
+  background:
+    radial-gradient(ellipse at 50% 0, color-mix(in oklab, var(--raised) 70%, var(--accent)) 0, transparent 60%),
+    var(--raised);
+  box-shadow: 0 10px 22px rgb(0 0 0 / 0.3);
+}
+@media (max-width: 639.98px) {
+  [data-body='manus'] .ms-main {
+    margin-inline: 0.625rem;
+  }
+}
+
+[data-body='manus'] .ms-section {
+  position: relative;
+  padding: 0.625rem 0.375rem 0.25rem;
+}
+[data-body='manus'] .ms-head {
+  margin-block-end: 0.5rem;
+}
+/* The chapter heading between two gold rosettes (the second is drawn by the title itself). */
+[data-body='manus'] .ms-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 0.5rem;
+  margin: 0;
+  color: var(--accent-ink);
+  font-size: 1.375rem;
+  line-height: 1.4;
+  text-align: center;
+}
+[data-body='manus'] .ms-rose,
+[data-body='manus'] .ms-title::after {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 1.125rem;
+  font-style: normal;
+  line-height: 1;
+}
+[data-body='manus'] .ms-title::after {
+  content: '۞';
+  order: 9;
+}
+[data-body='manus'] .ms-title [data-count] {
+  padding-inline: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ the entries and their miniatures */
+
+[data-body='manus'] .ms-thread {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* An entry: the miniature in the margin, the words in the text block; a rosette under every entry but the last. */
+[data-body='manus'] .ms-bead {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding-block-end: 0.25rem;
+}
+[data-body='manus'] .ms-bead[data-side='end'] {
+  flex-direction: row-reverse;
+}
+[data-body='manus'] .ms-bead:not(:last-child) {
+  padding-block-end: 1.875rem;
+}
+[data-body='manus'] .ms-bead:not(:last-child)::after {
+  content: '❁';
+  position: absolute;
+  inset-block-end: 0.125rem;
+  inset-inline-start: 50%;
+  inline-size: 1.5rem;
+  margin-inline-start: -0.75rem;
+  color: var(--accent);
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+  text-align: center;
+  pointer-events: none;
+}
+[data-body='manus'] .ms-section[data-live] .ms-rose,
+[data-body='manus'] .ms-section[data-live] .ms-title::after,
+[data-body='manus'] .ms-section[data-live] .ms-bead::after {
+  animation: ms-turn 14s linear infinite;
+}
+@keyframes ms-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The miniature: an arched gold mount, the photo a little aged inside it. */
+[data-body='manus'] .ms-ball {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--ms-mini);
+  padding: 0.25rem;
+  border-radius: 50% 50% 4px 4px / 30% 30% 4px 4px;
+  background: linear-gradient(135deg, var(--ms-gold-hi), var(--accent) 50%, var(--ms-gold-lo));
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.2);
+}
+[data-body='manus'] .ms-ball > * {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 0.82;
+  overflow: hidden;
+  border-radius: 50% 50% 3px 3px / 30% 30% 3px 3px;
+  filter: saturate(0.85) sepia(0.15);
+}
+[data-body='manus'] .ms-ball img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='manus'] .ms-text {
+  flex: 1;
+  min-inline-size: 0;
+  transition:
+    opacity 600ms ease,
+    filter 600ms ease;
+}
+[data-body='manus'][data-armed] .ms-bead:not([data-in]) .ms-text {
+  opacity: 0;
+  filter: blur(2px);
+}
+[data-body='manus'] .ms-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+[data-body='manus'] .ms-desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+[data-body='manus'] .ms-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: 0.25rem;
+}
+[data-body='manus'] .ms-price {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='manus'] .ms-add {
+  min-block-size: 2.25rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.1875rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  [data-body='manus'] .ms-chip:hover:not([aria-current='true']) {
+    background: color-mix(in oklab, var(--accent) 14%, var(--raised));
+  }
+  [data-body='manus'] .ms-bead:hover .ms-ball {
+    box-shadow: 0 0 0 2px var(--accent), 0 3px 8px rgb(0 0 0 / 0.2);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='manus'] {
+    --ms-mini: 6.5rem;
+  }
+  [data-body='manus'] .ms-main {
+    padding-inline: 1.75rem;
+  }
+}
+
+[data-body='manus'][data-hold] .ms-rose,
+[data-body='manus'][data-hold] .ms-title::after,
+[data-body='manus'][data-hold] .ms-bead::after {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='manus'] .ms-rose,
+  [data-body='manus'] .ms-title::after,
+  [data-body='manus'] .ms-bead::after {
+    animation: none !important;
+  }
+  [data-body='manus'] :is(.ms-chip, .ms-text) {
+    transition: none;
+  }
+}

@@ -1,0 +1,341 @@
+/*
+ * The Game Levels body (a browse shape of a template menu; the mockup layout-2-lvl): a game map. Every section is a
+ * world, a full-width band washed in its own hue with a ribbon banner across its top (number, name, dish count); its
+ * dishes are levels on a dotted road that winds from the start edge through the middle to the end edge and back: a big
+ * round medallion (the photo in a ring under three stars, the level number on its rim) with a name-and-price card
+ * beside it that holds the add button, one dish a row. A strip of worlds stays at the top and jumps. Everything is
+ * scoped under [data-body='levels']. The page is the template's --bg, text --text; cards are the inverse pair (--text
+ * with --bg ink), banners --on-accent on --accent, and the numbers on a world's hue take the ink that reads on it
+ * (--w-ink on --w-fill, chosen in LevelsBody), so contrast holds on every palette. Logical properties only.
+ */
+[data-body='levels'] {
+  /* One road row (a level) and its medallion; the road is drawn on a 24rem column, winding between 12% and 88%. */
+  --lv-pitch: 4.6rem;
+  --lv-photo: 4.5rem;
+  --lv-pad: 0.4rem;
+  --lv-cx: calc(var(--lv-photo) / 2 + var(--lv-pad));
+  --lv-node: 14.25rem;
+  /* The sticky strip's height, so a jumped-to world lands just below it. */
+  --nav-room: 4.25rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  color: var(--text);
+}
+
+/* The strip of worlds (sticky: shared/shapes.css): chunky game buttons in a row that scrolls sideways. */
+[data-body='levels'] .lv-worlds {
+  padding: 0.375rem 0.5rem;
+  border-block-end: 3px solid color-mix(in srgb, var(--text) 18%, transparent);
+}
+[data-body='levels'] .lv-strip-list {
+  gap: 0.375rem;
+  padding: 0.125rem 0 0.25rem;
+}
+[data-body='levels'] .lv-world-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-block: 0;
+  padding-inline: 0.3125rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 14%, var(--bg));
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--text) 24%, transparent);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+[data-body='levels'] .lv-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+[data-body='levels'] .lv-world-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+@media (hover: hover) {
+  [data-body='levels'] .lv-world-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--text) 24%, var(--bg));
+  }
+}
+
+/* A world: a full-width band washed in its hue, deeper toward the bottom. */
+[data-body='levels'] .lv-world {
+  position: relative;
+  margin: 0;
+  padding: 0 0.5rem 0.25rem;
+  background: linear-gradient(color-mix(in srgb, hsl(var(--w-h) 85% 54%) 72%, var(--bg)), color-mix(in srgb, hsl(var(--w-h) 80% 42%) 72%, var(--bg)));
+}
+
+/* The banner: a ribbon with swallowtail ends across the world's top, the accent pair, the count in a round seal. */
+[data-body='levels'] [data-heading].lv-head {
+  position: relative;
+  z-index: 2;
+  margin-block: 0;
+  padding-block-start: 0.375rem;
+  text-align: center;
+}
+[data-body='levels'] .lv-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0.125rem;
+  padding-inline: 1.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1rem;
+  line-height: 1.2;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.75rem) 50%, 100% 100%, 0 100%, 0.75rem 50%);
+  filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--bg) 40%, transparent));
+}
+[data-body='levels'] .lv-banner small {
+  flex: none;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='levels'] .lv-banner span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='levels'] .lv-banner b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/*
+ * The road: a column of levels, one a row, and a dotted road wound through the medallions behind them. The road is a
+ * pair of masks (an S-curve tile four rows tall: a wide band and a dotted line) painted in palette colours; a
+ * right-to-left page flips them, as the nodes flip with the logical margins.
+ */
+[data-body='levels'] .lv-road {
+  position: relative;
+  isolation: isolate;
+  max-inline-size: 24rem;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+[data-body='levels'] .lv-road::before,
+[data-body='levels'] .lv-road::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-mask-size: 100% calc(var(--lv-pitch) * 4);
+  mask-size: 100% calc(var(--lv-pitch) * 4);
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+}
+[data-body='levels'] .lv-road::before {
+  background: color-mix(in srgb, var(--bg) 38%, transparent);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 400' preserveAspectRatio='none'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' vector-effect='non-scaling-stroke' stroke-width='22' d='M12 50C12 100 50 100 50 150S88 200 88 250 50 300 50 350 12 400 12 450M50 -50C50 0 12 0 12 50'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 400' preserveAspectRatio='none'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' vector-effect='non-scaling-stroke' stroke-width='22' d='M12 50C12 100 50 100 50 150S88 200 88 250 50 300 50 350 12 400 12 450M50 -50C50 0 12 0 12 50'/%3E%3C/svg%3E");
+}
+[data-body='levels'] .lv-road::after {
+  background: var(--text);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 400' preserveAspectRatio='none'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' vector-effect='non-scaling-stroke' stroke-width='5' stroke-dasharray='0.1 13' d='M12 50C12 100 50 100 50 150S88 200 88 250 50 300 50 350 12 400 12 450M50 -50C50 0 12 0 12 50'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 400' preserveAspectRatio='none'%3E%3Cpath fill='none' stroke='%23000' stroke-linecap='round' vector-effect='non-scaling-stroke' stroke-width='5' stroke-dasharray='0.1 13' d='M12 50C12 100 50 100 50 150S88 200 88 250 50 300 50 350 12 400 12 450M50 -50C50 0 12 0 12 50'/%3E%3C/svg%3E");
+}
+[dir='rtl'] [data-body='levels'] .lv-road::before,
+[dir='rtl'] [data-body='levels'] .lv-road::after {
+  transform: scaleX(-1);
+}
+
+/* A level: the medallion and its card on one row of the road; the node is the tap area, not the whole row. */
+[data-body='levels'] .lv-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  inline-size: var(--lv-node);
+  max-inline-size: 100%;
+  block-size: var(--lv-pitch);
+  min-inline-size: 0;
+  padding-inline: var(--lv-pad);
+}
+[data-body='levels'] .lv-node[data-step='1'] {
+  margin-inline-start: calc(50% - var(--lv-cx));
+}
+[data-body='levels'] .lv-node[data-step='2'] {
+  margin-inline-start: calc(100% - var(--lv-node));
+}
+[data-body='levels'] .lv-node[data-step='3'] {
+  margin-inline-start: calc(50% + var(--lv-cx) - var(--lv-node));
+}
+[data-body='levels'] .lv-node[data-card='start'] {
+  flex-direction: row-reverse;
+}
+
+/* The medallion: the photo in a round frame with a ring of three arcs and three stars over it. */
+[data-body='levels'] .lv-disc {
+  position: relative;
+  flex: none;
+  inline-size: var(--lv-photo);
+}
+[data-body='levels'] .lv-disc::before {
+  content: '';
+  position: absolute;
+  inset: -0.3125rem;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from -50deg, hsl(var(--w-h) 95% 62%) 0 100deg, transparent 100deg 120deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.1875rem));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.1875rem));
+  pointer-events: none;
+}
+[data-body='levels'] .lv-disc::after {
+  content: '\2605\2605\2605';
+  position: absolute;
+  inset-block-start: -1rem;
+  inset-inline: 0;
+  color: var(--accent);
+  font-size: 0.75rem;
+  letter-spacing: 0.125rem;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: none;
+}
+[data-body='levels'] .lv-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 4px solid var(--text);
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--bg) 40%, transparent);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The level number, on the photo's lower start rim. */
+[data-body='levels'] .lv-level {
+  position: absolute;
+  inset-block-end: -0.25rem;
+  inset-inline-start: -0.5rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 3px solid var(--text);
+  border-radius: 50%;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* The card: the name over the price and the add, the inverse pair like the mockup's white plate. */
+[data-body='levels'] .lv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1 1 0;
+  min-inline-size: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.875rem;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--bg) 40%, transparent);
+}
+[data-body='levels'] .lv-name {
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: start;
+}
+[data-body='levels'] .lv-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+/* The price, on the card; taps go through to the node. */
+[data-body='levels'] .lv-pill {
+  min-inline-size: 0;
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+/* The add button (shared/shapes.css) sits in the card's line, not on a rim. */
+[data-body='levels'] .lv-add {
+  position: relative;
+  flex: none;
+  inset: auto;
+  margin: 0;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--bg) 45%, transparent);
+}
+/* A discount (shared/shapes.css) stamped on the node's top corner over the card (the node is its positioned ancestor). */
+[data-body='levels'] .lv-off {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0.75rem;
+  z-index: 2;
+  rotate: -5deg;
+}
+[data-body='levels'] .lv-node[data-card='start'] .lv-off {
+  inset-inline-end: auto;
+  inset-inline-start: 0.75rem;
+}
+/* The focus ring of a whole node (shared/shapes.css draws it inside), in the text colour over the world's band. */
+[data-body='levels'] .lv-node .tpl-open:focus-visible::after {
+  outline-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+@media (hover: hover) {
+  [data-body='levels'] .lv-node:hover .lv-photo {
+    transform: scale(1.06);
+  }
+}
+[data-body='levels'] .lv-node:active .lv-photo {
+  transform: scale(0.95);
+}
+
+/* A wide screen keeps the road a tidy column. */
+@media (min-width: 640px) {
+  [data-body='levels'] {
+    --column: 36rem;
+  }
+}
+
+/* Less motion: the nodes are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='levels'] .lv-photo,
+  [data-body='levels'] .lv-world-chip {
+    transition: none;
+  }
+}

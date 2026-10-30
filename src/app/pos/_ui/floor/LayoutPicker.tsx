@@ -3,9 +3,10 @@
 import { Check, LayoutDashboard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, type CSSProperties, type ReactNode } from 'react';
-import { LAYOUT_COOKIE, LAYOUTS, type LayoutId } from '@/lib/pos-floor';
+import { LAYOUT_COOKIE, LAYOUTS, type DeskId, type LayoutId } from '@/lib/pos-floor';
 import { useT } from '@/studio/i18n';
 import { Dialog } from '@/studio/ui/Dialog';
+import { DeskSection } from '@/app/pos/_ui/DeskPicker';
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -93,7 +94,7 @@ const WIRES: Record<LayoutId, ReactNode> = {
 };
 
 /** The header button that picks this device's layout of the tables screen. The choice applies at once (a refresh). */
-export function LayoutPicker({ current }: { current: LayoutId }) {
+export function LayoutPicker({ current, desk }: { current: LayoutId; desk: DeskId }) {
   const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -116,6 +117,8 @@ export function LayoutPicker({ current }: { current: LayoutId }) {
         {t('pos.layout.open')}
       </button>
       <Dialog open={open} onOpenChange={setOpen} title={t('pos.layout.title')} description={t('pos.layout.subtitle')} width="md">
+        <DeskSection current={desk} />
+        <h3 className="mb-3 text-base font-bold">{t('pos.layout.sectionTables')}</h3>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-busy={pending || undefined}>
           {LAYOUTS.map((id) => {
             const on = id === current;

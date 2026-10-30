@@ -31,7 +31,7 @@ describe('what guests get on each plan', () => {
   it('serves every feature on Premium, as before plans', async () => {
     const tenant = (await getTenant('guest-plans'))!;
     expect(tenant.brand).toMatchObject({ railStyle: 'drum', motionIntensity: 'expressive', fontPairId: 'fine' });
-    expect(tenant.features).toEqual({ explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
+    expect(tenant.features).toEqual({ explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, rails: [...RAIL_STYLES] });
   });
 
   it('serves a Basic menu with the fallbacks and the guest features off, without touching its revision', async () => {
@@ -40,7 +40,7 @@ describe('what guests get on each plan', () => {
     const tenant = (await getTenant('guest-plans'))!;
     expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
     expect(tenant.brand.fontPairId).toBeUndefined();
-    expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
+    expect(tenant.features).toEqual({ explore: true, stage: false, smartSelling: false, offers: false, socialProof: false, intro: true, about: false, wheel: false, dishCounts: false, rails: ['plain'] });
     expect(await prisma.menu.findUniqueOrThrow({ where: { id: a.menu.id }, select: { liveRevisionId: true, liveHash: true, draftHash: true } })).toEqual(before);
   });
 
@@ -62,8 +62,8 @@ describe('what guests get on each plan', () => {
   });
 
   it('follows an extra over the plan', async () => {
-    await setPlan(a.restaurant.id, 'BASIC', { features: { 'immersive.explore': true } });
-    expect((await getTenant('guest-plans'))!.features.explore).toBe(true);
+    await setPlan(a.restaurant.id, 'BASIC', { features: { 'immersive.stage': true } });
+    expect((await getTenant('guest-plans'))!.features.stage).toBe(true);
   });
 
   it('follows the plans the platform owner set', async () => {

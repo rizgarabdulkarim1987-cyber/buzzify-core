@@ -1,0 +1,372 @@
+/*
+ * The Baghdad Shanashil body (a browse shape of a template menu), drawn after the themed-shn mockup: old Baghdad's oriel
+ * windows at dusk. A header of a deep Tigris sky with three brass lamps that swing and a turquoise river that flows (a
+ * few seconds, then still), a dark wooden strip of tabs (the one in view turquoise), then each section a title over its
+ * dishes as arched cards two across: a dark carved plank with an arched window framed in brass holding the photo, behind
+ * two lattice shutters that swing open once when the card is first seen, the name, then the price and the turquoise add.
+ * Everything is scoped under [data-body='lattice'], logical properties only (RTL mirrors). The fills come from the
+ * template's palette (the wood is the text colour, the carved cream the raised colour, the glass the accent, so the
+ * default palette is the mockup's cream, brown and turquoise); only the brass and the dusk sky of the header are the
+ * shape's own pictures. Every text sits on a solid fill.
+ */
+[data-body='lattice'] {
+  /* The wood: the palette's text colour (dark on a light palette), in steps at its own hue. */
+  --sh-board: var(--text);
+  --sh-plaque: oklch(from var(--text) calc(l + 0.06) c h);
+  /* The carved text on wood: the raised colour (the palette's pair for its text colour). */
+  --sh-cream: var(--raised);
+  --sh-cream-soft: oklch(from var(--raised) calc(l - 0.08) c h);
+  --sh-price-ink: color-mix(in oklab, var(--raised) 65%, #e9c27a);
+  --sh-ring: var(--raised);
+  /* Brass: the shape's own, with an ink that reads on it. */
+  --sh-brass: #e2b04a;
+  --sh-brass-ink: #2a1608;
+  /* Glass: the accent (with its on-accent). */
+  --sh-glass: var(--accent);
+  --sh-glass-ink: var(--on-accent);
+  /* The sticky strip's height (44px tabs, 4px above and under them), so a jumped-to section lands just below it. */
+  --nav-room: 3.5rem;
+  --column: 64rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 30%;
+  /* The river's drift: toward the start of the line, either way of reading. */
+  --sh-flow: -50%;
+  padding-block-end: 1rem;
+  background: var(--bg);
+  color: var(--text);
+}
+[data-body='lattice']:dir(rtl) {
+  --sh-flow: 50%;
+}
+
+/* ------------------------------------------------------------------ the sky: lamps and the river */
+
+[data-body='lattice'] .sh-sky[hidden] {
+  display: none;
+}
+[data-body='lattice'] .sh-sky {
+  position: relative;
+  block-size: 6.5rem;
+  overflow: hidden;
+  background: linear-gradient(#0d3b5a, #1f6d8a);
+}
+/* A lamp: a brass cord with a glowing lantern at its foot, swinging about the cord's top. */
+[data-body='lattice'] .sh-lamp {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 2px;
+  block-size: 2.5rem;
+  background: #c9a24a;
+  transform-origin: 50% 0;
+  animation: sh-sway 4s ease-in-out 1;
+}
+[data-body='lattice'] .sh-lamp::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -1.5rem;
+  inset-inline-start: -11px;
+  inline-size: 24px;
+  block-size: 28px;
+  border-radius: 6px 6px 12px 12px;
+  background: radial-gradient(circle at 50% 60%, #ffe8a3, #e9a51b 60%, #8a5a12);
+  box-shadow: 0 0 22px rgb(255 210 120 / 0.7);
+}
+/* The river: two waves along the foot, twice as wide as the sky, drifting one wave-length. */
+[data-body='lattice'] .sh-river {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  inline-size: 200%;
+  block-size: 2.25rem;
+  animation: sh-flow 4.5s linear 1;
+}
+
+/* ------------------------------------------------------------------ the strip of tabs */
+
+[data-body='lattice'] .sh-strip {
+  background: var(--sh-board);
+  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 0.22);
+}
+[data-body='lattice'] .sh-strip-list {
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+}
+[data-body='lattice'] .sh-tab {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-block-size: 2.75rem;
+  max-inline-size: 11rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.1875rem;
+  background: transparent;
+  color: var(--sh-cream-soft);
+  font-size: 1rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background-color 200ms,
+    color 200ms;
+}
+[data-body='lattice'] .sh-tab-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-body='lattice'] .sh-tab[aria-current='true'] {
+  background: var(--sh-glass);
+  color: var(--sh-glass-ink);
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the tab, in cream (it stands out from both fills). */
+[data-body='lattice'] .sh-strip-list button:focus-visible {
+  outline: 2px solid var(--sh-ring);
+  outline-offset: -3px;
+}
+[data-body='lattice'] .sh-tab[aria-current='true']:focus-visible {
+  outline-color: var(--sh-glass-ink);
+}
+
+/* ------------------------------------------------------------------ a section and its cards */
+
+[data-body='lattice'] .sh-bay {
+  padding: 0.75rem 0.75rem 0.5rem;
+}
+[data-body='lattice'] [data-heading].sh-head {
+  display: block;
+  padding-inline: 0;
+}
+[data-body='lattice'] .sh-title {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='lattice'] .sh-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The dish count is read by shapes of other kinds; here the title stands alone, as in the mockup. */
+[data-body='lattice'] .sh-title b {
+  display: none;
+}
+[data-body='lattice'] .sh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The card: a dark carved plank, its top an arch. It is the positioned ancestor of the name's tap area, so the whole card opens the dish. */
+[data-body='lattice'] .sh-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.5rem 0.5rem 0.375rem;
+  border-start-start-radius: 4.375rem;
+  border-start-end-radius: 4.375rem;
+  border-end-start-radius: 0.375rem;
+  border-end-end-radius: 0.375rem;
+  background: var(--sh-board);
+  box-shadow: 0 0.5rem 1rem color-mix(in srgb, var(--text) 25%, transparent);
+  color: var(--sh-cream);
+}
+/* The window: the photo in an arch framed in brass, the shutters laid over it. */
+[data-body='lattice'] .sh-window {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid #c9a24a;
+  border-start-start-radius: 3.875rem;
+  border-start-end-radius: 3.875rem;
+  border-end-start-radius: 0.1875rem;
+  border-end-end-radius: 0.1875rem;
+  perspective: 600px;
+}
+[data-body='lattice'] .sh-photo {
+  position: relative;
+  aspect-ratio: 6 / 5;
+  overflow: hidden;
+  background: var(--sh-board);
+}
+/* The discount on the window's foot at the start (the arch leaves no room at its top). */
+[data-body='lattice'] .sh-off {
+  --photo-off-at: 0.25rem;
+  inset-block-start: auto;
+  inset-block-end: 0.25rem;
+  font-size: 0.75rem;
+}
+/*
+ * The shutters: two lattice leaves, each half the window, hinged at the window's sides. Without the page's arming they
+ * are not drawn (the photo shows). Once the page arms the body (data-armed), the leaves of a card not yet seen are closed,
+ * and a card marked seen (data-open) swings them open once (a transition, so a card drawn again later is simply open).
+ */
+[data-body='lattice'] .sh-shutter {
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  inline-size: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, transparent 38%, var(--sh-board) 40% 52%, transparent 54%) 0 0 / 16px 16px,
+    var(--sh-plaque);
+  box-shadow: inset 0 0 0 2px var(--sh-board);
+  visibility: hidden;
+}
+[data-body='lattice'] .sh-shutter-end {
+  --sh-swing: -108deg;
+  inset-inline-end: 0;
+  transform-origin: 100% 50%;
+}
+[data-body='lattice'] .sh-shutter-start {
+  --sh-swing: 108deg;
+  inset-inline-start: 0;
+  transform-origin: 0 50%;
+}
+[data-body='lattice']:dir(rtl) .sh-shutter-end {
+  --sh-swing: 108deg;
+  transform-origin: 0 50%;
+}
+[data-body='lattice']:dir(rtl) .sh-shutter-start {
+  --sh-swing: -108deg;
+  transform-origin: 100% 50%;
+}
+[data-body='lattice'][data-armed] .sh-shutter {
+  visibility: visible;
+  transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--d, 0ms);
+}
+[data-body='lattice'][data-armed] .sh-card[data-open] .sh-shutter {
+  transform: rotateY(var(--sh-swing));
+}
+[data-body='lattice'] .sh-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin-block-start: 0.125rem;
+  padding: 0;
+  color: var(--sh-cream);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+/* The whole card's keyboard ring is drawn inside it, on the dark wood, in cream. */
+[data-body='lattice'] .tpl-counts {
+  color: var(--sh-cream);
+  opacity: 0.8;
+}
+[data-body='lattice'] .tpl-open.sh-name:focus-visible::after {
+  --tpl-ring-radius: 0.375rem;
+  outline: 2px solid var(--sh-ring);
+  outline-offset: -3px;
+  border-radius: 0.375rem;
+}
+[data-body='lattice'] .sh-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+[data-body='lattice'] .sh-price {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--sh-price-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+[data-body='lattice'] .sh-add {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sh-glass);
+  color: var(--sh-glass-ink);
+}
+[data-body='lattice'] .sh-add:focus-visible {
+  outline: 2px solid var(--sh-ring);
+  outline-offset: 1px;
+}
+[data-body='lattice'] .sh-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+@media (hover: hover) {
+  [data-body='lattice'] .sh-tab:not([aria-current='true']):hover {
+    background: color-mix(in srgb, var(--sh-cream) 14%, var(--sh-board));
+  }
+  [data-body='lattice'] .sh-card:hover .sh-window {
+    filter: brightness(1.1);
+  }
+}
+
+/* A wide screen: more cards across in a taller sky. */
+@media (min-width: 640px) {
+  [data-body='lattice'] .sh-sky {
+    block-size: 9rem;
+  }
+  [data-body='lattice'] .sh-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
+  }
+  [data-body='lattice'] .sh-title {
+    font-size: 2.25rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='lattice'] .sh-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@keyframes sh-sway {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes sh-flow {
+  to {
+    transform: translateX(var(--sh-flow));
+  }
+}
+
+/* Over: the lamps hang still and the river lies still (the body is marked after a few seconds, so a cleared search never replays them). */
+[data-body='lattice'][data-still] :is(.sh-lamp, .sh-river) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='lattice'] :is(.sh-lamp, .sh-river) {
+    animation: none;
+  }
+  [data-body='lattice'] .sh-shutter {
+    display: none;
+  }
+  [data-body='lattice'] .sh-tab {
+    transition: none;
+  }
+}

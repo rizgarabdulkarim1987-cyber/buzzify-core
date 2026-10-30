@@ -103,8 +103,8 @@ describe('plans', () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'PRO', extras: {}, note: 'Deal' });
     const asOwner = dataOf(await read(owner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
     expect(asOwner).toMatchObject({ plan: 'PRO', note: 'Deal', canEdit: true });
-    expect(asOwner.features.map((f) => f.key)).toHaveLength(15);
-    expect(asOwner.features.find((f) => f.key === 'immersive.explore')).toMatchObject({ allowed: false, inPlan: false, extra: null, lowestPlan: 'PREMIUM' });
+    expect(asOwner.features.map((f) => f.key)).toHaveLength(19);
+    expect(asOwner.features.find((f) => f.key === 'immersive.explore')).toMatchObject({ allowed: true, inPlan: true, extra: null, lowestPlan: 'BASIC' });
     expect(dataOf(await read(otherAdmin, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: 'Deal', canEdit: false });
     expect(dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: null, canEdit: false });
   });
@@ -112,9 +112,9 @@ describe('plans', () => {
   it('changes what a plan holds for every restaurant on it, and keeps the WhatsApp number as digits', async () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'BASIC', extras: {}, note: '' });
     const names = { en: 'Starter', ar: 'البداية', ckb: 'دەستپێک' };
-    dataOf(await act(owner, plans.updatePlans, { plans: { BASIC: { names, features: { 'immersive.explore': true } } }, whatsapp: '+964 750 123 4567' }));
+    dataOf(await act(owner, plans.updatePlans, { plans: { BASIC: { names, features: { 'immersive.stage': true } } }, whatsapp: '+964 750 123 4567' }));
     const tab = dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
-    expect(tab.features.find((f) => f.key === 'immersive.explore')).toMatchObject({ allowed: true, inPlan: true });
+    expect(tab.features.find((f) => f.key === 'immersive.stage')).toMatchObject({ allowed: true, inPlan: true });
     expect(tab.planNames.BASIC).toBe('Starter');
     const settings = dataOf(await read(otherAdmin, planQueries.getPlans, {}));
     expect(settings).toMatchObject({ whatsapp: '9647501234567', canEdit: false });

@@ -2,11 +2,13 @@ import { z } from 'zod';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { cashDifference, expectedCash } from '@/server/domain/pos/cash-drawer';
 import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
-import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import type { PosLegMethodKey } from '@/server/domain/pos/payment-methods';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
+import { nextCounterIn } from './counter';
 import { refuse } from './errors';
 import { readUnsettledDeliveries } from './off-premise';
+import { cashIn, refundLegs, usdDrawer } from './payment-legs';
 
 /** A person who changes a shift: the cashier whose drawer it is, or a manager or owner on their behalf. */
 export interface ShiftActor {
@@ -59,20 +61,21 @@ export async function addExpenseIn(db: AnyDb, restaurantId: string, input: { shi
 /** What the drawer should hold now: the float, plus the totals of the shift's cash payments, minus its expenses. */
 async function drawerOf(db: AnyDb, restaurantId: string, shift: { id: string; openingFloat: number }) {
   const [payments, reversals, expenses] = await Promise.all([
-    db.posPayment.findMany({ where: { restaurantId, shiftId: shift.id, method: 'CASH' }, select: { totalsSnapshot: true } }),
-    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: shift.id }, select: { method: true, amount: true } }),
+    db.posPayment.findMany({ where: { restaurantId, shiftId: shift.id }, select: { id: true, method: true, amountReceived: true, reference: true, tipAmount: true, tipMethod: true, totalsSnapshot: true, legs: { select: { method: true, amount: true, tendered: true, tenderedUsd: true, rate: true, reference: true } } } }),
+    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: shift.id }, select: { method: true, amount: true, cashPart: true, payment: { select: { legs: { select: { method: true, amount: true, tenderedUsd: true, rate: true } } } } } }),
     db.posCashExpense.findMany({ where: { restaurantId, shiftId: shift.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, amount: true, reason: true, createdAt: true } }),
   ]);
-  const cashSales = payments.map((p) => cashTotal.parse(p.totalsSnapshot).total);
-  const cashRefunds = reversals.filter((r) => r.method === 'CASH').map((r) => r.amount);
-  const refundsByMethod: Record<PosPaymentMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0 };
-  for (const r of reversals) refundsByMethod[r.method] += r.amount;
-  const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds });
-  return { cashRefunds: cashRefunds.reduce((a, b) => a + b, 0), refundsByMethod, cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total };
+  const cashSales = payments.map((p) => cashIn(p, cashTotal.parse(p.totalsSnapshot).total)).filter((amount) => amount > 0);
+  const cashRefunds = reversals.map((r) => r.cashPart).filter((amount) => amount > 0);
+  const refundsByMethod: Record<PosLegMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0, CASH_USD: 0 };
+  for (const r of reversals) for (const given of refundLegs(r)) refundsByMethod[given.method] += given.amount;
+  const usd = usdDrawer(payments, reversals.map((r) => r.payment ?? {}));
+  const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds }) - usd.dinarChange;
+  return { cashRefunds: cashRefunds.reduce((a, b) => a + b, 0), refundsByMethod, cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total, usd };
 }
 
 /** Counts the drawer and closes the shift, freezing what it should have held and the difference. */
-export async function closeShiftIn(db: AnyDb, restaurantId: string, input: { shiftId: string; countedCash: number; note: string; actor: ShiftActor }) {
+export async function closeShiftIn(db: AnyDb, restaurantId: string, input: { shiftId: string; countedCash: number; countedUsd?: number; note: string; actor: ShiftActor }) {
   const shift = await ownShift(db, restaurantId, input.shiftId, input.actor);
   if (shift.closedAt) throw refuse('CONFLICT', 'The shift is closed');
   // Lock the row first so no payment slips in between the sum and the close.
@@ -80,11 +83,29 @@ export async function closeShiftIn(db: AnyDb, restaurantId: string, input: { shi
   if (count === 0) throw refuse('CONFLICT', 'The shift is closed');
   const drawer = await drawerOf(db, restaurantId, shift);
   const difference = cashDifference(input.countedCash, drawer.expectedCash);
+  // The dollars are counted when the restaurant takes them, or when any were taken or given back in this shift.
+  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { usdEnabled: true } });
+  const countsDollars = (settings?.usdEnabled ?? false) || drawer.usd.received > 0 || drawer.usd.refunded > 0;
+  if (countsDollars && input.countedUsd === undefined) {
+    throw refuse('INVALID', 'Count the dollars in the drawer', { countedUsd: 'Count the dollars in the drawer' });
+  }
+  const usd = countsDollars ? { countedUsd: input.countedUsd!, expectedUsdAtClose: drawer.usd.expectedUsd, differenceUsd: cashDifference(input.countedUsd!, drawer.usd.expectedUsd) } : null;
+  const zNumber = await nextCounterIn(db, restaurantId, 'z');
   await db.posShift.updateMany({
     where: { id: shift.id, restaurantId, closedAt: null },
-    data: { closedAt: new Date(), closedByUserId: input.actor.userId, countedCash: input.countedCash, expectedCashAtClose: drawer.expectedCash, difference, note: input.note },
+    data: { closedAt: new Date(), closedByUserId: input.actor.userId, countedCash: input.countedCash, expectedCashAtClose: drawer.expectedCash, difference, ...(usd ?? {}), zNumber, note: input.note },
   });
-  return { shiftId: shift.id, expected: drawer.expectedCash, counted: input.countedCash, difference, byOther: shift.userId !== input.actor.userId };
+  return {
+    shiftId: shift.id,
+    expected: drawer.expectedCash,
+    counted: input.countedCash,
+    difference,
+    expectedUsd: usd?.expectedUsdAtClose ?? null,
+    countedUsd: usd?.countedUsd ?? null,
+    differenceUsd: usd?.differenceUsd ?? null,
+    zNumber,
+    byOther: shift.userId !== input.actor.userId,
+  };
 }
 
 export interface ShiftSummary {
@@ -97,6 +118,11 @@ export interface ShiftSummary {
     countedCash: number | null;
     expectedCashAtClose: number | null;
     difference: number | null;
+    countedUsd: number | null;
+    expectedUsdAtClose: number | null;
+    differenceUsd: number | null;
+    /** The Z report number given at close; null while open and for a shift closed before numbering. */
+    zNumber: number | null;
     note: string;
   };
   cashierName: string;
@@ -108,9 +134,18 @@ export interface ShiftSummary {
   /** Cash handed back by reversals recorded in this shift (already inside expectedCash). */
   cashRefunds: number;
   /** Everything reversed in this shift, by method (cash included). */
-  refundsByMethod: Record<PosPaymentMethodKey, number>;
-  /** For an open shift what the drawer should hold now; for a closed one what was frozen at close. */
-  expectedCash: number;
+  refundsByMethod: Record<PosLegMethodKey, number>;
+  /** What the drawer should have held, frozen at close; null while the shift is open, so the count is blind. */
+  expectedCash: number | null;
+  /** The close asks for a dollar count: the restaurant takes dollars, or this shift took or gave back some. */
+  countsDollars: boolean;
+  /** The dollars the drawer should have held, frozen at close; null while the shift is open, so the count is blind. */
+  expectedUsd: number | null;
+  /**
+   * Dollars this shift refunded beyond the dollars it took: paid from outside the drawer, so not in expectedUsd (see usdDrawer).
+   * Null while the shift is open: it hints at the dollars the drawer should hold, and the count is blind.
+   */
+  usdBeyondDrawer: number | null;
   openOrdersCount: number;
   /** Delivered orders still unpaid, restaurant-wide: the drivers hold that cash. Counted for the close-shift screen, never blocking it. */
   unsettledDeliveries: { count: number; amount: number };
@@ -119,12 +154,14 @@ export interface ShiftSummary {
 export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId: string): Promise<ShiftSummary | null> {
   const shift = await db.posShift.findFirst({ where: { id: shiftId, restaurantId }, include: { user: { select: { name: true } } } });
   if (!shift) return null;
-  const [drawer, closer, openOrdersCount, unsettledDeliveries] = await Promise.all([
+  const [drawer, closer, openOrdersCount, unsettledDeliveries, usdSetting] = await Promise.all([
     drawerOf(db, restaurantId, shift),
     shift.closedByUserId ? db.user.findFirst({ where: { id: shift.closedByUserId }, select: { name: true } }) : Promise.resolve(null),
     db.posOrder.count({ where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] }, NOT: { kind: 'DELIVERY', fulfillment: 'DELIVERED' } } }),
     shift.closedAt ? Promise.resolve({ count: 0, amount: 0 }) : readUnsettledDeliveries(db, restaurantId),
+    db.posSettings.findFirst({ where: { restaurantId }, select: { usdEnabled: true } }),
   ]);
+  const usdOn = usdSetting?.usdEnabled ?? false;
   return {
     shift: {
       id: shift.id,
@@ -135,6 +172,10 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
       countedCash: shift.countedCash,
       expectedCashAtClose: shift.expectedCashAtClose,
       difference: shift.difference,
+      countedUsd: shift.countedUsd,
+      expectedUsdAtClose: shift.expectedUsdAtClose,
+      differenceUsd: shift.differenceUsd,
+      zNumber: shift.zNumber,
       note: shift.note,
     },
     cashierName: shift.user.name,
@@ -145,7 +186,10 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
     expensesTotal: drawer.expensesTotal,
     cashRefunds: drawer.cashRefunds,
     refundsByMethod: drawer.refundsByMethod,
-    expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : drawer.expectedCash,
+    expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : null,
+    countsDollars: drawer.usd.received > 0 || drawer.usd.refunded > 0 || shift.countedUsd !== null || usdOn,
+    expectedUsd: shift.closedAt ? (shift.expectedUsdAtClose ?? drawer.usd.expectedUsd) : null,
+    usdBeyondDrawer: shift.closedAt ? drawer.usd.beyondDrawer : null,
     openOrdersCount,
     unsettledDeliveries,
   };

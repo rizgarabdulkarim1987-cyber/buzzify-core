@@ -1,0 +1,167 @@
+/*
+ * Cinema Posters (family `pinboard`, kind `afish`): hand-painted posters of old Egyptian and Iraqi films pasted on a
+ * wall. Every dish is a poster: a saturated photo, the name huge like a film title in a heavy frame, a black «starring»
+ * ribbon (a star, then the description) across it, and the price boxed where the ticket price goes. Two posters to a
+ * row, each leaning a little the other way; they paste onto the wall (from a little larger, settling flat) the first
+ * time they are seen. Colours from the template tokens: the wall `--bg` with paste seams, the poster paper `--card`,
+ * the title `--accent-ink` framed in `--raised` (the yellow of the seed), the ribbon `--text` with `--bg` letters.
+ */
+[data-body='afish'] {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 2.5rem, color-mix(in srgb, var(--text) 5%, transparent) 2.5rem calc(2.5rem + 1px)),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: playbill tabs with a hard shadow */
+
+[data-body='afish'] .af-chip {
+  border-radius: 2px;
+  background: var(--raised);
+  box-shadow: 2px 2px 0 var(--text);
+  color: var(--text);
+  font-family: var(--font-display-stack);
+  text-transform: var(--display-case);
+}
+[data-body='afish'] .af-chip-mark {
+  display: none;
+}
+[data-body='afish'] .af-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the section's billboard heading */
+
+[data-body='afish'] .af-head {
+  margin-block: 0.5rem 0.75rem;
+}
+[data-body='afish'] .af-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+[data-body='afish'] .af-title > span {
+  padding: 0.0625rem 0.5rem;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 3px 3px 0 var(--accent);
+}
+[data-body='afish'] .af-title [data-count] {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ------------------------------------------------------------------ the posters */
+
+[data-body='afish'] .af-board {
+  gap: 1rem 0.75rem;
+}
+[data-body='afish'] .af-piece {
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  padding: 0.375rem 0.375rem 0.5rem;
+  background: var(--card);
+  box-shadow: 0 0.5rem 0.875rem rgb(0 0 0 / 0.25);
+  transform-origin: 50% 0;
+  transition:
+    transform 460ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 300ms ease-out;
+  transition-delay: calc(var(--i, 0) * 50ms);
+}
+/* Not yet pasted: a little larger and faint, as if still in the paster's hands. */
+[data-body='afish'][data-armed] .af-piece:not([data-in]) {
+  opacity: 0;
+  transform: scale(1.12);
+}
+/* The piece is its own stacking context (isolate): the picture sits under it, so the title can lap over its foot while
+   staying in the flow (its tap area then covers the whole poster). */
+[data-body='afish'] .af-photo {
+  z-index: -1;
+  aspect-ratio: 1;
+}
+[data-body='afish'] .af-img {
+  border-radius: 0;
+  filter: saturate(1.5) contrast(1.15);
+}
+/* The film title: the name, huge, in the accent, in a heavy frame lapping over the foot of the picture. */
+[data-body='afish'] .af-name {
+  margin-block-start: -1.375rem;
+  margin-inline: 0.25rem;
+  inline-size: auto;
+  padding: 0.125rem 0.375rem;
+  background: var(--card);
+  border: 3px solid var(--raised);
+  box-shadow: 2px 2px 0 var(--text);
+  color: var(--accent-ink);
+  font-family: var(--font-display-stack);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: var(--display-case);
+}
+/* The «starring» ribbon: a star, then the description, on a black band leaning the other way. */
+[data-body='afish'] .af-rib {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-block-start: 0.375rem;
+  margin-inline-start: auto;
+  padding: 0.125rem 0.5rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  rotate: -2deg;
+}
+[data-body='afish'] .af-rib::before {
+  content: '★ ';
+  color: var(--raised);
+}
+[data-body='afish'] .af-badges {
+  margin-block-start: 0.375rem;
+}
+[data-body='afish'] .af-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  margin-block-start: 0.375rem;
+}
+/* The ticket-price box: the price where the old posters printed the door price. */
+[data-body='afish'] .af-door {
+  padding: 0.0625rem 0.375rem;
+  border: 1.5px dashed var(--text);
+}
+[data-body='afish'] .af-price {
+  font-family: var(--font-display-stack);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+[data-body='afish'] .af-add {
+  min-height: 2.25rem;
+  padding-inline: 0.625rem;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+@media (hover: hover) {
+  [data-body='afish'] .af-chip:hover:not([aria-current='true']) {
+    box-shadow: 3px 3px 0 var(--accent);
+  }
+  [data-body='afish'] .af-piece:hover {
+    box-shadow: 0 0.75rem 1.25rem rgb(0 0 0 / 0.3);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='afish'] .af-name {
+    font-size: 1.375rem;
+  }
+}

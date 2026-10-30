@@ -1,0 +1,321 @@
+/*
+ * The Aquarium body (kind `aqua`): the menu under water. The page deepens from `--raised` (the lit surface) to `--bg`
+ * (the deep); light ripples over each section and bubbles rise behind the dishes; the dishes swim as a school in two
+ * staggered columns, each photo a glassy bubble that bobs on its own rhythm. Only the photo moves: the words, the price
+ * and the tap area stay still. Scoped under [data-body='aqua'], logical properties only. Colours from the tokens; the
+ * fixed white is only the glint on a photo bubble (decoration, never under words).
+ */
+[data-body='aqua'] {
+  --aq-glass: color-mix(in srgb, var(--text) 35%, transparent);
+  --aq-orb: 6rem;
+  --aq-stagger: 1.5rem;
+  --nav-room: 3.5rem;
+  --column: 48rem;
+  padding-block-end: 1rem;
+  background: linear-gradient(var(--raised), var(--bg) 36rem) var(--bg);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip: round bubble tabs */
+
+[data-body='aqua'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='aqua'] .aq-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.5rem 0.875rem;
+  border: 1px solid var(--aq-glass);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms;
+}
+[data-body='aqua'] .aq-chip-bubble {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+[data-body='aqua'] .aq-chip[aria-current='true'] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the water: caustics and bubbles, behind */
+
+[data-body='aqua'] .aq-section {
+  position: relative;
+  padding: 0.5rem 0.75rem 1rem;
+  overflow: clip;
+}
+[data-body='aqua'] .aq-water {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+[data-body='aqua'] .aq-caustics {
+  position: absolute;
+  inset: -12rem;
+  background:
+    repeating-radial-gradient(circle at 30% 20%, transparent 0 18px, color-mix(in srgb, var(--text) 55%, transparent) 20px, transparent 24px),
+    repeating-radial-gradient(circle at 70% 60%, transparent 0 26px, color-mix(in srgb, var(--text) 45%, transparent) 28px, transparent 32px);
+  background-size: 180px 160px, 220px 200px;
+  opacity: 0.16;
+}
+[data-body='aqua'] .aq-bubble {
+  position: absolute;
+  inset-block-end: -1.5rem;
+  inset-inline-start: var(--x);
+  inline-size: var(--s);
+  block-size: var(--s);
+  border: 1.5px solid color-mix(in srgb, var(--text) 55%, transparent);
+  border-radius: 50%;
+  opacity: 0;
+}
+[data-body='aqua'] .aq-section[data-live] .aq-caustics {
+  animation: aq-ripple 14s linear infinite;
+}
+[data-body='aqua'] .aq-section[data-live] .aq-bubble {
+  animation: aq-rise var(--t) linear var(--dl) infinite;
+}
+@keyframes aq-ripple {
+  to {
+    transform: translate(180px, 160px);
+  }
+}
+@keyframes aq-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(0.75rem, -20rem);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-0.25rem, -42rem);
+  }
+}
+
+/* ------------------------------------------------------------------ the heading */
+
+[data-body='aqua'] .aq-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  margin-block: 0.25rem 0.625rem;
+}
+[data-body='aqua'] .aq-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='aqua'] .aq-head-bubble {
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border: 2px solid var(--aq-glass);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--text) 60%, transparent) 0 18%, transparent 22%);
+}
+[data-body='aqua'] .aq-title b {
+  display: grid;
+  place-items: center;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 14%, var(--bg));
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ the school: two staggered columns */
+
+[data-body='aqua'] .aq-school {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.625rem;
+  margin: 0;
+  padding: 0 0 var(--aq-stagger);
+  list-style: none;
+}
+[data-body='aqua'] .aq-fish {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-inline-size: 0;
+  text-align: center;
+}
+/* Every other fish swims a little deeper, so the school reads as fish, not a grid. */
+[data-body='aqua'] .aq-fish:nth-child(even) {
+  translate: 0 var(--aq-stagger);
+}
+[data-body='aqua'] .aq-tank {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  inline-size: 100%;
+}
+[data-body='aqua'] .aq-orb {
+  position: relative;
+  inline-size: var(--aq-orb);
+  block-size: var(--aq-orb);
+  overflow: hidden;
+  border-radius: 50%;
+  box-shadow: 0 1rem 1.5rem -0.75rem rgb(0 0 0 / 0.45);
+}
+[data-body='aqua'] .aq-orb > :first-child {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='aqua'] .aq-orb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The bubble's glass: a rim and a glint over the photo. */
+[data-body='aqua'] .aq-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse 30% 18% at 34% 20%, rgb(255 255 255 / 0.7), transparent 70%);
+  box-shadow: inset 0 0 0 3px var(--aq-glass);
+  pointer-events: none;
+}
+[data-body='aqua'] .aq-section[data-live] .aq-orb {
+  animation: aq-swim var(--t) ease-in-out var(--dl) infinite;
+}
+@keyframes aq-swim {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(var(--dx), -0.5rem);
+  }
+}
+/* The labels (sale, popular, new) on the tank's top corner, on their own backing. */
+[data-body='aqua'] .aq-badges {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+[data-body='aqua'] .aq-badges .tpl-badge:not(.tpl-badge-sale) {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--aq-glass);
+  color: var(--text);
+}
+
+[data-body='aqua'] .aq-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin-block-start: 0.375rem;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+[data-body='aqua'] .aq-name:focus-visible::after {
+  outline-color: var(--text);
+  border-radius: 1.25rem;
+}
+[data-body='aqua'] .aq-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-block-start: 0.25rem;
+}
+[data-body='aqua'] .aq-price {
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+[data-body='aqua'] .aq-price .tpl-was {
+  margin-inline-start: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+[data-body='aqua'] .aq-add {
+  flex: none;
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ hold, pointing, less motion, wider screens */
+
+[data-body='aqua'][data-hold] .aq-section[data-live] :is(.aq-caustics, .aq-bubble, .aq-orb),
+[data-body='aqua'] .aq-section[data-live] .aq-fish:is(:hover, :focus-within) .aq-orb {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='aqua'] .aq-section[data-live] :is(.aq-caustics, .aq-bubble, .aq-orb) {
+    animation: none;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='aqua'] {
+    --aq-orb: 8.5rem;
+    --aq-stagger: 2.5rem;
+  }
+  [data-body='aqua'] .aq-school {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
+  }
+  [data-body='aqua'] .aq-fish:nth-child(even) {
+    translate: none;
+  }
+  [data-body='aqua'] .aq-fish:nth-child(3n + 2) {
+    translate: 0 var(--aq-stagger);
+  }
+  [data-body='aqua'] .aq-title {
+    font-size: 1.75rem;
+  }
+}

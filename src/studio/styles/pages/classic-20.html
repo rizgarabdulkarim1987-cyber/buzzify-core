@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بشكل مختلف ٢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes shine { 0%, 70% { transform: translateX(-140%) skewX(-18deg); } 100% { transform: translateX(240%) skewX(-18deg); } }
+  @keyframes chase { to { background-position: 14px 0, -14px 100%, 0 14px, 100% -14px; } }
+  @keyframes pop { 0% { opacity: .95; } 100% { opacity: 0; } }
+  .screen .fl { will-change: transform; }
+  .screen .ph { background-size: cover; background-position: center; }
+  .screen .rail { position: fixed; right: 7px; top: 32%; height: 36%; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--rc) 30%, transparent); z-index: 25; pointer-events: none; }
+  .screen .rail i { position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+  .screen .hd { padding: 62px 18px 12px; }
+  .screen .hd h1 { font: 400 36px 'Lalezar'; line-height: 1.15; }
+  .screen .hd p { font-size: 13.5px; opacity: .85; }
+  .screen .chips button { padding: 6px 13px; font-weight: 700; font-size: 13px; border-radius: 999px; }
+
+  /* 1. APOTHECARY — wooden shelves of glass jars, each jar holding a dish behind a paper label */
+  .m-apoth { --rc: #b07a3a; background: #3a2616; color: #f3e6cc; font-family: 'Cairo', sans-serif; }
+  .m-apoth .hd h1 { font-family: 'Amiri'; font-weight: 700; color: #e8c88a; }
+  .m-apoth .chips { background: rgba(58,38,22,.95); }
+  .m-apoth .chips button { background: #e8c88a; color: #3a2616; font-family: 'Amiri'; font-size: 15px; padding: 3px 13px; }
+  .m-apoth .chips button.on { background: #fff4dc; }
+  .m-apoth section { padding: 12px 10px 4px; }
+  .m-apoth h2 { font: 700 20px 'Amiri'; color: #e8c88a; text-align: center; margin-bottom: 4px; }
+  .m-apoth .shelf { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 8px; background: repeating-linear-gradient(transparent 0 calc(var(--row, 214px) - 12px), #8a5a2b calc(var(--row, 214px) - 12px) var(--row, 214px)); }
+  .m-apoth .jar { height: 214px; display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+  .m-apoth .cork { width: 54%; height: 12px; border-radius: 3px 3px 0 0; background: repeating-linear-gradient(90deg, #c9a06a 0 3px, #b08452 3px 5px); }
+  .m-apoth .glass { position: relative; width: 100%; height: 134px; border-radius: 12px 12px 18px 18px; overflow: hidden; padding: 5px; background: rgba(200,230,240,.18); box-shadow: inset 0 0 0 2px rgba(220,240,250,.55), inset 8px 0 14px rgba(255,255,255,.18); }
+  .m-apoth .glass .ph { width: 100%; height: 100%; border-radius: 8px 8px 14px 14px; filter: saturate(.9); opacity: .92; }
+  .m-apoth .glass::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); animation: shine 6s ease-in-out var(--dl, 0s) infinite; }
+  .m-apoth .lbl { position: absolute; left: 10%; right: 10%; bottom: 10px; padding: 3px 2px; background: #f6ecd2; color: #3a2616; text-align: center; border: 1px solid #8a5a2b; outline: 1px solid #f6ecd2; outline-offset: 1px; }
+  .m-apoth .lbl b { display: block; font: 700 12.5px/1.15 'Amiri'; }
+  .m-apoth .lbl span { font-size: 10.5px; font-weight: 700; }
+  .m-apoth .add { margin-top: 8px; padding: 1px 12px; font: 700 12px 'Cairo'; background: #e8c88a; color: #3a2616; border-radius: 3px; }
+  .m-apoth .cart { background: #8a5a2b; color: #fff4dc; }
+
+  /* 2. STAMP ALBUM — perforated stamps on black mount strips; the row at the middle of the screen swells under the lens */
+  .m-stamps { --rc: #2b5f8a; background: #2b5f8a; color: #1d1d1d; font-family: 'Cairo', sans-serif; }
+  .m-stamps .hd { color: #fff; } .m-stamps .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; }
+  .m-stamps .chips { background: rgba(43,95,138,.95); }
+  .m-stamps .chips button { background: #f3ecd8; color: #2b5f8a; border-radius: 3px; }
+  .m-stamps .chips button.on { background: #ffd23f; color: #1d1d1d; }
+  .m-stamps section { padding: 10px 10px 6px; }
+  .m-stamps h2 { font: 600 18px 'Reem Kufi'; color: #fff; padding: 0 6px 4px; }
+  .m-stamps .page { padding: 10px 8px; background: #f3ecd8; border-radius: 4px; box-shadow: 0 8px 18px rgba(0,0,0,.3); }
+  .m-stamps .mounts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; background: linear-gradient(rgba(0,0,0,.82), rgba(0,0,0,.82)) 0 18px / 100% 112px repeat-y; background-size: 100% 112px; background-image: repeating-linear-gradient(transparent 0 16px, rgba(20,20,20,.85) 16px 128px, transparent 128px 182px); }
+  .m-stamps .stm { text-align: center; transform-origin: 50% 40%; }
+  .m-stamps .perf { position: relative; padding: 6px 6px 4px; background: #fffdf5; mask: radial-gradient(circle 3.4px, #0000 97%, #000) -4px -4px / 9px 9px, linear-gradient(#000 0 0) 4px 4px / calc(100% - 8px) calc(100% - 8px) no-repeat; }
+  .m-stamps .perf .ph { aspect-ratio: .85; box-shadow: inset 0 0 0 2px #fffdf5; }
+  .m-stamps .val { position: absolute; top: 8px; inset-inline-end: 8px; font: 800 10px 'Changa'; font-style: normal; background: #b3001b; color: #fff; padding: 0 3px; }
+  .m-stamps .perf b { display: block; font: 600 11.5px/1.2 'Reem Kufi'; margin-top: 3px; }
+  .m-stamps .add { margin-top: 5px; padding: 0 10px; font-size: 11.5px; font-weight: 700; background: #2b5f8a; color: #fff; border-radius: 3px; }
+  .m-stamps .cart { background: #13324d; color: #ffd23f; }
+
+  /* 3. CASSETTE — a tape shell with turning reels per section, and the J-card track list under it */
+  .m-cassette { --rc: #ff5a36; background: #f1e9d8; color: #1f1f1f; font-family: 'Cairo', sans-serif; }
+  .m-cassette .hd h1 { font-family: 'Changa'; font-weight: 800; color: #1f1f1f; }
+  .m-cassette .chips { background: rgba(241,233,216,.95); }
+  .m-cassette .chips button { background: #1f1f1f; color: #f1e9d8; border-radius: 4px; }
+  .m-cassette .chips button.on { background: #ff5a36; }
+  .m-cassette section { padding: 12px 12px 6px; }
+  .m-cassette .tape { position: relative; padding: 10px 14px 14px; border-radius: 10px; background: linear-gradient(#2a2a2a, #161616); box-shadow: 0 8px 16px rgba(0,0,0,.3); }
+  .m-cassette .lab { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 12px; border-radius: 4px; background: linear-gradient(#fff 0 60%, #ff5a36 60% 72%, #ffb636 72% 84%, #fff 84%); }
+  .m-cassette .lab b { font: 400 22px 'Lalezar'; } .m-cassette .lab small { font: 700 12px 'Changa'; }
+  .m-cassette .win { display: flex; justify-content: space-between; align-items: center; width: 70%; margin: -14px auto 0; padding: 8px 18px; border-radius: 22px; background: #3a3a3a; box-shadow: inset 0 0 0 2px #555; position: relative; }
+  .m-cassette .reel { width: 38px; height: 38px; border-radius: 50%; background: radial-gradient(circle, #f1e9d8 0 5px, transparent 6px), conic-gradient(#f1e9d8 0 12deg, transparent 12deg 60deg, #f1e9d8 60deg 72deg, transparent 72deg 120deg, #f1e9d8 120deg 132deg, transparent 132deg 180deg, #f1e9d8 180deg 192deg, transparent 192deg 240deg, #f1e9d8 240deg 252deg, transparent 252deg 300deg, #f1e9d8 300deg 312deg, transparent 312deg), #6b4a2a; box-shadow: 0 0 0 4px #6b4a2a; animation: spin 3s linear infinite; }
+  .m-cassette .tape.ff .reel { animation-duration: .5s; }
+  .m-cassette .jcard { list-style: none; margin: 8px 6px 0; padding: 6px 10px; background: #fff; border-inline-start: 8px solid #ff5a36; box-shadow: 0 3px 8px rgba(0,0,0,.12); }
+  .m-cassette .jcard li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #d8cdb4; }
+  .m-cassette .jcard li:last-child { border-bottom: 0; }
+  .m-cassette em { font: 800 13px 'Changa'; font-style: normal; color: #ff5a36; width: 24px; }
+  .m-cassette li .ph { flex: none; width: 40px; height: 40px; border-radius: 4px; }
+  .m-cassette .tx { flex: 1; min-width: 0; } .m-cassette .tx b { display: block; font-size: 14px; }
+  .m-cassette .tx small { display: block; font-size: 11px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-cassette li span { font-weight: 800; font-size: 13px; white-space: nowrap; }
+  .m-cassette .add { width: 30px; height: 30px; border-radius: 50%; background: #1f1f1f; color: #fff; font-size: 11px; }
+  .m-cassette .cart { background: #1f1f1f; color: #f1e9d8; }
+
+  /* 4. OLD TICKETS — each dish a coloured ticket; the stub tears off along the perforation when ordered */
+  .m-ticket { --rc: #c0392b; background: #2c2420; color: #2b1d14; font-family: 'Cairo', sans-serif; }
+  .m-ticket .hd { color: #f6e4c4; } .m-ticket .hd h1 { font-family: 'Rakkas'; font-weight: 400; }
+  .m-ticket .chips { background: rgba(44,36,32,.95); }
+  .m-ticket .chips button { background: #f6e4c4; color: #2b1d14; border-radius: 3px; }
+  .m-ticket .chips button.on { background: #e74c3c; color: #fff; }
+  .m-ticket section { padding: 12px 12px 4px; }
+  .m-ticket h2 { font: 400 21px 'Rakkas'; color: #f6e4c4; margin-bottom: 4px; }
+  .m-ticket .tk { display: flex; margin-bottom: 8px; --pc: #f7d9a8; }
+  .m-ticket .t1 { --pc: #f6c1c7; } .m-ticket .t2 { --pc: #c4e0ee; }
+  .m-ticket .main, .m-ticket .stub { background: var(--pc); position: relative; }
+  .m-ticket .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px 0 0 8px; mask: radial-gradient(circle 7px at 0 50%, #0000 97%, #000); }
+  .m-ticket .main .ph { flex: none; width: 60px; height: 60px; border-radius: 4px; box-shadow: 0 0 0 2px rgba(43,29,20,.3); }
+  .m-ticket .tx { min-width: 0; } .m-ticket .tx b { display: block; font: 400 19px/1.15 'Rakkas'; }
+  .m-ticket .tx small { display: block; font-size: 11px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-ticket .stub { flex: none; width: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 4px; border-radius: 0 8px 8px 0; border-inline-end: 3px dotted rgba(43,29,20,.45); transform-origin: 50% 0; mask: radial-gradient(circle 7px at 100% 50%, #0000 97%, #000); }
+  .m-ticket .stub span { font: 800 15px 'Changa'; } .m-ticket .stub small { font-size: 10.5px; }
+  .m-ticket .add { margin-top: 3px; padding: 1px 10px; font-size: 12px; font-weight: 700; background: #2b1d14; color: #f6e4c4; border-radius: 3px; }
+  .m-ticket .cart { background: #e74c3c; color: #fff; }
+
+  /* 5. FAMILY ALBUM — black pages, white-bordered prints held by paper corners, white pencil captions */
+  .m-album { --rc: #e9e1cf; background: #1c1b1a; color: #e9e1cf; font-family: 'Cairo', sans-serif; }
+  .m-album .hd h1 { font-family: 'Amiri'; font-weight: 700; font-style: italic; }
+  .m-album .chips { background: rgba(28,27,26,.95); }
+  .m-album .chips button { background: none; color: #e9e1cf; box-shadow: inset 0 0 0 1px #e9e1cf; font-family: 'Amiri'; font-size: 15px; padding: 3px 13px; }
+  .m-album .chips button.on { background: #e9e1cf; color: #1c1b1a; }
+  .m-album section { padding: 12px 12px 6px; }
+  .m-album h2 { font: 700 italic 22px 'Amiri'; border-bottom: 1px solid #555; margin-bottom: 10px; }
+  .m-album .pg { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 14px; }
+  .m-album .pic { text-align: center; rotate: var(--r); }
+  .m-album .pf { position: relative; padding: 7px 7px 18px; background: #f7f3ea; box-shadow: 0 6px 12px rgba(0,0,0,.5); }
+  .m-album .pf .ph { aspect-ratio: 1; filter: sepia(.35) saturate(.85) contrast(1.05); }
+  .m-album .cr { position: absolute; width: 18px; height: 18px; background: #111; z-index: 1; }
+  .m-album .cr.a { top: -3px; left: -3px; clip-path: polygon(0 0, 100% 0, 0 100%); } .m-album .cr.b { top: -3px; right: -3px; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+  .m-album .cr.c { bottom: -3px; left: -3px; clip-path: polygon(0 0, 0 100%, 100% 100%); } .m-album .cr.d { bottom: -3px; right: -3px; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  .m-album .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 2; }
+  .m-album .pic.got .flash { animation: pop 500ms ease-out; }
+  .m-album .pic b { display: block; margin-top: 8px; font: 400 italic 15px 'Amiri'; color: #f2ecdc; }
+  .m-album .add { margin-top: 3px; padding: 0 12px; font-size: 12px; color: #e9e1cf; border-bottom: 1px solid #e9e1cf; background: none; }
+  .m-album .rv { transform: translateY(18px) rotate(calc(var(--r) * 3)); }
+  .m-album .cart { background: #e9e1cf; color: #1c1b1a; }
+
+  /* 6. ART DECO — black and gold, a slow sunburst, chamfered section frames, arch-topped photos two by two */
+  .m-deco { --rc: #d4af37; background: #0e0e10; color: #f3e5b5; font-family: 'El Messiri', sans-serif; }
+  .m-deco .sun { position: relative; overflow: hidden; text-align: center; }
+  .m-deco .rays { position: absolute; left: 50%; top: 100%; width: 700px; height: 700px; margin: -350px 0 0 -350px; background: repeating-conic-gradient(rgba(212,175,55,.28) 0 5deg, transparent 5deg 15deg); border-radius: 50%; animation: spin 80s linear infinite; }
+  .m-deco .hd { position: relative; } .m-deco .hd h1 { font-family: 'El Messiri'; font-weight: 700; color: #d4af37; letter-spacing: 2px; }
+  .m-deco .chips { background: rgba(14,14,16,.96); border-block: 1px solid #d4af37; }
+  .m-deco .chips button { background: none; color: #d4af37; border-radius: 0; font-family: 'El Messiri'; }
+  .m-deco .chips button.on { background: #d4af37; color: #0e0e10; }
+  .m-deco section { padding: 14px 12px 8px; }
+  .m-deco .dh { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .m-deco .dh b { font: 700 20px 'El Messiri'; color: #d4af37; white-space: nowrap; }
+  .m-deco .gl { flex: 1; height: 7px; border-block: 1px solid #d4af37; transform-origin: 50% 50%; }
+  .m-deco .gl.rv { opacity: 1; transform: scaleX(0); transition: transform 700ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .m-deco .gl.rv.in { transform: none; }
+  .m-deco .dk { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; border: 1px solid #d4af37; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); background: linear-gradient(#17171a, #0e0e10); }
+  .m-deco .dd { text-align: center; }
+  .m-deco .arch { padding: 4px; border: 1px solid #d4af37; border-radius: 999px 999px 0 0; }
+  .m-deco .arch .ph { aspect-ratio: .82; border-radius: 999px 999px 0 0; }
+  .m-deco .dd b { display: block; font-size: 15px; margin-top: 6px; }
+  .m-deco .dd span { font-size: 13px; color: #d4af37; letter-spacing: 1px; }
+  .m-deco .add { display: block; margin: 5px auto 0; padding: 2px 14px; border: 1px solid #d4af37; color: #d4af37; background: none; font: 700 12px 'El Messiri'; }
+  .m-deco .cart { background: #d4af37; color: #0e0e10; }
+
+  /* 7. CINEMA MARQUEE — a sign of chasing bulbs per section; dishes are posters in lit glass cases */
+  .m-marquee { --rc: #ffcf40; background: radial-gradient(120% 40% at 50% 0, #3a0f1a, #120408 70%); color: #fff; font-family: 'Cairo', sans-serif; }
+  .m-marquee .hd h1 { font-family: 'Rakkas'; font-weight: 400; color: #ffcf40; text-shadow: 0 0 14px rgba(255,207,64,.6); }
+  .m-marquee .chips { background: rgba(18,4,8,.95); }
+  .m-marquee .chips button { background: #3a0f1a; color: #ffcf40; box-shadow: inset 0 0 0 1.5px #ffcf40; }
+  .m-marquee .chips button.on { background: #ffcf40; color: #3a0f1a; }
+  .m-marquee section { padding: 14px 12px 8px; }
+  .m-marquee .sign { padding: 16px 12px; text-align: center; background: #b3001b; border-radius: 6px; margin-bottom: 12px;
+    background-image: radial-gradient(circle 3.5px, #fff6c4 92%, transparent), radial-gradient(circle 3.5px, #fff6c4 92%, transparent), radial-gradient(circle 3.5px, #fff6c4 92%, transparent), radial-gradient(circle 3.5px, #fff6c4 92%, transparent);
+    background-size: 14px 10px, 14px 10px, 10px 14px, 10px 14px; background-repeat: repeat-x, repeat-x, repeat-y, repeat-y; background-position: 0 0, 0 100%, 0 0, 100% 0; animation: chase 1.2s steps(2) infinite; box-shadow: 0 0 22px rgba(255,90,60,.5); }
+  .m-marquee .sign small { display: block; font-size: 12px; color: #ffe08a; letter-spacing: 1px; }
+  .m-marquee .sign b { font: 400 26px 'Rakkas'; }
+  .m-marquee .posters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .m-marquee .pst { padding: 6px; border-radius: 4px; background: linear-gradient(#c9a227, #7a5a14); box-shadow: 0 0 0 2px #2a0a10, 0 8px 16px rgba(0,0,0,.5); text-align: center; transition: box-shadow 260ms ease; }
+  .m-marquee .pst.got { box-shadow: 0 0 0 2px #ffcf40, 0 0 22px #ffcf40; }
+  .m-marquee .pst .ph { aspect-ratio: .72; box-shadow: inset 0 0 30px rgba(0,0,0,.45); }
+  .m-marquee .tx { padding: 5px 2px 2px; background: #120408; } .m-marquee .tx b { display: block; font: 400 16px 'Rakkas'; color: #ffcf40; }
+  .m-marquee .tx span { font-size: 12px; font-weight: 700; }
+  .m-marquee .add { width: 100%; margin-top: 4px; padding: 3px 0; background: #b3001b; color: #fff; font-size: 12.5px; font-weight: 700; }
+  .m-marquee .cart { background: #b3001b; color: #ffe08a; }
+
+  /* 8. MANUSCRIPT — an illuminated folio: entries in the text block, miniatures in the margins, gold rosettes between */
+  .m-manus { --rc: #b8892f; background: #1c2a4a; color: #3a2a12; font-family: 'Amiri', serif; }
+  .m-manus .hd { color: #f0d78c; } .m-manus .hd h1 { font-family: 'Amiri'; font-weight: 700; }
+  .m-manus .chips { background: rgba(28,42,74,.95); }
+  .m-manus .chips button { background: #f0d78c; color: #1c2a4a; font-family: 'Amiri'; font-size: 15px; padding: 3px 13px; }
+  .m-manus .chips button.on { background: #fff6dc; }
+  .m-manus .folio { margin: 6px 10px 14px; padding: 12px 14px; background: #f3e4bf; border: 6px double #b8892f; outline: 4px solid #1c2a4a; outline-offset: -14px; box-shadow: 0 10px 22px rgba(0,0,0,.4); }
+  .m-manus section { padding: 10px 6px 4px; }
+  .m-manus h2 { text-align: center; font: 700 22px 'Amiri'; color: #8a1c1c; margin-bottom: 6px; }
+  .m-manus h2 i { font-style: normal; color: #b8892f; display: inline-block; animation: spin 14s linear infinite; }
+  .m-manus .ent { display: flex; gap: 10px; align-items: flex-start; }
+  .m-manus .ent.b { flex-direction: row-reverse; }
+  .m-manus .mini { flex: none; width: 86px; padding: 4px; background: linear-gradient(135deg, #e8c66a, #9a6b1c); border-radius: 50% 50% 4px 4px / 30% 30% 4px 4px; }
+  .m-manus .mini .ph { aspect-ratio: .82; border-radius: inherit; filter: saturate(.85) sepia(.15); }
+  .m-manus .tx { flex: 1; min-width: 0; }
+  .m-manus .tx b { display: block; font: 700 19px 'Amiri'; color: #1c2a4a; }
+  .m-manus .tx p { font-size: 15px; line-height: 1.6; }
+  .m-manus .add { margin-top: 3px; padding: 0 12px; font: 700 13px 'Amiri'; background: #8a1c1c; color: #f3e4bf; border-radius: 3px; }
+  .m-manus .rose { text-align: center; color: #b8892f; font-size: 20px; line-height: 1.4; }
+  .m-manus .rv { transform: none; filter: blur(2px); transition: opacity 600ms ease, filter 600ms ease; }
+  .m-manus .rv.in { filter: none; }
+  .m-manus .cart { background: #1c2a4a; color: #f0d78c; }
+
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(var(--h, -8px)) rotate(calc(var(--r, 0deg) * -1)); } }
+  @keyframes sway { 0%, 100% { transform: rotate(var(--r, 4deg)); } 50% { transform: rotate(calc(var(--r, 4deg) * -1)); } }
+  @keyframes flow { to { background-position: -120px 0, -60px 0, 0 0; } }
+  @keyframes step { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-6px) rotate(3deg); } }
+  @keyframes wave { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(25deg); } }
+  @keyframes glow { 0%, 100% { box-shadow: 0 0 10px 2px rgba(255,190,80,.5); } 50% { box-shadow: 0 0 16px 5px rgba(255,190,80,.8); } }
+  @keyframes voice { from { transform: scale(1); opacity: .7; } to { transform: scale(1.7); opacity: 0; } }
+
+  /* 8. OPERA BOXES — red velvet, gilded tiers of boxes; each box's curtains part when its tier reaches the middle */
+  .m-opera { --rc: #d4af37; background: #2a0508; color: #f6e2b0; font-family: 'Cairo', sans-serif; }
+  .m-opera .drape { height: 46px; background: repeating-linear-gradient(90deg, #7a0c14 0 14px, #a0141e 14px 22px, #5a0810 22px 30px); border-bottom: 5px solid #d4af37; border-radius: 0 0 50% 50% / 0 0 18px 18px; }
+  .m-opera .hd { padding-top: 22px; } .m-opera .hd h1 { font-family: 'El Messiri'; font-weight: 700; color: #e8c66a; }
+  .m-opera .chips { background: rgba(42,5,8,.95); }
+  .m-opera .chips button { background: #7a0c14; color: #f6e2b0; box-shadow: inset 0 0 0 1px #d4af37; }
+  .m-opera .chips button.on { background: #d4af37; color: #2a0508; }
+  .m-opera section { padding: 12px 10px 6px; }
+  .m-opera h2 { font: 700 18px 'El Messiri'; color: #e8c66a; text-align: center; margin-bottom: 6px; }
+  .m-opera .tier { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 6px; }
+  .m-opera .lodge { text-align: center; }
+  .m-opera .bx { position: relative; overflow: hidden; aspect-ratio: .9; border-radius: 999px 999px 0 0; box-shadow: 0 0 0 3px #d4af37, inset 0 0 0 1px #000; --o: 1; }
+  .m-opera .bx .ph { width: 100%; height: 100%; }
+  .m-opera .cu { position: absolute; top: 0; bottom: 0; width: 52%; background: repeating-linear-gradient(90deg, #7a0c14 0 7px, #a0141e 7px 11px, #5a0810 11px 15px); }
+  .m-opera .cu.l { left: 0; transform: translateX(calc(var(--o) * -88%)); } .m-opera .cu.r { right: 0; transform: translateX(calc(var(--o) * 88%)); }
+  .m-opera .rl { height: 12px; margin-top: -2px; background: repeating-linear-gradient(90deg, #d4af37 0 3px, transparent 3px 9px), linear-gradient(#d4af37 0 3px, transparent 3px); }
+  .m-opera .plt { margin: 3px 4px 0; padding: 1px 2px; background: linear-gradient(#f2d27a, #a07a28); color: #2a0508; border-radius: 2px; }
+  .m-opera .plt b { display: block; font: 700 11.5px/1.2 'El Messiri'; } .m-opera .plt span { font-size: 10.5px; font-weight: 800; }
+  .m-opera .add { margin-top: 4px; padding: 0 10px; font-size: 11.5px; font-weight: 700; background: #7a0c14; color: #f6e2b0; box-shadow: inset 0 0 0 1px #d4af37; }
+  .m-opera .cart { background: #7a0c14; color: #e8c66a; }
+
+  /* 9. MASHRABIYA — arched windows; the turned-wood lattice thins away as the window reaches the middle */
+  .m-mashra { --rc: #b5651d; background: #f1e3c6; color: #3b230f; font-family: 'Cairo', sans-serif; }
+  .m-mashra .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; color: #6b3a14; }
+  .m-mashra .chips { background: rgba(241,227,198,.95); }
+  .m-mashra .chips button { background: #6b3a14; color: #f1e3c6; border-radius: 3px; }
+  .m-mashra .chips button.on { background: #3b230f; }
+  .m-mashra section { padding: 12px 12px 6px; }
+  .m-mashra h2 { font: 600 20px 'Reem Kufi'; color: #6b3a14; margin-bottom: 6px; }
+  .m-mashra .wins { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .m-mashra .win { text-align: center; }
+  .m-mashra .lat { position: relative; overflow: hidden; aspect-ratio: .78; border-radius: 50% 50% 4px 4px / 34% 34% 4px 4px; box-shadow: 0 0 0 6px #6b3a14, 0 0 0 8px #3b230f; --lat: 1; }
+  .m-mashra .lat .ph { width: 100%; height: 100%; }
+  .m-mashra .grid { position: absolute; inset: 0; opacity: var(--lat); background: radial-gradient(circle, #6b3a14 0 3px, transparent 3.5px) 0 0 / 12px 12px, radial-gradient(circle, #6b3a14 0 2px, transparent 2.5px) 6px 6px / 12px 12px, repeating-linear-gradient(0deg, #8a5226 0 2px, transparent 2px 6px), repeating-linear-gradient(90deg, #8a5226 0 2px, transparent 2px 6px); }
+  .m-mashra .sill { margin: 8px -4px 0; padding: 3px; background: #6b3a14; color: #f1e3c6; border-radius: 2px; }
+  .m-mashra .sill b { display: block; font-size: 13.5px; } .m-mashra .sill span { font-size: 12px; font-weight: 700; color: #f2c879; }
+  .m-mashra .add { margin-top: 5px; padding: 1px 14px; font-size: 12px; font-weight: 700; border: 1.5px solid #6b3a14; color: #6b3a14; }
+  .m-mashra .cart { background: #3b230f; color: #f1e3c6; }
+
+  /* 10. KHAN ARCADE — a stone gallery of pointed arches, a brass lantern swinging in each */
+  .m-arcade { --rc: #e0a040; background: linear-gradient(#cbb38c, #a88d64); color: #2e2214; font-family: 'Cairo', sans-serif; }
+  .m-arcade .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; color: #4a3218; }
+  .m-arcade .chips { background: rgba(203,179,140,.95); }
+  .m-arcade .chips button { background: #4a3218; color: #f2e4c8; border-radius: 3px; }
+  .m-arcade .chips button.on { background: #e0a040; color: #2e2214; }
+  .m-arcade section { padding: 12px 0 6px; }
+  .m-arcade h2 { font: 600 19px 'Reem Kufi'; color: #4a3218; padding: 0 14px; }
+  .m-arcade .row { display: flex; overflow-x: auto; scrollbar-width: none; padding: 8px 10px 10px; gap: 0; }
+  .m-arcade .row::-webkit-scrollbar { display: none; }
+  .m-arcade .arc { position: relative; flex: none; width: 46%; padding: 34px 12px 10px; text-align: center; background: repeating-linear-gradient(0deg, #d9c39b 0 18px, #c7ae84 18px 19px); border-inline: 8px solid #b89d72; }
+  .m-arcade .arc::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40px; background: #a88d64; clip-path: polygon(0 0, 100% 0, 100% 100%, 92% 100%, 70% 45%, 50% 18%, 30% 45%, 8% 100%, 0 100%); }
+  .m-arcade .lan { position: absolute; top: 14px; left: 50%; width: 14px; height: 20px; margin-left: -7px; border-radius: 3px 3px 6px 6px; background: radial-gradient(circle at 50% 60%, #ffe6a0, #e0a040 60%, #8a5a1c); transform-origin: 50% -10px; animation: sway var(--t, 3s) ease-in-out var(--dl, 0s) infinite, glow 2.4s ease-in-out infinite; z-index: 2; }
+  .m-arcade .lan::before { content: ''; position: absolute; top: -14px; left: 6px; width: 2px; height: 14px; background: #4a3218; }
+  .m-arcade .arc.got .lan { background: radial-gradient(circle at 50% 60%, #fff, #ffd060 60%, #c07a1c); }
+  .m-arcade .arc .ph { aspect-ratio: .9; border-radius: 50% 50% 0 0 / 22% 22% 0 0; box-shadow: inset 0 0 0 3px rgba(46,34,20,.4); }
+  .m-arcade .arc b { display: block; font-size: 14px; margin-top: 6px; } .m-arcade .arc span { font-size: 12.5px; font-weight: 800; color: #7a4a14; }
+  .m-arcade .add { display: block; margin: 4px auto 0; padding: 1px 14px; background: #4a3218; color: #f2e4c8; font-size: 12px; font-weight: 700; border-radius: 3px; }
+  .m-arcade .cart { background: #4a3218; color: #f2e4c8; }
+
+  /* 11. FLYING CARPET — a night of 1001 nights; each section a patterned carpet floating and swaying */
+  .m-carpet { --rc: #f2c94c; background: linear-gradient(#0b1840, #1f2a6b 60%, #3a2a6b); color: #fff3d6; font-family: 'Cairo', sans-serif; }
+  .m-carpet .moon { position: absolute; top: 30px; left: 26px; width: 44px; height: 44px; border-radius: 50%; box-shadow: -10px 6px 0 0 #f2e2a0; }
+  .m-carpet .hd h1 { font-family: 'Lemonada'; font-weight: 700; font-size: 30px; color: #f2c94c; }
+  .m-carpet .chips { background: rgba(11,24,64,.94); }
+  .m-carpet .chips button { background: #8a1c3a; color: #f2c94c; }
+  .m-carpet .chips button.on { background: #f2c94c; color: #0b1840; }
+  .m-carpet section { padding: 16px 10px 10px; }
+  .m-carpet .fly { animation: bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite; --h: -10px; }
+  .m-carpet .rug { padding: 12px 10px; border-radius: 4px; background: radial-gradient(circle at 50% 50%, transparent 0 40%, rgba(0,0,0,.15) 41%), repeating-linear-gradient(45deg, rgba(242,201,76,.16) 0 6px, transparent 6px 14px), #8a1c3a; box-shadow: inset 0 0 0 4px #f2c94c, inset 0 0 0 9px #1f3a6b, inset 0 0 0 11px #f2c94c, 0 18px 24px rgba(0,0,0,.45); }
+  .m-carpet h2 { text-align: center; font: 700 18px 'Lemonada'; color: #f2c94c; margin: 4px 0 8px; }
+  .m-carpet .dishes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 6px; padding: 0 8px 4px; }
+  .m-carpet .dsh { text-align: center; }
+  .m-carpet .dsh .ph { width: 86%; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #f2c94c, 0 6px 8px rgba(0,0,0,.4); }
+  .m-carpet .dsh b { display: block; font-size: 12.5px; line-height: 1.2; margin-top: 5px; } .m-carpet .dsh span { font-size: 11.5px; font-weight: 800; color: #f2c94c; }
+  .m-carpet .add { display: block; margin: 3px auto 0; padding: 0 10px; background: #f2c94c; color: #0b1840; font-size: 11.5px; font-weight: 800; border-radius: 999px; }
+  .m-carpet .frg { height: 12px; margin: 0 4%; background: repeating-linear-gradient(90deg, #f2c94c 0 2px, transparent 2px 6px); transform-origin: 50% 0; animation: sway 1.6s ease-in-out infinite; --r: 6deg; }
+  .m-carpet .cart { background: #8a1c3a; color: #f2c94c; }
+
+  /* 12. MOTHER-OF-PEARL CHEST — inlaid drawers; each slides its dish out as it reaches the middle */
+  .m-sadaf { --rc: #c8b28a; background: #2a1a10; color: #f4ecdc; font-family: 'Cairo', sans-serif; }
+  .m-sadaf .hd h1 { font-family: 'Amiri'; font-weight: 700; color: #efe6d2; }
+  .m-sadaf .chips { background: rgba(42,26,16,.95); }
+  .m-sadaf .chips button { background: #efe6d2; color: #2a1a10; border-radius: 3px; }
+  .m-sadaf .chips button.on { background: #c8a050; }
+  .m-sadaf section { padding: 12px 10px 6px; }
+  .m-sadaf .chest { padding: 10px; border-radius: 6px; background: #5a3a22; box-shadow: inset 0 0 0 3px #3a2414, 0 10px 18px rgba(0,0,0,.4); }
+  .m-sadaf h2 { font: 700 20px 'Amiri'; text-align: center; color: #efe6d2; margin-bottom: 6px; }
+  .m-sadaf .drws { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+  .m-sadaf .slot { height: 104px; overflow: hidden; display: flex; align-items: flex-end; }
+  .m-sadaf .inner { width: 100%; height: 100%; padding: 4px 6px 0; background: #3a2414; transform: translateY(calc((1 - var(--o, 1)) * 100%)); }
+  .m-sadaf .inner .ph { width: 100%; height: 100%; border-radius: 3px 3px 0 0; }
+  .m-sadaf .front { position: relative; padding: 8px 8px 6px; text-align: center; color: #2a1a10;
+    background: conic-gradient(from 45deg at 50% 50%, #efe6d2 0 25%, #c9bba0 0 50%, #efe6d2 0 75%, #c9bba0 0) 0 0 / 14px 14px; box-shadow: inset 0 0 0 3px #3a2414, inset 0 0 0 5px #efe6d2; }
+  .m-sadaf .front b { display: inline-block; font: 700 14px/1.2 'Amiri'; background: #f7f1e3; padding: 1px 6px; margin-top: 8px; }
+  .m-sadaf .knob { position: absolute; top: 3px; left: 50%; width: 14px; height: 9px; margin-left: -7px; border-radius: 0 0 8px 8px; background: linear-gradient(#f2d27a, #9a6b1c); }
+  .m-sadaf .ln { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; background: rgba(247,241,227,.9); padding: 1px 4px; }
+  .m-sadaf .ln span { font-size: 12px; font-weight: 800; }
+  .m-sadaf .add { padding: 0 9px; background: #3a2414; color: #efe6d2; font-size: 11.5px; font-weight: 700; border-radius: 2px; }
+  .m-sadaf .cart { background: #3a2414; color: #efe6d2; }
+
+  /* 13. OLD FILM POSTERS — hand-painted Arabic cinema posters, one big poster after another, slapped on tilted */
+  .m-afish { --rc: #e8262b; background: #d8cdb4 repeating-linear-gradient(0deg, transparent 0 40px, rgba(0,0,0,.04) 40px 41px); color: #1a1a1a; font-family: 'Cairo', sans-serif; }
+  .m-afish .hd h1 { color: #e8262b; -webkit-text-stroke: 1.5px #1a1a1a; }
+  .m-afish .chips { background: rgba(216,205,180,.95); }
+  .m-afish .chips button { background: #ffd200; color: #1a1a1a; box-shadow: 2px 2px 0 #1a1a1a; border-radius: 2px; }
+  .m-afish .chips button.on { background: #e8262b; color: #fff; }
+  /* two posters a row so a whole section fits on a screen or two */
+  .m-afish section { padding: 12px 12px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .m-afish h2 { grid-column: 1 / -1; }
+  .m-afish h2 { font: 400 22px 'Lalezar'; margin-bottom: 8px; }
+  .m-afish .post { position: relative; margin-bottom: 14px; padding: 6px; background: #fff7e0; box-shadow: 0 8px 14px rgba(0,0,0,.25); }
+  .m-afish .post.a { rotate: -1.6deg; } .m-afish .post.b { rotate: 1.4deg; }
+  .m-afish .post .ph { aspect-ratio: .8; filter: saturate(1.5) contrast(1.15); }
+  .m-afish .ttl { position: absolute; top: 12px; inset-inline-start: 10px; font: 400 21px/1.05 'Lalezar'; color: #e8262b; -webkit-text-stroke: 1.5px #ffd200; text-shadow: 3px 3px 0 #1a1a1a; max-width: 80%; }
+  .m-afish .rib { margin: -12px -8px 5px auto; width: fit-content; max-width: 96%; position: relative; padding: 2px 8px; background: #1a1a1a; color: #ffd200; font-size: 10.5px; font-weight: 700; rotate: -2deg; }
+  .m-afish .ln { display: flex; justify-content: space-between; align-items: center; }
+  .m-afish .ln span { font: 400 13px 'Lalezar'; color: #1a1a1a; }
+  .m-afish .add { padding: 1px 8px; background: #e8262b; color: #fff; font-size: 11.5px; font-weight: 800; box-shadow: 2px 2px 0 #1a1a1a; }
+  .m-afish .rv { transform: scale(1.12); }
+  .m-afish .cart { background: #1a1a1a; color: #ffd200; }
+
+  /* 14. SULAYMANIYAH BAZAAR — painted shop signs hang left and right down an alley and come closer as you walk */
+  .m-bazaar { --rc: #e0b040; background: linear-gradient(#9fc5e0 0 120px, #6a5440 120px, #4a3a2c); color: #2a1e12; font-family: 'Cairo', sans-serif; }
+  .m-bazaar .hd { color: #2a1e12; } .m-bazaar .hd h1 { font-size: 32px; }
+  .m-bazaar .chips { background: rgba(74,58,44,.95); }
+  .m-bazaar .chips button { background: #e0b040; color: #2a1e12; border-radius: 3px; }
+  .m-bazaar .chips button.on { background: #fff3d0; }
+  .m-bazaar .alley { padding: 4px 0 10px; background: linear-gradient(90deg, #3a2c20 0 7%, transparent 7% 93%, #3a2c20 93%); }
+  .m-bazaar section { padding: 10px 14px 4px; overflow: hidden; }
+  .m-bazaar h2 { text-align: center; font: 400 21px 'Lalezar'; color: #f3e1b8; }
+  .m-bazaar .sg { width: 82%; margin-bottom: 8px; transform-origin: 50% 0; }
+  .m-bazaar .sg.b { margin-inline-start: auto; }
+  .m-bazaar .rope { display: block; height: 12px; margin: 0 22%; border-inline: 2px solid #1a120a; }
+  .m-bazaar .bd { display: flex; align-items: center; gap: 10px; padding: 7px; border-radius: 4px; background: linear-gradient(#7a4a24, #5a3418); box-shadow: inset 0 0 0 2px #e0b040, 0 6px 10px rgba(0,0,0,.35); color: #fff3d0; }
+  .m-bazaar .sg:nth-child(3n) .bd { background: linear-gradient(#2a5a3a, #1a3a24); } .m-bazaar .sg:nth-child(3n+1) .bd { background: linear-gradient(#7a1c1c, #5a1010); }
+  .m-bazaar .bd .ph { flex: none; width: 64px; height: 64px; border-radius: 4px; box-shadow: 0 0 0 2px #e0b040; }
+  .m-bazaar .tx { flex: 1; min-width: 0; } .m-bazaar .tx b { display: block; font: 400 19px 'Lalezar'; color: #ffe08a; }
+  .m-bazaar .tx span { font-size: 13px; font-weight: 800; margin-inline-end: 8px; }
+  .m-bazaar .add { padding: 0 10px; background: #e0b040; color: #2a1e12; font-size: 12px; font-weight: 800; border-radius: 3px; }
+  .m-bazaar .cart { background: #2a1e12; color: #e0b040; }
+
+  /* 15. BLACK TENT — the nomads' goat-hair tent; its flaps part to show the dishes on a felt rug */
+  .m-resmal { --rc: #d9a441; background: linear-gradient(#e9d6a8, #c9a86a); color: #2a1a0a; font-family: 'Cairo', sans-serif; }
+  .m-resmal .hd h1 { color: #1e1610; }
+  .m-resmal .chips { background: rgba(233,214,168,.95); }
+  .m-resmal .chips button { background: #1e1610; color: #f3e3bc; }
+  .m-resmal .chips button.on { background: #b8321c; }
+  .m-resmal section { padding: 16px 10px 8px; }
+  .m-resmal .roof { height: 56px; display: grid; place-items: end center; padding-bottom: 6px; clip-path: polygon(0 100%, 12% 30%, 50% 0, 88% 30%, 100% 100%); background: repeating-linear-gradient(90deg, #1e1610 0 22px, #3a3028 22px 25px); }
+  .m-resmal .roof b { font: 400 20px 'Lalezar'; color: #f3e3bc; }
+  .m-resmal .inside { position: relative; overflow: hidden; background: #1e1610; padding: 0 8px 8px; --o: 1; }
+  .m-resmal .felt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 6px; padding: 10px 6px; border-radius: 4px; background: repeating-linear-gradient(90deg, #b8321c 0 18px, #d9a441 18px 22px, #1f5a6b 22px 40px, #d9a441 40px 44px); }
+  .m-resmal .it { padding: 5px; text-align: center; background: rgba(243,227,188,.93); border-radius: 4px; }
+  .m-resmal .it .ph { aspect-ratio: 1; border-radius: 3px; }
+  .m-resmal .it b { display: block; font-size: 12.5px; line-height: 1.2; margin-top: 4px; } .m-resmal .it span { font-size: 11.5px; font-weight: 800; color: #b8321c; }
+  .m-resmal .add { display: block; margin: 3px auto 0; padding: 0 10px; background: #1e1610; color: #f3e3bc; font-size: 11.5px; font-weight: 700; border-radius: 3px; }
+  .m-resmal .flap { position: absolute; top: 0; bottom: 0; width: 51%; pointer-events: none; background: repeating-linear-gradient(90deg, #1e1610 0 22px, #3a3028 22px 25px); }
+  .m-resmal .flap.l { left: 0; transform: translateX(calc(var(--o) * -92%)); } .m-resmal .flap.r { right: 0; transform: translateX(calc(var(--o) * 92%)); }
+  .m-resmal .cart { background: #1e1610; color: #d9a441; }
+
+  /* 16. HALAY — a line of dancers hand in hand, a dish for each face, drifting sideways as they step */
+  .m-halay { --rc: #d7263d; background: linear-gradient(#bfe0f0, #e8f4e8 40%, #9fcf7a); color: #1f2a14; font-family: 'Cairo', sans-serif; }
+  .m-halay .hd h1 { color: #b0182e; }
+  .m-halay .chips { background: rgba(232,244,232,.95); }
+  .m-halay .chips button { background: #fff; color: #b0182e; box-shadow: inset 0 0 0 1.5px #b0182e; }
+  .m-halay .chips button.on { background: #b0182e; color: #fff; }
+  .m-halay section { padding: 12px 0 6px; }
+  .m-halay h2 { font: 400 21px 'Lalezar'; color: #2a4a14; padding: 0 16px; }
+  .m-halay .line { display: flex; overflow-x: auto; scrollbar-width: none; padding: 26px 16px 12px; }
+  .m-halay .line::-webkit-scrollbar { display: none; }
+  .m-halay .dn { position: relative; flex: none; width: 30%; text-align: center; animation: step .9s ease-in-out var(--dl, 0s) infinite; }
+  .m-halay .dn + .dn::before { content: ''; position: absolute; top: 74px; right: 72%; width: 56%; height: 4px; border-radius: 2px; background: #c08a5a; }
+  .m-halay .dn .ph { width: 64%; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--c); position: relative; z-index: 1; }
+  .m-halay .dress { width: 70%; height: 46px; margin: -4px auto 0; background: var(--c); clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%); }
+  .m-halay .hanky { position: absolute; top: -18px; right: 6%; width: 22px; height: 22px; background: #d7263d; clip-path: polygon(0 0, 100% 0, 0 100%); transform-origin: 100% 100%; animation: wave .6s ease-in-out infinite; z-index: 2; }
+  .m-halay .dn b { display: block; font-size: 12.5px; line-height: 1.2; margin-top: 4px; } .m-halay .dn span { font-size: 12px; font-weight: 800; }
+  .m-halay .add { display: block; margin: 3px auto 0; padding: 0 10px; background: var(--c); color: #fff; font-size: 11.5px; font-weight: 700; border-radius: 999px; }
+  .m-halay .cart { background: #b0182e; color: #fff; }
+
+  /* 17. KHURJIN — the woven double saddlebag; every dish a pocket whose flap lifts at the middle of the screen */
+  .m-khurjin { --rc: #a33a26; background: #e8dcc2; color: #2b1a10; font-family: 'Cairo', sans-serif; }
+  .m-khurjin .hd h1 { color: #7a2a1a; }
+  .m-khurjin .chips { background: rgba(232,220,194,.95); }
+  .m-khurjin .chips button { background: #7a2a1a; color: #f6ead0; border-radius: 3px; }
+  .m-khurjin .chips button.on { background: #1f4a5a; }
+  .m-khurjin section { padding: 12px 12px 8px; }
+  .m-khurjin h2 { font: 400 21px 'Lalezar'; color: #7a2a1a; }
+  .m-khurjin .bags { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 0; padding: 6px 0; }
+  .m-khurjin .pk { position: relative; padding: 8px; text-align: center; background: repeating-linear-gradient(0deg, #a33a26 0 10px, #e0b050 10px 13px, #1f4a5a 13px 23px, #e0b050 23px 26px); }
+  .m-khurjin .pk:nth-child(odd) { margin-inline-end: 7px; } .m-khurjin .pk:nth-child(even) { margin-inline-start: 7px; }
+  .m-khurjin .pk:nth-child(odd)::after { content: ''; position: absolute; top: 40%; inset-inline-end: -14px; width: 14px; height: 22px; background: #5a3a22; }
+  .m-khurjin .pk .ph { aspect-ratio: 1.15; border-radius: 3px; box-shadow: 0 0 0 3px #f6ead0; }
+  .m-khurjin .lidk { position: absolute; top: 0; left: 0; right: 0; height: 58%; background: repeating-linear-gradient(90deg, #7a2a1a 0 8px, #e0b050 8px 10px, #1f4a5a 10px 18px, #e0b050 18px 20px); clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%); transform-origin: 50% 0; transform: rotateX(calc(var(--o, 1) * 78deg)); pointer-events: none; }
+  .m-khurjin .tx { margin-top: 6px; padding: 4px; background: rgba(246,234,208,.94); border-radius: 3px; }
+  .m-khurjin .tx b { display: block; font-size: 13.5px; } .m-khurjin .ln { display: flex; justify-content: space-between; align-items: center; }
+  .m-khurjin .ln span { font-size: 12px; font-weight: 800; }
+  .m-khurjin .add { padding: 0 9px; background: #7a2a1a; color: #f6ead0; font-size: 11.5px; font-weight: 700; border-radius: 3px; }
+  .m-khurjin .tas { position: absolute; bottom: -16px; left: 15%; right: 15%; height: 16px; background: repeating-linear-gradient(90deg, #a33a26 0 3px, transparent 3px 10px); transform-origin: 50% 0; animation: sway 2s ease-in-out infinite; --r: 5deg; }
+  .m-khurjin .cart { background: #7a2a1a; color: #f6ead0; }
+
+  /* 18. KALAK RAFTS — log-and-skin rafts drifting down a running river, left and right */
+  .m-kalak { --rc: #f0c060; background: #2e6b8a; color: #fff; font-family: 'Cairo', sans-serif; }
+  .m-kalak .hd h1 { color: #fff3d0; }
+  .m-kalak .chips { background: rgba(46,107,138,.95); }
+  .m-kalak .chips button { background: #f0c060; color: #1e3a4a; }
+  .m-kalak .chips button.on { background: #fff; }
+  .m-kalak section { padding: 0 0 6px; }
+  .m-kalak .bank { padding: 8px 16px; font: 400 21px 'Lalezar'; color: #f3e1b8; background: linear-gradient(#6a8a3a, #4a6a2a); box-shadow: 0 6px 0 #b89a62; }
+  .m-kalak .river { padding: 14px 12px 6px; background: repeating-linear-gradient(100deg, transparent 0 40px, rgba(255,255,255,.12) 40px 44px, transparent 44px 120px) 0 0 / 120px 100%, repeating-linear-gradient(80deg, transparent 0 22px, rgba(255,255,255,.08) 22px 24px, transparent 24px 60px) 0 0 / 60px 100%, linear-gradient(#2e6b8a, #245a76); animation: flow 3s linear infinite; }
+  .m-kalak .raft { width: 76%; margin-bottom: 12px; animation: bob var(--t, 4s) ease-in-out var(--dl, 0s) infinite; --h: -5px; }
+  .m-kalak .raft.b { margin-inline-start: auto; }
+  .m-kalak .deck { display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(250,240,215,.95); color: #2a1e12; border-radius: 4px 4px 0 0; }
+  .m-kalak .deck .ph { flex: none; width: 70px; height: 56px; border-radius: 3px; }
+  .m-kalak .tx { flex: 1; min-width: 0; } .m-kalak .tx b { display: block; font-size: 15px; }
+  .m-kalak .tx span { font-size: 13px; font-weight: 800; color: #8a4a14; margin-inline-end: 8px; }
+  .m-kalak .add { padding: 0 10px; background: #8a4a14; color: #fff; font-size: 12px; font-weight: 700; border-radius: 3px; }
+  .m-kalak .logs { display: block; height: 16px; border-radius: 0 0 8px 8px; background: radial-gradient(ellipse 10px 8px at 50% 100%, #d9c8a0 96%, transparent) 0 0 / 22px 16px, repeating-linear-gradient(90deg, #7a4a24 0 20px, #5a3418 20px 22px); box-shadow: 0 6px 8px rgba(0,0,0,.3); }
+  .m-kalak .cart { background: #1e3a4a; color: #f0c060; }
+
+  /* 19. DENGBÊJ — the song of the bards: verses left and right like two singers answering; the medallion at the middle sings */
+  .m-dengbej { --rc: #8a1c1c; background: #f3e9d6; color: #2a1a10; font-family: 'Amiri', serif; }
+  .m-dengbej .hd h1 { font-family: 'Amiri'; font-weight: 700; color: #8a1c1c; }
+  .m-dengbej .chips { background: rgba(243,233,214,.95); }
+  .m-dengbej .chips button { background: #2a1a10; color: #f3e9d6; font-family: 'Amiri'; font-size: 15px; padding: 3px 13px; }
+  .m-dengbej .chips button.on { background: #8a1c1c; }
+  .m-dengbej section { padding: 12px 14px 6px; }
+  .m-dengbej h2 { text-align: center; font: 700 21px 'Amiri'; color: #8a1c1c; margin-bottom: 6px; }
+  .m-dengbej .vs { display: flex; align-items: center; gap: 12px; width: 92%; margin-bottom: 10px; }
+  .m-dengbej .vs.b { margin-inline-start: auto; flex-direction: row-reverse; }
+  .m-dengbej .med { position: relative; flex: none; width: 70px; height: 70px; --v: 0; }
+  .m-dengbej .med::before, .m-dengbej .med::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid #8a1c1c; opacity: 0; }
+  .m-dengbej .med.sing::before { animation: voice 1.4s ease-out infinite; } .m-dengbej .med.sing::after { animation: voice 1.4s ease-out .7s infinite; }
+  .m-dengbej .med .ph { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 3px #f3e9d6, 0 0 0 5px #b8892f; }
+  .m-dengbej .tx { flex: 1; min-width: 0; padding: 8px 12px; border-radius: 14px; background: #fffaf0; box-shadow: 0 3px 8px rgba(0,0,0,.1); border-inline-start: 3px solid #b8892f; }
+  .m-dengbej .vs.b .tx { border-inline-start: 0; border-inline-end: 3px solid #b8892f; }
+  .m-dengbej .tx b { display: block; font-size: 18px; color: #8a1c1c; }
+  .m-dengbej .tx p { font-size: 14.5px; line-height: 1.5; }
+  .m-dengbej .add { margin-top: 3px; padding: 0 12px; font: 700 13px 'Amiri'; background: #2a1a10; color: #f3e9d6; border-radius: 3px; }
+  .m-dengbej .rv { transform: translateY(10px); }
+  .m-dengbej .cart { background: #2a1a10; color: #f3e9d6; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٢٠ منيو كلاسيك · أوروبي و عربي و كردي</h1>
+  <p>٨ كلاسيك أوروبي، و٦ كلاسيك عربي، و٦ كلاسيك كردي. كل وحدة تغيّر شكل المنيو، والأكل بصوره الحقيقية، وكل قسم بدوسة. العائلة مكتوبة فوق اسم كل ستايل. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const rail = '<div class="rail"><i></i></div>';
+const hd = (h, p) => `<div class="hd"><h1>${h}</h1><p>${p}</p></div>`;
+const STYLES = [
+ { key: 'apoth', fam: 'كلاسيك أوروبي · عطّارة', name: 'رفوف العطّار',
+   desc: 'دكان عطّار أو صيدلية قديمة: رفوف خشب، وكل طبق مرطبان زجاج بغطاء فلّين، الأكل يبين من ورا الزجاج، وعليه ورقة ملزوقة باسمه وسعره بخط قديم. كل قسم رف، ثلاث مرطبانات بالصف.',
+   mo: '<b>الحركة:</b> لمعة ضوء تمر على الزجاج، والمرطبان يتهز لمن تاخذه.',
+   render: () => `
+    ${rail}${hd('رفوف العطّار', 'كل رف قسم · كل مرطبان طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="shelf">${s.items.map(it => `<div class="jar"><div class="cork"></div><div class="glass" style="--dl:-${(rnd(it.no) * 6).toFixed(2)}s"><div class="ph" ${bg(it.img, 220)}></div><div class="lbl"><b>${it.n}</b><span>${it.p}</span></div></div>${addBtn(it, 'خذه')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('سلّتك')}` },
+
+ { key: 'stamps', fam: 'كلاسيك أوروبي · طوابع', name: 'ألبوم الطوابع',
+   desc: 'ألبوم طوابع قديم بصفحات بيج وأشرطة سودة شفافة. كل طبق طابع بحافة مخرّمة، صورته بالنص وسعره بالزاوية مثل قيمة الطابع، ثلاث طوابع بالشريط. وانت تنزل، الصف اللي بالنص يكبر مثل ما تشوفه بالعدسة.',
+   mo: '<b>الحركة:</b> عدسة مكبّرة تكبّر الطوابع اللي بنص الشاشة وانت تنزل.',
+   render: () => `
+    ${rail}${hd('ألبوم الطوابع', 'كل صفحة قسم · كل طابع طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="page"><div class="mounts">${s.items.map(it => `<div class="stm fl"><div class="perf"><div class="ph" ${bg(it.img, 200)}></div><i class="val">${it.p}</i><b>${it.n}</b></div>${addBtn(it, 'أضف')}</div>`).join('')}</div></div></section>`).join('')}
+    ${cart('مجموعتك')}` },
+
+ { key: 'cassette', fam: 'كلاسيك أوروبي · كاسيت', name: 'شريط الكاسيت',
+   desc: 'كل قسم شريط كاسيت ببكرتين تدور وورقة عنوان مكتوبة باليد، وتحته ورقة الغلاف بقائمة الأغاني: كل طبق أغنية برقمها، وجه أ ووجه ب، مع صورة صغيرة وسعره. تشوف القسم كله بنظرة.',
+   mo: '<b>الحركة:</b> البكرات تدور، ولمن تضيف طبق تسرع مثل التقديم.',
+   render: () => `
+    ${rail}${hd('شريط الكاسيت', 'كل شريط قسم · كل أغنية طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="tape"><div class="lab"><b>${s.t}</b><small>C-${toAr(60 + si * 30)}</small></div><div class="win"><i class="reel"></i><i class="reel"></i></div></div><ol class="jcard">${s.items.map((it, i, a) => `<li><em>${i < Math.ceil(a.length / 2) ? 'أ' : 'ب'}${toAr(i < Math.ceil(a.length / 2) ? i + 1 : i + 1 - Math.ceil(a.length / 2))}</em><div class="ph" ${bg(it.img, 120)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it, '▶')}</li>`).join('')}</ol></section>`).join('')}
+    ${cart('شريطك')}` },
+
+ { key: 'ticket', fam: 'كلاسيك أوروبي · تذاكر', name: 'التذاكر القديمة',
+   desc: 'كل طبق تذكرة قديمة ملوّنة مثل تذاكر السينما والقطار: صورة الطبق واسمه على التذكرة، وعلى طرفها كعب مخرّم عليه السعر. تختار الطبق فينقطع الكعب على الخط المخرّم ويطيح.',
+   mo: '<b>الحركة:</b> الكعب ينقطع من الخط المخرّم ويطيح لمن تطلب.',
+   render: () => `
+    ${rail}${hd('التذاكر القديمة', 'اقطع الكعب واطلب')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2>${s.items.map(it => `<div class="tk t${it.no % 3}"><div class="main"><div class="ph" ${bg(it.img, 160)}></div><div class="tx"><small>تذكرة رقم ${toAr(it.box)}</small><b>${it.n}</b><small>${it.d}</small></div></div><div class="stub"><span>${it.p}</span><small>دينار</small>${addBtn(it, 'اقطع')}</div></div>`).join('')}</section>`).join('')}
+    ${cart('تذاكرك')}` },
+
+ { key: 'album', fam: 'كلاسيك أوروبي · ألبوم صور', name: 'ألبوم العائلة',
+   desc: 'ألبوم صور عائلي قديم بصفحات سودة: كل طبق صورة بإطار أبيض مايلة شوية ومثبّتة بزوايا ورق بالأربع جهات، وتحتها مكتوب بقلم أبيض اسم الطبق وسعره. صورتين بالسطر.',
+   mo: '<b>الحركة:</b> الصور تنزلق بزواياها وانت تنزل، وفلاش كاميرا لمن تطلب.',
+   render: () => `
+    ${rail}${hd('ألبوم العائلة', 'صيف ١٩٧٤ · أكلات البيت')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="pg">${s.items.map(it => `<div class="pic rv" style="--r:${((rnd(it.no) - .5) * 6).toFixed(1)}deg"><div class="pf"><i class="cr a"></i><i class="cr b"></i><i class="cr c"></i><i class="cr d"></i><div class="ph" ${bg(it.img, 240)}></div><i class="flash"></i></div><b>${it.n} · ${it.p}</b>${addBtn(it, 'أضف')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('صورك')}` },
+
+ { key: 'deco', fam: 'كلاسيك أوروبي · آرت ديكو', name: 'آرت ديكو',
+   desc: 'منيو قطار فخم من العشرينات بطراز آرت ديكو: أسود وذهبي، شمس ذهبية بأشعة فوق، وكل قسم إطار بزوايا مقصوصة، والأطباق بعمودين بصور مقوّسة من فوق مثل الأبواب، وخطوط ذهب بين الأقسام.',
+   mo: '<b>الحركة:</b> الأشعة الذهبية تدور ببطء، والخطوط الذهبية تنرسم وانت تنزل.',
+   render: () => `
+    ${rail}<div class="sun"><div class="rays"></div>${hd('المائدة الذهبية', 'قطار الشرق السريع · عربة الطعام')}</div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="dh"><i class="gl rv"></i><b>${s.t}</b><i class="gl rv"></i></div><div class="dk">${s.items.map(it => `<div class="dd"><div class="arch"><div class="ph" ${bg(it.img, 240)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'اطلب')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'marquee', fam: 'كلاسيك أوروبي · سينما', name: 'لافتة السينما',
+   desc: 'مدخل سينما قديمة بالليل: كل قسم لافتة بلمبات تنطفي وتشتعل حوالينها مثل لافتات زمان، وتحتها الأطباق بوسترات أفلام بإطار زجاج بعمودين، وعلى كل بوستر «يُعرض الآن» وسعر التذكرة.',
+   mo: '<b>الحركة:</b> اللمبات تركض حوالين اللافتة، والبوستر يضوي لمن تحجز.',
+   render: () => `
+    ${rail}${hd('سينما الرشيد', 'العرض الأول · كل ليلة')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="sign"><small>يُعرض الآن</small><b>${s.t}</b></div><div class="posters">${s.items.map(it => `<div class="pst"><div class="ph" ${bg(it.img, 260)}></div><div class="tx"><b>${it.n}</b><span>${it.p} د.ع</span></div>${addBtn(it, 'احجز')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('حجوزاتك')}` },
+
+ { key: 'manus', fam: 'كلاسيك عربي · مخطوطة', name: 'المخطوطة',
+   desc: 'مخطوطة عربية قديمة مذهّبة: إطار ذهب وأزرق حوالين الصفحة، والأطباق مكتوبة بالمتن بخط النسخ، بين طبق وطبق وردة ذهبية، وصور الأطباق منمنمات بالهامش، مرة يمين ومرة يسار، مثل الكتب القديمة.',
+   mo: '<b>الحركة:</b> الورود الذهبية تدور ببطء، والسطور تبين بالحبر وانت تنزل.',
+   render: () => `
+    ${rail}${hd('كتاب الطبيخ', 'نسخة مذهّبة · سنة ٦٢٣ هـ')}
+    ${chips(s => s.t)}
+    <div class="folio">${MENU.map(s => `<section data-sec="${s.id}"><h2><i>۞</i> باب ${s.t} <i>۞</i></h2>${s.items.map((it, i) => `<div class="ent rv ${i % 2 ? 'b' : 'a'}"><div class="mini"><div class="ph" ${bg(it.img, 180)}></div></div><div class="tx"><b>${it.n}</b><p>${it.d}، وثمنه ${it.p} دينار.</p>${addBtn(it, 'اطلب')}</div></div><div class="rose">❁</div>`).join('')}</section>`).join('')}</div>
+    ${cart('طلبك')}` },
+];
+
+// the opera joins the European family, before the Arab manuscript
+STYLES.splice(7, 0,
+ { key: 'opera', fam: 'كلاسيك أوروبي · أوبرا', name: 'لوجات الأوبرا',
+   desc: 'دار أوبرا أوروبية قديمة بمخمل أحمر وذهب: كل قسم طابق من اللوجات، وكل طبق لوج بقوس ودرابزين ذهب، وصورة الطبق هي المسرح اللي تشوفه من اللوج، واسمه على لوحة ذهب تحت الدرابزين.',
+   mo: '<b>الحركة:</b> ستاير اللوجات تنفتح لمن يوصل الطابق نص الشاشة.',
+   render: () => `
+    ${rail}<div class="drape"></div>${hd('دار الأوبرا', 'كل طابق قسم · كل لوج طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>طابق ${s.t}</h2><div class="tier">${s.items.map(it => `<div class="lodge"><div class="bx fl"><div class="ph" ${bg(it.img, 200)}></div><i class="cu l"></i><i class="cu r"></i></div><div class="rl"></div><div class="plt"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, 'احجز')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('لوجاتك')}` });
+
+STYLES.push(
+ { key: 'mashra', fam: 'كلاسيك عربي · مشربية', name: 'شبابيك المشربية',
+   desc: 'شبابيك مشربية خشب مخروط بقوس فوق، وكل طبق شبّاك. من بعيد تشوف الطبق من ورا شبكة الخشب، ولمن يوصل الشبّاك نص الشاشة الشبكة تخف وتشوف الأكل واضح. شبّاكين بالسطر وتحت كل شبّاك عتبة باسمه.',
+   mo: '<b>الحركة:</b> شبكة الخشب تخف وتنفتح لمن الشبّاك يوصل النص.',
+   render: () => `
+    ${rail}${hd('شبابيك المشربية', 'كل شبّاك طبق · قرّب يبين')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="wins">${s.items.map(it => `<div class="win"><div class="lat fl"><div class="ph" ${bg(it.img, 240)}></div><i class="grid"></i></div><div class="sill"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, 'اطلب')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'arcade', fam: 'كلاسيك عربي · خان', name: 'قناطر الخان',
+   desc: 'خان قديم بقناطر حجر مدببة على طول الرواق. كل قسم رواق، وكل طبق تحت قنطرة، ومن كل قنطرة فانوس نحاس معلّق. تمشي بالرواق بالعرض من قنطرة لقنطرة.',
+   mo: '<b>الحركة:</b> الفوانيس تتمرجح وتضوي، والقنطرة اللي تختارها يشتعل فانوسها.',
+   render: () => `
+    ${rail}${hd('قناطر الخان', 'امشِ بالرواق · كل قنطرة طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>رواق ${s.t}</h2><div class="row">${s.items.map(it => `<div class="arc"><i class="lan" style="--t:${(2.6 + rnd(it.no) * 1.6).toFixed(2)}s;--dl:-${(rnd(it.no + 1) * 3).toFixed(2)}s"></i><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'اطلب')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'carpet', fam: 'كلاسيك عربي · ألف ليلة', name: 'البساط الطائر',
+   desc: 'ليل ألف ليلة وليلة بسماه والهلال: كل قسم بساط مزخرف طاير بشراشيبه، والأطباق محطوطة عليه ثلاثة بالسطر. البسط تطير وتتمايل بالهوا، كل واحد على كيفه.',
+   mo: '<b>الحركة:</b> البسط تطفو وتتمايل، والشراشيب ترفرف.',
+   render: () => `
+    ${rail}<div class="moon"></div>${hd('البساط الطائر', 'كل بساط قسم · اركب واختار')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="fly" style="--t:${(5 + si * .7).toFixed(1)}s;--dl:-${si * 1.3}s;--r:${si % 2 ? 1.2 : -1.2}deg"><div class="rug"><h2>${s.t}</h2><div class="dishes">${s.items.map(it => `<div class="dsh"><div class="ph" ${bg(it.img, 180)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div></div><div class="frg"></div></div></section>`).join('')}
+    ${cart('حمولتك')}` },
+
+ { key: 'sadaf', fam: 'كلاسيك عربي · صدف دمشقي', name: 'صندوق الصدف',
+   desc: 'صندوق خشب دمشقي مطعّم بالصدف بنقوش هندسية. كل قسم صندوق، وكل طبق جرّار بمقبض نحاس، ولمن يوصل الجرّار نص الشاشة ينسحب لبرّا ويطلع الطبق من جوّاه.',
+   mo: '<b>الحركة:</b> الجرّارات تنفتح وحدة وحدة وانت تنزل وتطلع الأطباق.',
+   render: () => `
+    ${rail}${hd('صندوق الصدف', 'كل جرّار طبق · انزل وينفتح')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="chest"><h2>${s.t}</h2><div class="drws">${s.items.map(it => `<div class="dw"><div class="slot"><div class="inner fl"><div class="ph" ${bg(it.img, 220)}></div></div></div><div class="front"><i class="knob"></i><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'خذه')}</div></div></div>`).join('')}</div></div></section>`).join('')}
+    ${cart('صندوقك')}` },
+
+ { key: 'afish', fam: 'كلاسيك عربي · أفيش', name: 'أفيشات السينما',
+   desc: 'أفيشات أفلام مصرية وعراقية قديمة مرسومة باليد: ألوان قوية، واسم الطبق مكتوب كبير بالأحمر بإطار أصفر مثل عنوان الفلم، وشريطة «بطولة» بالوصف، والسعر بمكان «الدخول». أفيش كبير ورا أفيش.',
+   mo: '<b>الحركة:</b> الأفيشات تنلزق على الحايط مايلة شوية وانت تنزل.',
+   render: () => `
+    ${rail}${hd('أفيشات السينما', 'قريباً على شاشة المطبخ')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>أفلام ${s.t}</h2>${s.items.map((it, i) => `<div class="post rv ${i % 2 ? 'b' : 'a'}"><div class="ph" ${bg(it.img, 420)}></div><b class="ttl">${it.n}</b><div class="rib">بطولة: ${it.d}</div><div class="ln"><span>الدخول ${it.p} فلس</span>${addBtn(it, 'احجز')}</div></div>`).join('')}</section>`).join('')}
+    ${cart('تذاكرك')}` },
+
+ { key: 'bazaar', fam: 'كلاسيك كردي · بازار', name: 'بازار السليمانية',
+   desc: 'زقاق بازار السليمانية القديم: لافتات دكاكين خشب مرسومة باليد معلّقة يمين ويسار الزقاق، وكل طبق لافتة دكان بصورته واسمه. وانت تنزل، اللافتات تقرب وتكبر مثل ما تمشي بالزقاق.',
+   mo: '<b>الحركة:</b> اللافتات تقرب وتكبر وتتمرجح مثل ما تمشي بالزقاق.',
+   render: () => `
+    ${rail}${hd('بازاری سلێمانی', 'بازار السليمانية القديم · امشِ بالزقاق')}
+    ${chips(s => s.t)}
+    <div class="alley">${MENU.map(s => `<section data-sec="${s.id}"><h2>سوق ${s.t}</h2>${s.items.map((it, i) => `<div class="sg fl ${i % 2 ? 'b' : 'a'}"><i class="rope"></i><div class="bd"><div class="ph" ${bg(it.img, 200)}></div><div class="tx"><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'اشترِ')}</div></div></div>`).join('')}</section>`).join('')}</div>
+    ${cart('مشترياتك')}` },
+
+ { key: 'resmal', fam: 'كلاسيك كردي · رەشماڵ', name: 'خيمة الرەشماڵ',
+   desc: 'خيمة الرحّالة الكرد السودة من شعر الماعز بخطوطها البيض. كل قسم خيمة، وبابها بستارتين مسكّرتين، ولمن توصلها الستاير تنفتح وتشوف الأطباق جوّا على لبّاد ملوّن، ثلاثة بالسطر.',
+   mo: '<b>الحركة:</b> ستاير الخيمة تنفتح للجانبين لمن توصل نص الشاشة.',
+   render: () => `
+    ${rail}${hd('خيمة الرەشماڵ', 'كل خيمة قسم · انزل وتنفتح')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="roof"><b>${s.t}</b></div><div class="inside fl"><div class="felt">${s.items.map(it => `<div class="it"><div class="ph" ${bg(it.img, 180)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div><i class="flap l"></i><i class="flap r"></i></div></section>`).join('')}
+    ${cart('ضيافتك')}` },
+
+ { key: 'halay', fam: 'كلاسيك كردي · هەڵپەڕکێ', name: 'دبكة الهلپركي',
+   desc: 'صف دبكة كردي ماسكين إيد بإيد: كل قسم صف، وكل طبق راقص بلبس كردي ملوّن وصورة الطبق مكان الوجه، والسرچوبي بالأول يلوّح بالمنديل الأحمر. الصف يمشي لحاله بالعرض ويدبك.',
+   mo: '<b>الحركة:</b> الصف ينجرف بالعرض والراقصين يدبكون، تلمسه فيوقف.',
+   render: () => `
+    ${rail}${hd('دبكة الهلپركي', 'كل صف قسم · كل راقص طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="line" data-dir="${si % 2 ? 1 : -1}">${s.items.map((it, i) => `<div class="dn" style="--c:${['#d7263d', '#1b998b', '#f46036', '#2e294e', '#c5d86d', '#8e44ad'][it.no % 6]};--dl:-${(i % 2) * .45}s">${i ? '' : '<i class="hanky"></i>'}<div class="ph" ${bg(it.img, 140)}></div><div class="dress"></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('صفّك')}` },
+
+ { key: 'khurjin', fam: 'كلاسيك كردي · خورجين', name: 'الخورجين',
+   desc: 'الخورجين هو الجنطة المنسوجة بجيبين اللي تنحط على ظهر الحصان. كل قسم خورجين، وكل طبقين جيبين مربوطين بحزام بالنص، وكل جيب عليه غطا منسوج بشراشيب، والغطا يرتفع لمن توصله.',
+   mo: '<b>الحركة:</b> أغطية الجيوب ترتفع لمن توصل نص الشاشة، والشراشيب تتمرجح.',
+   render: () => `
+    ${rail}${hd('الخورجين', 'كل جيب طبق · الغطا يرتفع')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="bags">${s.items.map(it => `<div class="pk"><div class="ph" ${bg(it.img, 220)}></div><i class="lidk fl"></i><div class="tx"><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'خذه')}</div></div><i class="tas"></i></div>`).join('')}</div></section>`).join('')}
+    ${cart('خورجينك')}` },
+
+ { key: 'kalak', fam: 'كلاسيك كردي · كەلەک', name: 'كلك النهر',
+   desc: 'الكلك هو الطوف القديم من جذوع خشب وقرب منفوخة اللي ينزل بالزاب ودجلة. كل قسم مقطع من النهر، وكل طبق كلك طايف على الماي، مرة يمين ومرة يسار، والماي جاري تحتهم.',
+   mo: '<b>الحركة:</b> الماي يجري، والكلكات تطفو وتتمايل على الموج.',
+   render: () => `
+    ${rail}${hd('كلك النهر', 'كل مقطع قسم · كل كلك طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="bank">${s.t}</div><div class="river">${s.items.map((it, i) => `<div class="raft ${i % 2 ? 'b' : 'a'}" style="--t:${(3.4 + rnd(it.no) * 1.6).toFixed(2)}s;--dl:-${(rnd(it.no + 4) * 3).toFixed(2)}s;--r:${(1 + rnd(it.no + 2) * 1.5).toFixed(1)}deg"><div class="deck"><div class="ph" ${bg(it.img, 200)}></div><div class="tx"><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'اركب')}</div></div><i class="logs"></i></div>`).join('')}</div></section>`).join('')}
+    ${cart('حمولتك')}` },
+
+ { key: 'dengbej', fam: 'كلاسيك كردي · دەنگبێژ', name: 'الدنگبێژ',
+   desc: 'الدنگبێژ هم المغنّين الكرد القدامى اللي يحچون القصص بالغناء. هنا كل قسم قصيدة، وكل طبق مقطع منها، والمقاطع يمين ويسار مثل اثنين يردّون على بعض، وصورة الطبق ميدالية مدوّرة جنب المقطع.',
+   mo: '<b>الحركة:</b> موجات صوت تطلع من الميدالية اللي بنص الشاشة، مثل المغنّي اللي يغني هسه.',
+   render: () => `
+    ${rail}${hd('الدنگبێژ', 'كل قصيدة قسم · كل مقطع طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>قصيدة ${s.t}</h2>${s.items.map((it, i) => `<div class="vs rv ${i % 2 ? 'b' : 'a'}"><div class="med fl"><div class="ph" ${bg(it.img, 160)}></div></div><div class="tx"><b>${it.n}</b><p>«${it.d}» · ${it.p} دينار</p>${addBtn(it, 'اطلب')}</div></div>`).join('')}</section>`).join('')}
+    ${cart('قصيدتك')}` }
+);
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const pulse = (el, k = 1.08) => { if (!reduce && el) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+const twirl = el => { if (!reduce && el) el.animate([{ transform: 'perspective(500px) rotateY(0)' }, { transform: 'perspective(500px) rotateY(360deg)' }], { duration: 700, easing: ease }); };
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+// fn(el, d) on scroll, d = how far the element sits below the middle of the screen
+function onDepth(sel, fn) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); fn(el, b.top + b.height / 2 - cy); }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+// rows that drift sideways on their own until touched
+function drift(sel) {
+  if (reduce) return;
+  const streams = [...screen.querySelectorAll(sel)].map(el => ({ el, dir: Number(el.dataset.dir), hold: false, x: el.scrollLeft }));
+  streams.forEach(s => {
+    const hold = v => () => { s.hold = v; if (!v) s.x = s.el.scrollLeft; };
+    ['pointerenter', 'pointerdown', 'touchstart'].forEach(t => s.el.addEventListener(t, hold(true), { passive: true }));
+    ['pointerleave', 'touchend'].forEach(t => s.el.addEventListener(t, hold(false), { passive: true }));
+  });
+  let raf = requestAnimationFrame(function tick() {
+    streams.forEach(s => {
+      if (s.hold) return;
+      const max = s.el.scrollWidth - s.el.clientWidth; if (max <= 0) return;
+      s.x += s.dir * .35;
+      // RTL scrollLeft runs from 0 to -max; bounce at the ends
+      if (s.x > 0) { s.x = 0; s.dir = -1; } if (s.x < -max) { s.x = -max; s.dir = 1; }
+      s.el.scrollLeft = s.x;
+    });
+    raf = requestAnimationFrame(tick);
+  });
+  cleanups.push(() => cancelAnimationFrame(raf));
+}
+const got = (a, sel) => { const el = a.closest(sel); el.classList.remove('got'); void el.offsetWidth; el.classList.add('got'); };
+const WIRE = {
+  apoth: { added(a) { if (!reduce) a.closest('.jar').animate([{ rotate: '0deg' }, { rotate: '-7deg' }, { rotate: '5deg' }, { rotate: '-2deg' }, { rotate: '0deg' }], { duration: 520, easing: ease }); } },
+  stamps: {
+    // the row at the middle of the screen swells as if under a magnifying glass
+    init() { onDepth('.stm', (el, d) => { el.style.transform = `scale(${(1 + Math.max(0, 1 - Math.abs(d) / 170) * .12).toFixed(3)})`; }); },
+    added(a) { pulse(a.closest('.stm').querySelector('.perf'), 1.08); },
+  },
+  cassette: { added(a) { const t = a.closest('section').querySelector('.tape'); t.classList.add('ff'); clearTimeout(t.ff); t.ff = setTimeout(() => t.classList.remove('ff'), 1200); } },
+  ticket: { added(a) { if (!reduce) a.closest('.tk').querySelector('.stub').animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(46px) rotate(16deg)', opacity: 0 }, { transform: 'none', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 1300, easing: 'ease-out' }); } },
+  album: { added(a) { got(a, '.pic'); } },
+  deco: { added(a) { pulse(a.closest('.dd').querySelector('.arch'), 1.05); } },
+  marquee: { added(a) { got(a, '.pst'); } },
+  opera: {
+    // a tier's curtains open as it reaches the middle of the screen and stay open above it
+    init() { onDepth('.bx', (el, d) => { el.style.setProperty('--o', clamp(1 - (d - 60) / 260, .3, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.lodge').querySelector('.bx'), 1.06); },
+  },
+  manus: { added(a) { pulse(a.closest('.ent').querySelector('.mini'), 1.08); } },
+  mashra: {
+    // the lattice thins away near the middle
+    init() { onDepth('.lat', (el, d) => { el.style.setProperty('--lat', clamp(d / 240, .08, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.win').querySelector('.lat'), 1.04); },
+  },
+  arcade: { added(a) { got(a, '.arc'); } },
+  carpet: { added(a) { pulse(a.closest('.dsh').querySelector('.ph'), 1.12); } },
+  sadaf: {
+    // each drawer slides its dish out as it reaches the middle
+    init() { onDepth('.inner', (el, d) => { el.style.setProperty('--o', clamp(1 - (d - 40) / 240, .3, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.dw').querySelector('.front'), 1.05); },
+  },
+  afish: { added(a) { pulse(a.closest('.post'), 1.03); } },
+  bazaar: {
+    // signs further down the alley are smaller and come closer as you walk
+    init() { onDepth('.sg', (el, d) => { el.style.transform = `scale(${clamp(1 - d / 1400, .8, 1.06).toFixed(3)}) rotate(${clamp(d / 160, -3, 3).toFixed(2)}deg)`; }); },
+    added(a) { pulse(a.closest('.bd'), 1.05); },
+  },
+  resmal: {
+    // the tent flaps part once the top of the tent passes the lower part of the screen
+    init() { onDepth('.inside', (el, d) => { el.style.setProperty('--o', clamp((150 - (d - el.offsetHeight / 2)) / 220, 0, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.it'), 1.06); },
+  },
+  halay: { init() { drift('.line'); }, added(a) { pulse(a.closest('.dn').querySelector('.ph'), 1.15); } },
+  khurjin: {
+    // a pocket's flap lifts near the middle of the screen
+    init() { onDepth('.lidk', (el, d) => { el.style.setProperty('--o', clamp(1.25 - d / 240, 0, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.pk').querySelector('.ph'), 1.06); },
+  },
+  kalak: { added(a) { pulse(a.closest('.deck'), 1.04); } },
+  dengbej: {
+    // the bard nearest the middle of the screen is the one singing
+    init() { onDepth('.med', (el, d) => { el.classList.toggle('sing', Math.abs(d) < 110); }); },
+    added(a) { pulse(a.closest('.vs').querySelector('.med'), 1.1); },
+  },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

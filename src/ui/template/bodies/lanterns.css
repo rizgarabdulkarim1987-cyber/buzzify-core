@@ -1,0 +1,303 @@
+/*
+ * The Ramadan Nights body (poster kurd-arab-ram; a browse shape of a template menu): a night sky. The page opens on the
+ * scene (bunting, a crescent moon, four lanterns that sway and flicker a few times and then hang still), then a sticky
+ * strip of round pills, then each section: a centred gold heading over a two-column grid of arched navy cards edged in
+ * gold (the photo in an arch, the name, the price and the add). Everything is scoped under [data-body='lanterns'],
+ * logical properties only (RTL mirrors).
+ * Every colour is the template's palette (so Customize reaches it): the night is `--bg` and `--raised`, the gold is
+ * `--accent` (`--accent-ink` where it is lettering), the lettering `--text`. Only the bunting's flags and the lanterns'
+ * lit glass are the scene's own (lanterns-night.ts, set on the scene).
+ */
+[data-body='lanterns'] {
+  --rm-gold: var(--accent);
+  --rm-gold-ink: var(--accent-ink, var(--accent));
+  /* The sticky strip's height, so a jumped-to section lands just below it. */
+  --nav-room: 4rem;
+  --column: 64rem;
+  /* The last niche only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 30%;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the scene */
+
+[data-body='lanterns'] .rm-hero {
+  position: relative;
+  block-size: 8rem;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 0, color-mix(in srgb, var(--text) 8%, var(--raised)), var(--bg) 70%);
+}
+/* The bunting: a gold cord along the top with a row of flags on it. */
+[data-body='lanterns'] .rm-garland {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: -0.625rem;
+  display: flex;
+  justify-content: space-around;
+  block-size: 1.5rem;
+  border-block-start: 2px solid var(--rm-gold);
+  transform-origin: top;
+}
+[data-body='lanterns'] .rm-garland i {
+  inline-size: 0;
+  block-size: 0;
+  border-inline: 0.5rem solid transparent;
+  border-block-start: 0.875rem solid;
+}
+/* The crescent: a circle whose shadow, offset, is the moon (mirrored in a right-to-left page). */
+[data-body='lanterns'] .rm-moon {
+  --rm-side: 1;
+  position: absolute;
+  inset-block-start: 2.5rem;
+  inset-inline-start: 1.5rem;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 50%;
+  box-shadow: calc(0.625rem * var(--rm-side)) -0.25rem 0 0 var(--rm-gold);
+  filter: drop-shadow(0 0 0.75rem color-mix(in srgb, var(--rm-gold) 60%, transparent));
+}
+[data-body='lanterns'] .rm-moon:dir(rtl) {
+  --rm-side: -1;
+}
+/* A lantern: a cord and a glass body with a cap, hung from the top; it sways about its cord. */
+[data-body='lanterns'] .rm-lan {
+  position: absolute;
+  inset-block-start: 0;
+  transform-origin: top center;
+}
+[data-body='lanterns'] .rm-lan::before {
+  content: '';
+  display: block;
+  inline-size: 2px;
+  block-size: var(--rm-cord, 3rem);
+  margin-inline: auto;
+  background: var(--rm-glass-cap);
+}
+[data-body='lanterns'] .rm-lan b {
+  position: relative;
+  display: block;
+  inline-size: 1.5rem;
+  block-size: 2.25rem;
+  border-radius: 0.5rem 0.5rem 0.875rem 0.875rem;
+  background: radial-gradient(circle at 50% 60%, var(--rm-glass-core), var(--rm-glass-mid) 50%, var(--rm-glass-edge));
+  box-shadow: 0 0 1.25rem var(--rm-glass-halo);
+}
+[data-body='lanterns'] .rm-lan b::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.4375rem;
+  inset-inline-start: 0.25rem;
+  inline-size: 1rem;
+  block-size: 0.5rem;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--rm-glass-cap);
+}
+/* The motion: the lanterns and the bunting sway and the glass flickers a few times, then all hang still. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-body='lanterns'] .rm-lan {
+    animation: rm-sway var(--rm-sway, 1400ms) ease-in-out var(--rm-sway-times, 3) alternate both;
+  }
+  [data-body='lanterns'] .rm-lan b {
+    animation: rm-flicker var(--rm-flicker, 1600ms) ease-in-out var(--rm-flicker-times, 3) alternate both;
+  }
+  [data-body='lanterns'] .rm-garland {
+    animation: rm-garland calc(var(--rm-sway, 1400ms) * 1.5) ease-in-out 2 alternate both;
+  }
+}
+@keyframes rm-sway {
+  from {
+    transform: rotate(-6deg);
+  }
+  to {
+    transform: rotate(6deg);
+  }
+}
+@keyframes rm-flicker {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+@keyframes rm-garland {
+  from {
+    transform: translateY(0) rotate(-0.6deg);
+  }
+  to {
+    transform: translateY(3px) rotate(0.6deg);
+  }
+}
+
+/* ------------------------------------------------------------------ the pills */
+
+[data-body='lanterns'] .rm-strip {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+[data-body='lanterns'] .rm-strip-list {
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+}
+/* A pill: a round-edged outline in gold with gold lettering; the one in view is filled with gold. */
+[data-body='lanterns'] .rm-pill {
+  display: flex;
+  align-items: center;
+  min-inline-size: 2.75rem;
+  max-inline-size: 12rem;
+  block-size: 2.75rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--rm-gold);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--rm-gold-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 150ms;
+}
+[data-body='lanterns'] .rm-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-body='lanterns'] .rm-pill[aria-current='true'] {
+  background: var(--rm-gold);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ a section */
+
+[data-body='lanterns'] .rm-niche {
+  padding-block: 0.5rem 0.25rem;
+  padding-inline: 0.75rem;
+}
+[data-body='lanterns'] [data-heading].rm-head {
+  display: block;
+}
+[data-body='lanterns'] .rm-title {
+  display: block;
+  margin: 0 0 0.375rem;
+  color: var(--rm-gold-ink);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+}
+/* The number and the dish count are not part of this heading. */
+[data-body='lanterns'] .rm-title :is(small, b) {
+  display: none;
+}
+[data-body='lanterns'] .rm-title span {
+  overflow-wrap: anywhere;
+}
+[data-body='lanterns'] .rm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* An arched card: navy, edged in gold, an arch for its top; the photo stands in an arch inside it. */
+[data-body='lanterns'] .rm-card {
+  --tpl-ring-radius: 4.375rem 4.375rem 0.625rem 0.625rem;
+  --tpl-ring-inset: -3px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  padding: 0.375rem 0.375rem 0.5625rem;
+  border: 1.5px solid var(--rm-gold);
+  border-radius: 4.375rem 4.375rem 0.625rem 0.625rem;
+  background: var(--raised);
+}
+[data-body='lanterns'] .rm-photo {
+  aspect-ratio: 1 / 0.74;
+  border-radius: 4rem 4rem 0.375rem 0.375rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+}
+/* The discount on the photo's foot (the top is the arch). */
+[data-body='lanterns'] .rm-off {
+  inset-block-start: auto;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+}
+[data-body='lanterns'] .rm-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name'
+    'price add';
+  align-items: center;
+  align-content: space-between;
+  gap: 0.125rem 0.25rem;
+  padding: 0.25rem 0.25rem 0;
+}
+[data-body='lanterns'] .rm-name {
+  grid-area: name;
+  justify-self: center;
+  color: var(--text);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+[data-body='lanterns'] .rm-price {
+  grid-area: price;
+  color: var(--rm-gold-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+/* The add: a round gold button on the row, beside the price. */
+[data-body='lanterns'] .rm-card .rm-add {
+  --rim-add-size: 2.5rem;
+  --rim-add-bg: var(--accent);
+  --rim-add-ink: var(--on-accent);
+  grid-area: add;
+  position: relative;
+  z-index: 3;
+  inset: auto;
+}
+[data-body='lanterns'] .rm-card .rm-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='lanterns'] .rm-card .rm-add:focus-visible {
+  outline: 2px solid var(--on-accent);
+  outline-offset: -4px;
+}
+/* The card's keyboard ring (the name's overlay) is drawn in the text colour, which stands out from the card. */
+[data-body='lanterns'] .rm-card .tpl-open:focus-visible::after {
+  outline-color: var(--text);
+}
+
+@media (hover: hover) {
+  [data-body='lanterns'] .rm-card:hover {
+    background: color-mix(in srgb, var(--raised) 85%, var(--accent));
+  }
+}
+
+/* A wide screen: four columns, then five, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='lanterns'] .rm-hero {
+    block-size: 10rem;
+  }
+  [data-body='lanterns'] .rm-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+  [data-body='lanterns'] .rm-price {
+    font-size: 0.9375rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='lanterns'] .rm-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='lanterns'] .rm-pill {
+    transition: none;
+  }
+}

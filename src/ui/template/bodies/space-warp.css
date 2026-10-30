@@ -1,0 +1,79 @@
+/*
+ * Light Speed (family lens, kind `space-warp`): star streaks pour out of the screen's centre, as at the jump to light
+ * speed, and the dishes come at you out of the depth: the ones in the middle of the screen full size, those above and
+ * below smaller and further (never under 82%, and never fainter than 82%). The streaks are drawn from the text colour
+ * and the accent; buzzify.me's deep-space look only.
+ */
+[data-body='space-warp'] .wp-streaks::before,
+[data-body='space-warp'] .wp-streaks::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 50%,
+    color-mix(in srgb, var(--text) 16%, transparent) 0 0.6deg,
+    transparent 0.6deg 7deg
+  );
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 10%, #000 55%);
+  mask: radial-gradient(circle at 50% 50%, transparent 10%, #000 55%);
+}
+/* The second layer of streaks, in the accent and turned half a gap, rushes out a half-beat after the first. */
+[data-body='space-warp'] .wp-streaks::after {
+  background: repeating-conic-gradient(
+    from 3.5deg at 50% 50%,
+    color-mix(in srgb, var(--accent) 22%, transparent) 0 0.4deg,
+    transparent 0.4deg 7deg
+  );
+}
+[data-body='space-warp'][data-lens] .wp-streaks[data-live]::before,
+[data-body='space-warp'][data-lens] .wp-streaks[data-live]::after {
+  animation: wp-rush 2.6s linear infinite;
+}
+[data-body='space-warp'][data-lens] .wp-streaks[data-live]::after {
+  animation-delay: -1.3s;
+}
+[data-body='space-warp'][data-hold] .wp-streaks::before,
+[data-body='space-warp'][data-hold] .wp-streaks::after {
+  animation-play-state: paused;
+}
+@keyframes wp-rush {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+[data-body='space-warp'] .wp-title {
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+}
+
+/* The depth: full size at the middle, easing down to 82% at the edges; the middle dish's glow is the strongest. */
+[data-body='space-warp'] .wp-card {
+  transform-origin: 50% 50%;
+}
+[data-body='space-warp'][data-lens] .wp-card {
+  transform: scale(calc(1 - 0.18 * var(--lt) * var(--lt)));
+  opacity: calc(1 - 0.18 * var(--lt) * var(--lt));
+  box-shadow:
+    0 0 calc(2.25rem - 1.5rem * var(--lt)) -0.5rem var(--ln-neon),
+    inset 0 0 1.375rem -0.875rem var(--ln-neon);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-warp'] .wp-streaks::before,
+  [data-body='space-warp'] .wp-streaks::after {
+    animation: none !important;
+  }
+  [data-body='space-warp'] .wp-card {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

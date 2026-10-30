@@ -1,0 +1,98 @@
+/*
+ * Hologram (family pedestal, kind `space-holo`): every card is a hologram standing on a beam of light in the section's
+ * hue, cast up from a small projector puck on the floor. Scan lines run over the card; the beam and the card flicker a
+ * little, each on its own clock (--t, --dl). With less motion the beam and the card stay steady (no flicker).
+ */
+[data-body='space-holo'] .pd-spot {
+  padding-block-end: 1.875rem;
+}
+[data-body='space-holo'] .pd-card {
+  border-color: color-mix(in srgb, var(--pd-neon) 70%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pd-neon) 9%, var(--card)), var(--card));
+  animation: pd-holo-hover var(--t, 6s) ease-in-out var(--dl, 0s) infinite;
+}
+[data-body='space-holo'] .pd-photo {
+  opacity: 0.94;
+}
+/* The scan lines over the whole card; taps pass through them. */
+[data-body='space-holo'] .pd-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(transparent 0 3px, color-mix(in srgb, var(--pd-neon) 14%, transparent) 3px 4px);
+  pointer-events: none;
+  animation: pd-holo-flicker calc(var(--t, 6s) * 0.7) steps(1, end) var(--dl, 0s) infinite;
+}
+/* The beam: a trapezoid of light from the puck up to the card. */
+[data-body='space-holo'] .pd-spot::before {
+  content: '';
+  position: absolute;
+  inset-inline: 8%;
+  inset-block: 30% 0.625rem;
+  clip-path: polygon(0 0, 100% 0, 64% 100%, 36% 100%);
+  background: linear-gradient(0deg, color-mix(in srgb, var(--pd-neon) 55%, transparent), transparent);
+  opacity: 0.7;
+  animation: pd-holo-beam 4s linear var(--dl, 0s) infinite;
+}
+/* The projector puck. */
+[data-body='space-holo'] .pd-spot::after {
+  content: '';
+  position: absolute;
+  inset-inline: 32%;
+  inset-block-end: 0.125rem;
+  block-size: 0.625rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--text) 85%, var(--pd-neon)), var(--pd-neon) 45%, transparent 72%);
+  box-shadow: 0 0 1rem var(--pd-neon);
+}
+
+@keyframes pd-holo-hover {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.4375rem);
+  }
+}
+@keyframes pd-holo-beam {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.85;
+  }
+  52% {
+    opacity: 0.4;
+  }
+  54% {
+    opacity: 0.8;
+  }
+}
+@keyframes pd-holo-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 0.55;
+  }
+  48% {
+    opacity: 1;
+  }
+}
+
+[data-body='space-holo'][data-still] .pd-card,
+[data-body='space-holo'][data-still] .pd-card::after,
+[data-body='space-holo'][data-still] .pd-spot::before {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-holo'] .pd-card,
+  [data-body='space-holo'] .pd-card::after,
+  [data-body='space-holo'] .pd-spot::before {
+    animation: none;
+  }
+}

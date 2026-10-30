@@ -1,0 +1,307 @@
+/*
+ * The Scroll Depth body (a browse shape of a template menu), drawn after the motion-dep mockup: a black gallery. A strip of
+ * plain words stays at the top (the lit one underlined); the featured dish is a huge framed photo with its name, price and
+ * add under it; every section is titled by its name in giant outlined letters that slide sideways as the page scrolls, over
+ * a two-across grid of tall frames (no card behind them: the photo, the name, then the price and a ringed add). Each photo
+ * is larger than its frame and shifts inside it as the page scrolls. Everything is scoped under [data-body='depth']. The
+ * colours are the template's own (`--bg`, `--text`, the accent on the lit chip and the sale chip); the outlined band is
+ * decoration over a real heading (its echo is aria-hidden). Logical properties only (RTL mirrors).
+ *
+ * The shift and the slide: the frame (and the band's holder) is a view-timeline and its picture (the band) an animation on
+ * it (a CSS scroll-driven animation, no script). A browser without them gets `--dp` (-1 to 1) from `useDepthShift` on the
+ * frames and bands in view. Less motion: the picture stays centred and the band still.
+ */
+[data-body='depth'] {
+  --dp-line: color-mix(in srgb, var(--text) 22%, transparent);
+  --dp-soft: color-mix(in srgb, var(--text) 72%, var(--bg));
+  /* The sticky strip's height, so a jumped-to section lands just below it. */
+  --nav-room: 3.25rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  --rim-add-bg: var(--bg);
+  --rim-add-ink: var(--text);
+  --rim-add-size: 1.875rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of chips (sticky: shared/shapes.css): plain words, the lit one underlined. */
+[data-body='depth'] .dp-strip-list {
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+}
+[data-body='depth'] .dp-chip {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem;
+  color: var(--dp-soft);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: box-shadow 160ms;
+}
+[data-body='depth'] .dp-chip[aria-current='true'] {
+  color: var(--text);
+  font-weight: 800;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+@media (hover: hover) {
+  [data-body='depth'] .dp-chip:hover:not([aria-current='true']) {
+    color: var(--text);
+  }
+}
+
+/* The hero: the featured dish, a huge frame, then the name, and the price with the add. */
+[data-body='depth'] .dp-hero {
+  padding: 0.5rem 0.75rem 0;
+}
+[data-body='depth'] .dp-hero[hidden] {
+  display: none;
+}
+[data-body='depth'] .dp-card.dp-hero-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  min-inline-size: 0;
+}
+[data-body='depth'] .dp-photo.dp-hero-photo {
+  grid-column: 1 / -1;
+  aspect-ratio: 2 / 1;
+}
+[data-body='depth'] .dp-hero-name {
+  grid-column: 1;
+  margin-block-start: 0.375rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+[data-body='depth'] .dp-hero-price {
+  grid-column: 1;
+  min-inline-size: 0;
+  color: var(--dp-soft);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+[data-body='depth'] .dp-hero-card .dp-hero-add {
+  position: static;
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  border: 1px solid var(--text);
+}
+
+/* A section: the band, then the frames. */
+[data-body='depth'] .dp-section {
+  padding-block-start: 0.25rem;
+  overflow-x: clip;
+}
+/*
+ * The band: the section's name in giant outlined letters, the echo of it running on past the screen's edge. Its holder is
+ * the view-timeline; the heading slides sideways (the other way in every other section) as it crosses the screen.
+ */
+[data-body='depth'] .dp-head {
+  overflow: clip;
+  view-timeline: --dp-band block;
+}
+[data-body='depth'] .dp-title {
+  display: block;
+  margin: 0 0 0.25rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 4rem;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1.2px color-mix(in srgb, var(--text) 62%, transparent);
+  transform: translateX(calc(var(--dp, 0) * var(--dir, 1) * 5rem));
+}
+@supports (animation-timeline: view()) {
+  [data-body='depth'] .dp-title {
+    animation: dp-slide linear both;
+    animation-timeline: --dp-band;
+  }
+}
+@keyframes dp-slide {
+  from {
+    transform: translateX(calc(var(--dir, 1) * -5rem));
+  }
+  to {
+    transform: translateX(calc(var(--dir, 1) * 5rem));
+  }
+}
+[data-body='depth'] .dp-title b {
+  display: none;
+}
+
+/* The gallery: three across on a phone, one wide card a row on a desktop. */
+[data-body='depth'] .dp-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 0.5rem;
+  margin: 0;
+  padding: 0 0.75rem;
+  list-style: none;
+}
+
+/* The hero stands in for its dish in the grid while it is shown (a section with only that dish keeps it). */
+[data-body='depth'][data-hero] .dp-card[data-lead] {
+  display: none;
+}
+
+/* A card: the whole card is the dish's tap area (shared/shapes.css); the frame on top, then the name, then the price row. */
+[data-body='depth'] .dp-card {
+  --tpl-ring-radius: 0.375rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  color: var(--text);
+}
+[data-body='depth'] .dp-frame {
+  min-inline-size: 0;
+}
+
+/* The frame: a clipped window; the picture inside is taller than it. */
+[data-body='depth'] .dp-photo {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 1 / 1.2;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  view-timeline: --dp-frame block;
+}
+/* The picture: 140% of the frame's height, centred; its shift is at most 14% of itself (about 20% of the frame). */
+[data-body='depth'] .dp-photo > :first-child {
+  inset-block: -20% auto;
+  block-size: 140%;
+  transform: translateY(calc(var(--dp, 0) * 14%));
+}
+@supports (animation-timeline: view()) {
+  [data-body='depth'] .dp-photo > :first-child {
+    animation: dp-shift linear both;
+    animation-timeline: --dp-frame;
+  }
+}
+@keyframes dp-shift {
+  from {
+    transform: translateY(-14%);
+  }
+  to {
+    transform: translateY(14%);
+  }
+}
+
+/* A discount on the frame's start corner; the add sits at the price row's end (the card is its positioned ancestor). */
+[data-body='depth'] .dp-off {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.375rem;
+  inset-inline-start: 0.375rem;
+}
+[data-body='depth'] .dp-card .dp-add {
+  z-index: 3;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  border: 1px solid var(--text);
+}
+
+/* The name (two lines at most), then the price in a softer ink; the add rings the price row's end. */
+[data-body='depth'] .dp-name {
+  grid-row: 2;
+  margin-block-start: 0.4375rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: start;
+}
+[data-body='depth'] .dp-card .dp-price {
+  grid-row: 3;
+  position: static;
+  align-self: start;
+  justify-self: start;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: 1.875rem;
+  padding-inline: 0 2.375rem;
+  color: var(--dp-soft);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+/* No transform on the card: it would trap the add button under the tap area. Feedback is the name. */
+@media (hover: hover) {
+  [data-body='depth'] .dp-card:hover .dp-name {
+    text-decoration: underline;
+  }
+}
+[data-body='depth'] .dp-card:active .dp-name {
+  color: var(--accent);
+}
+
+/* A wide screen: one wide card a row, a landscape frame, the name and price under it. */
+@media (min-width: 640px) {
+  [data-body='depth'] .dp-strip-list,
+  [data-body='depth'] main {
+    max-inline-size: 44rem;
+    margin-inline: auto;
+  }
+  [data-body='depth'] .dp-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+  [data-body='depth'] .dp-photo,
+  [data-body='depth'] .dp-photo.dp-hero-photo {
+    aspect-ratio: 16 / 9;
+  }
+  [data-body='depth'] .dp-name {
+    margin-block-start: 0.625rem;
+    font-size: 1.125rem;
+  }
+  [data-body='depth'] .dp-card .dp-price {
+    font-size: 1rem;
+  }
+  [data-body='depth'] .dp-title {
+    font-size: 6.5rem;
+  }
+  [data-body='depth'] .dp-hero-name {
+    font-size: 1.5rem;
+  }
+}
+
+/* Less motion: the picture stays centred, the band still and the chip does not slide. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='depth'] .dp-photo > :first-child,
+  [data-body='depth'] .dp-title {
+    animation: none;
+    transform: none;
+  }
+  [data-body='depth'] .dp-chip {
+    transition: none;
+  }
+}
+[data-body='depth'][data-reduced] .dp-photo > :first-child,
+[data-body='depth'][data-reduced] .dp-title {
+  animation: none;
+  transform: none;
+}

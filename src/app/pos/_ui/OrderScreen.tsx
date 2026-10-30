@@ -1,24 +1,32 @@
 'use client';
 
-import { ArrowLeft, ArrowRightLeft, Ban, Percent, ReceiptText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, Search, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { useMemo, useState, type CSSProperties } from 'react';
 import {
   addPosLine,
   cancelPosLine,
   cancelPosOrder,
+  mergePosOrders,
   movePosOrderToTable,
   requestPosBill,
   sendPosToKitchen,
   setPosInvoiceDiscount,
   updatePosLine,
 } from '@/app/studio/_actions/pos';
+import type { Approver } from '@/lib/pos-approval';
 import { formatNumber } from '@/lib/pos-format';
+import { evenGroups, partTotalOf, toggleLine, unpaidLineIds } from '@/lib/pos-split';
+import type { Shortcut } from '@/lib/pos-shortcuts';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
+import { offerPerUnit } from '@/server/domain/pos/line-offer';
+import { productByBarcode } from '@/server/domain/pos/scan';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
+import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
@@ -28,11 +36,18 @@ import { EmptyState } from '@/studio/ui/EmptyState';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
+import { ApprovalFields, approvalOf, DiscountReasonFields } from './ApprovalFields';
 import { useMoney } from './money';
+import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
+import { usePrint } from './print/PrintProvider';
+import { useBarcodeScanner } from './use-barcode-scanner';
+import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
+
+const HUES = [28, 160, 40, 8, 330, 200, 270];
 
 export interface OrderCan {
   discount: boolean;
@@ -46,7 +61,15 @@ export interface FreeTable {
   areaName: string;
 }
 
-type Dialogs = 'none' | 'pay' | 'invoiceDiscount' | 'cancelOrder' | 'move' | { line: OrderLineView; kind: 'cancel' | 'discount' };
+/** Another table's open order that this one can be merged into. */
+export interface MergeTarget {
+  orderId: string;
+  version: number;
+  number: number;
+  areaName: string;
+}
+
+type Dialogs = 'none' | 'pay' | 'paySelected' | 'invoiceDiscount' | 'cancelOrder' | 'move' | 'merge' | { line: OrderLineView; kind: 'cancel' | 'discount' };
 
 export interface DeliveryChoices {
   zones: ZoneRow[];
@@ -58,13 +81,19 @@ export function OrderScreen({
   catalog,
   can,
   freeTables,
+  mergeTargets = [],
   delivery,
+  approvers,
   initialPaying = false,
 }: {
   order: OrderView;
   catalog: TillCatalog | null;
   can: OrderCan;
+  /** Managers who can approve a cashier's discount or cancel; null when the person needs no approval. */
+  approvers: Approver[] | null;
   freeTables: FreeTable[];
+  /** Other tables with an open order, to merge this one into. */
+  mergeTargets?: MergeTarget[];
   delivery: DeliveryChoices;
   /** Open on the payment step (the board's "Pay", `?pay=1`). Ignored without the payment permission or a live line. */
   initialPaying?: boolean;
@@ -74,13 +103,15 @@ export function OrderScreen({
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
-  const [tab, setTab] = useState<'menu' | 'order'>('menu');
+  const { printKitchenRound } = usePrint();
+  const [searching, setSearching] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sheet, setSheet] = useState<TillProduct | null>(null);
   const [dialog, setDialog] = useState<Dialogs>(() => (initialPaying && can.pay && order.lines.some((line) => !line.cancelled) ? 'pay' : 'none'));
 
   const fallback = catalog?.defaultLocale ?? 'en';
+  const offerFor = useProductOffer(catalog);
   const products = useMemo(() => (catalog ? visibleProducts(catalog, categoryId, search) : []), [catalog, categoryId, search]);
   // With every category showing (and no search), the menu is cut into one titled section per category.
   const sections = useMemo(() => {
@@ -90,7 +121,22 @@ export function OrderScreen({
       .map((category) => ({ id: category.id as string | null, label: pickName(category.names, locale, fallback) as string | null, products: products.filter((product) => product.categoryId === category.id) }))
       .filter((section) => section.products.length > 0);
   }, [catalog, categoryId, search, products, locale, fallback]);
+  /** A tint per category, so a dish without a picture still reads as its group (the same hue in every visit). */
+  const hueOf = (categoryId: string | null) => {
+    const index = catalog ? [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder).findIndex((category) => category.id === categoryId) : -1;
+    return HUES[(index < 0 ? 0 : index) % HUES.length];
+  };
   const liveLines = order.lines.filter((line) => !line.cancelled);
+  // Split bill: the guest's lines are ticked and paid on their own; the share includes a part of the discount, service and tax.
+  const [splitting, setSplitting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const stillUnpaid = unpaidLineIds(order.lines);
+  const picked = selected.filter((id) => stillUnpaid.includes(id));
+  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked, order.roundingStep);
+  const leaveSplit = () => {
+    setSplitting(false);
+    setSelected([]);
+  };
   /** How many of each product are on the order now, for the count on its button. */
   const onOrder = useMemo(() => {
     const counts = new Map<string, number>();
@@ -122,16 +168,49 @@ export function OrderScreen({
     else add(product, { variantId: product.variants[0]?.id, optionIds: [], quantity: 1, note: '' });
   };
 
+  // A scanned barcode adds the product like a tap on it; a code nobody has, or a sold-out product, says so.
+  useBarcodeScanner((code) => {
+    const id = catalog ? productByBarcode(catalog.products, code) : null;
+    const scanned = catalog?.products.find((p) => p.id === id);
+    if (!scanned) toast.error(t('pos.scan.unknown'));
+    else if (!scanned.available) toast.error(t('pos.scan.soldOut'));
+    else tapProduct(scanned);
+  }, canChange && dialog === 'none' && sheet === null);
+
   const reasonOf = (form: FormData) => String(form.get('reason') ?? '').trim();
   const failed = { message: t('pos.order.actionRefused') };
+  /** A refusal for a dialog: a manager's approval that failed goes under the PIN field, the rest as before. */
+  const problemOf = (error: Parameters<typeof describeFailure>[2], field: 'reason' | 'value'): { message?: string; fields?: Record<string, string> } => {
+    if (error.code === 'FORBIDDEN') return { fields: { approvalPin: describeFailure(t, locale, error).message } };
+    if (error.fields?.note) return { fields: { note: error.fields.note } };
+    return error.fields?.[field] ? { fields: { [field]: error.fields[field] } } : failed;
+  };
+
+  const onShortcut = (shortcut: Shortcut) => {
+    if (shortcut === 'search') {
+      setSearching(true);
+      // On a phone the search box is on screen only once opened, so focus it on the next frame.
+      requestAnimationFrame(() => document.getElementById('pos-menu-search')?.focus());
+    } else if (shortcut === 'pay') {
+      if (can.pay && canChange && stillUnpaid.length > 0 && dialog === 'none' && !pending) setDialog('pay');
+    } else if (dialog !== 'none') {
+      setDialog('none');
+    } else if (splitting) {
+      leaveSplit();
+    } else if (search !== '') {
+      setSearch('');
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-14 place-items-center rounded-2xl border border-line bg-raised text-text hover:bg-hover">
+    <div className="flex flex-col gap-3 px-4 pt-3 max-lg:min-h-[calc(100dvh-4.5rem)] max-lg:pb-0 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+      <Shortcuts onShortcut={onShortcut} />
+      <p className="hidden text-sm text-muted lg:block">{t('pos.shortcuts.help')}</p>
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
+        <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-12 place-items-center rounded-2xl border sm:size-14 border-line bg-raised text-text hover:bg-hover">
           <ArrowLeft size={26} aria-hidden className="rtl:rotate-180" />
         </Link>
-        <h1 className="text-3xl font-bold sm:text-4xl">
+        <h1 className="text-2xl font-bold sm:text-4xl">
           {order.offPremise
             ? t(order.kind === 'DELIVERY' ? 'pos.offp.headingDelivery' : 'pos.offp.headingTakeaway', { n: formatNumber(order.number), q: formatNumber(order.offPremise.queueNumber) })
             : order.tableNumber !== null
@@ -141,39 +220,38 @@ export function OrderScreen({
         <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-status' : 'bg-hover text-text')}>
           {t(`pos.order.status.${order.status}`)}
         </span>
-        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted max-sm:hidden">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        <button
+          type="button"
+          aria-label={t('pos.order.search')}
+          aria-pressed={searching}
+          onClick={() => {
+            setSearching((now) => !now);
+            requestAnimationFrame(() => document.getElementById('pos-menu-search-phone')?.focus());
+          }}
+          className={cx('ms-auto grid size-12 place-items-center rounded-xl border lg:hidden', searching ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text')}
+        >
+          <Search size={22} aria-hidden />
+        </button>
         {canChange && can.cancel ? (
-          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} className="ms-auto inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-base font-semibold text-danger hover:bg-hover disabled:opacity-60">
+          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} aria-label={t('pos.order.cancelOrder')} className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold text-danger lg:ms-auto hover:bg-hover disabled:opacity-60 sm:px-4">
             <Ban size={20} aria-hidden />
-            {t('pos.order.cancelOrder')}
+            <span className="hidden sm:inline">{t('pos.order.cancelOrder')}</span>
           </button>
         ) : null}
       </header>
 
       <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
-      <div role="tablist" className="flex gap-1 lg:hidden">
-        {(['menu', 'order'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cx('min-h-12 flex-1 rounded-md border text-base font-medium', tab === key ? 'border-ink bg-ink text-on-ink' : 'border-line-strong text-text')}
-          >
-            {key === 'menu' ? t('pos.order.tabMenu') : `${t('pos.order.tabOrder')} (${formatNumber(itemCount)})`}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
-        <section aria-label={t('pos.order.tabMenu')} className={cx('flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0', tab === 'order' && 'hidden lg:flex')}>
+      <div className="pos-order-grid grid gap-4 max-lg:flex-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section aria-label={t('pos.order.tabMenu')} className={cx('pos-menu hidden min-w-0 flex-col gap-3 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0')}>
           {!catalog ? (
             <Alert>{t('pos.order.noCatalog')}</Alert>
           ) : (
             <>
+              <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 pt-1 pb-2 sm:-mx-8 sm:px-8 lg:static lg:m-0 lg:bg-transparent lg:p-0">
               <Input
+                id="pos-menu-search"
                 type="search"
                 size="lg"
                 value={search}
@@ -181,7 +259,7 @@ export function OrderScreen({
                 placeholder={t('pos.order.search')}
                 aria-label={t('pos.order.search')}
               />
-              <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1 overflow-x-auto pb-1">
+              <div role="tablist" aria-label={t('pos.order.categories')} className="pos-cats flex gap-1 overflow-x-auto pb-1">
                 {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
                   <button
                     key={category.id ?? 'all'}
@@ -189,6 +267,7 @@ export function OrderScreen({
                     role="tab"
                     aria-selected={categoryId === category.id}
                     onClick={() => setCategoryId(category.id)}
+                    style={{ '--hue': category.id ? hueOf(category.id) : 160 } as CSSProperties}
                     className={cx(
                       'min-h-12 shrink-0 rounded-full border px-5 text-base font-semibold whitespace-nowrap',
                       categoryId === category.id ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text hover:bg-hover',
@@ -198,6 +277,7 @@ export function OrderScreen({
                   </button>
                 ))}
               </div>
+              </div>
               {products.length === 0 ? (
                 <EmptyState title={t('pos.order.noProducts')} />
               ) : (
@@ -205,30 +285,61 @@ export function OrderScreen({
                   {sections.map((section) => (
                     <section key={section.id ?? 'all'} aria-label={section.label ?? undefined}>
                       {section.label ? <h2 className="mb-3 text-lg font-bold text-muted">{section.label}</h2> : null}
-                      <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                      <ul className="pos-tiles grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
+                          const offer = offerFor(product);
                           return (
-                            <li key={product.id} className="flex">
+                            <li key={product.id} className="flex gap-2">
                               <button
                                 type="button"
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  's-keep-radius relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
-                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
+                                  'pos-tile relative flex min-h-[4.5rem] w-full flex-row items-center overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:min-h-28 sm:flex-col sm:items-start sm:rounded-3xl',
+                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : product.image ? 'border-line' : 'border-[hsl(var(--hue)_35%_80%)]',
+                                  'max-sm:border-s-[6px] max-sm:border-s-[hsl(var(--hue)_65%_48%)]',
                                 )}
+                                style={{ '--hue': hueOf(product.categoryId), ...(product.image ? {} : { background: `hsl(${hueOf(product.categoryId)} 60% 95%)` }) } as CSSProperties}
                               >
-                                <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
+                                {product.image ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- library renditions are already sized; the blur placeholder fills in while it loads
+                                  <img
+                                    src={product.image.url}
+                                    alt=""
+                                    loading="lazy"
+                                    decoding="async"
+                                    draggable={false}
+                                    style={product.image.placeholder ? { backgroundImage: `url(${product.image.placeholder})`, backgroundSize: 'cover' } : undefined}
+                                    className={cx('pos-tile-img m-2 size-16 shrink-0 rounded-xl bg-hover object-cover sm:m-0 sm:aspect-[4/3] sm:size-auto sm:w-full sm:rounded-none', !product.available && 'grayscale')}
+                                  />
+                                ) : null}
+                                <span className="pos-tile-body flex w-full flex-1 flex-col items-start gap-1.5 p-3 sm:gap-2 sm:p-4">
+                                <span className="line-clamp-2 text-base leading-snug font-bold text-text sm:text-lg">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
-                                  <span className="text-xl font-bold text-text">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>
+                                  <span className="flex flex-wrap items-baseline gap-x-2">
+                                    <span className="text-lg font-bold text-text sm:text-xl">{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                                    {product.available && offer ? (
+                                      <>
+                                        <span className="text-sm text-muted line-through">{money(product.price)}</span>
+                                        <span data-testid={`offer-cue-${product.id}`} className="rounded-full bg-ink px-2 text-sm font-bold text-on-ink">
+                                          −{formatNumber(offer.percent)}%
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </span>
                                   {count > 0 ? (
                                     <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="grid min-w-8 place-items-center rounded-full bg-ink px-2 text-base leading-8 font-bold text-on-ink">
                                       {formatNumber(count)}
                                     </span>
                                   ) : needsSheet(product) ? (
                                     <SlidersHorizontal size={18} aria-hidden className="text-muted" />
+                                  ) : product.available && canChange ? (
+                                    <span aria-hidden className="grid size-8 place-items-center rounded-full border border-line-strong bg-raised text-xl leading-none text-muted sm:hidden">
+                                      +
+                                    </span>
                                   ) : null}
+                                </span>
                                 </span>
                               </button>
                             </li>
@@ -243,7 +354,7 @@ export function OrderScreen({
           )}
         </section>
 
-        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-[28px] border border-line bg-raised p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0', tab === 'menu' && 'hidden lg:flex')}>
+        <section aria-label={t('pos.order.tabOrder')} className={cx('pos-ticket flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0')}>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-2xl font-bold">{t('pos.calm.ticket')}</h2>
             <span className="text-base text-muted">{t('pos.calm.items', { n: formatNumber(itemCount) })}</span>
@@ -255,24 +366,39 @@ export function OrderScreen({
               {order.lines.map((line) => (
                 <li key={line.id} className="flex flex-col gap-2 py-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    {splitting && !line.cancelled && !line.paid ? (
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(line.id)}
+                        onChange={() => setSelected((now) => toggleLine(now, line.id))}
+                        aria-label={t('pos.split.pick', { name: line.name })}
+                        className="mt-1 size-7 shrink-0 accent-[var(--color-ink)]"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
                       <p className={cx('text-lg font-bold', line.cancelled ? 'text-muted line-through' : 'text-text')}>
                         {line.name}
                         {line.quantity > 1 && !canChange ? <span className="ms-2 text-muted">× {formatNumber(line.quantity)}</span> : null}
                       </p>
                       {line.options.length > 0 ? <p className="text-sm text-muted">{line.options.map((o) => o.name).join(' · ')}</p> : null}
                       {line.note ? <p className="text-sm text-muted">“{line.note}”</p> : null}
+                      {line.offerPerUnit > 0 ? (
+                        <p data-testid="line-offer" className="text-sm text-muted">
+                          {t('pos.requests.offer')}: {money(-line.offerPerUnit * line.quantity)}
+                        </p>
+                      ) : null}
                       {line.discount ? (
                         <p className="text-sm text-muted">
                           {t('pos.order.lineDiscount')}: {line.discount.kind === 'PERCENT' ? `${formatNumber(line.discount.value)}%` : money(line.discount.value)}
                         </p>
                       ) : null}
                       {line.cancelled ? <p className="text-sm text-danger">{t('pos.order.cancelledBecause', { reason: line.cancelReason ?? '' })}</p> : null}
+                      {line.paid ? <p className="text-sm font-semibold text-success">{t('pos.split.linePaid')}</p> : null}
                       {!line.cancelled && line.sent ? <p className="text-sm text-muted">{line.ready ? t('pos.order.lineReady') : t('pos.order.lineSent')}</p> : null}
                     </div>
                     <span className={cx('shrink-0 text-lg font-bold', line.cancelled && 'text-muted line-through')}>{money(line.lineTotal)}</span>
                   </div>
-                  {!line.cancelled && canChange ? (
+                  {!line.cancelled && !line.paid && !splitting && canChange ? (
                     <div className="flex flex-wrap items-center gap-2">
                       {line.sent ? (
                         <span className="text-base font-medium" dir="ltr">
@@ -309,45 +435,90 @@ export function OrderScreen({
             {order.totals.service > 0 ? <Row label={t('pos.totals.service')} value={money(order.totals.service)} /> : null}
             {order.totals.tax > 0 ? <Row label={t('pos.totals.tax')} value={money(order.totals.tax)} /> : null}
             {order.totals.deliveryFee > 0 ? <Row label={t('pos.totals.deliveryFee')} value={money(order.totals.deliveryFee)} /> : null}
+            {order.totals.rounding !== 0 ? <Row label={t('pos.totals.rounding')} value={`${order.totals.rounding > 0 ? '+' : '−'} ${money(Math.abs(order.totals.rounding))}`} /> : null}
             <div className="mt-2 flex items-baseline justify-between gap-3 rounded-2xl bg-hover px-4 py-3">
               <dt className="text-lg font-bold">{t('pos.calm.finalTotal')}</dt>
               <dd className="text-3xl font-bold tracking-tight">{money(order.totals.total)}</dd>
             </div>
+            {order.parts.length > 0 ? (
+              <>
+                <Row label={t('pos.split.paidSoFar')} value={money(order.parts.reduce((sum, part) => sum + part.total, 0))} />
+                <div className="flex items-baseline justify-between gap-3 px-4">
+                  <dt className="text-base font-semibold">{t('pos.split.leftToPay')}</dt>
+                  <dd className="text-2xl font-bold">{money(order.leftToPay)}</dd>
+                </div>
+              </>
+            ) : null}
           </dl>
 
           {canChange ? (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
               {kitchenOn ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="max-lg:hidden col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}
               {can.discount ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
                   <Percent size={20} aria-hidden />
                   {t('pos.calm.invoiceDiscount')}
                 </button>
               ) : null}
               {order.tableId ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
                   <ArrowRightLeft size={20} aria-hidden />
                   {t('pos.calm.moveTo')}
                 </button>
               ) : null}
+              {order.tableId && order.parts.length === 0 && mergeTargets.length > 0 ? (
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('merge')}>
+                  <Merge size={20} aria-hidden />
+                  {t('pos.merge.button')}
+                </button>
+              ) : null}
               {order.status !== 'BILL_REQUESTED' ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
                   <ReceiptText size={20} aria-hidden />
                   {t('pos.order.bill')}
                 </button>
               ) : null}
               {kitchenOn ? (
-                <a className="inline-flex min-h-12 items-center justify-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
+                <a className="col-span-2 inline-flex min-h-12 items-center justify-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
                   {t('pos.order.printTicket')}
                 </a>
               ) : null}
-              {can.pay ? (
-                <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
+              {can.pay && stillUnpaid.length > 1 ? (
+                <button
+                  type="button"
+                  aria-pressed={splitting}
+                  className={cx('col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-base font-semibold disabled:opacity-60', splitting ? 'border-ink bg-ink text-on-ink' : 'border-line bg-hover text-text hover:bg-pressed')}
+                  disabled={pending}
+                  onClick={() => (splitting ? leaveSplit() : setSplitting(true))}
+                >
+                  <Users size={20} aria-hidden />
+                  {splitting ? t('pos.split.cancel') : t('pos.split.start')}
+                </button>
+              ) : null}
+              {splitting ? (
+                <>
+                  <div className="col-span-2 flex flex-wrap items-center gap-2">
+                    <span className="text-base text-muted">{t('pos.split.evenly')}</span>
+                    {[2, 3, 4].map((guests) => (
+                      <button key={guests} type="button" className="min-h-12 rounded-md border border-line-strong bg-raised px-4 text-base font-medium hover:bg-hover" onClick={() => setSelected(evenGroups(order.lines, guests)[0] ?? [])}>
+                        {formatNumber(guests)}
+                      </button>
+                    ))}
+                  </div>
+                  {can.pay ? (
+                    <Button variant="primary" size="lg" className="col-span-2 min-h-16 w-full text-xl" disabled={pending || picked.length === 0} onClick={() => setDialog('paySelected')}>
+                      {t('pos.split.paySelected')} · {money(pickedTotal)}
+                    </Button>
+                  ) : null}
+                </>
+              ) : can.pay ? (
+                <Button variant="primary" size="lg" className={cx('col-span-2 min-h-16 w-full text-xl', liveLines.length > 0 && 'max-lg:hidden')} disabled={pending || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
                   {t('pos.calm.payButton')}
+                  {order.parts.length > 0 ? ` · ${money(order.leftToPay)}` : ''}
                 </Button>
               ) : null}
             </div>
@@ -355,9 +526,87 @@ export function OrderScreen({
         </section>
       </div>
 
-      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} />
+      {/* Phones: the dishes, the categories and the two big actions sit at the thumb, under the ticket. */}
+      <div className="sticky bottom-0 z-30 -mx-4 flex flex-col gap-2 border-t border-line bg-surface px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:-mx-8 lg:hidden">
+        {catalog ? (
+          <>
+            {searching ? (
+              <Input id="pos-menu-search-phone" type="search" size="lg" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('pos.order.search')} aria-label={t('pos.order.search')} />
+            ) : null}
+            {products.length === 0 ? (
+              <p className="py-4 text-center text-base text-muted">{t('pos.order.noProducts')}</p>
+            ) : (
+              <ul className="grid max-h-[9.75rem] grid-cols-3 gap-2 overflow-y-auto overscroll-contain">
+                {products.map((product) => {
+                  const count = onOrder.get(product.id) ?? 0;
+                  const offer = offerFor(product);
+                  return (
+                    <li key={product.id} className="flex">
+                      <button
+                        type="button"
+                        disabled={!canChange || pending || !product.available}
+                        onClick={() => tapProduct(product)}
+                        className={cx(
+                          'relative flex min-h-[4.5rem] w-full flex-col justify-between rounded-2xl border p-2.5 text-start shadow-sm disabled:opacity-60',
+                          count > 0 ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text',
+                        )}
+                      >
+                        <span className="line-clamp-2 text-sm leading-tight font-bold">{pickName(product.names, locale, fallback)}</span>
+                        <span className={cx('text-sm font-bold', count > 0 ? 'text-on-ink' : 'text-muted')}>{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                        {count > 0 ? (
+                          <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="absolute -top-1.5 -inset-e-1.5 grid min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs leading-6 font-bold text-text">
+                            {formatNumber(count)}
+                          </span>
+                        ) : needsSheet(product) ? (
+                          <SlidersHorizontal size={14} aria-hidden className="absolute top-2 inset-e-2 text-muted" />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+              {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
+                <button
+                  key={category.id ?? 'all'}
+                  type="button"
+                  role="tab"
+                  aria-selected={categoryId === category.id}
+                  onClick={() => setCategoryId(category.id)}
+                  className={cx('min-h-12 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap', categoryId === category.id ? 'bg-ink text-on-ink' : 'bg-hover text-text')}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {canChange && !splitting ? (
+          <div className="flex gap-2">
+            {kitchenOn ? (
+              <button
+                type="button"
+                disabled={pending || unsent.length === 0}
+                onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}
+                className="min-h-14 min-w-28 rounded-2xl border border-line-strong bg-hover px-3 text-base font-bold text-text disabled:opacity-60"
+              >
+                {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
+              </button>
+            ) : null}
+            {can.pay ? (
+              <Button variant="primary" size="lg" className="min-h-14 flex-1 text-lg" disabled={pending || liveLines.length === 0 || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
+                {t('pos.calm.payButton')} · {money(order.parts.length > 0 ? order.leftToPay : order.totals.total)}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
-      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} methods={order.paymentMethods} />
+      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
+
+      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} usd={order.usd} />
+      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} usd={order.usd} lineIds={picked} />
 
       <ConfirmDialog
         open={dialog === 'cancelOrder'}
@@ -366,18 +615,21 @@ export function OrderScreen({
         body={t('pos.order.cancelOrderBody')}
         confirmLabel={t('pos.order.cancelOrder')}
         onConfirm={async (form) => {
-          const result = await call(() => cancelPosOrder({ orderId: order.id, expectedVersion: order.version, reason: reasonOf(form) }), { quiet: true });
+          const result = await call(() => cancelPosOrder({ orderId: order.id, expectedVersion: order.version, reason: reasonOf(form), approval: approvalOf(form) }), { quiet: true });
           if (result.ok) {
             router.push('/pos/tables');
             return true;
           }
-          return result.error.fields?.reason ? { fields: { reason: result.error.fields.reason } } : failed;
+          return problemOf(result.error, 'reason');
         }}
       >
         {(errors) => (
-          <Field label={t('pos.order.reason')} error={errors.reason}>
-            <Input name="reason" size="lg" maxLength={300} />
-          </Field>
+          <div className="flex flex-col gap-3">
+            <Field label={t('pos.order.reason')} error={errors.reason}>
+              <Input name="reason" size="lg" maxLength={300} />
+            </Field>
+            {approvers && liveLines.length > 0 ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
+          </div>
         )}
       </ConfirmDialog>
 
@@ -389,14 +641,17 @@ export function OrderScreen({
         confirmLabel={t('pos.order.cancelLine')}
         onConfirm={async (form) => {
           if (typeof dialog !== 'object') return true;
-          const result = await call(() => cancelPosLine({ lineId: dialog.line.id, expectedVersion: order.version, reason: reasonOf(form) }), { quiet: true });
-          return result.ok ? true : result.error.fields?.reason ? { fields: { reason: result.error.fields.reason } } : failed;
+          const result = await call(() => cancelPosLine({ lineId: dialog.line.id, expectedVersion: order.version, reason: reasonOf(form), approval: approvalOf(form) }), { quiet: true });
+          return result.ok ? true : problemOf(result.error, 'reason');
         }}
       >
         {(errors) => (
-          <Field label={t('pos.order.reason')} error={errors.reason}>
-            <Input name="reason" size="lg" maxLength={300} />
-          </Field>
+          <div className="flex flex-col gap-3">
+            <Field label={t('pos.order.reason')} error={errors.reason}>
+              <Input name="reason" size="lg" maxLength={300} />
+            </Field>
+            {approvers && typeof dialog === 'object' && dialog.line.sent ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
+          </div>
         )}
       </ConfirmDialog>
 
@@ -405,15 +660,18 @@ export function OrderScreen({
         title={dialog === 'invoiceDiscount' ? t('pos.order.invoiceDiscount') : t('pos.order.discount')}
         current={dialog === 'invoiceDiscount' ? order.invoiceDiscount : typeof dialog === 'object' ? dialog.line.discount : null}
         onClose={() => setDialog('none')}
-        onSave={async (discount) => {
+        approvers={approvers}
+        onSave={async (discount, form) => {
+          const given = discount && { ...discount, reason: String(form.get('reason') ?? 'MANAGER_DECISION'), note: String(form.get('note') ?? '').trim() || undefined };
+          const approval = approvalOf(form);
           const result = await call(
             () =>
               typeof dialog === 'object'
-                ? updatePosLine({ lineId: dialog.line.id, expectedVersion: order.version, discount })
-                : setPosInvoiceDiscount({ orderId: order.id, expectedVersion: order.version, discount }),
+                ? updatePosLine({ lineId: dialog.line.id, expectedVersion: order.version, discount: given, approval })
+                : setPosInvoiceDiscount({ orderId: order.id, expectedVersion: order.version, discount: given, approval }),
             { quiet: true },
           );
-          return result.ok ? true : result.error.fields?.value ? { fields: { value: result.error.fields.value } } : failed;
+          return result.ok ? true : problemOf(result.error, 'value');
         }}
       />
 
@@ -430,6 +688,26 @@ export function OrderScreen({
       >
         <Field label={t('pos.order.toTable')}>
           <Select name="tableId" size="lg" options={freeTables.map((table) => ({ value: table.id, label: `${formatNumber(table.number)} · ${table.areaName}` }))} />
+        </Field>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog === 'merge'}
+        onOpenChange={(open) => !open && setDialog('none')}
+        title={t('pos.merge.title')}
+        body={t('pos.merge.body')}
+        confirmLabel={t('pos.merge.confirm')}
+        tone="primary"
+        onConfirm={async (form) => {
+          const target = mergeTargets.find((x) => x.orderId === String(form.get('intoOrderId') ?? ''));
+          if (!target) return failed;
+          const result = await call(() => mergePosOrders({ fromOrderId: order.id, intoOrderId: target.orderId, fromVersion: order.version, intoVersion: target.version }), { quiet: true });
+          if (!result.ok) return failed;
+          router.push(`/pos/orders/${target.orderId}`);
+          return true;
+        }}
+      >
+        <Field label={t('pos.merge.into')}>
+          <Select name="intoOrderId" size="lg" options={mergeTargets.map((target) => ({ value: target.orderId, label: `${formatNumber(target.number)} · ${target.areaName}` }))} />
         </Field>
       </ConfirmDialog>
     </div>
@@ -452,14 +730,17 @@ function DiscountDialog({
   open,
   title,
   current,
+  approvers,
   onClose,
   onSave,
 }: {
   open: boolean;
   title: string;
   current: Discount;
+  /** Managers who can approve a cashier's discount; null when the person needs no approval. */
+  approvers: Approver[] | null;
   onClose: () => void;
-  onSave: (discount: Discount) => Promise<true | { message?: string; fields?: Record<string, string> }>;
+  onSave: (discount: Discount, form: FormData) => Promise<true | { message?: string; fields?: Record<string, string> }>;
 }) {
   const t = useT();
   return (
@@ -474,20 +755,24 @@ function DiscountDialog({
       onConfirm={(form) => {
         const raw = String(form.get('value') ?? '').trim();
         const kind = form.get('kind') === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
-        if (raw === '') return onSave(null);
+        if (raw === '') return onSave(null, form);
         const value = typedAmount(raw);
         if (value === null) return Promise.resolve({ fields: { value: t('pos.order.discountDigits') } });
-        return onSave({ kind, value });
+        return onSave({ kind, value }, form);
       }}
     >
       {(errors) => (
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label={t('pos.order.discountKind')} className="w-40">
-            <Select name="kind" size="lg" defaultValue={current?.kind ?? 'PERCENT'} options={[{ value: 'PERCENT', label: t('pos.order.percent') }, { value: 'AMOUNT', label: t('pos.order.amount') }]} />
-          </Field>
-          <Field label={t('pos.order.discountValue')} error={errors.value} className="w-40">
-            <Input name="value" size="lg" inputMode="numeric" dir="ltr" defaultValue={current ? String(current.value) : ''} />
-          </Field>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('pos.order.discountKind')} className="w-40">
+              <Select name="kind" size="lg" defaultValue={current?.kind ?? 'PERCENT'} options={[{ value: 'PERCENT', label: t('pos.order.percent') }, { value: 'AMOUNT', label: t('pos.order.amount') }]} />
+            </Field>
+            <Field label={t('pos.order.discountValue')} error={errors.value} className="w-40">
+              <Input name="value" size="lg" inputMode="numeric" dir="ltr" defaultValue={current ? String(current.value) : ''} />
+            </Field>
+          </div>
+          <DiscountReasonFields errors={errors} />
+          {approvers ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
         </div>
       )}
     </ConfirmDialog>

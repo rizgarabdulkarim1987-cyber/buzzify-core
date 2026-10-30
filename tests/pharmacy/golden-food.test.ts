@@ -20,7 +20,7 @@ const POS_QUERIES = { actor: 4, gate: 2 };
 const SET_1: string[] = ['audit.view', 'brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.delete', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'people.manage', 'permissions.manage', 'platform.settings', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.create', 'restaurant.delete', 'restaurant.edit', 'restaurant.status'];
 const SET_2: string[] = ['audit.view', 'brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.delete', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'people.manage', 'permissions.manage', 'plans.manage', 'platform.settings', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.create', 'restaurant.delete', 'restaurant.edit', 'restaurant.status'];
 const SET_3: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit'];
-const SET_4: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit', 'restaurant.status'];
+const SET_4: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit', 'restaurant.status'];
 const SET_5: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.rollback', 'publish.schedule', 'restaurant.edit'];
 const SET_6: string[] = ['content.availability', 'content.edit', 'content.media', 'content.prices', 'prices.bulk', 'publish.now'];
 const SET_7: string[] = ['content.availability', 'content.edit', 'content.media', 'content.prices', 'menu.create', 'publish.now', 'publish.schedule'];
@@ -136,6 +136,14 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.cashierOverview',
       icon: 'store'
     },
+    // Added deliberately on 2026-10-27 (feat(studio): Pharmacy section in the sidebar): the Super Admin's one new
+    // item. The owner's and the designer's navigation below are unchanged.
+    {
+      key: 'pharmacies',
+      href: '/studio/pharmacies',
+      labelKey: 'nav.pharmacies',
+      icon: 'pharmacy'
+    },
     {
       key: 'menus',
       href: '/studio/menus',
@@ -149,12 +157,6 @@ describe('golden: the Studio navigation', () => {
       icon: 'media'
     },
     {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    },
-    {
       key: 'people',
       href: '/studio/people',
       labelKey: 'nav.people',
@@ -166,6 +168,13 @@ describe('golden: the Studio navigation', () => {
       href: '/studio/announcements',
       labelKey: 'nav.announcements',
       icon: 'announcements'
+    },
+    // Added by the menu intro feature (docs/superpowers/specs/2026-10-29-menu-intro-design.md): the Super Admin's adverts page.
+    {
+      key: 'platformIntro',
+      href: '/studio/platform/intro',
+      labelKey: 'nav.platformIntro',
+      icon: 'media'
     },
     {
       key: 'activity',
@@ -185,13 +194,18 @@ describe('golden: the Studio navigation', () => {
       [
     {
       key: 'myRestaurant',
-      href: '/studio/menus/m1',
+      href: '/studio/restaurants/r1',
       labelKey: 'nav.myRestaurant',
       icon: 'store',
-      match: [
-        '/studio/restaurants/r1',
-        '/studio/menus/m1'
-      ]
+      match: ['/studio/restaurants/r1'],
+      exclude: ['/studio/restaurants/r1/menus']
+    },
+    {
+      key: 'myMenu',
+      href: '/studio/menus/m1',
+      labelKey: 'nav.myMenu',
+      icon: 'menus',
+      match: ['/studio/restaurants/r1/menus', '/studio/menus/m1']
     }
   ],
     );
@@ -222,12 +236,6 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.media',
       icon: 'media'
     },
-    {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    }
   ],
     );
   });

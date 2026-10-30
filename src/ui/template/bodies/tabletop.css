@@ -1,0 +1,265 @@
+/*
+ * The Table from Above body (a browse shape of a template menu): a wood table seen from above, every section a
+ * placemat, its dishes round plates three across on a phone with the price on a chip on the rim, and a strip of napkin
+ * chips on top. Everything is scoped under [data-body='tabletop']. The wood is the template's own --bg with a grain over
+ * it; mats are dark fixed tones (one hue each) with white text, plates are white china with dark ink on the chip, so text
+ * keeps its contrast on every palette. Logical properties only (RTL mirrors).
+ */
+[data-body='tabletop'] {
+  --tt-china: #fff;
+  --tt-china-edge: #d9d2c4;
+  --tt-paper: #fbf6ec;
+  --tt-ink: #2a1a0c;
+  --tt-price: #8a3a12;
+  --tt-steel: linear-gradient(90deg, #b9bcc0, #f3f4f5, #b9bcc0);
+  /* The sticky strip's height, so a jumped-to placemat lands just below it. */
+  --nav-room: 3.25rem;
+  padding-block-end: 1rem;
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.07) 0 2px, transparent 2px 22px), repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 60px, transparent 60px 120px);
+}
+
+/* The napkins (sticky: shared/shapes.css): one folded chip per section, in a strip that scrolls sideways. */
+[data-body='tabletop'] .tt-napkins {
+  padding: 0.25rem var(--gutter, 1rem);
+}
+[data-body='tabletop'] .tt-strip-list {
+  gap: 0.375rem;
+  padding: 0 0 0.25rem;
+}
+[data-body='tabletop'] .tt-napkin {
+  min-block-size: 2.25rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+  background: var(--tt-paper);
+  color: var(--tt-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+}
+[data-body='tabletop'] .tt-napkin[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* A placemat: a dark cloth in the section's own hue, with a stitched edge. */
+[data-body='tabletop'] .tt-mat {
+  --mat: hsl(var(--mat-h) 42% 28%);
+  position: relative;
+  margin: 0.5rem 0.5rem;
+  padding: 0.625rem 0.5rem 0.875rem;
+  border-radius: 0.75rem;
+  background: var(--mat);
+  color: #fff;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.35);
+}
+[data-body='tabletop'] .tt-mat::before {
+  content: '';
+  position: absolute;
+  inset: 0.375rem;
+  border: 2px dashed rgba(255, 255, 255, 0.5);
+  border-radius: 0.5rem;
+  pointer-events: none;
+}
+[data-body='tabletop'] .tt-head {
+  position: relative;
+}
+[data-body='tabletop'] .tt-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='tabletop'] .tt-title small {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+[data-body='tabletop'] .tt-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='tabletop'] .tt-title b {
+  flex: none;
+  padding-inline: 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--tt-ink);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+}
+
+/* The plates: two across on a phone, big, the second row's plates set a little lower so the table reads as laid by hand. */
+[data-body='tabletop'] .tt-plates {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.5rem;
+  margin: 0;
+  padding: 0 0.25rem;
+  list-style: none;
+}
+[data-body='tabletop'] .tt-plate {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-inline-size: 0;
+  animation: tt-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+[data-body='tabletop'] .tt-plate:nth-child(4n + 2),
+[data-body='tabletop'] .tt-plate:nth-child(4n + 3) {
+  translate: 0 0.625rem;
+}
+[data-body='tabletop'] .tt-disc {
+  position: relative;
+  inline-size: min(100% - 2.25rem, 8.25rem);
+  margin-block-end: 0.375rem;
+}
+/* The plate: the photo in a circle, set in white china with a rim and a shadow on the cloth. */
+[data-body='tabletop'] .tt-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--card);
+  border: 0.5rem solid var(--tt-china);
+  box-shadow:
+    0 0 0 1px var(--tt-china-edge),
+    0 6px 10px rgba(0, 0, 0, 0.4);
+}
+[data-body='tabletop'] .tt-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* A fork and a knife laid on either side of the plate (decoration only). */
+[data-body='tabletop'] .tt-fork,
+[data-body='tabletop'] .tt-knife {
+  position: absolute;
+  inset-block-start: 14%;
+  inline-size: 0.375rem;
+  block-size: 72%;
+  border-radius: 0.1875rem;
+  background: var(--tt-steel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+[data-body='tabletop'] .tt-fork {
+  inset-inline-end: -0.875rem;
+}
+[data-body='tabletop'] .tt-knife {
+  inset-inline-start: -0.875rem;
+}
+/* The card under the plate: the add button, then the name over the price; the plate itself is the tap area. */
+[data-body='tabletop'] .tt-card {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-inline-size: 100%;
+  padding-inline: 0.1875rem 0.5rem;
+  border-radius: 0.25rem;
+  background: var(--tt-paper);
+  color: var(--tt-ink);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+[data-body='tabletop'] .tt-info {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+[data-body='tabletop'] .tt-price {
+  color: var(--tt-price);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-body='tabletop'] .tt-price .tpl-was {
+  color: color-mix(in srgb, var(--tt-ink) 70%, var(--tt-paper));
+}
+/* The add button: a dark round on the card. */
+[data-body='tabletop'] .tt-add {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--tt-ink);
+  color: #fff;
+}
+/*
+ * A discount: a "-NN%" chip on the plate's upper rim at the start (shared/photo-card.css `.tpl-photo-off`); the card shows
+ * the struck price.
+ */
+[data-body='tabletop'] .tt-off {
+  --photo-off-at: 0;
+  /* The table's own pair, fixed like the card's (the palette's accent may be pale on the cloth). */
+  --sale-bg: var(--tt-price);
+  --sale-ink: var(--tt-paper);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+[data-body='tabletop'] .tt-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='tabletop'] .tt-name {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--tt-ink);
+  overflow-wrap: anywhere;
+}
+
+@keyframes tt-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='tabletop'] .tt-mat {
+    margin-inline: auto;
+    max-inline-size: 56rem;
+  }
+  [data-body='tabletop'] .tt-plates {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  [data-body='tabletop'] .tt-plate:nth-child(4n + 2),
+  [data-body='tabletop'] .tt-plate:nth-child(4n + 3) {
+    translate: none;
+  }
+  [data-body='tabletop'] .tt-plate:nth-child(even) {
+    translate: 0 0.625rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='tabletop'] .tt-plates {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the plates are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='tabletop'] .tt-plate {
+    animation: none;
+  }
+}

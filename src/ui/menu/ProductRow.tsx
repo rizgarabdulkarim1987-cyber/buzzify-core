@@ -28,7 +28,10 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
             <span className="mt-1 flex flex-wrap gap-1.5">
               <SalesPills product={product} />
               {product.badges?.map((badge) => (
-                <span key={badge} className="rounded-full border border-line px-2 py-px text-xs text-muted">
+                <span
+                  key={badge}
+                  className={`rounded-full border px-2 py-px text-xs ${badge === 'RECOMMENDED' ? 'border-accent bg-accent font-medium text-on-accent' : 'border-line text-muted'}`}
+                >
                   {t(`menu.badge.${badge}`)}
                 </span>
               ))}

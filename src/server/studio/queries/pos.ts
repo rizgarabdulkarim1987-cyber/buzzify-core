@@ -13,6 +13,8 @@ import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { loadTillCatalog } from '@/server/pos/till-catalog';
+import { readExpo } from '@/server/pos/expo';
+import { listPrintersIn } from '@/server/pos/printers';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
 import { listPosStaff } from '@/server/pos/staff';
@@ -35,6 +37,25 @@ export const posSettings = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readPosSettings(ctx.db, restaurantOf(ctx)),
+});
+
+/** The printers, for every role: the till prints with them, only settings managers change them. */
+export const posPrinters = defineQuery({
+  name: 'pos.printers',
+  permission: null,
+  pos: 'pin.own',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listPrintersIn(ctx.db, restaurantOf(ctx)),
+});
+
+export const posSectionList = defineQuery({
+  name: 'pos.sectionList',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listKitchenSections(ctx.db, restaurantOf(ctx)),
 });
 
 export const posStaff = defineQuery({
@@ -80,14 +101,15 @@ export const posCatalogEditor = defineQuery({
     const restaurantId = restaurantOf(ctx);
     const [categorySettings, productSettings] = await Promise.all([
       ctx.db.posCategorySetting.findMany({ where: { restaurantId }, select: { categoryId: true, sectionId: true } }),
-      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true } }),
+      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true, barcode: true } }),
     ]);
     return {
       menuId: ctx.menuId,
+      restaurantId,
       catalog,
       sections,
       categorySections: Object.fromEntries(categorySettings.map((row) => [row.categoryId, row.sectionId])),
-      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride }])),
+      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride, barcode: row.barcode }])),
     };
   },
 });
@@ -111,7 +133,7 @@ export const posOverview = defineQuery({
         select: { restaurantId: true, status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
       }),
       ctx.db.posStaff.groupBy({ by: ['restaurantId'], where: { deactivatedAt: null }, _count: { _all: true } }),
-      ctx.db.posSettings.findMany({ where: { catalogMenuId: { not: null } }, select: { restaurantId: true } }),
+      ctx.db.posSettings.findMany({ select: { restaurantId: true, catalogMenuId: true, captainApproval: true } }),
       ctx.db.posAiPackage.findMany({ select: { restaurantId: true, enabled: true, monthlyLimit: true } }),
       ctx.db.posAiUsageMonth.findMany({ where: { month: baghdadMonthOf(now) }, select: { restaurantId: true, requests: true } }),
     ]);
@@ -120,7 +142,8 @@ export const posOverview = defineQuery({
     const newest = new Map<string, (typeof subscriptions)[number]>();
     for (const row of subscriptions) if (!newest.has(row.restaurantId)) newest.set(row.restaurantId, row);
     const staffOf = new Map(staff.map((row) => [row.restaurantId, row._count._all]));
-    const chosen = new Set(settings.map((row) => row.restaurantId));
+    const chosen = new Set(settings.filter((row) => row.catalogMenuId !== null).map((row) => row.restaurantId));
+    const captainOn = new Set(settings.filter((row) => row.captainApproval).map((row) => row.restaurantId));
     const ids = [...new Set([...newest.keys(), ...staffOf.keys()])];
     const restaurants = await ctx.db.restaurant.findMany({
       where: { id: { in: ids }, sector: 'FOOD' },
@@ -136,6 +159,7 @@ export const posOverview = defineQuery({
           status: subscription ? effectiveStatus(subscription, now) : ('NONE' as const),
           staff: staffOf.get(restaurant.id) ?? 0,
           catalogChosen: chosen.has(restaurant.id),
+          captainApproval: captainOn.has(restaurant.id),
           ai: { enabled: aiOf.get(restaurant.id)?.enabled ?? false, limit: aiOf.get(restaurant.id)?.monthlyLimit ?? 0, used: aiUsed.get(restaurant.id) ?? 0 },
         };
       }),
@@ -225,10 +249,10 @@ export const posReceipt = defineQuery({
   name: 'pos.receipt',
   permission: null,
   pos: 'order.handle',
-  input: z.object({ orderId: idField }),
+  input: z.object({ orderId: idField, paymentId: idField.optional() }),
   target: () => TILL,
-  run: async (ctx, { orderId }) => {
-    const receipt = await readReceipt(ctx.db, restaurantOf(ctx), orderId);
+  run: async (ctx, { orderId, paymentId }) => {
+    const receipt = await readReceipt(ctx.db, restaurantOf(ctx), orderId, paymentId);
     if (!receipt) throw new StudioError('NOT_FOUND');
     return receipt;
   },
@@ -267,6 +291,16 @@ export const posKitchenQueue = defineQuery({
   input: z.object({ sectionId: idField.nullable().optional() }),
   target: () => TILL,
   run: async (ctx, input) => ({ cards: await readKitchenQueue(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input), readAt: new Date() }),
+});
+
+/** The pass: each order's sections, waiting or ready. Not for a kitchen member tied to one section. */
+export const posExpo = defineQuery({
+  name: 'pos.expo',
+  permission: null,
+  pos: 'kitchen.view',
+  input: z.object({}),
+  target: () => TILL,
+  run: async (ctx) => ({ ...(await readExpo(ctx.db, restaurantOf(ctx), kitchenActor(ctx))), readAt: new Date() }),
 });
 
 const ticketInput = z.object({ orderId: idField, batch: z.number().int().min(1).max(2_147_483_647).optional() });

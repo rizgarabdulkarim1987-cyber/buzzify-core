@@ -1,0 +1,216 @@
+/*
+ * The `float` family's structure (FloatBody.tsx): a scattered grid of dishes at three depths, each tilted and swaying
+ * on its own clock, the near ones running ahead on scroll. Every motif's look is in its own sheet (space-zero.css,
+ * kilim.css, henar.css, jamana.css, clips.css); this sheet holds what they share. Logical properties only.
+ *
+ * No overlap: the grid's row gap (`--fl-gap`, 2rem) is wider than what two neighbours can reach into it together (the
+ * parallax `--fl-y` of at most 8px, the sway's 4px lift, and the corners of a 2.5deg tilt: `floatReach` in
+ * float-motion.ts). Only the inside of an item (`.fl-float`) moves; the item's own box never does.
+ */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) {
+  --fl-gap: 2rem;
+  --fl-cols: 2;
+  /* How much of the dish's tilt the motif keeps (0 keeps it upright). */
+  --fl-tilt: 1;
+  --nav-room: 3.5rem;
+  --column: 46rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.75rem 0.875rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms,
+    border-color 150ms;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-chip-mark {
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ the section */
+
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-section {
+  position: relative;
+  padding: 0.75rem 0.75rem 0.5rem;
+}
+/* What a motif draws above and below a section (fringes, a crown); nothing by default. */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) :is(.fl-over, .fl-under, .fl-tape, .fl-tassel, .fl-glint) {
+  display: none;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: 0;
+  line-height: 1.25;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-title > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ the scattered grid */
+
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-field {
+  display: grid;
+  grid-template-columns: repeat(var(--fl-cols), minmax(0, 1fr));
+  gap: var(--fl-gap) 1rem;
+  align-items: start;
+  margin: 0;
+  padding: 0.75rem 0 0.5rem;
+  list-style: none;
+}
+/* Scattered, not in rows: every second column stands lower (a margin, so the boxes themselves never meet). */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='jamana'], [data-body='clips']) .fl-item:nth-child(even) {
+  margin-block-start: 1.25rem;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-item {
+  position: relative;
+  min-inline-size: 0;
+}
+/* The depth's size: a far dish is narrower, a near one fills its cell; each sits at its own place across the cell. */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-float {
+  inline-size: var(--fl-size, 100%);
+  translate: 0 var(--fl-y, 0px);
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-item[data-z='0'] .fl-float {
+  --fl-size: 84%;
+  margin-inline-start: auto;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-item[data-z='1'] .fl-float {
+  --fl-size: 92%;
+  margin-inline: auto;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-item[data-z='0'] .fl-photo {
+  filter: saturate(0.85) brightness(0.85);
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-item[data-z='2'] .fl-photo {
+  filter: saturate(1.1) brightness(1.06);
+}
+
+/* The card: tilted at rest, swaying on its own clock while its section is seen and untouched (`data-live`). */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-sway {
+  position: relative;
+  rotate: calc(var(--r, 0deg) * var(--fl-tilt));
+  transform-origin: 50% 50%;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-field[data-live] .fl-sway {
+  animation: fl-sway var(--t, 6s) ease-in-out var(--dl, 0s) infinite;
+}
+@keyframes fl-sway {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: calc(var(--r, 0deg) * var(--fl-tilt));
+  }
+  50% {
+    translate: 0 -4px;
+    rotate: calc(var(--r, 0deg) * var(--fl-tilt) * -0.6);
+  }
+}
+
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-art {
+  position: relative;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-photo {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+/* ------------------------------------------------------------------ the words */
+
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-text {
+  min-inline-size: 0;
+  padding-block-start: 0.375rem;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-badges {
+  margin-block-start: 0.25rem;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: 0.25rem;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-price {
+  font-size: 0.875rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) {
+    --fl-cols: 3;
+  }
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='jamana'], [data-body='clips']) .fl-item:nth-child(even) {
+    margin-block-start: 0;
+  }
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='jamana'], [data-body='clips']) .fl-item:nth-child(3n + 2) {
+    margin-block-start: 2.25rem;
+  }
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-name {
+    font-size: 1rem;
+  }
+}
+
+/* Less motion: the scattered grid and its resting tilt stay; nothing moves. */
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips'])[data-calm] :is(.fl-sway, .fl-art, .fl-tassel) {
+  animation: none !important;
+  transition: none !important;
+}
+:is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips'])[data-calm] .fl-float {
+  translate: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) :is(.fl-sway, .fl-art, .fl-tassel) {
+    animation: none !important;
+    transition: none !important;
+  }
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-float {
+    translate: none;
+  }
+  :is([data-body='space-zero'], [data-body='kilim'], [data-body='henar'], [data-body='jamana'], [data-body='clips']) .fl-chip {
+    transition: none;
+  }
+}

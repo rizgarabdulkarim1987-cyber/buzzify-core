@@ -1,0 +1,325 @@
+/*
+ * The Kitchen Ticket Rail body (a browse shape of a template menu): every section a paper kitchen ticket hung from a
+ * steel rail by a clip, its dishes the lines of the ticket, a steel index of ticket numbers on top. Everything is scoped
+ * under [data-body='tickets']. The paper, ink and steel come from the palette (paper = its text colour, ink = its background, so text keeps its
+ * contrast on every palette); the menu's own background shows around the tickets. Logical properties only (RTL mirrors).
+ */
+[data-body='tickets'] {
+  /* The paper is the palette's light text colour and the ink its background colour (so the pair always reads), the steel
+   * its raised surface, the hot red its accent pulled toward the ink; Customize colours reach all of them. */
+  --tk-paper: var(--text);
+  --tk-ink: var(--bg);
+  --tk-ink-soft: color-mix(in srgb, var(--bg) 78%, var(--text));
+  --tk-hot: color-mix(in srgb, var(--accent) 70%, var(--bg));
+  --tk-steel: var(--raised);
+  --tk-steel-ink: color-mix(in srgb, var(--text) 92%, var(--raised));
+  --tk-bar-top: color-mix(in srgb, var(--text) 78%, var(--raised));
+  --tk-bar-mid: color-mix(in srgb, var(--text) 60%, var(--raised));
+  --tk-bar-low: color-mix(in srgb, var(--text) 47%, var(--raised));
+  --tk-bar-end: color-mix(in srgb, var(--text) 40%, var(--raised));
+  --tk-tooth: 12px;
+  /* The sticky index's height, so a jumped-to ticket lands just below it. */
+  --nav-room: 3.25rem;
+}
+
+/* The index (sticky: shared/shapes.css): a steel strip of ticket numbers with their names, sideways when many. */
+[data-body='tickets'] .tk-index {
+  padding: 0.25rem var(--gutter, 1rem);
+}
+[data-body='tickets'] .tk-strip-list {
+  gap: 0.375rem;
+  padding: 0 0 0.25rem;
+}
+[data-body='tickets'] .tk-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.25rem;
+  padding-inline: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--tk-steel);
+  color: var(--tk-steel-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.35);
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+[data-body='tickets'] .tk-chip b {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+[data-body='tickets'] .tk-chip b::before {
+  content: '#';
+}
+/* The lit ticket's number is the paper itself, pulled from the rail. */
+[data-body='tickets'] .tk-chip[aria-current='true'] {
+  background: var(--tk-paper);
+  color: var(--tk-ink);
+  box-shadow: inset 0 -3px 0 var(--tk-hot);
+}
+[data-body='tickets'] .tk-chip:active {
+  scale: 0.97;
+}
+@media (hover: hover) {
+  [data-body='tickets'] .tk-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--tk-steel) 70%, var(--text));
+  }
+}
+
+/* The rail: one ticket a row on a phone (full-width slips), side by side on a wide screen. */
+[data-body='tickets'] .tk-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 1rem;
+  align-items: start;
+  padding-inline: var(--gutter, 1rem);
+  padding-block-start: 0.5rem;
+}
+[data-body='tickets'] .tk-ticket {
+  position: relative;
+  scroll-margin-top: var(--nav-room);
+  padding-block: 0;
+  margin-block: 0 calc(var(--tk-tooth) + 0.75rem);
+  min-inline-size: 0;
+}
+
+/* The steel rail the tickets hang from (one per section). */
+[data-body='tickets'] .tk-clip {
+  position: relative;
+  z-index: 2;
+  block-size: 0.875rem;
+  border-radius: 0.1875rem;
+  background: linear-gradient(var(--tk-bar-top), var(--tk-bar-end));
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Under the rail: the section's name and ticket count on the dark pass, then its tickets. */
+[data-body='tickets'] .tk-slab {
+  position: relative;
+  padding-block: 0.25rem 0;
+}
+[data-body='tickets'] .tk-title {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0.1rem 0.5rem;
+  margin: 0;
+  padding: 0.25rem 0.125rem 0.375rem;
+  color: var(--tk-hot);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+[data-body='tickets'] .tk-title small {
+  order: -1;
+  flex: none;
+  color: var(--tk-hot);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* The section's name is the rail's title, big on the dark; the count is its small stamp. */
+[data-body='tickets'] .tk-title span {
+  color: var(--text);
+  font-family: inherit;
+  min-inline-size: 0;
+  font-size: 1.125rem;
+  line-height: 1.15;
+}
+[data-body='tickets'] .tk-title b {
+  align-self: center;
+  margin-inline-start: auto;
+  min-inline-size: 1.5rem;
+  padding-inline: 0.3rem;
+  border-radius: 0.1875rem;
+  background: var(--tk-hot);
+  color: var(--tk-ink);
+  font-size: 0.75rem;
+  line-height: 1.5rem;
+  text-align: center;
+}
+[data-body='tickets'] .tk-lines {
+  margin: 0;
+  padding: 0 0.125rem 0.25rem;
+  list-style: none;
+}
+
+/*
+ * A ticket: one dish on its own paper slip, with a clip tab at the top, hung at its own slight angle, a scalloped torn
+ * edge underneath. The photo, then the number over the name, a dashed rule, and the price with the add stamp. The paper
+ * is the same on every palette, so the inks the shared parts use on it (the focus ring, a "New" label, a chef's special,
+ * their outline) are the paper's own: a dark palette's light inks would vanish on it.
+ */
+[data-body='tickets'] .tk-slip {
+  --accent-ink: var(--tk-hot);
+  --muted: var(--tk-ink-soft);
+  --line: color-mix(in srgb, var(--tk-ink) 30%, transparent);
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+  margin-block-end: 0.5rem;
+  padding: 0.4375rem 0.625rem 0.4375rem;
+  background: var(--tk-paper);
+  color: var(--tk-ink);
+  rotate: var(--tilt, 0deg);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  animation: tk-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+[data-body='tickets'] .tk-slip::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.375rem;
+  inset-inline-start: 50%;
+  inline-size: 1.875rem;
+  block-size: 0.75rem;
+  translate: -50% 0;
+  border-radius: 0.125rem;
+  background: linear-gradient(var(--tk-bar-mid), var(--tk-bar-low));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+[dir='rtl'] [data-body='tickets'] .tk-slip::before {
+  translate: 50% 0;
+}
+[data-body='tickets'] .tk-slip::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 100%;
+  block-size: 0.3125rem;
+  background: radial-gradient(circle at 0.375rem 0, transparent 0.3125rem, var(--tk-paper) 0.34375rem) 0 0 / 0.75rem 100% repeat-x;
+  pointer-events: none;
+}
+@keyframes tk-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+[data-body='tickets'] .tk-photo {
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  overflow: hidden;
+  border-radius: 0.125rem;
+  background: var(--tk-ink-soft);
+}
+[data-body='tickets'] .tk-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='tickets'] .tk-text {
+  min-inline-size: 0;
+}
+[data-body='tickets'] .tk-top {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 1.25rem;
+}
+[data-body='tickets'] .tk-no {
+  flex: none;
+  display: block;
+  color: color-mix(in srgb, var(--tk-ink) 55%, var(--tk-paper));
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+[data-body='tickets'] .tk-name {
+  display: block;
+  flex: 1;
+  inline-size: auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  color: var(--tk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+/* A dashed rule, then the price (and a sale's old price and chip) with the add stamp at the end. */
+[data-body='tickets'] .tk-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: 0.125rem;
+  padding-block-start: 0.25rem;
+  border-block-start: 1px dashed color-mix(in srgb, var(--tk-ink) 35%, transparent);
+}
+[data-body='tickets'] .tk-price {
+  min-inline-size: 0;
+  margin-inline-end: auto;
+  color: var(--tk-ink);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: normal;
+}
+[data-body='tickets'] .tk-price .tpl-was {
+  color: var(--tk-ink-soft);
+}
+[data-body='tickets'] .tk-badges {
+  color: var(--tk-ink-soft);
+}
+/* The add button is a small dark stamp, readable on any palette. */
+[data-body='tickets'] .tk-add {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  background: var(--tk-ink);
+  color: var(--tk-paper);
+  border-radius: 0.25rem;
+}
+@media (hover: hover) {
+  [data-body='tickets'] .tk-slip:hover {
+    background: color-mix(in srgb, var(--tk-hot) 7%, var(--tk-paper));
+  }
+}
+
+/*
+ * From 768px tickets hang side by side, so several can share the band the lit-section tracking watches; the strip then
+ * lights one of that row's tickets (the first the observer reports), which may change as the row scrolls through. Every
+ * ticket of the row is in view either way, so this is accepted rather than worked around.
+ */
+@media (min-width: 768px) {
+  [data-body='tickets'] .tk-rail {
+    grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+    /* The last row needs room so the lit-ticket tracking reaches it at the end of the page. */
+    padding-block-end: 40dvh;
+  }
+  [data-body='tickets'] {
+    --tall-last: 0px;
+  }
+}
+
+/* Less motion: lines are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='tickets'] .tk-row {
+    animation: none;
+  }
+  [data-body='tickets'] .tk-chip {
+    transition: none;
+  }
+  [data-body='tickets'] .tk-chip:active {
+    scale: none;
+  }
+}
