@@ -13,7 +13,7 @@ export function phMessage(
   t: Translate,
   locale: Locale,
   failure: StudioFailure,
-  prefix: 'pharmacy.counts' | 'pharmacy.intake' | 'pharmacy.expiry' | 'pharmacy.sell' | 'pharmacy.shifts' | 'pharmacy.returns' | 'pharmacy.purchasing' | 'pharmacy.transfers',
+  prefix: 'pharmacy.counts' | 'pharmacy.intake' | 'pharmacy.expiry' | 'pharmacy.sell' | 'pharmacy.shifts' | 'pharmacy.returns' | 'pharmacy.purchasing' | 'pharmacy.transfers' | 'pharmacy.reports',
   lineOf?: (lineId: string) => { product: string; lot: string } | undefined,
 ): string {
   const code = failure.fields?.phCode;
