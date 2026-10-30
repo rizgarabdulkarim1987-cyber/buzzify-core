@@ -514,6 +514,8 @@ const CASES: Record<string, Case> = {
   'ph.reports.lowStock': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Chain dashboard (phase 6, task 5): the cards and the total of the actor's own branches; it names no id; a one-branch person is refused with CHAIN_NEEDS_MANY_BRANCHES (so the outcome is harmless, not scoped), and the owner case below proves the rows.
   'ph.chain.dashboard': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // Report export (phase 6, task 5): the file holds the rows of the actor's own branches (the file is base64, so the dedicated test below decodes it and looks for the ids; here the sweep only proves nothing is written or refused wrongly).
+  'ph.exports.report': { body: () => ({ report: 'sales', format: 'csv', from: '2026-10-01', to: '2026-10-31', groupBy: 'branch' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
@@ -665,6 +667,24 @@ describe('the pharmacy isolation sweep', () => {
     expect(owner).not.toContain(b.b2);
     const mine = await run(DEFINITIONS.get('ph.chain.dashboard')!, managerA1, { ...c.body(a, 1), restaurantId: a.restaurantId });
     expect(json(mine)).toContain('CHAIN_NEEDS_MANY_BRANCHES');
+  });
+
+  it('covers the report export, and the file shows the owner both branches of their own business, the branch-1 manager only branch 1, and nothing of the other business', async () => {
+    expect([...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.exports.')).sort()).toEqual(['ph.exports.products', 'ph.exports.report']);
+    const { a, b, ownerA, managerA1 } = world;
+    const c = CASES['ph.exports.report']!;
+    const fileOf = async (actor: typeof ownerA) => {
+      const out = JSON.parse(json(await run(DEFINITIONS.get('ph.exports.report')!, actor, { ...c.body(a, 1), restaurantId: a.restaurantId }))) as { data?: { base64: string } };
+      return Buffer.from(out.data!.base64, 'base64').toString('utf8');
+    };
+    const owner = await fileOf(ownerA);
+    expect(owner).toContain(a.b1);
+    expect(owner).toContain(a.b2);
+    expect(owner).not.toContain(b.b1);
+    expect(owner).not.toContain(b.b2);
+    const mine = await fileOf(managerA1);
+    expect(mine).toContain(a.b1);
+    expect(mine).not.toContain(a.b2);
   });
 
   it('the report cases have real rows to show: each report answers the owner with branch 1 in it, and the branch-1 manager with branch 1 and no branch 2', async () => {

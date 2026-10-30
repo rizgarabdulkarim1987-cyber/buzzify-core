@@ -28,6 +28,9 @@ const FILES = [
   'src/server/pharmacy/chain.ts',
   'src/server/pharmacy/queries/chain.ts',
   'src/server/domain/pharmacy/chain-domain.ts',
+  // The export builders read and build the file; only the audit row (export-audit.ts, below) writes.
+  'src/server/pharmacy/report-exports.ts',
+  'src/server/domain/pharmacy/export-sheet.ts',
 ];
 
 const WRITES = [
@@ -60,6 +63,21 @@ describe('the report modules write nothing (source scan)', () => {
     const text = readFileSync(file, 'utf8');
     expect(text.length).toBeGreaterThan(300);
     expect(writesIn(text), file).toEqual([]);
+  });
+});
+
+describe('the export audit is the only write on the export path', () => {
+  it('export-audit.ts writes one audit row and nothing else', () => {
+    const text = stripComments(readFileSync('src/server/pharmacy/export-audit.ts', 'utf8'));
+    expect(text).toMatch(/auditLog\.create\(/);
+    expect(WRITES.filter((re) => re.test(text)).map(String)).toEqual([String(WRITES[0])]);
+    expect(text.match(/\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\s*\(/g)).toEqual(['.create(']);
+  });
+  it('the export query touches no table but through the audit helper', () => {
+    const text = stripComments(readFileSync('src/server/pharmacy/queries/exports.ts', 'utf8'));
+    const report = text.slice(text.indexOf('export const report'));
+    expect(report).toMatch(/auditReportExport\(/);
+    expect(writesIn(report)).toEqual([]);
   });
 });
 

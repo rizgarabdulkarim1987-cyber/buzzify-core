@@ -12,7 +12,7 @@ import { batch, build, dataOf, key, sell, shift, cash, card, type Biz } from './
  * Added by this file (b1 and b2 as in reports-world.ts):
  *   b3 stock: P batch B3P (200 base, 705/strip IQD), Q batch B3Q (100 base, no cost)
  *   b3 sales 2026-10-28 (Baghdad): 3 strips of P in IQD , 2 strips of Q in IQD (no cost), 1 strip P in USD (IQD-cost batch)
- *   expiring batches: E1 b1 expired (2026-10-01), E2 b2 +14 days, E3 b1 +45 days, E4 b2 +75 days, E5 b3 +9 days
+ *   expiring batches: E1 b1 expired (2026-10-01), E2 b2 +14 days, E3 b1 +45 days, E4 b2 +75 days, E5 b3 +9 days (6 units, sent away whole by T4: first expiry first)
  *   transfers added: T4 b3 -> b1 SENT (7 of P), T5 b1 -> b3 REQUESTED (4 of Q), T6 b2 -> b3 SENT (3 of P from PB2)
  */
 
