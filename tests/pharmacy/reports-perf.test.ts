@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@/generated/prisma/client';
+import * as chain from '@/server/pharmacy/queries/chain';
 import * as reports from '@/server/pharmacy/queries/reports';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
@@ -277,6 +278,7 @@ const CASES: Array<[string, QueryDef<unknown, unknown>, Record<string, unknown>]
   ['expiry', reports.expiry as QueryDef<unknown, unknown>, {}],
   ['damaged', reports.damaged as QueryDef<unknown, unknown>, { ...WINDOW }],
   ['transfers', reports.transfers as QueryDef<unknown, unknown>, { ...WINDOW }],
+  ['chain dashboard (year)', chain.dashboard as QueryDef<unknown, unknown>, { ...WINDOW }],
 ];
 
 describe('report budgets over 100,000 sale lines', () => {
@@ -418,4 +420,30 @@ describe('report budgets over 100,000 sale lines', () => {
     ]);
     expect(BigInt(result.incompleteCostRows)).toBe(expected!.nulls);
   });
+});
+
+describe('chain dashboard budget (R6-10): 5 branches on the same seed in under 1.5 seconds', () => {
+  const DASHBOARD_BUDGET_MS = 1500;
+  it('answers a year window and the default 30 days with five branches, and the total is the sum of the cards', async () => {
+    // Three more branches without sales (the seed's two carry the 50,000 sales): the dashboard asks for five cards.
+    for (let n = 3; n <= 5; n += 1) await prisma().branch.create({ data: { restaurantId: big.id, name: `BG branch ${n}`, sortOrder: n } });
+    const actor = (await loadActor(prisma(), owner.userId)) as Actor;
+    for (const [name, input] of [['year', { ...WINDOW }], ['default 30 days', {}]] as const) {
+      const started = performance.now();
+      const result = dataOf(await runQuery(prisma(), actor, chain.dashboard as QueryDef<unknown, unknown>, { restaurantId: big.id, ...input })) as {
+        branches: unknown[];
+        total: { sales: Array<{ currency: string; salesMinor: string }> };
+        scope: { branchIds: string[] };
+      };
+      const took = performance.now() - started;
+      console.log(`chain dashboard ${name}, 5 branches: ${took.toFixed(0)} ms`);
+      expect(result.branches).toHaveLength(5);
+      expect(result.scope.branchIds).toHaveLength(5);
+      expect(took, name).toBeLessThan(DASHBOARD_BUDGET_MS);
+    }
+    // The year window against independent SQL: IQD sales of the seed.
+    const year = dataOf(await runQuery(prisma(), actor, chain.dashboard as QueryDef<unknown, unknown>, { restaurantId: big.id, ...WINDOW })) as { total: { sales: Array<{ currency: string; salesMinor: string }> } };
+    const [sum] = await prisma().$queryRaw<Array<{ sales: bigint }>>`SELECT SUM("totalMinor")::bigint AS sales FROM "PhSale" WHERE "restaurantId" = ${big.id} AND "currency" = 'IQD'`;
+    expect(year.total.sales.find((t) => t.currency === 'IQD')!.salesMinor).toBe(String(sum!.sales));
+  }, 120_000);
 });
