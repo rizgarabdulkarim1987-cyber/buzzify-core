@@ -11,6 +11,7 @@ import { list as listReturns, returnable } from '@/server/pharmacy/queries/retur
 import { get } from '@/server/pharmacy/queries/sales';
 import { query } from '@/server/studio/framework/invoke';
 import { StudioError } from '@/server/studio/framework/result';
+import { isolateName } from '@/app/pharmacy/_ui/isolate-name';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -159,7 +160,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             {sale.customer && (
               <Row label={t('pharmacy.credit.onAccount')} testId="detail-customer">
                 <Link href={`/pharmacy/customers/${sale.customer.id}`} className="inline-flex min-h-11 items-center rounded-md underline underline-offset-2 hover:bg-hover" dir="auto">
-                  {sale.customer.name}
+                  {isolateName(sale.customer.name)}
                 </Link>
               </Row>
             )}

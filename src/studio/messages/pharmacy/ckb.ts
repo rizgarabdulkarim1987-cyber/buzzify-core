@@ -1115,6 +1115,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.receipt.saved': 'فرۆشتنەکە پاشەکەوت کرا.',
   'pharmacy.sell.receipt.replayed': 'ئەم فرۆشتنە پێشتر پاشەکەوت کرابوو؛ هیچ دووجار زیاد نەکرا.',
   'pharmacy.sell.receipt.paid': 'دراو',
+  'pharmacy.sell.receipt.ofWhichCredit': 'لەوانە لەسەر هەژمار',
   'pharmacy.sell.receipt.width': 'پانی کاغەز',
   'pharmacy.sell.receipt.copy': 'کۆپی {n}',
   'pharmacy.sell.receipt.print': 'چاپکردن',

@@ -242,6 +242,49 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     const stored = await p.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }));
     expect(stored).not.toContain('Layla');
     expect(stored).not.toContain('4821');
+    // The prescription belongs to the lines it was recorded for: take the controlled line out, sell an unrelated OTC item, and
+    // the recorded prescription is neither sent with that sale nor consumed by it.
+    const sent: string[] = [];
+    p.on('request', (request) => {
+      if (request.method() === 'POST') sent.push(request.postData() ?? '');
+    });
+    await p.getByTestId('remove-line').click();
+    await expect(p.getByTestId('cart-line')).toHaveCount(0);
+    await expect(p.getByTestId('rx-attached')).toHaveCount(0);
+    await addTablets(p, names.otc, 1);
+    await p.getByTestId('pay-open').click();
+    await p.getByTestId('pay-confirm').click();
+    await expect(p.getByTestId('sale-done')).toBeVisible();
+    await p.getByTestId('receipt-done').click();
+    expect(sent.some((body) => body.includes('prescriptionId'))).toBe(false);
+    {
+      const probe = db();
+      try {
+        const kept = await probe.phPrescription.findFirstOrThrow({ where: { restaurantId: shop.id, number: 'RX-100' }, select: { id: true, saleId: true } });
+        expect(kept.saleId).toBeNull();
+        // It stays unused; remove it so the real sale below records its own and the register keeps one row.
+        await probe.phRxAttachment.deleteMany({ where: { restaurantId: shop.id, prescriptionId: kept.id } });
+        await probe.phPrescription.delete({ where: { id: kept.id } });
+        expect(await probe.phSale.count({ where: { restaurantId: shop.id, status: 'COMPLETED' } })).toBe(1);
+      } finally {
+        await probe.$disconnect();
+      }
+    }
+    // Back with the controlled medicine, the earlier prescription is not silently attached to the next customer.
+    await addTablets(p, names.restricted, 2);
+    await expect(p.getByTestId('rx-missing')).toBeVisible();
+    await expect(p.getByTestId('rx-attached')).toHaveCount(0);
+    await p.getByTestId('rx-open').click();
+    await expect(p.getByTestId('rx-drawer')).toBeVisible();
+    await p.getByTestId('rx-number').fill('RX-100');
+    await p.getByTestId('rx-prescriber').fill('Dr Strange');
+    await p.getByTestId('rx-license').fill('LIC-77');
+    await p.getByTestId('rx-patient').fill('Layla Hassan');
+    await p.getByTestId('rx-idnote').fill('National ID: 4821');
+    await p.getByTestId('rx-date').fill(baghdadToday());
+    await p.getByTestId('rx-file').setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: PNG });
+    await p.getByTestId('rx-save').click();
+    await expect(p.getByTestId('rx-attached')).toBeVisible();
     await p.getByTestId('pay-open').click();
     await p.getByTestId('pay-confirm').click();
     await expect(p.getByTestId('sale-done')).toBeVisible();
@@ -252,7 +295,7 @@ test.describe('Pharmacy phase 7 @desktop', () => {
       ids.rx = rx.id;
       expect(rx.saleId).not.toBeNull();
       expect(rx.patientName).toBe('Layla Hassan');
-      expect(await client.phSale.count({ where: { restaurantId: shop.id, status: 'COMPLETED' } })).toBe(1);
+      expect(await client.phSale.count({ where: { restaurantId: shop.id, status: 'COMPLETED' } })).toBe(2);
       expect(await client.phControlledEntry.count({ where: { restaurantId: shop.id, prescriptionId: rx.id } })).toBeGreaterThan(0);
       expect(await client.phRxAttachment.count({ where: { restaurantId: shop.id, prescriptionId: rx.id } })).toBe(1);
     } finally {
@@ -365,6 +408,13 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await p.getByTestId('pay-credit-amount').fill('5000');
     await expect(p.getByText('This would go over the customer’s credit limit').first()).toBeVisible();
     await expect(p.getByTestId('pay-confirm')).toBeDisabled();
+    const posted: string[] = [];
+    p.on('request', (request) => {
+      if (request.method() === 'POST') posted.push(request.url());
+    });
+    await p.getByTestId('pay-confirm').click({ force: true });
+    await p.waitForTimeout(500);
+    expect(posted).toEqual([]);
     await p.keyboard.press('Escape');
 
     // 3. Mixed: 12 tablets = 3 000, 2 000 on the account (exactly the 4 000 left minus 2 000) and 1 000 in cash.
@@ -545,6 +595,10 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await o.getByTestId('customers-q').fill('Bulk 0777');
     await o.getByRole('button', { name: 'Search' }).click();
     await expect(o.getByTestId('customer-row')).toHaveCount(1);
+    // What was typed is never in the address, the history or a link on the page.
+    expect(decodeURIComponent(o.url())).not.toMatch(/Bulk|0777|[?&]q=/);
+    const links = await o.locator('a[href]').evaluateAll((all) => all.map((a) => a.getAttribute('href') ?? ''));
+    expect(links.filter((href) => /Bulk|0777|[?&]q=/.test(decodeURIComponent(href)))).toEqual([]);
     await o.context().close();
     const cleanup = db();
     try {
@@ -564,7 +618,6 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await expect(o.locator('html')).toHaveAttribute('dir', dir);
     const states: [string, string][] = [
       ['customers', '/pharmacy/customers'],
-      ['customers-filtered', '/pharmacy/customers?q=nobody-by-this-name'],
       ['customer-new', '/pharmacy/customers/new'],
       ['customer', `/pharmacy/customers/${ids.customer}`],
       ['customer-edit', `/pharmacy/customers/${ids.customer}/edit`],
@@ -582,6 +635,12 @@ test.describe('Pharmacy phase 7 @desktop', () => {
       await expect(o.locator('main')).toBeVisible();
       await check(o, `${locale}-${name}`);
     }
+    await o.goto('/pharmacy/customers');
+    await o.getByTestId('customers-q').fill('nobody-by-this-name');
+    await o.getByTestId('customers-q').press('Enter');
+    await expect(o.getByTestId('customers-empty')).toBeVisible();
+    expect(o.url()).not.toContain('nobody');
+    await check(o, `${locale}-customers-filtered`);
     // Dialogs: record a payment and the controlled-sales confirmation.
     await o.goto(`/pharmacy/customers/${ids.customer}`);
     await o.getByTestId('payment-open').click();

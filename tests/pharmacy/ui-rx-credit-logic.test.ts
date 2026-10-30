@@ -9,6 +9,7 @@ import {
   limitIdNote,
   prescriptionGate,
   rxLevelOfLines,
+  prescriptionKept,
   rxWire,
   validateRx,
   type RxDraft,
@@ -60,6 +61,8 @@ describe('prescription form', () => {
     expect(limitIdNote('Passport - AB12')).toBe('Passport - AB12');
     expect(limitIdNote('ID card')).toBe('ID card');
     expect(limitIdNote('ID card:')).toBe('ID card:');
+    expect(limitIdNote('ID 123456')).toBe('ID 1234');
+    expect(limitIdNote('ID card')).toBe('ID card');
     for (const note of ['ID card: 1234', 'Passport - AB12', 'ID card']) expect(checkPatientIdNote(limitIdNote(note)).ok).toBe(true);
     expect(validateRx(full({ patientIdNote: 'ID card: 12345' }), 'RX', TODAY).patientIdNote).toBe('idTooLong');
     expect(validateRx(full({ patientIdNote: '12345 678' }), 'RX', TODAY).patientIdNote).toBe('idTooLong');
@@ -253,5 +256,15 @@ describe('statement range', () => {
     expect(statementRange('2026-10-28', '2026-10-01', '2026-10-28').problem).toBe('order');
     expect(statementRange('2026-13-01', '2026-10-01', '2026-10-28').problem).toBe('malformed');
     expect(statementRange('2026-10-01', undefined, '2026-10-28').problem).toBe('malformed');
+  });
+});
+
+describe('a recorded prescription follows its lines', () => {
+  it('is kept while a prescription or controlled line is in the cart and dropped when none is left', () => {
+    expect(prescriptionKept('rx1', [{ rxLevel: 'RESTRICTED' }, { rxLevel: 'OTC' }])).toBe('rx1');
+    expect(prescriptionKept('rx1', [{ rxLevel: 'RX' }])).toBe('rx1');
+    expect(prescriptionKept('rx1', [{ rxLevel: 'OTC' }])).toBeNull();
+    expect(prescriptionKept('rx1', [])).toBeNull();
+    expect(prescriptionKept(null, [{ rxLevel: 'RX' }])).toBeNull();
   });
 });

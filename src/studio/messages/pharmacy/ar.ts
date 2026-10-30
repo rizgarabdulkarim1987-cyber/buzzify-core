@@ -1115,6 +1115,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.receipt.saved': 'تم حفظ البيع.',
   'pharmacy.sell.receipt.replayed': 'هذا البيع محفوظ سابقًا؛ لم يُضف شيء مرتين.',
   'pharmacy.sell.receipt.paid': 'المدفوع',
+  'pharmacy.sell.receipt.ofWhichCredit': 'منها على الحساب',
   'pharmacy.sell.receipt.width': 'عرض الورق',
   'pharmacy.sell.receipt.copy': 'نسخة {n}',
   'pharmacy.sell.receipt.print': 'طباعة',

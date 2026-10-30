@@ -142,11 +142,11 @@ export default async function CustomerPage({ params, searchParams }: { params: P
             <form method="get" className="flex flex-wrap items-end gap-3" data-testid="statement-range">
               <label className="flex flex-col gap-1 text-sm font-medium text-text">
                 {t('pharmacy.rx.register.from')}
-                <input type="date" name="from" defaultValue={range.from} className="min-h-11 rounded-md border border-line-strong bg-raised px-3 text-base text-text" data-testid="statement-from" />
+                <input type="date" name="from" defaultValue={range.from} dir="ltr" className="min-h-11 rounded-md border border-line-strong bg-raised px-3 text-base text-text" data-testid="statement-from" />
               </label>
               <label className="flex flex-col gap-1 text-sm font-medium text-text">
                 {t('pharmacy.rx.register.to')}
-                <input type="date" name="to" defaultValue={range.to} className="min-h-11 rounded-md border border-line-strong bg-raised px-3 text-base text-text" data-testid="statement-to" />
+                <input type="date" name="to" defaultValue={range.to} dir="ltr" className="min-h-11 rounded-md border border-line-strong bg-raised px-3 text-base text-text" data-testid="statement-to" />
               </label>
               <button type="submit" className={buttonClasses('primary', 'lg', 'min-h-11')} data-testid="statement-apply">
                 {t('pharmacy.rx.register.apply')}

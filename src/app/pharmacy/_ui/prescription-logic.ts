@@ -35,7 +35,8 @@ export function issueBounds(level: RxLevel, today: string): { min: string; max: 
  * The type of the document (words) is left alone; so is a note with no number yet.
  */
 export function limitIdNote(text: string): string {
-  const match = /^(.*[:-]\s*)([^:-]*)$/su.exec(text);
+  // With no separator, the last word that holds a digit is the number (`ID 123456`).
+  const match = /^(.*[:-]\s*)([^:-]*)$/su.exec(text) ?? /^(.*\s)(\S*\d\S*)$/su.exec(text);
   if (!match) return text;
   const tail = (match[2] ?? '').replace(/[^\p{L}\p{N}]/gu, '').slice(0, PATIENT_ID_LAST_CHARS);
   return `${match[1]}${tail}`;
@@ -181,4 +182,9 @@ export function netRegister(rows: readonly RegisterRowIn[], dayOf: (iso: string)
     groups.set(key, g);
   }
   return [...groups.values()].sort((a, b) => (a.day === b.day ? a.productName.localeCompare(b.productName) || a.lot.localeCompare(b.lot) : a.day < b.day ? 1 : -1));
+}
+
+/** The prescription the sale may carry: only while a prescription or controlled line is still in the cart; otherwise none. */
+export function prescriptionKept(id: string | null, lines: readonly Pick<RxLine, 'rxLevel'>[]): string | null {
+  return id !== null && rxLevelOfLines(lines) !== null ? id : null;
 }

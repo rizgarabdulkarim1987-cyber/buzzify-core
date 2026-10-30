@@ -3,6 +3,7 @@
 import { CircleAlert, CircleCheck, FilePlus2, Pill, ShieldAlert, X } from 'lucide-react';
 import { controlledLimits, rxLevelOfLines, type RxLine } from '@/app/pharmacy/_ui/prescription-logic';
 import { useT } from '@/studio/i18n';
+import { isolateName } from './isolate-name';
 import { Chip, Note, Num, TOUCH_BTN } from './sell-parts';
 
 /**
@@ -41,7 +42,7 @@ export function RxCartPanel({
         <p key={l.productId} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text" data-testid="rx-limit" data-over={l.over ? 'true' : undefined}>
           {l.over ? <CircleAlert aria-hidden className="size-4 shrink-0 text-danger" /> : <ShieldAlert aria-hidden className="size-4 shrink-0 text-muted" />}
           <span className="min-w-0 break-words" dir="auto">
-            {l.name}
+            {isolateName(l.name)}
           </span>
           <span className={l.over ? 'font-medium text-danger' : 'text-muted'}>
             {l.max > 0 ? t('pharmacy.rx.limit', { qty: l.baseQty, max: l.max }) : t('pharmacy.rx.limit.none', { qty: l.baseQty })}

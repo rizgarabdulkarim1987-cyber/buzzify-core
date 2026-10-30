@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { discardHold, holdSale, createSale, resumeHold, sellSearch } from '@/app/pharmacy/_actions/sales';
 import { getPrescription } from '@/app/pharmacy/_actions/prescriptions';
 import { creditPaymentsOf } from './credit-logic';
-import { prescriptionGate, type RxLine } from './prescription-logic';
+import { prescriptionGate, prescriptionKept, type RxLine } from './prescription-logic';
 import { PrescriptionDrawer } from './PrescriptionDrawer';
 import { RxCartPanel } from './SellRx';
 import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
@@ -187,6 +187,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const rxLines: RxLine[] = cart.lines.map((l) => ({ productId: l.productId, name: l.name, rxLevel: l.rxLevel, qty: l.qty, unitBaseQty: unitOf(l).baseQty }));
   const hasRx = cart.lines.some((l) => l.rxLevel === 'RX' || l.rxLevel === 'RESTRICTED');
   const rxBlocked = hasRx && !perms.rx;
+  // The prescription belongs to the lines it was recorded for: with none left it is dropped, never carried to another sale.
+  if (rx && prescriptionKept(rx.id, rxLines) === null) setRx(null);
   const rxGate = prescriptionGate(rxLines, rx?.id ?? null, settings.controlledMaxQty, settings.controlledEnabled);
   const anyDiscount = cart.invoiceDiscount !== null || cart.lines.some((l) => l.discount !== null);
   const dialogOpen = payOpen || holdsOpen || sale !== null || askClear || leaveTo !== null;
@@ -539,7 +541,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
             ? creditPaymentsOf(draft, onAccount.minor, amountMinor, { paymentKey: next.paymentKey, creditKey: next.creditKey })
             : [buildPayment(draft, amountMinor, next.paymentKey)],
         ...(draft.credit && onAccount ? { customerId: draft.credit.customerId } : {}),
-        ...(rx ? { prescriptionId: rx.id } : {}),
+        ...(prescriptionKept(rx?.id ?? null, rxLines) ? { prescriptionId: rx!.id } : {}),
         ...(fromHoldId ? { fromHoldId } : {}),
       }),
     );

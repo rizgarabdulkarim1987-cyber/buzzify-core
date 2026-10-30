@@ -1121,6 +1121,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.receipt.saved': 'The sale is saved.',
   'pharmacy.sell.receipt.replayed': 'This sale was already saved; nothing was added twice.',
   'pharmacy.sell.receipt.paid': 'Paid',
+  'pharmacy.sell.receipt.ofWhichCredit': 'Of which on account',
   'pharmacy.sell.receipt.width': 'Paper width',
   'pharmacy.sell.receipt.copy': 'Copy {n}',
   'pharmacy.sell.receipt.print': 'Print',

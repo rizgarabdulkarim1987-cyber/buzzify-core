@@ -14,7 +14,7 @@ import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
 import { getCustomer } from '@/app/pharmacy/_actions/customers';
 import { creditPreview, creditView } from './credit-logic';
-import { CustomerFigures, CustomerPicker, type PickedCustomer } from './CustomerPicker';
+import { CustomerPicker, type PickedCustomer } from './CustomerPicker';
 import { phMessage } from './ph-failure';
 import { isolate } from './WriteBlocked';
 import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
@@ -270,7 +270,6 @@ function CreditNumbers({ customer, charge }: { customer: PickedCustomer; charge:
   const view = creditView(customer, charge);
   return (
     <div className="flex flex-col gap-1 text-sm" data-testid="credit-numbers">
-      <CustomerFigures customer={customer} />
       <span className="text-text" data-testid="credit-after">
         {t('pharmacy.credit.pay.after')}: <Num>{formatMinor(view.after < 0n ? 0n : view.after, customer.currency)}</Num> {customer.currency} · {t('pharmacy.credit.pay.remainingAfter')}: <Num>{formatMinor(view.remainingAfter, customer.currency)}</Num> {customer.currency}
       </span>
@@ -520,7 +519,7 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
             {credit && (
               <>
                 <dt className="text-muted" data-testid="sale-credit-label">
-                  {t('pharmacy.method.CREDIT')}: <span dir="auto">{isolate(credit.customerName)}</span>
+                  {t('pharmacy.sell.receipt.ofWhichCredit')}: <span dir="auto">{isolate(credit.customerName)}</span>
                 </dt>
                 <dd className="text-end" data-testid="sale-credit">{money(credit.minor)}</dd>
               </>
