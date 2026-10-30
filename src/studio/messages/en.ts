@@ -1,7 +1,5 @@
 import type { Messages } from '@/lib/i18n';
-import motion from './motion/en';
 import styles from './styles/en';
-import menuMotions from './menu-motions/en';
 import aiSettings from './ai-settings/en';
 import posAi from './pos-ai/en';
 import posStock from './pos-stock/en';
@@ -52,7 +50,6 @@ const en: Messages = {
   'nav.billing': 'Billing',
   'nav.menus': 'All menus',
   'nav.media': 'Media',
-  'nav.motion': 'Motion',
   'nav.people': 'People',
   'nav.announcements': 'Announcements',
   'nav.activity': 'Activity',
@@ -746,13 +743,13 @@ const en: Messages = {
   'error.text.planChoose': 'Choose one of the plans offered',
   'error.text.planName': 'Enter the plan’s name',
   'error.text.whatsappDigits': 'Enter the number with its country code, digits only',
+  'error.text.personIsSuperAdmin': 'This person is already a Super Admin',
+  'error.text.lastSuperAdmin': 'There must always be one active Super Admin',
+  'error.text.alreadyDeactivated': 'This account is already deactivated',
   'error.text.tillAccount': 'This is a till account. Till staff cannot also be Studio members',
   'error.text.deleteSelf': 'You cannot delete your own account',
   'error.text.deleteDeactivateFirst': 'Deactivate this account first, then delete it',
   'error.text.deleteHasTillHistory': 'This account has till history, so it can only stay deactivated',
-  'error.text.personIsSuperAdmin': 'This person is already a Super Admin',
-  'error.text.lastSuperAdmin': 'There must always be one active Super Admin',
-  'error.text.alreadyDeactivated': 'This account is already deactivated',
   'error.text.notDeactivated': 'This account is not deactivated',
   'error.text.deactivateSelf': 'You cannot deactivate your own account',
   'error.text.restaurantNameEnter': 'Enter the restaurant name',
@@ -979,6 +976,9 @@ const en: Messages = {
   'restaurants.people.inviteTitle': 'Invite an owner',
   'restaurants.people.inviteIntro':
     'They get an email with a link to create their account. You can also send them the link yourself.',
+  'restaurants.people.inviteEmail': 'Email address',
+  'restaurants.people.inviteSubmit': 'Send invitation',
+  'restaurants.people.inviting': 'Sending…',
   'restaurants.people.till.title': 'Till staff',
   'restaurants.people.till.intro': 'Cashiers, managers and kitchen staff who use the till of the restaurant. They get an account with a password and cannot open the Studio.',
   'restaurants.people.till.name': 'Name',
@@ -988,9 +988,6 @@ const en: Messages = {
   'restaurants.people.till.submit': 'Add to the till',
   'restaurants.people.till.adding': 'Adding…',
   'restaurants.people.till.added': 'Till account created',
-  'restaurants.people.inviteEmail': 'Email address',
-  'restaurants.people.inviteSubmit': 'Send invitation',
-  'restaurants.people.inviting': 'Sending…',
   'restaurants.people.linkTitle': 'Invitation for {email}',
   'restaurants.people.linkBody':
     'The link works once and for 7 days. It is shown only now: copy it if you want to send it yourself.',
@@ -2657,9 +2654,9 @@ const en: Messages = {
   'people.actions': 'Actions for {name}',
   'people.assign': 'Assign to a restaurant',
   'people.changeEmail': 'Change email',
-  'people.delete': 'Delete account',
   'people.deactivate': 'Deactivate',
   'people.reactivate': 'Reactivate',
+  'people.delete': 'Delete account',
   'people.assign.title': 'Assign {name} as a designer',
   'people.assign.body': 'They will be able to open the restaurant and work on its menus.',
   'people.assign.restaurant': 'Restaurant',
@@ -2676,12 +2673,12 @@ const en: Messages = {
   'people.deactivate.done': 'Account deactivated',
   'people.reactivate.title': 'Reactivate {name}?',
   'people.reactivate.body': 'They can sign in again with their current password.',
+  'people.reactivate.confirm': 'Reactivate',
+  'people.reactivate.done': 'Account reactivated',
   'people.delete.title': 'Delete {name}?',
   'people.delete.body': 'The account and its access are erased for good and cannot be brought back. An account with till history cannot be deleted.',
   'people.delete.confirm': 'Delete',
   'people.delete.done': 'Account deleted',
-  'people.reactivate.confirm': 'Reactivate',
-  'people.reactivate.done': 'Account reactivated',
   'people.invitations.title': 'Pending invitations',
   'people.invitations.empty': 'No invitation is waiting.',
   'people.invitations.staff': 'Staff',
@@ -3200,7 +3197,6 @@ const en: Messages = {
   'plans.feature.selling.insights': 'Sales insights and advice',
   'plans.feature.immersive.explore': 'Explore mode',
   'plans.feature.immersive.stage': '3D dishes',
-  'plans.feature.design.menuMotions': 'Motions on the menu',
   'plans.feature.design.premiumTemplates': 'Premium templates',
   'plans.feature.design.backgroundImage': 'Background image',
   'plans.feature.design.backgroundAnimation': 'Background animation (Lottie)',
@@ -3393,11 +3389,8 @@ const en: Messages = {
   'revisions.scheduleLocked': 'Scheduled publishing',
   'preview.hiddenTitle': 'Guests on this plan don’t see',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
-  ...motion,
   // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
   ...styles,
-  // The Motion tab of a menu (menu-motions/en.ts)
-  ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/en.ts)
   ...posTill,
   // Stock, purchases, complaints and the range report (pos-stock/en.ts)

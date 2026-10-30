@@ -28,6 +28,10 @@ export async function saveProduct(input: unknown) {
   return invoke(content.saveProduct, input);
 }
 
+export async function setSelling(input: unknown) {
+  return invoke(content.setSelling, input);
+}
+
 export async function deleteProduct(input: unknown) {
   return invoke(content.deleteProduct, input);
 }

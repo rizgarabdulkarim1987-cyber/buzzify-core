@@ -1,8 +1,6 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
-import motion from './motion/ckb';
 import styles from './styles/ckb';
-import menuMotions from './menu-motions/ckb';
 import aiSettings from './ai-settings/ckb';
 import posAi from './pos-ai/ckb';
 import posStock from './pos-stock/ckb';
@@ -53,7 +51,6 @@ const ckb: Messages = {
   'nav.billing': 'پارەدان',
   'nav.menus': 'هەموو مینیوەکان',
   'nav.media': 'میدیا',
-  'nav.motion': 'جووڵە',
   'nav.people': 'کەسەکان',
   'nav.announcements': 'ڕاگەیاندنەکان',
   'nav.activity': 'چالاکی',
@@ -750,13 +747,13 @@ const ckb: Messages = {
   'error.text.planChoose': 'یەکێک لە پاکێجە پێشکەشکراوەکان هەڵبژێرە',
   'error.text.planName': 'ناوی پاکێجەکە بنووسە',
   'error.text.whatsappDigits': 'ژمارەکە لەگەڵ کۆدی وڵات بنووسە، تەنها ژمارە',
+  'error.text.personIsSuperAdmin': 'ئەم کەسە پێشتر بەڕێوەبەری باڵایە',
+  'error.text.lastSuperAdmin': 'دەبێت هەمیشە بەڕێوەبەرێکی باڵای چالاک هەبێت',
+  'error.text.alreadyDeactivated': 'ئەم هەژمارە پێشتر ناچالاک کراوە',
   'error.text.tillAccount': 'ئەمە هەژماری قاسەیە. کارمەندی قاسە ناتوانێت ببێتە ئەندامی ستۆدیۆ',
   'error.text.deleteSelf': 'ناتوانیت هەژماری خۆت بسڕیتەوە',
   'error.text.deleteDeactivateFirst': 'سەرەتا ئەم هەژمارە ناچالاک بکە، پاشان بیسڕەوە',
   'error.text.deleteHasTillHistory': 'ئەم هەژمارە مێژووی قاسەی هەیە، بۆیە تەنها ناچالاک دەمێنێتەوە',
-  'error.text.personIsSuperAdmin': 'ئەم کەسە پێشتر بەڕێوەبەری باڵایە',
-  'error.text.lastSuperAdmin': 'دەبێت هەمیشە بەڕێوەبەرێکی باڵای چالاک هەبێت',
-  'error.text.alreadyDeactivated': 'ئەم هەژمارە پێشتر ناچالاک کراوە',
   'error.text.notDeactivated': 'ئەم هەژمارە ناچالاک نەکراوە',
   'error.text.deactivateSelf': 'ناتوانیت هەژماری خۆت ناچالاک بکەیت',
   'error.text.restaurantNameEnter': 'ناوی ڕێستۆرانەکە بنووسە',
@@ -983,6 +980,9 @@ const ckb: Messages = {
   'restaurants.people.inviteTitle': 'بانگهێشتکردنی خاوەن',
   'restaurants.people.inviteIntro':
     'ئیمەیڵێکی بۆ دەچێت کە بەستەرێکی تێدایە بۆ دروستکردنی هەژمارەکەی. دەتوانیت خۆشت بەستەرەکەی بۆ بنێریت.',
+  'restaurants.people.inviteEmail': 'ناونیشانی ئیمەیڵ',
+  'restaurants.people.inviteSubmit': 'ناردنی بانگهێشت',
+  'restaurants.people.inviting': 'دەنێردرێت…',
   'restaurants.people.till.title': 'کارمەندانی قاسە',
   'restaurants.people.till.intro': 'کاشێر و بەڕێوەبەر و کارمەندی چێشتخانە کە قاسەی چێشتخانەکە بەکاردەهێنن. هەژمارێک بە وشەی نهێنی وەردەگرن و ناتوانن بچنە ناو ستۆدیۆ.',
   'restaurants.people.till.name': 'ناو',
@@ -992,9 +992,6 @@ const ckb: Messages = {
   'restaurants.people.till.submit': 'زیادکردن بۆ قاسە',
   'restaurants.people.till.adding': 'زیاد دەکرێت…',
   'restaurants.people.till.added': 'هەژماری قاسە دروستکرا',
-  'restaurants.people.inviteEmail': 'ناونیشانی ئیمەیڵ',
-  'restaurants.people.inviteSubmit': 'ناردنی بانگهێشت',
-  'restaurants.people.inviting': 'دەنێردرێت…',
   'restaurants.people.linkTitle': 'بانگهێشت بۆ {email}',
   'restaurants.people.linkBody':
     'بەستەرەکە تەنها یەک جار و بۆ 7 ڕۆژ کار دەکات. تەنها ئێستا پیشان دەدرێت: ئەگەر دەتەوێت خۆت بینێریت کۆپی بکە.',
@@ -2661,9 +2658,9 @@ const ckb: Messages = {
   'people.actions': 'کردارەکان بۆ {name}',
   'people.assign': 'دیاریکردن بۆ ڕێستۆرانێک',
   'people.changeEmail': 'گۆڕینی ئیمەیڵ',
-  'people.delete': 'سڕینەوەی هەژمار',
   'people.deactivate': 'ناچالاککردن',
   'people.reactivate': 'چالاککردنەوە',
+  'people.delete': 'سڕینەوەی هەژمار',
   'people.assign.title': '{name} وەک دیزاینەر دیاری بکە',
   'people.assign.body': 'دەتوانێت ڕێستۆرانەکە بکاتەوە و لەسەر مینیوەکانی کار بکات.',
   'people.assign.restaurant': 'ڕێستۆران',
@@ -2680,12 +2677,12 @@ const ckb: Messages = {
   'people.deactivate.done': 'هەژمار ناچالاک کرا',
   'people.reactivate.title': '{name} چالاک بکرێتەوە؟',
   'people.reactivate.body': 'دەتوانێت دووبارە بە وشەی نهێنیی ئێستای بچێتە ژوورەوە.',
+  'people.reactivate.confirm': 'چالاککردنەوە',
+  'people.reactivate.done': 'هەژمار چالاک کرایەوە',
   'people.delete.title': '{name} بسڕدرێتەوە؟',
   'people.delete.body': 'هەژمارەکە و دەسەڵاتەکانی بۆ هەمیشە دەسڕدرێنەوە و ناگەڕێنرێنەوە. هەژمارێک کە مێژووی قاسەی هەبێت ناسڕدرێتەوە.',
   'people.delete.confirm': 'سڕینەوە',
   'people.delete.done': 'هەژمار سڕایەوە',
-  'people.reactivate.confirm': 'چالاککردنەوە',
-  'people.reactivate.done': 'هەژمار چالاک کرایەوە',
   'people.invitations.title': 'بانگهێشتە چاوەڕوانکراوەکان',
   'people.invitations.empty': 'هیچ بانگهێشتێک چاوەڕێ نییە.',
   'people.invitations.staff': 'کارمەند',
@@ -3205,7 +3202,6 @@ const ckb: Messages = {
   'plans.feature.selling.insights': 'شیکاری فرۆشتن و ئامۆژگاری',
   'plans.feature.immersive.explore': 'دۆخی گەڕان',
   'plans.feature.immersive.stage': 'خواردنی سێ ڕەهەندی',
-  'plans.feature.design.menuMotions': 'جووڵەکان لەسەر مێنیو',
   'plans.feature.design.premiumTemplates': 'قاڵبە تایبەتەکان',
   'plans.feature.design.backgroundImage': 'وێنەی باکگراوند',
   'plans.feature.design.backgroundAnimation': 'جووڵەی باکگراوند (Lottie)',
@@ -3398,11 +3394,8 @@ const ckb: Messages = {
   'revisions.scheduleLocked': 'خشتەکردنی بڵاوکردنەوە',
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)
-  ...motion,
   // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
   ...styles,
-  // The Motion tab of a menu (menu-motions/ckb.ts)
-  ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/ckb.ts)
   ...posTill,
   // Stock, purchases, complaints and the range report (pos-stock/ckb.ts)

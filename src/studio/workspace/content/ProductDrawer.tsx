@@ -1,6 +1,7 @@
 'use client';
 
 import { ImagePlus, Images, LoaderCircle, RotateCw, Trash2, Upload, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Dialog as RadixDialog } from 'radix-ui';
 import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from 'react';
@@ -13,21 +14,19 @@ import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker, type PickedMedia } from '@/studio/media/MediaPicker';
 import { uploadMedia } from '@/studio/media/upload';
 import { Alert } from '@/studio/ui/Alert';
-import { Button } from '@/studio/ui/Button';
+import { Button, buttonClasses } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { cx } from '@/studio/ui/cx';
 import { Field } from '@/studio/ui/Field';
 import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
-import { Switch } from '@/studio/ui/Switch';
 import { comparable, draftOf, toSave, type MediaDraft, type ProductDraft } from './draft';
 import { GroupsEditor } from './GroupsEditor';
 import { displayName, newKey, type Names } from './shared';
 import { TagFields } from './TagFields';
 import { TranslationFields } from './TranslationFields';
 import { VariantsEditor } from './VariantsEditor';
-import { strengthLevel } from '../sales/levels';
 
 export interface ProductDrawerProps {
   menuId: string;
@@ -408,63 +407,18 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                   <TagFields
                     values={{ allergens: draft.allergens, dietary: draft.dietary, badges: draft.badges }}
                     onChange={(tags) => change(tags)}
+                    showBadges={false}
                   />
                   <Field label={t('content.calories.label')} hint={t('content.calories.hint')} error={errors.calories} optional className="max-w-40">
                     <Input value={draft.calories} inputMode="numeric" dir="ltr" onChange={(event) => change({ calories: event.target.value })} className="tabular-nums" />
                   </Field>
                 </Section>
 
-                <Section title={t('content.drawer.highlights')}>
-                  <div className="flex flex-col gap-3">
-                    <label className="flex items-start justify-between gap-6">
-                      <span className="flex flex-col gap-0.5">
-                        <span className="text-base text-text">{t('content.signature')}</span>
-                        <span className="text-sm text-muted">{t('content.signatureHint')}</span>
-                      </span>
-                      <Switch aria-label={t('content.signature')} checked={draft.isSignature} onCheckedChange={(isSignature) => change({ isSignature })} />
-                    </label>
-                    <label className="flex items-start justify-between gap-6">
-                      <span className="flex flex-col gap-0.5">
-                        <span className="text-base text-text">{t('content.featured')}</span>
-                        <span className="text-sm text-muted">{t('content.featuredHint')}</span>
-                      </span>
-                      <Switch aria-label={t('content.featured')} checked={draft.isFeatured} onCheckedChange={(isFeatured) => change({ isFeatured })} />
-                    </label>
-                  </div>
-                </Section>
-
-                <Section title={t('content.selling.heading')} hint={t('content.selling.intro')}>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label={t('content.cost.label')} hint={canPrice ? t('content.cost.hint', { currency }) : t('content.price.locked')} error={errors.cost} optional>
-                      <Input
-                        value={draft.cost}
-                        inputMode="decimal"
-                        dir="ltr"
-                        disabled={!canPrice}
-                        onChange={(event) => change({ cost: event.target.value })}
-                        className="tabular-nums"
-                      />
-                    </Field>
-                    <Field label={t('content.priority.label')} hint={t('content.priority.hint')} error={errors.priority}>
-                      <Select
-                        options={[50, 75, 100].map((level) => ({ value: String(level), label: t(`content.priority.${level}`) }))}
-                        value={String(strengthLevel(draft.priority))}
-                        onChange={(event) => change({ priority: Number(event.target.value) })}
-                      />
-                    </Field>
-                    <Field label={t('content.serves.label')} hint={t('content.serves.hint')} error={errors.serves} optional>
-                      <Input value={draft.serves} inputMode="numeric" dir="ltr" onChange={(event) => change({ serves: event.target.value })} className="tabular-nums" />
-                    </Field>
-                    <Field label={t('content.lowStock.label')} hint={t('content.lowStock.hint')} error={errors.lowStockThreshold} optional>
-                      <Input
-                        value={draft.lowStockThreshold}
-                        inputMode="numeric"
-                        dir="ltr"
-                        onChange={(event) => change({ lowStockThreshold: event.target.value })}
-                        className="tabular-nums"
-                      />
-                    </Field>
-                  </div>
+                <Section title={t('content.selling.heading')}>
+                  <p className="max-w-[65ch] text-sm text-muted">{t('content.drawer.sellingMoved')}</p>
+                  <Link href={`/studio/menus/${menuId}/sales/dishes`} className={buttonClasses('secondary', 'sm', 'self-start')}>
+                    {t('content.drawer.sellingMovedLink')}
+                  </Link>
                 </Section>
               </div>
             )}

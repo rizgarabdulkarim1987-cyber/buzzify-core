@@ -157,12 +157,6 @@ describe('golden: the Studio navigation', () => {
       icon: 'media'
     },
     {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    },
-    {
       key: 'people',
       href: '/studio/people',
       labelKey: 'nav.people',
@@ -242,12 +236,6 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.media',
       icon: 'media'
     },
-    {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    }
   ],
     );
   });

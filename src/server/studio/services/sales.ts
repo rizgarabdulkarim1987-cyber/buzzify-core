@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
+import type { Badge } from '@/lib/product-tags';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig, salesSettings, type SalesSettings } from '@/server/domain/config';
 import { localDate } from '@/server/domain/offers';
@@ -927,6 +928,77 @@ export type ShowcaseHiddenReason = 'PLAN' | 'OFFER_OFF' | 'OFFER_ENDED' | 'SET_O
 export interface ShowcasePlan {
   offers: boolean;
   smartSelling: boolean;
+}
+
+/** Every dish's selling settings, by category, with the version each is saved at (Sales > Dishes). */
+export interface SalesDishes {
+  locales: Locale[];
+  defaultLocale: Locale;
+  currency: string;
+  numeralSystem: string;
+  categories: Array<{
+    id: string;
+    names: Names;
+    products: Array<{
+      id: string;
+      version: number;
+      names: Names;
+      isSignature: boolean;
+      isFeatured: boolean;
+      badges: Badge[];
+      cost: number | null;
+      priority: number;
+      serves: number | null;
+      lowStockThreshold: number | null;
+    }>;
+  }>;
+}
+
+export async function salesDishes(db: QueryContext['db'], menuId: string): Promise<SalesDishes> {
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true } });
+  const order = [{ sortOrder: 'asc' as const }, { id: 'asc' as const }];
+  const categories = await db.category.findMany({ where: { menuId }, orderBy: order, select: { id: true, translations: true } });
+  const products = await db.product.findMany({
+    where: { menuId },
+    orderBy: order,
+    select: {
+      id: true,
+      categoryId: true,
+      translations: true,
+      version: true,
+      isSignature: true,
+      isFeatured: true,
+      badges: true,
+      cost: true,
+      priority: true,
+      serves: true,
+      lowStockThreshold: true,
+    },
+  });
+  return {
+    locales: menu.locales.filter(isLocale),
+    defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
+    currency: menu.currency,
+    numeralSystem: menu.numeralSystem,
+    categories: categories.map((category) => ({
+      id: category.id,
+      names: textsOf(category.translations, 'name'),
+      products: products
+        .filter((product) => product.categoryId === category.id)
+        .map((product) => ({
+          id: product.id,
+          version: product.version,
+          names: textsOf(product.translations, 'name'),
+          isSignature: product.isSignature,
+          isFeatured: product.isFeatured,
+          badges: product.badges as Badge[],
+          cost: product.cost,
+          priority: product.priority,
+          serves: product.serves,
+          lowStockThreshold: product.lowStockThreshold,
+        })),
+    })),
+  };
 }
 
 export async function salesRules(

@@ -1,8 +1,6 @@
 // Machine-drafted Arabic. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
-import motion from './motion/ar';
 import styles from './styles/ar';
-import menuMotions from './menu-motions/ar';
 import aiSettings from './ai-settings/ar';
 import posAi from './pos-ai/ar';
 import posStock from './pos-stock/ar';
@@ -53,7 +51,6 @@ const ar: Messages = {
   'nav.billing': 'الفوترة',
   'nav.menus': 'كل القوائم',
   'nav.media': 'الوسائط',
-  'nav.motion': 'الحركة',
   'nav.people': 'الأشخاص',
   'nav.announcements': 'الإعلانات',
   'nav.activity': 'النشاط',
@@ -757,13 +754,13 @@ const ar: Messages = {
   'error.text.planChoose': 'اختر إحدى الباقات المعروضة',
   'error.text.planName': 'أدخل اسم الباقة',
   'error.text.whatsappDigits': 'أدخل الرقم مع رمز الدولة، أرقامًا فقط',
+  'error.text.personIsSuperAdmin': 'هذا الشخص مشرف عام بالفعل',
+  'error.text.lastSuperAdmin': 'يجب أن يبقى مشرف عام نشط واحد على الأقل',
+  'error.text.alreadyDeactivated': 'هذا الحساب معطّل بالفعل',
   'error.text.tillAccount': 'هذا حساب صندوق. موظف الصندوق لا يمكن أن يكون عضوًا في الاستوديو',
   'error.text.deleteSelf': 'لا يمكنك حذف حسابك أنت',
   'error.text.deleteDeactivateFirst': 'عطّل هذا الحساب أولًا ثم احذفه',
   'error.text.deleteHasTillHistory': 'لهذا الحساب سجل في الصندوق، لذلك يبقى معطَّلًا فقط',
-  'error.text.personIsSuperAdmin': 'هذا الشخص مشرف عام بالفعل',
-  'error.text.lastSuperAdmin': 'يجب أن يبقى مشرف عام نشط واحد على الأقل',
-  'error.text.alreadyDeactivated': 'هذا الحساب معطّل بالفعل',
   'error.text.notDeactivated': 'هذا الحساب غير معطّل',
   'error.text.deactivateSelf': 'لا يمكنك تعطيل حسابك',
   'error.text.restaurantNameEnter': 'أدخل اسم المطعم',
@@ -985,6 +982,9 @@ const ar: Messages = {
   'restaurants.people.removed': 'تمت إزالة العضو',
   'restaurants.people.inviteTitle': 'دعوة مالك',
   'restaurants.people.inviteIntro': 'يصله بريد إلكتروني برابط لإنشاء حسابه. ويمكنك أيضًا إرسال الرابط إليه بنفسك.',
+  'restaurants.people.inviteEmail': 'البريد الإلكتروني',
+  'restaurants.people.inviteSubmit': 'إرسال الدعوة',
+  'restaurants.people.inviting': 'جارٍ الإرسال…',
   'restaurants.people.till.title': 'موظفو الصندوق',
   'restaurants.people.till.intro': 'الكاشير والمدراء وعمّال المطبخ الذين يستخدمون صندوق المطعم. يحصل كل واحد على حساب بكلمة مرور ولا يستطيع دخول الاستوديو.',
   'restaurants.people.till.name': 'الاسم',
@@ -994,9 +994,6 @@ const ar: Messages = {
   'restaurants.people.till.submit': 'إضافة إلى الصندوق',
   'restaurants.people.till.adding': 'جارٍ الإضافة…',
   'restaurants.people.till.added': 'تم إنشاء حساب الصندوق',
-  'restaurants.people.inviteEmail': 'البريد الإلكتروني',
-  'restaurants.people.inviteSubmit': 'إرسال الدعوة',
-  'restaurants.people.inviting': 'جارٍ الإرسال…',
   'restaurants.people.linkTitle': 'دعوة إلى {email}',
   'restaurants.people.linkBody': 'يعمل الرابط مرة واحدة ولمدة 7 أيام. يظهر الآن فقط: انسخه إذا أردت إرساله بنفسك.',
   'restaurants.people.linkLabel': 'رابط الدعوة',
@@ -2688,9 +2685,9 @@ const ar: Messages = {
   'people.actions': 'إجراءات لـ {name}',
   'people.assign': 'تعيين على مطعم',
   'people.changeEmail': 'تغيير البريد الإلكتروني',
-  'people.delete': 'حذف الحساب',
   'people.deactivate': 'تعطيل',
   'people.reactivate': 'إعادة التفعيل',
+  'people.delete': 'حذف الحساب',
   'people.assign.title': 'تعيين {name} مصمّمًا',
   'people.assign.body': 'سيتمكن من فتح المطعم والعمل على قوائمه.',
   'people.assign.restaurant': 'المطعم',
@@ -2707,12 +2704,12 @@ const ar: Messages = {
   'people.deactivate.done': 'تم تعطيل الحساب',
   'people.reactivate.title': 'إعادة تفعيل {name}؟',
   'people.reactivate.body': 'يمكنه تسجيل الدخول مجددًا بكلمة مروره الحالية.',
+  'people.reactivate.confirm': 'إعادة التفعيل',
+  'people.reactivate.done': 'تمت إعادة تفعيل الحساب',
   'people.delete.title': 'حذف {name}؟',
   'people.delete.body': 'يُمحى الحساب وصلاحياته نهائيًا ولا يمكن استرجاعه. لا يمكن حذف حساب له سجلّ في الصندوق.',
   'people.delete.confirm': 'حذف',
   'people.delete.done': 'تم حذف الحساب',
-  'people.reactivate.confirm': 'إعادة التفعيل',
-  'people.reactivate.done': 'تمت إعادة تفعيل الحساب',
   'people.invitations.title': 'الدعوات المعلّقة',
   'people.invitations.empty': 'لا توجد دعوات معلّقة.',
   'people.invitations.staff': 'موظف',
@@ -3231,7 +3228,6 @@ const ar: Messages = {
   'plans.feature.selling.insights': 'تحليلات المبيعات والنصائح',
   'plans.feature.immersive.explore': 'وضع الاستكشاف',
   'plans.feature.immersive.stage': 'الأطباق ثلاثية الأبعاد',
-  'plans.feature.design.menuMotions': 'حركات على المنيو',
   'plans.feature.design.premiumTemplates': 'القوالب المميزة',
   'plans.feature.design.backgroundImage': 'صورة خلفية',
   'plans.feature.design.backgroundAnimation': 'حركة خلفية (Lottie)',
@@ -3424,11 +3420,8 @@ const ar: Messages = {
   'revisions.scheduleLocked': 'جدولة النشر',
   'preview.hiddenTitle': 'ضيوف هذه الباقة لا يرون',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ar.ts)
-  ...motion,
   // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
   ...styles,
-  // The Motion tab of a menu (menu-motions/ar.ts)
-  ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/ar.ts)
   ...posTill,
   // Stock, purchases, complaints and the range report (pos-stock/ar.ts)

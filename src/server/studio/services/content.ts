@@ -652,6 +652,61 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
   });
 }
 
+/**
+ * The selling fields of one dish, as Sales > Dishes edits them. A field left out keeps what the dish has; the limits are
+ * the ones `saveProduct` holds for the same fields.
+ */
+export const sellingFields = {
+  productId: idField,
+  version: z.number().int().min(1),
+  isSignature: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+  badges: productSaveFields.badges.optional(),
+  cost: productSaveFields.cost,
+  priority: productSaveFields.priority,
+  serves: productSaveFields.serves,
+  lowStockThreshold: productSaveFields.lowStockThreshold,
+};
+export type SellingSave = z.infer<z.ZodObject<typeof sellingFields>>;
+
+/**
+ * Saves only the selling fields of one dish at its version, through the draft like `saveProduct`. A cost that changes
+ * needs `content.prices`. Nothing is written, and the version stays, when every value is what the dish already has.
+ */
+export function setSelling(ctx: ActionContext, input: SellingSave): Promise<{ version: number }> {
+  return editDraft(ctx, async (tx) => {
+    const product = await tx.product.findFirst({ where: { id: input.productId } });
+    if (!product) throw new StudioError('NOT_FOUND');
+
+    const badges = input.badges === undefined ? undefined : canonicalSet<Badge>(input.badges, BADGES);
+    const changes = changed({
+      isSignature: [product.isSignature, input.isSignature ?? product.isSignature],
+      isFeatured: [product.isFeatured, input.isFeatured ?? product.isFeatured],
+      badges: [product.badges, badges ?? product.badges],
+      cost: [product.cost, input.cost === undefined ? product.cost : input.cost],
+      priority: [product.priority, input.priority ?? product.priority],
+      serves: [product.serves, input.serves === undefined ? product.serves : input.serves],
+      lowStockThreshold: [product.lowStockThreshold, input.lowStockThreshold === undefined ? product.lowStockThreshold : input.lowStockThreshold],
+    });
+    const fields = Object.keys(changes);
+    if (fields.length === 0) return { version: product.version };
+    if ('cost' in changes) requirePrices(ctx);
+
+    await updateWithVersion(
+      tx.product,
+      {
+        id: product.id,
+        version: input.version,
+        data: Object.fromEntries(fields.map((field) => [field, changes[field]!.after])),
+        entityType: 'Product',
+      },
+      tx,
+    );
+    ctx.audit({ action: 'product.updated', entityType: 'Product', entityId: product.id, changes });
+    return { version: input.version + 1 };
+  });
+}
+
 /** Ingredients per language, empty languages dropped. */
 function ingredientsOf(value: Partial<Record<Locale, string[]>>): Prisma.InputJsonObject {
   const result: Record<string, string[]> = {};

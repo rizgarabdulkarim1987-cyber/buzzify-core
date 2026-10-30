@@ -57,8 +57,8 @@ export interface TagValues {
   badges: Badge[];
 }
 
-/** What a product contains and what it is, for guests who need to know, and the labels on its row (spec 5.3). */
-export function TagFields({ values, onChange }: { values: TagValues; onChange: (values: TagValues) => void }) {
+/** What a product contains and what it is, for guests who need to know, and the labels on its row (spec 5.3). `badges` is edited in Sales > Dishes, so the product drawer leaves its chips out (`showBadges={false}`). */
+export function TagFields({ values, onChange, showBadges = true }: { values: TagValues; onChange: (values: TagValues) => void; showBadges?: boolean }) {
   const t = useT();
   return (
     <div className="flex flex-col gap-5">
@@ -77,14 +77,16 @@ export function TagFields({ values, onChange }: { values: TagValues; onChange: (
         label={(value) => t(`content.dietary.${value}`)}
         onChange={(dietary) => onChange({ ...values, dietary })}
       />
-      <ChipSet
-        legend={t('content.tags.badges')}
-        hint={t('content.tags.badgesHint')}
-        options={BADGES}
-        selected={values.badges}
-        label={(value) => t(`content.badge.${value}`)}
-        onChange={(badges) => onChange({ ...values, badges })}
-      />
+      {showBadges && (
+        <ChipSet
+          legend={t('content.tags.badges')}
+          hint={t('content.tags.badgesHint')}
+          options={BADGES}
+          selected={values.badges}
+          label={(value) => t(`content.badge.${value}`)}
+          onChange={(badges) => onChange({ ...values, badges })}
+        />
+      )}
     </div>
   );
 }

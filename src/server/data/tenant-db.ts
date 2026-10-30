@@ -24,7 +24,6 @@ export const MENU_SCOPED_MODELS = [
   'Occasion',
   'ShowcaseCard',
   'DaypartSchedule',
-  'MenuMotion',
   'Table',
   'QrCode',
   'ImportJob',

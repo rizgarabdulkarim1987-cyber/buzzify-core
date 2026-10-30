@@ -4,7 +4,7 @@ import { idField } from '@/server/studio/services/content';
 import { allows } from '@/server/domain/entitlements';
 import { salesOverview, type SalesOverview } from '@/server/studio/services/insights';
 import { upgradeInfo, type UpgradeInfo } from '@/server/studio/services/plans';
-import { salesRules, salesSettingsView, type SalesRules, type SalesSettingsView } from '@/server/studio/services/sales';
+import { salesDishes, salesRules, salesSettingsView, type SalesDishes, type SalesRules, type SalesSettingsView } from '@/server/studio/services/sales';
 
 /**
  * What the Sales tab reads (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). Each answer carries what the
@@ -30,6 +30,18 @@ export const rules = defineQuery({
     const [read, upgrade] = await Promise.all([salesRules(ctx.db, menuOf(ctx), new Date(), plan), upgradeInfo(ctx.db, ctx)]);
     return { ...read, upgrade };
   },
+});
+
+/** Every dish's selling settings, and whether this person may set costs (they are prices). */
+export const dishes = defineQuery({
+  name: 'sales.dishes',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField }),
+  target: (i) => atMenu(i.menuId),
+  run: async (ctx): Promise<SalesDishes & { canPrice: boolean }> => ({
+    ...(await salesDishes(ctx.db, menuOf(ctx))),
+    canPrice: ctx.permissions.has('content.prices'),
+  }),
 });
 
 /** The menu's sales settings and its categories, marked when they complete a meal. */

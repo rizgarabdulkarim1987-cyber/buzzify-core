@@ -25,10 +25,8 @@ import {
   type PromotionKind,
   type VisualKey,
 } from '@/server/domain';
-import type { MotionParams } from '@/motion/types';
 import { showsCounts } from '@/server/domain/dish-counts';
 import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
-import { guestParams, type SnapshotMotion } from '@/server/domain/menu-motions';
 import type { TenantInfo } from './tenant';
 
 export interface MenuOptionView {
@@ -158,35 +156,6 @@ export interface MenuView {
   offers: MenuOfferView[];
   /** The live showcase cards around the search box; a slot without any is empty. */
   showcase: MenuShowcaseView;
-  /** The motions at the menu's places, for this guest's language; none where the plan leaves them out. */
-  motions: MenuMotionsView;
-}
-
-/** A motion as a guest's page plays it: its params resolved for the guest's language; still when the menu's motion is off. */
-export interface PlacedMotion {
-  motionId: string;
-  params: MotionParams;
-  playing: boolean;
-}
-
-export interface MenuMotionsView {
-  hero?: PlacedMotion;
-  signature?: PlacedMotion;
-  /** By category id. */
-  categories: Record<string, PlacedMotion>;
-}
-
-/** The tenant's motions laid out by place, each resolved for the guest (`guestParams`). */
-function menuMotions(motions: readonly SnapshotMotion[], tenant: TenantInfo, locale: Locale): MenuMotionsView {
-  const view: MenuMotionsView = { categories: {} };
-  const playing = tenant.brand.motionIntensity !== 'none';
-  for (const motion of motions) {
-    const placed = { motionId: motion.motionId, params: guestParams(motion, locale, tenant.defaultLocale, tenant.brand.logoText), playing };
-    if (motion.place === 'category') {
-      if (motion.categoryId) view.categories[motion.categoryId] = placed;
-    } else view[motion.place] = placed;
-  }
-  return view;
 }
 
 const DAY_MS = 86_400_000;
@@ -403,7 +372,6 @@ export function buildMenuView(
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),
     showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
-    motions: menuMotions(tenant.motions, tenant, locale),
   };
 }
 
