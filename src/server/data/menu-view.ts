@@ -7,6 +7,7 @@ import { stageOf } from '@/lib/stage';
 import {
   daypartNow,
   discountFor,
+  inDaypart,
   liveOffers,
   localDate,
   orderability,
@@ -368,7 +369,6 @@ export function buildMenuView(
       .join(', ');
   const signature = pickSignature(catalog, now, tenant.engineConfig);
   // Only offers on a dish guests can see now: an offer on dishes all out of their hours says nothing true.
-  const shownIds = new Set(products.map((product) => product.id));
   const shownOffers = live.filter((offer) =>
     products.some((product) => offer.productIds.includes(product.id) || offer.categoryIds.includes(product.categoryId)),
   );
@@ -400,27 +400,36 @@ export function buildMenuView(
       percentOff: offer.kind === 'DISCOUNT' ? offer.percentOff : null,
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),
-    showcase: menuShowcase(catalog, shownOffers, shownIds, locale, now),
+    showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
     motions: menuMotions(tenant.motions, tenant, locale),
   };
 }
 
 /**
  * The showcase cards live now (`liveShowcase`), resolved for the guest's language. An offer card goes with its offer as
- * the strip shows it, and a set card only while every dish of its set is on the menu. A card's own title and text win;
- * an offer or set card without them says what its offer or set says.
+ * the strip shows it, and a set card only while the set can be ordered: in its times of day with every dish orderable
+ * now, as `detectBundleOpportunities` and pricing require. A card's own title and text win; an offer or set card
+ * without them says what its offer or set says (an offer without text names what it is on, as the strip does).
  */
 function menuShowcase(
   catalog: Catalog,
-  shownOffers: readonly CatalogPromotion[],
-  shownIds: ReadonlySet<string>,
+  shown: {
+    shownOffers: readonly CatalogPromotion[];
+    products: readonly MenuProductView[];
+    current: Daypart | null;
+    offerSubjects: (offer: CatalogPromotion) => string;
+  },
   locale: Locale,
   now: Date,
 ): MenuShowcaseView {
   const fallback = catalog.defaultLocale;
-  const offers = new Map(shownOffers.map((offer) => [offer.id, offer]));
+  const shownIds = new Set(shown.products.map((product) => product.id));
+  const orderable = new Set(shown.products.filter((product) => product.orderState === 'OK').map((product) => product.id));
+  const offers = new Map(shown.shownOffers.map((offer) => [offer.id, offer]));
   const bundles = new Map(
-    catalog.bundles.filter((bundle) => bundle.items.every((item) => shownIds.has(item.productId))).map((bundle) => [bundle.id, bundle]),
+    catalog.bundles
+      .filter((bundle) => inDaypart(bundle.dayparts, shown.current) && bundle.items.every((item) => orderable.has(item.productId)))
+      .map((bundle) => [bundle.id, bundle]),
   );
   const occasions = new Map(catalog.occasions.map((occasion) => [occasion.id, occasion]));
   const slots = liveShowcase({
@@ -446,7 +455,7 @@ function menuShowcase(
         (bundle ? resolveText(bundle.translations, 'name', locale, fallback) : ''),
       text:
         own('text') ||
-        (offer ? resolveText(offer.translations, 'text', locale, fallback) : '') ||
+        (offer ? resolveText(offer.translations, 'text', locale, fallback) || shown.offerSubjects(offer) : '') ||
         (bundle ? resolveText(bundle.translations, 'description', locale, fallback) : ''),
       occasion: occasion ? resolveText(occasion.translations, 'name', locale, fallback) || null : null,
       price: bundle ? bundle.price : card.kind === 'BUFFET' ? card.price : null,

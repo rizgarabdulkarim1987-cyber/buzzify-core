@@ -132,6 +132,31 @@ describe('buildMenuView showcase', () => {
     expect(view.showcase.aboveSearch.map((c) => c.id)).toEqual(['c-set', 'c-hidden-set']);
   });
 
+  it("shows a set card only in its set's times of day, even when its dishes stay on the menu", () => {
+    // The fixture's croissant keeps the default hideOutsideDaypart: false, so it is on the menu at 18:00.
+    const catalog = makeCatalog({ showcaseCards: [card({ id: 'c-breakfast', kind: 'SET', bundleId: 'b-breakfast' })] });
+    expect(buildMenuView(catalog, tenant, 'en', at(18)).products.some((p) => p.id === IDS.croissant)).toBe(true);
+    expect(buildMenuView(catalog, tenant, 'en', at(18)).showcase.aboveSearch).toEqual([]);
+    expect(buildMenuView(catalog, tenant, 'en', at(8)).showcase.aboveSearch.map((c) => c.id)).toEqual(['c-breakfast']);
+  });
+
+  it('hides a set card while one of its dishes is sold out or out of stock', () => {
+    const catalog = makeCatalog({ showcaseCards: [card({ id: 'c-set', kind: 'SET', bundleId: 'b-burger-meal' })] });
+    expect(buildMenuView(catalog, tenant, 'en', at(18)).showcase.aboveSearch.map((c) => c.id)).toEqual(['c-set']);
+    expect(buildMenuView(withProduct(catalog, IDS.fries, { isAvailable: false }), tenant, 'en', at(18)).showcase.aboveSearch).toEqual([]);
+    expect(buildMenuView(withProduct(catalog, IDS.fries, { stockCount: 0 }), tenant, 'en', at(18)).showcase.aboveSearch).toEqual([]);
+  });
+
+  it('names what an offer is on when neither the card nor the offer has text, as the offer strip does', () => {
+    const catalog = makeCatalog({
+      promotions: [happyHour],
+      showcaseCards: [card({ id: 'c-offer', kind: 'OFFER', promotionId: 'hh', translations: { en: { title: 'Deal' } } })],
+    });
+    const view = buildMenuView(catalog, tenant, 'en', at(18));
+    expect(view.showcase.aboveSearch[0]?.text).toBe(IDS.burger);
+    expect(view.showcase.aboveSearch[0]?.text).toBe(view.offers[0]?.text);
+  });
+
   it('reaches guests through the published snapshot, with the bundle people and without a change to old hashes', () => {
     const catalog = showcaseCatalog();
     const snapshot = parseSnapshot(JSON.parse(JSON.stringify(makeSnapshot(catalog))));
