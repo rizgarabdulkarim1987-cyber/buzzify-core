@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { canPh } from '@/server/domain/pharmacy/permissions';
+import { baghdadWindow, ReportsError, validDay } from '@/server/domain/pharmacy/reports-domain';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 
@@ -17,11 +18,18 @@ export const prescriptionListInput = z.object({
   /** Only prescriptions not yet used by a sale. */
   unusedOnly: z.boolean().optional(),
   limit: z.number().int().min(1).max(100).default(25),
+  /** The id of the last row of the page before (newest first): the next page starts after it. */
+  cursor: idText.nullish(),
 });
 export const prescriptionGetInput = z.object({ prescriptionId: idText });
 export const registerListInput = z.object({
   productId: idText.optional(),
   limit: z.number().int().min(1).max(200).default(50),
+  /** Baghdad days, both or neither (at most 366 days). */
+  from: z.string().trim().refine(validDay, 'Enter a date as YYYY-MM-DD').optional(),
+  to: z.string().trim().refine(validDay, 'Enter a date as YYYY-MM-DD').optional(),
+  /** The id of the last row of the page before (newest first). */
+  cursor: idText.nullish(),
 });
 
 export interface PrescriptionView {
@@ -85,8 +93,14 @@ function viewOf(row: Row, withPatient: boolean): PrescriptionView {
 }
 
 export async function listPrescriptions(scoped: ScopedClient, ph: PhActor, input: z.infer<typeof prescriptionListInput>, branchId?: string): Promise<PrescriptionView[]> {
+  let after: object = {};
+  if (input.cursor) {
+    const at = await scoped.phPrescription.findFirst({ where: { id: input.cursor }, select: { id: true, createdAt: true } });
+    if (!at) throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+    after = { OR: [{ createdAt: { lt: at.createdAt } }, { createdAt: at.createdAt, id: { lt: at.id } }] };
+  }
   const rows = await scoped.phPrescription.findMany({
-    where: { ...(branchId ? { branchId } : {}), ...(input.saleId ? { saleId: input.saleId } : {}), ...(input.unusedOnly ? { saleId: null } : {}) },
+    where: { ...(branchId ? { branchId } : {}), ...(input.saleId ? { saleId: input.saleId } : {}), ...(input.unusedOnly ? { saleId: null } : {}), ...after },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.limit,
     select: SELECT,
@@ -124,8 +138,28 @@ export interface RegisterRow {
 
 /** The controlled register, newest first, of the actor's branches: no patient field, no prescription number. */
 export async function listRegister(scoped: ScopedClient, input: z.infer<typeof registerListInput>, branchId?: string): Promise<RegisterRow[]> {
+  let range: object = {};
+  if ((input.from === undefined) !== (input.to === undefined)) throw new StudioError('INVALID', 'Check the highlighted fields', { from: 'Enter a date as YYYY-MM-DD' });
+  if (input.from !== undefined && input.to !== undefined) {
+    try {
+      const w = baghdadWindow(input.from, input.to);
+      range = { createdAt: { gte: w.start, lt: w.endExclusive } };
+    } catch (error) {
+      if (error instanceof ReportsError) {
+        const message = error.code === 'RANGE_TOO_LONG' ? 'Use a range of at most one year' : error.code === 'FROM_AFTER_TO' ? 'The start date is after the end date' : 'Enter a date as YYYY-MM-DD';
+        throw new StudioError('INVALID', message, { [error.code === 'FROM_AFTER_TO' ? 'from' : 'to']: message });
+      }
+      throw error;
+    }
+  }
+  let after: object = {};
+  if (input.cursor) {
+    const at = await scoped.phControlledEntry.findFirst({ where: { id: input.cursor }, select: { id: true, createdAt: true } });
+    if (!at) throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+    after = { AND: [{ OR: [{ createdAt: { lt: at.createdAt } }, { createdAt: at.createdAt, id: { lt: at.id } }] }] };
+  }
   const rows = await scoped.phControlledEntry.findMany({
-    where: { ...(branchId ? { branchId } : {}), ...(input.productId ? { productId: input.productId } : {}) },
+    where: { ...(branchId ? { branchId } : {}), ...(input.productId ? { productId: input.productId } : {}), ...range, ...after },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.limit,
     select: {

@@ -58,6 +58,10 @@ export interface SellSettings {
   /** Invoice rounding step in minor units, as text; "0" = none. */
   roundingStepMinor: string;
   maxDiscountPercent: number;
+  /** Phase 7: whether controlled (RESTRICTED) medicines may be sold, the most of one a sale may carry (0 = no limit), and whether credit sales are on. */
+  controlledEnabled: boolean;
+  controlledMaxQty: number;
+  creditEnabled: boolean;
 }
 
 export interface SellItem {
@@ -88,12 +92,15 @@ const fefoOf = (b: { id: string; lot: string; expiryDate: Date; expiryPrecision:
 
 /** The settings the sale screen shows (and the currency of the sale). */
 async function settingsOf(scoped: ScopedDb, asked: 'IQD' | 'USD' | undefined) {
-  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true, enabledCurrencies: true, roundingStepMinor: true, maxDiscountPercent: true } });
+  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true, enabledCurrencies: true, roundingStepMinor: true, maxDiscountPercent: true, controlledEnabled: true, controlledMaxQty: true, creditEnabled: true } });
   const sellSettings: SellSettings = {
     defaultCurrency: settings?.defaultCurrency ?? 'IQD',
     enabledCurrencies: settings?.enabledCurrencies ?? ['IQD'],
     roundingStepMinor: String(settings?.roundingStepMinor ?? 0n),
     maxDiscountPercent: settings?.maxDiscountPercent ?? 5,
+    controlledEnabled: settings?.controlledEnabled ?? false,
+    controlledMaxQty: settings?.controlledMaxQty ?? 30,
+    creditEnabled: settings?.creditEnabled ?? false,
   };
   return { sellSettings, currency: asked ?? settings?.defaultCurrency ?? 'IQD' };
 }
@@ -154,13 +161,16 @@ async function sellItemsOf(
   const { branchId, currency, found, now } = args;
   if (found.length === 0) return [];
   const ids = found.map((f) => f.productId);
-  const [products, balances] = await Promise.all([
+  const [products, balances, flags] = await Promise.all([
     scoped.phProduct.findMany({
       where: { id: { in: ids } },
       select: { id: true, genericName: true, rxLevel: true, units: { where: { sellable: true }, select: { id: true, label: true, level: true, baseQty: true }, orderBy: { level: 'asc' } } },
     }),
     scoped.phStockBalance.findMany({ where: { branchId, productId: { in: ids }, available: { gt: 0 } }, select: { productId: true, batchId: true, available: true } }),
+    scoped.phSettings.findFirst({ select: { controlledEnabled: true } }),
   ]);
+  // A controlled medicine is sellable only while the owner has switched controlled sales on (phase 7); off, it is shown as not available.
+  const controlledOn = flags?.controlledEnabled ?? false;
   const batches = await scoped.phBatch.findMany({
     where: { id: { in: [...new Set(balances.map((b) => b.batchId))] } },
     select: { id: true, lot: true, status: true, expiryDate: true, expiryPrecision: true },
@@ -208,8 +218,8 @@ async function sellItemsOf(
       matchedOn: hit.matchedOn,
       matchedUnitId: hit.unitId ?? null,
       sellableQty: stock?.total ?? 0,
-      notSellable: product.rxLevel === 'RESTRICTED',
-      notSellableReason: product.rxLevel === 'RESTRICTED' ? 'RESTRICTED' : null,
+      notSellable: product.rxLevel === 'RESTRICTED' && !controlledOn,
+      notSellableReason: product.rxLevel === 'RESTRICTED' && !controlledOn ? 'RESTRICTED' : null,
       noPrice: units.every((u) => u.noPrice),
       units,
       batches: (stock?.list ?? [])

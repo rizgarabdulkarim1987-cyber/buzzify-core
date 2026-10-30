@@ -121,6 +121,7 @@ export async function createHold(
   if (shift.currency !== input.currency) throw conflict('SHIFT_CURRENCY', 'Your open shift is in another currency');
 
   const productIds = [...new Set(input.lines.map((l) => l.productId))];
+  const controlledOn = (await tx.phSettings.findFirst({ select: { controlledEnabled: true } }))?.controlledEnabled ?? false;
   const [products, units] = await Promise.all([
     tx.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, tradeName: true, active: true, rxLevel: true } }),
     tx.phProductUnit.findMany({ where: { productId: { in: productIds } }, select: { id: true, productId: true, baseQty: true, sellable: true } }),
@@ -132,7 +133,8 @@ export async function createHold(
     if (!product || !product.active) throw invalid(`lines.${index}.productId`, 'Choose one of this pharmacy’s active products');
     const unit = unitById.get(line.unitId);
     if (!unit || unit.productId !== line.productId || !unit.sellable) throw invalid(`lines.${index}.unitId`, 'Choose one of this product’s units');
-    if (product.rxLevel === 'RESTRICTED') {
+    // A controlled medicine may wait on a hold once the owner has switched controlled sales on; the sale judges the prescription.
+    if (product.rxLevel === 'RESTRICTED' && !controlledOn) {
       throw conflict('RESTRICTED_NOT_AVAILABLE', 'Controlled medicines cannot be sold yet', { productId: product.id, productName: product.tradeName });
     }
     let baseQty: number;

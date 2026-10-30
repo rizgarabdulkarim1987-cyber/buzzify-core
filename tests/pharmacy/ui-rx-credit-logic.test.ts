@@ -217,3 +217,41 @@ describe('statement and ageing rows', () => {
     expect(row.cells.map((c) => c.bucket)).toEqual(['0-30', '31-60', '61-90', '90+']);
   });
 });
+
+describe('lists', () => {
+  it('cuts a page read as size + 1 and names the cursor', async () => {
+    const { keysetOf } = await import('@/app/pharmacy/_ui/prescription-logic');
+    const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    expect(keysetOf(rows, 2)).toEqual({ items: [{ id: 'a' }, { id: 'b' }], nextCursor: 'b' });
+    expect(keysetOf(rows, 3)).toEqual({ items: rows, nextCursor: null });
+    expect(keysetOf([], 3)).toEqual({ items: [], nextCursor: null });
+  });
+
+  it('nets the register by Baghdad day, product and batch after returns', async () => {
+    const { netRegister } = await import('@/app/pharmacy/_ui/prescription-logic');
+    const { baghdadDay } = await import('@/server/domain/pharmacy/reports-domain');
+    const dayOf = (iso: string) => baghdadDay(new Date(iso));
+    const row = (kind: 'SALE' | 'RETURN', baseQty: number, createdAt: string, lot = 'L1') => ({ productId: 'p', productName: 'P', batchId: lot, lot, baseQty, kind, createdAt });
+    // 21:30Z on the 27th is already the 28th in Baghdad (UTC+3).
+    const net = netRegister([row('SALE', 15, '2026-10-27T21:30:00Z'), row('SALE', 5, '2026-10-28T08:00:00Z', 'L2'), row('RETURN', -4, '2026-10-28T09:00:00Z'), row('SALE', 2, '2026-10-26T09:00:00Z')], dayOf);
+    expect(net).toEqual([
+      { day: '2026-10-28', productId: 'p', productName: 'P', batchId: 'L1', lot: 'L1', sold: 15, returned: 4, net: 11 },
+      { day: '2026-10-28', productId: 'p', productName: 'P', batchId: 'L2', lot: 'L2', sold: 5, returned: 0, net: 5 },
+      { day: '2026-10-26', productId: 'p', productName: 'P', batchId: 'L1', lot: 'L1', sold: 2, returned: 0, net: 2 },
+    ]);
+  });
+});
+
+describe('statement range', () => {
+  it('defaults to the last 30 Baghdad days and judges a typed range with the server rule', async () => {
+    const { statementRange } = await import('@/app/pharmacy/_ui/credit-logic');
+    expect(statementRange(undefined, undefined, '2026-10-28')).toEqual({ from: '2026-09-29', to: '2026-10-28', problem: null });
+    expect(statementRange('2026-01-01', '2026-10-28', '2026-10-28')).toMatchObject({ from: '2026-01-01', to: '2026-10-28', problem: null });
+    // 366 days is the most (2025-10-28 .. 2026-10-28 inclusive is 366); one more is refused.
+    expect(statementRange('2025-10-28', '2026-10-28', '2026-10-28').problem).toBeNull();
+    expect(statementRange('2025-10-27', '2026-10-28', '2026-10-28')).toMatchObject({ problem: 'long', from: '2026-09-29' });
+    expect(statementRange('2026-10-28', '2026-10-01', '2026-10-28').problem).toBe('order');
+    expect(statementRange('2026-13-01', '2026-10-01', '2026-10-28').problem).toBe('malformed');
+    expect(statementRange('2026-10-01', undefined, '2026-10-28').problem).toBe('malformed');
+  });
+});

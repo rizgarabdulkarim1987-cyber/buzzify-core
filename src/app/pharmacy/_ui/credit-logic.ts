@@ -1,4 +1,5 @@
 import { AGEING_BUCKETS, type AgeingBucket } from '@/server/domain/pharmacy/credit';
+import { addDays, baghdadWindow, ReportsError } from '@/server/domain/pharmacy/reports-domain';
 import { formatMinor, parseMoney, type Currency, type PayDraft } from './sell-logic';
 
 /**
@@ -178,3 +179,24 @@ export function ageingRowOf(item: AgeingItemIn) {
 
 /** `owed` text of a total in its currency (the screens group totals per currency; this is only the formatting). */
 export const owedText = (minor: string, currency: Currency) => `${formatMinor(BigInt(minor), currency)} ${currency}`;
+
+// The statement's range ---------------------------------------------------------------------------------------------------
+
+export type RangeProblem = 'malformed' | 'order' | 'long';
+
+/**
+ * The statement's days from the address: both given and valid, or the last 30 Baghdad days. A range the server would refuse (not a
+ * date, start after end, more than 366 days) is judged here with the server's own function and said in words; the screen then shows
+ * the default range, never a half-read one.
+ */
+export function statementRange(rawFrom: string | undefined, rawTo: string | undefined, today: string): { from: string; to: string; problem: RangeProblem | null } {
+  const fallback = { from: addDays(today, -29), to: today };
+  if (rawFrom === undefined && rawTo === undefined) return { ...fallback, problem: null };
+  try {
+    baghdadWindow(rawFrom ?? '', rawTo ?? '');
+    return { from: rawFrom as string, to: rawTo as string, problem: null };
+  } catch (error) {
+    if (!(error instanceof ReportsError)) throw error;
+    return { ...fallback, problem: error.code === 'RANGE_TOO_LONG' ? 'long' : error.code === 'FROM_AFTER_TO' ? 'order' : 'malformed' };
+  }
+}

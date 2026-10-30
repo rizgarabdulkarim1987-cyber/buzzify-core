@@ -1,6 +1,6 @@
 'use client';
 
-import { Banknote, CircleAlert, CircleCheck, CreditCard, Hourglass, Landmark, PackageOpen, Play, Printer, Receipt, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
+import { Banknote, CircleAlert, Wallet, CircleCheck, CreditCard, Hourglass, Landmark, PackageOpen, Play, Printer, Receipt, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { listHolds } from '@/app/pharmacy/_actions/sales';
 import { reprintReceipt, saleReceipt } from '@/app/pharmacy/_actions/receipts';
@@ -12,9 +12,13 @@ import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
+import { getCustomer } from '@/app/pharmacy/_actions/customers';
+import { creditPreview, creditView } from './credit-logic';
+import { CustomerFigures, CustomerPicker, type PickedCustomer } from './CustomerPicker';
 import { phMessage } from './ph-failure';
+import { isolate } from './WriteBlocked';
 import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
-import { cashShortcuts, formatMinor, keyFor, outcomeUnknown, paymentPreview, plainMinor, type Currency, type KeyedAttempt, type PayDraft, type PayMethod } from './sell-logic';
+import { cashShortcuts, formatMinor, plainMinor as plain, keyFor, outcomeUnknown, paymentPreview, plainMinor, type Currency, type KeyedAttempt, type PayDraft, type PayMethod } from './sell-logic';
 
 // Pay -----------------------------------------------------------------------------------------------------------------
 
@@ -36,7 +40,10 @@ export interface PayDialogProps {
   offline: boolean;
   /** The payment of an attempt whose outcome is unknown, to fill in again exactly as it was sent (so its keys still match). */
   initial?: PayDraft | null;
-  onSubmit: (draft: PayDraft, amountMinor: bigint) => void;
+  /** Phase 7: whether this person may put part of a sale on a customer account here (credit switched on, `credit.sell`). */
+  creditAllowed?: boolean;
+  /** `amountMinor` is what is handed over by the method for the rest (0 when credit covers everything); `credit` names the account charged. */
+  onSubmit: (draft: PayDraft, amountMinor: bigint, credit: { minor: bigint; customerName: string } | null) => void;
 }
 
 /**
@@ -44,25 +51,73 @@ export interface PayDialogProps {
  * the total. The amount defaults to the exact total, so a plain Enter completes a no-change sale. The attempt's keys are
  * the caller's: a retry after a failure sends the same ones.
  */
-export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, problem, offline, initial = null, onSubmit }: PayDialogProps) {
+export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, problem, offline, initial = null, creditAllowed = false, onSubmit }: PayDialogProps) {
   const t = useT();
   const form = useId();
   const [draft, setDraft] = useState<PayDraft>({ method: 'CASH', tendered: '', reference: '' });
   const [opened, setOpened] = useState(false);
+  const [customer, setCustomer] = useState<PickedCustomer | null>(null);
+  const [customerProblem, setCustomerProblem] = useState<string | null>(null);
+  const { locale } = useLocale();
   if (open && !opened) {
     setOpened(true);
     setDraft(initial ?? { method: 'CASH', tendered: '', reference: '' });
+    setCustomer(null);
+    setCustomerProblem(null);
   }
   if (!open && opened) setOpened(false);
 
-  const preview = paymentPreview(draft, totalMinor, currency);
+  // An attempt whose outcome is unknown comes back with its customer: read the account again so the figures on screen are current.
+  const resumeId = open && initial?.credit ? initial.credit.customerId : null;
+  useEffect(() => {
+    if (!resumeId) return;
+    let cancelled = false;
+    void settle(() => getCustomer({ customerId: resumeId })).then((result) => {
+      if (cancelled) return;
+      if (result.ok) setCustomer(result.data as PickedCustomer);
+      else setCustomerProblem(phMessage(t, locale, result.error, 'pharmacy.credit'));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
+  }, [resumeId]);
+
+  const withCredit = Boolean(draft.credit);
+  const plainPreview = paymentPreview(draft, totalMinor, currency);
+  const credit = withCredit ? creditPreview(draft, totalMinor, currency, customer) : null;
+  const preview = credit ? { amountMinor: credit.amountMinor, changeMinor: credit.changeMinor, ok: credit.ok } : plainPreview;
   const exact = draft.tendered.trim() === '';
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (busy || offline || !preview.ok || preview.amountMinor === null) return;
-    onSubmit(draft, preview.amountMinor);
+    onSubmit(draft, preview.amountMinor, credit?.ok && credit.creditMinor !== null && customer ? { minor: credit.creditMinor, customerName: customer.name } : null);
   };
-  const fieldError = preview.amountMinor === null ? t('pharmacy.sell.pay.invalidAmount') : !preview.ok ? t(draft.method === 'CASH' ? 'pharmacy.sell.pay.short' : 'pharmacy.sell.pay.exactOnly') : undefined;
+  const fieldError = withCredit
+    ? credit && credit.problem === 'rest'
+      ? t(draft.method === 'CASH' ? 'pharmacy.sell.pay.short' : 'pharmacy.sell.pay.exactOnly')
+      : undefined
+    : plainPreview.amountMinor === null
+      ? t('pharmacy.sell.pay.invalidAmount')
+      : !plainPreview.ok
+        ? t(draft.method === 'CASH' ? 'pharmacy.sell.pay.short' : 'pharmacy.sell.pay.exactOnly')
+        : undefined;
+  const pickCustomer = (next: PickedCustomer | null) => {
+    setCustomer(next);
+    setCustomerProblem(null);
+    if (next) {
+      // The default is as much as the account may take, up to the whole sale.
+      const room = creditView(next, 0n).remaining;
+      const amount = room < totalMinor ? room : totalMinor;
+      setDraft((d) => ({ ...d, tendered: '', credit: { customerId: next.id, amount: plain(amount, currency) } }));
+    } else {
+      setDraft((d) => ({ ...d, credit: { customerId: '', amount: '' } }));
+    }
+  };
+  const creditProblem = credit && credit.problem && credit.problem !== 'rest' && credit.problem !== 'customer' ? credit.problem : null;
+  const noRest = credit?.ok === true && credit.restMinor === 0n;
+  // What the other method has to pay: the whole total, or the total less a valid credit amount.
+  const restOf = credit && credit.creditMinor !== null && credit.problem !== 'overTotal' && credit.problem !== 'overLimit' ? totalMinor - credit.creditMinor : totalMinor;
 
   return (
     <Dialog
@@ -88,66 +143,138 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
       }
     >
       <form id={form} onSubmit={submit} className="flex flex-col gap-4">
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-sm font-medium text-text">{t('pharmacy.sell.pay.method')}</legend>
-          <div className="grid grid-cols-3 gap-2">
-            {METHODS.map(({ method, icon }) => (
-              <label
-                key={method}
-                className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
-                  draft.method === method ? 'border-ink bg-ink text-on-ink' : 'border-line-strong bg-raised text-text hover:bg-hover'
-                } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}
-              >
-                <input type="radio" name="method" value={method} checked={draft.method === method} onChange={() => setDraft({ ...draft, method, tendered: '' })} className="sr-only" data-testid={`pay-${method}`} />
-                {icon}
-                {t(`pharmacy.sell.pay.method.${method}`)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <Field label={t(draft.method === 'CASH' ? 'pharmacy.sell.pay.tendered' : 'pharmacy.sell.pay.amount')} hint={exact ? t('pharmacy.sell.pay.exactHint') : undefined} error={fieldError}>
-          <FieldInput
-            className={FIELD}
-            dir="ltr"
-            inputMode="decimal"
-            autoComplete="off"
-            autoFocus
-            data-testid="pay-tendered"
-            value={draft.tendered}
-            placeholder={plainMinor(totalMinor, currency)}
-            onChange={(event) => setDraft({ ...draft, tendered: event.target.value })}
-          />
-        </Field>
-
-        {draft.method === 'CASH' && (
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('pharmacy.sell.pay.quick')}>
-            <button type="button" className={TOUCH_BTN} data-testid="pay-exact" aria-pressed={exact} onClick={() => setDraft({ ...draft, tendered: '' })}>
-              {t('pharmacy.sell.pay.exact')}
-            </button>
-            {cashShortcuts(totalMinor, currency).map((amount) => (
-              <button key={amount.toString()} type="button" className={TOUCH_BTN} onClick={() => setDraft({ ...draft, tendered: plainMinor(amount, currency) })}>
-                <Num>{formatMinor(amount, currency)}</Num>
-              </button>
-            ))}
-          </div>
+        {creditAllowed && (
+          <fieldset className="flex flex-col gap-3 rounded-md border border-line p-3" data-testid="pay-credit">
+            <legend className="px-1 text-sm font-medium text-text">{t('pharmacy.credit.pay.legend')}</legend>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
+              <input
+                type="checkbox"
+                className="size-5 shrink-0"
+                data-testid="pay-credit-toggle"
+                checked={withCredit}
+                onChange={(event) => {
+                  setCustomer(null);
+                  setDraft((d) => ({ ...d, tendered: '', credit: event.target.checked ? { customerId: '', amount: '' } : null }));
+                }}
+              />
+              <Wallet aria-hidden className="size-4 shrink-0" />
+              {t('pharmacy.credit.pay.toggle')}
+            </label>
+            {withCredit && (
+              <>
+                <CustomerPicker saleCurrency={currency} picked={customer} onPick={pickCustomer} />
+                {customerProblem && (
+                  <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">
+                    {customerProblem}
+                  </Note>
+                )}
+                {customer && draft.credit && (
+                  <>
+                    <Field label={t('pharmacy.credit.pay.amount', { currency })} error={creditProblem ? t(`pharmacy.credit.pay.problem.${creditProblem}`) : undefined}>
+                      <FieldInput
+                        className={FIELD}
+                        dir="ltr"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        data-testid="pay-credit-amount"
+                        value={draft.credit.amount}
+                        onChange={(event) => setDraft({ ...draft, tendered: '', credit: { customerId: customer.id, amount: event.target.value } })}
+                      />
+                    </Field>
+                    <CreditNumbers customer={customer} charge={credit?.creditMinor ?? 0n} />
+                  </>
+                )}
+              </>
+            )}
+          </fieldset>
         )}
 
-        {draft.method === 'CASH' ? (
-          <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-md font-semibold text-text">
-            <span>{t('pharmacy.sell.pay.change')}</span>
-            <span><Num>{formatMinor(preview.changeMinor, currency)}</Num> {currency}</span>
-          </p>
+        {noRest ? (
+          <Note icon={<CircleCheck aria-hidden />} tone="info" role="status" testId="pay-all-credit">
+            {t('pharmacy.credit.pay.allCredit')}
+          </Note>
         ) : (
-          <Field label={t('pharmacy.sell.pay.reference')} optional>
-            <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
-          </Field>
+          <>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1.5 text-sm font-medium text-text">{t(withCredit ? 'pharmacy.credit.pay.restMethod' : 'pharmacy.sell.pay.method')}</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {METHODS.map(({ method, icon }) => (
+                  <label
+                    key={method}
+                    className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
+                      draft.method === method ? 'border-ink bg-ink text-on-ink' : 'border-line-strong bg-raised text-text hover:bg-hover'
+                    } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}
+                  >
+                    <input type="radio" name="method" value={method} checked={draft.method === method} onChange={() => setDraft({ ...draft, method, tendered: '' })} className="sr-only" data-testid={`pay-${method}`} />
+                    {icon}
+                    {t(`pharmacy.sell.pay.method.${method}`)}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <Field
+              label={t(draft.method === 'CASH' ? 'pharmacy.sell.pay.tendered' : 'pharmacy.sell.pay.amount')}
+              hint={exact ? (withCredit ? t('pharmacy.credit.pay.restHint', { rest: `${formatMinor(restOf, currency)} ${currency}` }) : t('pharmacy.sell.pay.exactHint')) : undefined}
+              error={fieldError}
+            >
+              <FieldInput
+                className={FIELD}
+                dir="ltr"
+                inputMode="decimal"
+                autoComplete="off"
+                autoFocus={!withCredit}
+                data-testid="pay-tendered"
+                value={draft.tendered}
+                placeholder={plainMinor(restOf, currency)}
+                onChange={(event) => setDraft({ ...draft, tendered: event.target.value })}
+              />
+            </Field>
+
+            {draft.method === 'CASH' && (
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('pharmacy.sell.pay.quick')}>
+                <button type="button" className={TOUCH_BTN} data-testid="pay-exact" aria-pressed={exact} onClick={() => setDraft({ ...draft, tendered: '' })}>
+                  {t('pharmacy.sell.pay.exact')}
+                </button>
+                {cashShortcuts(restOf, currency).map((amount) => (
+                  <button key={amount.toString()} type="button" className={TOUCH_BTN} onClick={() => setDraft({ ...draft, tendered: plainMinor(amount, currency) })}>
+                    <Num>{formatMinor(amount, currency)}</Num>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {draft.method === 'CASH' ? (
+              <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-md font-semibold text-text">
+                <span>{t('pharmacy.sell.pay.change')}</span>
+                <span><Num>{formatMinor(preview.changeMinor, currency)}</Num> {currency}</span>
+              </p>
+            ) : (
+              <Field label={t('pharmacy.sell.pay.reference')} optional>
+                <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
+              </Field>
+            )}
+          </>
         )}
 
         {offline && <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.pay')}</Note>}
         {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="pay-problem">{problem}</Note>}
       </form>
     </Dialog>
+  );
+}
+
+/** Balance, limit and what is left after this charge, as text under the credit amount. */
+function CreditNumbers({ customer, charge }: { customer: PickedCustomer; charge: bigint }) {
+  const t = useT();
+  const view = creditView(customer, charge);
+  return (
+    <div className="flex flex-col gap-1 text-sm" data-testid="credit-numbers">
+      <CustomerFigures customer={customer} />
+      <span className="text-text" data-testid="credit-after">
+        {t('pharmacy.credit.pay.after')}: <Num>{formatMinor(view.after < 0n ? 0n : view.after, customer.currency)}</Num> {customer.currency} · {t('pharmacy.credit.pay.remainingAfter')}: <Num>{formatMinor(view.remainingAfter, customer.currency)}</Num> {customer.currency}
+      </span>
+    </div>
   );
 }
 
@@ -264,6 +391,8 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
 
 export interface ReceiptDialogProps {
   sale: SaleResult | null;
+  /** The part of the sale put on a customer account, with the customer, shown as its own line (the printed receipt carries no customer name). */
+  credit?: { customerName: string; minor: string } | null;
   onClose: () => void;
 }
 
@@ -272,7 +401,7 @@ export interface ReceiptDialogProps {
  * shown in a sandboxed frame and printed from it with the browser's print. A printer that fails shows a sentence here and
  * changes nothing about the sale; a reprint is marked COPY and logged.
  */
-export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
+export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogProps) {
   const t = useT();
   const { locale } = useLocale();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -388,6 +517,14 @@ export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
             <dd className="text-end font-semibold" data-testid="sale-total">{money(sale.totalMinor)}</dd>
             <dt className="text-muted">{t('pharmacy.sell.receipt.paid')}</dt>
             <dd className="text-end">{money(sale.paidMinor)}</dd>
+            {credit && (
+              <>
+                <dt className="text-muted" data-testid="sale-credit-label">
+                  {t('pharmacy.method.CREDIT')}: <span dir="auto">{isolate(credit.customerName)}</span>
+                </dt>
+                <dd className="text-end" data-testid="sale-credit">{money(credit.minor)}</dd>
+              </>
+            )}
             <dt className="text-muted">{t('pharmacy.sell.pay.change')}</dt>
             <dd className="text-end" data-testid="sale-change">{money(sale.changeMinor)}</dd>
           </dl>

@@ -135,6 +135,8 @@ export interface StatementRowView {
   saleNumber: string | null;
   paymentId: string | null;
   method: 'CASH' | 'CARD' | 'TRANSFER' | null;
+  /** For a PAYMENT row: it was already corrected (a payment is corrected once). */
+  corrected: boolean;
 }
 
 export interface StatementView {
@@ -203,6 +205,7 @@ export async function customerStatement(scoped: ScopedClient, ph: PhActor, input
     // A payment taken at a branch the actor does not work at is not visible to a branch-limited actor: its method is left out.
     paymentIds.length ? scoped.phCustomerPayment.findMany({ where: { id: { in: paymentIds } }, select: { id: true, method: true } }) : [],
   ]);
+  const correctedIds = paymentIds.length ? new Set((await scoped.phCustomerPayment.findMany({ where: { reversesId: { in: paymentIds } }, select: { reversesId: true } })).map((p) => p.reversesId)) : new Set<string | null>();
   const numberOf = new Map(sales.map((s) => [s.id, s.number]));
   const methodOf = new Map(payments.map((p) => [p.id, p.method]));
   const totalsByKind = { CHARGE: 0n, PAYMENT: 0n, REVERSAL: 0n, REFUND: 0n } as Record<StatementRowView['kind'], bigint>;
@@ -222,6 +225,7 @@ export async function customerStatement(scoped: ScopedClient, ph: PhActor, input
       saleNumber: r.saleId ? (numberOf.get(r.saleId) ?? null) : null,
       paymentId: r.paymentId,
       method: r.paymentId ? (methodOf.get(r.paymentId) ?? null) : null,
+      corrected: r.kind === 'PAYMENT' && r.paymentId !== null && correctedIds.has(r.paymentId),
     };
   });
   return {

@@ -59,7 +59,12 @@ export default async function SellPage() {
       userId={actor.userId}
       shift={open}
       settings={found.settings}
-      perms={{ discount: roleMay(actor, 'discount.apply'), batchOverride: roleMay(actor, 'batch.override'), rx: roleMay(actor, 'rx.dispense') }}
+      perms={{
+        discount: roleMay(actor, 'discount.apply'),
+        batchOverride: roleMay(actor, 'batch.override'),
+        rx: roleMay(actor, 'rx.dispense'),
+        credit: found.settings.creditEnabled && roleMay(actor, 'credit.sell'),
+      }}
     />
   );
 }

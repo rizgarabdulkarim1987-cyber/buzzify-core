@@ -135,3 +135,50 @@ export function prescriptionGate(lines: readonly RxLine[], prescriptionId: strin
   if (controlledLimits(lines, maxQty).some((l) => l.over)) return 'overLimit';
   return null;
 }
+
+// Lists ----------------------------------------------------------------------------------------------------------------------
+
+/** A page of rows read as `size + 1`: the page, and the cursor (the last shown row's id) when another page follows. */
+export function keysetOf<T extends { id: string }>(rows: readonly T[], size: number): { items: T[]; nextCursor: string | null } {
+  const items = rows.slice(0, size);
+  return { items, nextCursor: rows.length > size ? (items[items.length - 1]?.id ?? null) : null };
+}
+
+export interface RegisterRowIn {
+  productId: string;
+  productName: string;
+  batchId: string;
+  lot: string;
+  baseQty: number;
+  kind: 'SALE' | 'RETURN';
+  createdAt: string;
+}
+
+export interface RegisterNet {
+  day: string;
+  productId: string;
+  productName: string;
+  batchId: string;
+  lot: string;
+  sold: number;
+  returned: number;
+  net: number;
+}
+
+/**
+ * The register netted by Baghdad day, product and batch: what was dispensed, what came back (RETURN rows hold a negative
+ * quantity), and what is still dispensed. `dayOf` is the Baghdad day of an instant. Newest day first, then product and lot.
+ */
+export function netRegister(rows: readonly RegisterRowIn[], dayOf: (iso: string) => string): RegisterNet[] {
+  const groups = new Map<string, RegisterNet>();
+  for (const row of rows) {
+    const day = dayOf(row.createdAt);
+    const key = `${day}|${row.productId}|${row.batchId}`;
+    const g = groups.get(key) ?? { day, productId: row.productId, productName: row.productName, batchId: row.batchId, lot: row.lot, sold: 0, returned: 0, net: 0 };
+    if (row.kind === 'SALE') g.sold += row.baseQty;
+    else g.returned += -row.baseQty;
+    g.net = g.sold - g.returned;
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort((a, b) => (a.day === b.day ? a.productName.localeCompare(b.productName) || a.lot.localeCompare(b.lot) : a.day < b.day ? 1 : -1));
+}

@@ -28,6 +28,11 @@ import {
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { discardHold, holdSale, createSale, resumeHold, sellSearch } from '@/app/pharmacy/_actions/sales';
+import { getPrescription } from '@/app/pharmacy/_actions/prescriptions';
+import { creditPaymentsOf } from './credit-logic';
+import { prescriptionGate, type RxLine } from './prescription-logic';
+import { PrescriptionDrawer } from './PrescriptionDrawer';
+import { RxCartPanel } from './SellRx';
 import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
 import type { SaleResult } from '@/server/pharmacy/sales';
 import type { HoldResult } from '@/server/pharmacy/holds';
@@ -88,6 +93,8 @@ export interface SellPerms {
   batchOverride: boolean;
   /** rx.dispense */
   rx: boolean;
+  /** credit.sell (and the business has switched credit on: the page sets this only when both hold) */
+  credit: boolean;
 }
 
 export interface SellWorkspaceProps {
@@ -106,6 +113,9 @@ type View =
 
 /** A scan that was not simply added: said on screen until the cashier dismisses it (several can wait at once). */
 type ScanIssue = { id: number; outcome: Exclude<ScanOutcome, { kind: 'add' }> | { kind: 'failed'; code: string; message: string } };
+
+/** Refusals that mean the recorded prescription cannot be used any more: the sale lets go of it and asks for another. */
+const RX_DROP_CODES = ['PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_USED', 'RX_EXPIRED', 'RX_DATE_FUTURE', 'PATIENT_REQUIRED', 'DUPLICATE_PRESCRIPTION'];
 
 const SEARCH_DELAY_MS = 140;
 const SOON_DAYS = 90;
@@ -155,6 +165,10 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const [pending, setPending] = useState<SaleAttempt | null>(null);
   const holdAttempt = useRef<KeyedAttempt | null>(null);
   const [sale, setSale] = useState<SaleResult | null>(null);
+  const [saleCredit, setSaleCredit] = useState<{ customerName: string; minor: string } | null>(null);
+  // The prescription recorded for this cart: its id (kept in the draft) and the number typed in this session (memory only).
+  const [rx, setRx] = useState<{ id: string; number: string | null } | null>(null);
+  const [rxOpen, setRxOpen] = useState(false);
 
   const [holdsOpen, setHoldsOpen] = useState(false);
   const [askClear, setAskClear] = useState(false);
@@ -170,8 +184,10 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const estimate = useMemo(() => estimateCart(cart, currency, step), [cart, currency, step]);
   const over = useMemo(() => overSellable(cart), [cart]);
   const heldBlocked = useMemo(() => blockedLines(cart), [cart]);
-  const hasRx = cart.lines.some((l) => l.rxLevel === 'RX');
+  const rxLines: RxLine[] = cart.lines.map((l) => ({ productId: l.productId, name: l.name, rxLevel: l.rxLevel, qty: l.qty, unitBaseQty: unitOf(l).baseQty }));
+  const hasRx = cart.lines.some((l) => l.rxLevel === 'RX' || l.rxLevel === 'RESTRICTED');
   const rxBlocked = hasRx && !perms.rx;
+  const rxGate = prescriptionGate(rxLines, rx?.id ?? null, settings.controlledMaxQty, settings.controlledEnabled);
   const anyDiscount = cart.invoiceDiscount !== null || cart.lines.some((l) => l.discount !== null);
   const dialogOpen = payOpen || holdsOpen || sale !== null || askClear || leaveTo !== null;
 
@@ -188,7 +204,9 @@ export function SellWorkspace(props: SellWorkspaceProps) {
             ? t('pharmacy.sell.blocked.invalid')
             : rxBlocked
               ? t('pharmacy.sell.blocked.rx')
-              : cart.lines.some((l) => l.batchId && l.batchReason.trim().length < 3)
+              : rxGate
+                ? t(`pharmacy.sell.blocked.${rxGate}`)
+                : cart.lines.some((l) => l.batchId && l.batchReason.trim().length < 3)
                 ? t('pharmacy.sell.batch.reasonNeeded')
                 : estimate.totalMinor <= 0n
                   ? t('pharmacy.sell.blocked.zero')
@@ -215,11 +233,11 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const writeDraft = useCallback(() => {
     try {
       if (cart.lines.length === 0) window.localStorage.removeItem(storageKey);
-      else window.localStorage.setItem(storageKey, serializeDraft(currency, cart, attempt.current, fromHoldId));
+      else window.localStorage.setItem(storageKey, serializeDraft(currency, cart, attempt.current, fromHoldId, rx?.id ?? null));
     } catch {
       /* the draft is a convenience */
     }
-  }, [cart, currency, fromHoldId, storageKey]);
+  }, [cart, currency, fromHoldId, storageKey, rx]);
   const setAttempt = (next: SaleAttempt | null) => {
     attempt.current = next;
     setPending(next);
@@ -234,6 +252,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft is read from this device's storage once, after the shift is known
         setPending(draft.attempt);
         setFromHoldId(draft.fromHoldId);
+        if (draft.prescriptionId) setRx({ id: draft.prescriptionId, number: null });
         setRestored(true);
       }
     } catch {
@@ -245,6 +264,26 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     if (!shift || !draftChecked) return;
     writeDraft();
   }, [shift, draftChecked, writeDraft, pending]);
+
+  // A prescription id restored from this device is checked once: gone or already used, it is dropped and the sale says so.
+  const rxChecked = useRef<string | null>(null);
+  useEffect(() => {
+    if (!rx || rxChecked.current === rx.id || !perms.rx) return;
+    rxChecked.current = rx.id;
+    if (rx.number !== null) return;
+    void settle(() => getPrescription({ prescriptionId: rx.id })).then((result) => {
+      if (result.ok) {
+        const found = result.data as { number?: string; saleId: string | null };
+        if (found.saleId) {
+          setRx(null);
+          setNotice({ tone: 'danger', text: t('pharmacy.rx.gone') });
+        } else setRx({ id: rx.id, number: found.number ?? null });
+      } else if (result.error.code === 'NOT_FOUND') {
+        setRx(null);
+        setNotice({ tone: 'danger', text: t('pharmacy.rx.gone') });
+      }
+    });
+  }, [rx, perms.rx, t]);
 
   // A cart emptied line by line is no longer the held cart it came from: a later hold or sale must not touch that hold.
   useEffect(() => {
@@ -410,6 +449,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     if (fromHoldId) await settle(() => discardHold({ saleId: fromHoldId }));
     setFromHoldId(null);
     setAttempt(null);
+    setRx(null);
     dispatch({ type: 'clear' });
     setNotice({ tone: 'success', text: t('pharmacy.sell.held', { time: phDateTime(held.heldUntil, locale) }) });
     searchBox.current?.focus();
@@ -469,21 +509,21 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setPayProblem(`${base}${totalText}`);
   };
 
-  const submitPay = async (draft: PayDraft, amountMinor: bigint) => {
+  const submitPay = async (draft: PayDraft, amountMinor: bigint, onAccount: { minor: bigint; customerName: string } | null) => {
     if (payLock.current) return;
     const base = buildCartRequest(cart, currency, '');
-    const sig = saleSignature(cart, currency, draft, amountMinor, fromHoldId);
+    const sig = saleSignature(cart, currency, draft, amountMinor, fromHoldId, rx?.id ?? null);
     if (!base || !sig) {
       setPayProblem(t('pharmacy.sell.blocked.invalid'));
       return;
     }
     // One key pair per attempt: a retry of the same sale (same cart, payment and hold) sends the same keys, so the server
     // records it once, also after a reload (the attempt is kept in the draft). Anything changed is a different sale.
-    const next = saleAttemptFor(attempt.current, sig, draft, amountMinor, fromHoldId);
+    const next = saleAttemptFor(attempt.current, sig, draft, amountMinor, fromHoldId, undefined, rx?.id ?? null);
     attempt.current = next;
     setPending(next);
     try {
-      window.localStorage.setItem(storageKey, serializeDraft(currency, cart, next, fromHoldId));
+      window.localStorage.setItem(storageKey, serializeDraft(currency, cart, next, fromHoldId, rx?.id ?? null));
     } catch {
       /* the draft is a convenience */
     }
@@ -491,7 +531,17 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setPaying(true);
     setPayProblem(null);
     const result = await settle(() =>
-      createSale({ ...base, clientKey: next.key, payments: [buildPayment(draft, amountMinor, next.paymentKey)], ...(fromHoldId ? { fromHoldId } : {}) }),
+      createSale({
+        ...base,
+        clientKey: next.key,
+        payments:
+          draft.credit && onAccount && next.creditKey
+            ? creditPaymentsOf(draft, onAccount.minor, amountMinor, { paymentKey: next.paymentKey, creditKey: next.creditKey })
+            : [buildPayment(draft, amountMinor, next.paymentKey)],
+        ...(draft.credit && onAccount ? { customerId: draft.credit.customerId } : {}),
+        ...(rx ? { prescriptionId: rx.id } : {}),
+        ...(fromHoldId ? { fromHoldId } : {}),
+      }),
     );
     payLock.current = false;
     setPaying(false);
@@ -503,6 +553,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         return;
       }
       setAttempt(null);
+      if (RX_DROP_CODES.includes(result.error.fields?.phCode ?? '') && result.error.fields?.phCode !== 'DUPLICATE_PRESCRIPTION') setRx(null);
       const said = failure(result.error, 'pharmacy.sell.offline.notSent');
       if (TOTAL_MOVED_CODES.includes(result.error.fields?.phCode ?? '')) await refreshAfterRefusal(result.error, said);
       else setPayProblem(said);
@@ -511,8 +562,10 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setNotSent(false);
     setAttempt(null);
     setFromHoldId(null);
+    setRx(null);
     dispatch({ type: 'clear' });
     setPayOpen(false);
+    setSaleCredit(draft.credit && onAccount ? { customerName: onAccount.customerName, minor: onAccount.minor.toString() } : null);
     setSale(result.data as SaleResult);
     setNotice(null);
   };
@@ -544,6 +597,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setAttempt(null);
     holdAttempt.current = null;
     setFromHoldId(null);
+    setRx(null);
     dispatch({ type: 'clear' });
     setNotice(null);
     setIssues([]);
@@ -711,6 +765,15 @@ export function SellWorkspace(props: SellWorkspaceProps) {
 
           {cart.lines.length > 0 && (
             <div className="flex flex-col gap-3 border-t border-line pt-3">
+              <RxCartPanel
+                lines={rxLines}
+                maxQty={settings.controlledMaxQty}
+                attached={rx !== null}
+                number={rx?.number ?? null}
+                mayDispense={perms.rx}
+                onOpen={() => setRxOpen(true)}
+                onDetach={() => setRx(null)}
+              />
               {perms.discount && (
                 <div className="flex flex-col gap-2">
                   <DiscountEditor
@@ -797,14 +860,32 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         busy={paying}
         problem={payProblem}
         offline={!online}
-        initial={pending ? { method: pending.method, tendered: plainMinor(BigInt(pending.amountMinor), currency), reference: pending.reference } : null}
-        onSubmit={(d, a) => void submitPay(d, a)}
+        creditAllowed={perms.credit}
+        initial={
+          pending
+            ? { method: pending.method, tendered: plainMinor(BigInt(pending.amountMinor), currency), reference: pending.reference, ...(pending.credit ? { credit: pending.credit } : {}) }
+            : null
+        }
+        onSubmit={(d, a, c) => void submitPay(d, a, c)}
+      />
+      <PrescriptionDrawer
+        open={rxOpen}
+        onOpenChange={setRxOpen}
+        level={rxLines.some((l) => l.rxLevel === 'RESTRICTED') ? 'RESTRICTED' : 'RX'}
+        restaurantId={restaurantId}
+        branchId={branchId}
+        onSaved={(saved) => {
+          setRx({ id: saved.id, number: saved.number });
+          setNotice(null);
+        }}
       />
       <HoldsDialog open={holdsOpen} onOpenChange={setHoldsOpen} cartEmpty={cart.lines.length === 0} onResume={resume} onDiscard={discard} />
       <ReceiptDialog
         sale={sale}
+        credit={saleCredit}
         onClose={() => {
           setSale(null);
+          setSaleCredit(null);
           searchBox.current?.focus();
         }}
       />
@@ -872,6 +953,11 @@ function ResultList({
               {item.rxLevel === 'RX' && (
                 <Chip icon={<Pill aria-hidden />} testId="chip-rx">
                   {t('pharmacy.sell.chip.rx')}
+                </Chip>
+              )}
+              {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
+                <Chip icon={<ShieldAlert aria-hidden />} testId="chip-controlled">
+                  {t('pharmacy.sell.chip.controlled')}
                 </Chip>
               )}
               {item.notSellable && (
@@ -1089,6 +1175,9 @@ function CartRow({
         )}
         {line.rxLevel === 'RX' && (
           <Chip icon={<Pill aria-hidden />}>{t('pharmacy.sell.chip.rx')}</Chip>
+        )}
+        {line.rxLevel === 'RESTRICTED' && !line.blocked && (
+          <Chip icon={<ShieldAlert aria-hidden />}>{t('pharmacy.sell.chip.controlled')}</Chip>
         )}
         {unit.priceMinor === null && !line.blocked && (
           <Chip icon={<Ban aria-hidden />} tone="danger">
