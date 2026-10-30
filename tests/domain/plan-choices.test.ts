@@ -101,9 +101,9 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
-    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, rails: [...RAIL_STYLES] });
   });
 });
 
@@ -161,13 +161,6 @@ describe('what the Preview tab says guests on the plan do not see', () => {
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([]);
   });
 
-  it('names the menu’s motions when the plan leaves them out, and only when it has some', () => {
-    const catalog = { ...noSelling, products: [] };
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [{}])).toEqual(['design.menuMotions']);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [])).toEqual([]);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC)).toEqual([]);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, PRO, [{}])).toEqual([]);
-  });
 });
 
 describe('scene files', () => {
