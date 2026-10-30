@@ -2509,6 +2509,8 @@ model PhStockMovement {
 
   @@index([restaurantId, branchId, productId, createdAt])
   @@index([restaurantId, batchId, createdAt])
+  @@index([restaurantId, branchId, createdAt])
+  @@index([reversesId])
   @@index([receiptId])
   @@index([countId])
 }
