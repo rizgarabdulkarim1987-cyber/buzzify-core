@@ -774,6 +774,10 @@ const SWEPT: Record<string, Case[]> = {
     })),
     c("A's product with B's picture", (w) => ({ ...productSave(w.a.menuId, w.a.productId, w.a.categoryId), media: [{ kind: 'asset', assetId: w.b.assetId }] })),
   ],
+  'content.setSelling': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1, serves: 3 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1, serves: 3 })),
+  ],
   'content.deleteProduct': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1 })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1 })),
@@ -801,6 +805,7 @@ const SWEPT: Record<string, Case[]> = {
   ],
 
   // The Sales tab
+  'sales.dishes': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.rules': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.overview': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
