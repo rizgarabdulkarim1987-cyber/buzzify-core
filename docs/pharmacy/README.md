@@ -687,17 +687,29 @@ register and the credit balances (see "How to run").
 - **`PhReturn.creditMinor` migration** was not in the plan; it is additive, its CHECK is named `PhReturn_refund_credit_within`.
 - **Supplier-return suggestion is not deep-filled:** it opens the supplier return page with a notice and a link back to the lines.
 - **A4 reprints are logged as width 80:** `PhReceiptReprint.width` is CHECKed to 80 or 58; a paper column needs a migration.
-- **The server does not yet refuse a `prescriptionId` on a sale with no RX lines.** The sell screen no longer sends one; a new server
-  sentence in three languages and a change to the sale transaction are needed.
+- **A `prescriptionId` on a sale with no RX or RESTRICTED line is refused** (`PRESCRIPTION_NOT_NEEDED`, texts in en, ar and ckb) before
+  the prescription is claimed, and any use of a `prescriptionId` needs `rx.dispense` (so a cashier cannot attach one). Fixed in the phase 7 review round.
 - **ar and ckb are machine-drafted** (about 480 keys in phase 7) and need a native speaker; so do the "effect" sentences.
 - **Mock AI only.** No real model, no real provider latency or cost was ever exercised; `AI_PRICE_*` must match the model chosen for
   asking (`AI_PRICE_MODEL`) or reservations are mispriced. The assistant's sentence checks are keyword based (en, ar, ckb) and are a
-  net, not a guarantee; a dose or advice in a new phrasing may pass, though no figure can.
+  net, not a guarantee; a dose or advice in a new phrasing may pass. What the code does guarantee about figures: every number in the prose
+  must be a value a tool returned or a trivial derivation of one (rows listed, ordinals up to 5, days of a period, a basis-point rate as
+  a percentage, USD minor units as dollars); a whole date (ISO, d/m/y or an English month name) must be a date the tables hold, and the
+  year, month or day of a date is not a figure a count may borrow. It does not guarantee the figure is the right one for the sentence it is in.
 - **A person's own typed question goes to the model** with phone numbers redacted; a name typed into it is not removed.
 - **Drawer cash payment reversal has no sufficiency check:** correcting a cash customer payment posts a negative cash movement even if
   the drawer holds less.
 - **Taking a customer payment needs `customer.manage`:** a pharmacist or cashier cannot take one.
 - **Overpayment is refused** (`PAYMENT_EXCEEDS_BALANCE`), not stored as a customer credit.
+- **A credit refund after the debt was paid can cash out more than the drawer received.** A return of a credit sale whose debt the
+  customer has since paid refunds in cash (`returns.ts`, the credit/cash split) from a drawer that may never have taken that payment.
+  No sufficiency check; the manager decides at the till.
+- **Credit plus cash gives change as the cash allows**: `CREDIT 90 + CASH 50` on a total of 100 gives 40 change and leaves 90 owed.
+  This is by design (the customer's net outlay is 10, the credit 90, together 100) and is pinned by `credit-sales.test.ts`; the review
+  read it as a bug, it is not one.
+- **Fixed in the review round (no longer open):** a read-only pharmacy's assistant question spends no AI budget (the tables come back
+  without a model); the ageing and statement read the correction-to-payment link through the business-wide ledger row, so a branch-limited
+  viewer sees the same ageing as the owner.
 - **Free-text reasons are out of audit rows (R7-15).** Earlier phases audited the capped reason text of returns, cancellations,
   adjustments, damage, reversals, quarantine releases, count approvals, paid in/out and shift closes; it could carry a patient name.
   Now the text stays on its own row and the audit holds `hasReason`. Audit rows written before this change keep their old text.
@@ -856,7 +868,7 @@ read `.env`.
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
 thirty-seven pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns) and the six of phase 6 (listed under Phase 6 above; `20261031110000_pharmacy_transfers_fixes` drops constraints and columns of the still-empty transfer tables and stops itself if they hold a row) and the three of phase 7 (listed under Phase 7 above; `20261101100100_...` drops and re-adds one CHECK of the phase 3 cash table), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns) and the six of phase 6 (listed under Phase 6 above; `20261031110000_pharmacy_transfers_fixes` drops constraints and columns of the still-empty transfer tables and stops itself if they hold a row) and the three of phase 7 (listed under Phase 7 above; `20261101100100_...` drops and re-adds one CHECK of the phase 3 cash table), mostly additive (new tables, columns with defaults, indexes, triggers), with these exceptions that change something existing: phase 7 adds columns with defaults and CHECKs to the existing `PhSettings` table (new columns only), and `20261101100100_...` drops and re-adds the `PhCashMovement` CHECK (pinned in `migration-additive.test.ts`; see R7-12); phase 6 `20261031110000_...` drops constraints and columns of still-empty tables:
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.

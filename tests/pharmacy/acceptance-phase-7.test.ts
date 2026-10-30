@@ -535,7 +535,7 @@ describe('no fabrication: the assistant never states a figure the tools did not 
     expect(good).toMatchObject({ grounded: true, label: 'fact' });
     expect(good.answer).toBe('3 batches are expired or expiring within 90 days.');
     expect((good.tables[0] as any).rows).toHaveLength(real);
-    for (const invented of ['There are 7 batches in trouble.', 'Seven batches expire soon.', '3 batches expire, worth 900,000 IQD.', 'The next expiry is on 2026-12-31.', '3 batches, 12 units are at risk.']) {
+    for (const invented of ['There are 7 batches in trouble.', 'Seven batches expire soon.', '3 batches expire, worth 900,000 IQD.', 'The next expiry is on 2026-12-31.', '2026 batches expire soon.', '3 batches, 12 units are at risk.']) {
       const a = await askAs(w.owner, scripted(text(invented)), EXPIRY);
       expect(a, invented).toMatchObject({ answer: null, grounded: false, degraded: true, reason: 'UNGROUNDED' });
       // The truth is still shown: the plain table, with every row.
