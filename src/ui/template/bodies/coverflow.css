@@ -187,8 +187,8 @@
 /* ------------------------------------------------------------------ the arrows and the counter */
 
 :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-ctl {
-  /* Air between the dish's price row and the arrows. */
-  margin-block-start: 1rem;
+  /* Air between the dishes (tray, name, price) and the arrows with their counter. */
+  margin-block-start: 1.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
