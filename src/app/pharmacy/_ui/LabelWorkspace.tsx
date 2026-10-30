@@ -3,6 +3,7 @@
 import { CircleAlert, Package, Plus, Printer, Settings2, Tag, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
+import { searchProducts } from '@/app/pharmacy/_actions/catalog';
 import { receiptProduct } from '@/app/pharmacy/_actions/receipts';
 import { stockBalances } from '@/app/pharmacy/_actions/stock';
 import { LABEL_SIZES, settingsOfWorkstation, type LabelSize, type PrintSettings } from '@/server/domain/pharmacy/print-settings';
@@ -60,6 +61,14 @@ export function LabelWorkspace({ print, mayPrice }: { print: PrintSettings; mayP
     if (!detail.ok) return describeFailure(t, locale, detail.error).message;
     const product = detail.data as ProductDetail;
     const codes = [...product.barcodes].sort((a, b) => a.level - b.level);
+    // The price on a label is the price of the unit the barcode is for: ask the catalog for that barcode (a search by code answers with the code's unit and its price).
+    let unitPrice = found.price;
+    const code = codes[0]?.code;
+    if (code !== undefined) {
+      const byCode = await settle(() => searchProducts({ q: code }));
+      const hit = byCode.ok ? (byCode.data as SearchResult[]).find((r) => r.productId === found.productId && r.matchedOn === 'barcode') : undefined;
+      unitPrice = hit ? hit.price : null;
+    }
     const rows = stock.ok ? ((stock.data as { items: ProductBalance[] }).items[0]?.batches ?? []) : [];
     setCurrent({
       productId: product.id,
@@ -67,7 +76,7 @@ export function LabelWorkspace({ print, mayPrice }: { print: PrintSettings; mayP
       strength: product.strength,
       form: product.form,
       barcode: codes[0]?.code ?? null,
-      price: found.price && mayPrice ? { amountMinor: String(found.price.amount), currency: found.price.currency } : null,
+      price: unitPrice && mayPrice ? { amountMinor: String(unitPrice.amount), currency: unitPrice.currency } : null,
       batches: rows.filter((b) => b.status === 'ACTIVE').map((b) => ({ batchId: b.batchId, lot: b.lot, expiryDate: b.expiryDate })),
     });
     return null;

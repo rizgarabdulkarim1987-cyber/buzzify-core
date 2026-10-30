@@ -97,7 +97,8 @@ export function PrintSettingsForm({ print, version: startVersion, editable, writ
   };
 
   const shown = current ?? DEFAULT_WORKSTATION;
-  const blockedText = writable.ok ? null : writable.reason === 'readOnly' ? t('pharmacy.print.blocked.readOnly', { date: phDate(writable.until, locale) }) : t(`pharmacy.print.blocked.${writable.reason}`);
+  // A role that only reads is told so by the owner-only note; the lock sentence here is for a lapsed pharmacy and support.
+  const blockedText = writable.ok || writable.reason === 'role' ? null : writable.reason === 'readOnly' ? t('pharmacy.print.blocked.readOnly', { date: phDate(writable.until, locale) }) : t(`pharmacy.print.blocked.${writable.reason}`);
   const labelText = { noBarcode: t('pharmacy.print.labels.noBarcode'), tooNarrow: t('pharmacy.print.labels.tooNarrow'), lot: t('pharmacy.print.labels.lot'), expiry: t('pharmacy.print.labels.expiry') };
 
   return (
