@@ -85,6 +85,10 @@
   border-radius: 50%;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sj-char) 50%, transparent);
 }
+/* The studio photos are a bowl on a grey backdrop: zoom in so the circle ends at the rim and no grey shows around it. */
+[data-body='saj'] .cf-frame img {
+  transform: scale(1.2);
+}
 [data-body='saj'] .cf-badges {
   inset-block-start: 0;
 }
