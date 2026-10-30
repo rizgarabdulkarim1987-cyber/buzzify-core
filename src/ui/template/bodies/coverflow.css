@@ -89,9 +89,9 @@
   display: flex;
   gap: var(--cf-gap);
   margin: 0;
-  /* The row opens at its start edge, so the first screen holds three cards; the last card can still reach the middle. */
+  /* Room on both sides so the first and the last card can each reach the middle (with a 1rem start the first one never could: the row opened on the second). */
   padding-block: 0.75rem 0.5rem;
-  padding-inline: 1rem calc(50% - var(--cf-card) / 2);
+  padding-inline: calc(50% - var(--cf-card) / 2);
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
