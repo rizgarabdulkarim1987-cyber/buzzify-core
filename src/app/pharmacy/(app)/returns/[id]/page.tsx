@@ -55,6 +55,9 @@ export default async function ReturnDetailPage({ params }: { params: Promise<{ i
       <div className="flex min-w-0 flex-col gap-6 px-4 pb-10 sm:px-8" data-testid="return-detail">
         <div className="flex flex-wrap gap-2">
           <PrintButton target={{ kind: 'return', id: r.id, number: r.number }} label={t('pharmacy.returns.slip.open')} />
+          <Link href={`/pharmacy/returns/${r.id}/slip`} data-testid="slip-a4-open" className="inline-flex min-h-11 items-center justify-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-text hover:bg-hover">
+            {t('pharmacy.print.slip.open')}
+          </Link>
           <Link href={`/pharmacy/sales/${r.saleId}`} className="inline-flex min-h-11 items-center justify-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-text hover:bg-hover">
             {t('pharmacy.returns.backToSale')} <Num>{r.saleNumber ?? ''}</Num>
           </Link>

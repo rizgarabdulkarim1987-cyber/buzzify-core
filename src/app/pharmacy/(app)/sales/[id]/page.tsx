@@ -88,6 +88,12 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           defaultMethod={can?.defaultRefundMethod ?? refundable[0] ?? 'CASH'}
         />
 
+        {sale.number !== null && sale.status !== 'HELD' && (
+          <Link href={`/pharmacy/sales/${sale.id}/invoice`} data-testid="invoice-open" className="inline-flex min-h-11 w-fit items-center justify-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-text hover:bg-hover">
+            {t('pharmacy.print.invoice.open')}
+          </Link>
+        )}
+
         <p className="text-sm text-muted">
           <Num>{formatUtc(sale.completedAt ?? sale.createdAt)}</Num> · {t('pharmacy.sales.soldBy')} <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, sale.soldById)}</span>
         </p>
