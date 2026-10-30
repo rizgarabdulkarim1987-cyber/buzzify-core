@@ -292,6 +292,13 @@ describe('what the Sales tab reads for the showcase', () => {
     expect(read.showcase.find((c) => c.id === ids.occRunning)).toMatchObject({ slot: 'ABOVE_SEARCH', kind: 'BUFFET', price: 1, version: 1, isActive: true, title: { en: 'x' } });
   });
 
+  it('marks a set card unavailable when a dish has run below zero stock', async () => {
+    const bundle = dataOf(await run(sales.saveSet, set()));
+    const setCard = dataOf(await run(sales.saveShowcaseCard, card({ kind: 'SET', bundleId: bundle.id, price: null, title: {} }))).id;
+    await prisma().product.update({ where: { id: cake }, data: { stockCount: -2 } });
+    expect(dataOf(await rules()).showcase.find((c) => c.id === setCard)?.hiddenReason).toBe('SET_UNAVAILABLE');
+  });
+
   it('marks offer and set cards hidden by the plan when it leaves out timed offers and smart selling', async () => {
     const promo = dataOf(await run(sales.saveOffer, offer()));
     const bundle = dataOf(await run(sales.saveSet, set()));

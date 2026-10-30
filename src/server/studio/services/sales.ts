@@ -958,7 +958,7 @@ export async function salesRules(
   const offers = await db.promotion.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
   const occasions = await db.occasion.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
   const cards = await db.showcaseCard.findMany({ where: { menuId }, orderBy: [{ slot: 'asc' }, { sortOrder: 'asc' }, { id: 'asc' }] });
-  const gone = await db.product.findMany({ where: { menuId, OR: [{ isAvailable: false }, { isHidden: true }, { stockCount: 0 }] }, select: { id: true } });
+  const gone = await db.product.findMany({ where: { menuId, OR: [{ isAvailable: false }, { isHidden: true }, { stockCount: { lte: 0 } }] }, select: { id: true } });
   const goneIds = new Set(gone.map((product) => product.id));
   const order = new Map(categories.map((category, index) => [category.id, index]));
   const priced = new Map(products.map((product) => [product.id, product]));
