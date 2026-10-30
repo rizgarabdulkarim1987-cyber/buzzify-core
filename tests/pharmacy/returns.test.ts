@@ -88,7 +88,7 @@ const ret = (w: World, saleId: string, lines: unknown[], over: Record<string, un
 const byLine = (lineId: string, baseQty: number) => ({ saleLineId: lineId, baseQty });
 const returnedBase = async (allocationId: string) => (await prisma().phSaleLineAllocation.findUniqueOrThrow({ where: { id: allocationId } })).returnedBaseQty;
 const statusOf = async (saleId: string) => (await prisma().phSale.findUniqueOrThrow({ where: { id: saleId } })).status;
-const refundsOf = async (saleId: string) => (await prisma().phReturn.findMany({ where: { saleId }, orderBy: { createdAt: 'asc' } })).map((r) => r.refundMinor);
+const refundsOf = async (saleId: string) => (await prisma().phReturn.findMany({ where: { saleId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })).map((r) => r.refundMinor);
 const sum = (xs: bigint[]) => xs.reduce((s, x) => s + x, 0n);
 const counts = async () => ({
   returns: await prisma().phReturn.count(),

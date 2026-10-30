@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { scopedClient } from '@/server/data/tenant-db';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
+import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as saleActions from '@/server/pharmacy/actions/sales';
 import * as shiftActions from '@/server/pharmacy/actions/shifts';
 import * as transferActions from '@/server/pharmacy/actions/transfers';
@@ -108,8 +109,11 @@ async function bucketsOf(branchId: string) {
 }
 
 /** Completed sales per `currency`: [count, sum of totals], for the given branches. */
-async function salesSql(branchIds: string[]) {
-  const rows = await prisma().$queryRaw<Array<{ branchId: string; currency: string; n: bigint; total: bigint }>>`SELECT "branchId", "currency"::text AS currency, COUNT(*)::bigint AS n, SUM("totalMinor")::bigint AS total FROM "PhSale" WHERE "restaurantId" = ${w.restaurantId} AND "status" IN ('COMPLETED', 'RETURNED_PARTIAL', 'RETURNED_FULL') AND "branchId" = ANY(${branchIds}) GROUP BY "branchId", "currency"`;
+/** The Baghdad days of WINDOW as instants: 2026-10-27 00:00 and the end of 2026-10-28 (UTC+3). */
+const WINDOW_UTC = { start: new Date('2026-10-26T21:00:00.000Z'), end: new Date('2026-10-28T21:00:00.000Z') };
+
+async function salesSql(branchIds: string[], window = WINDOW_UTC) {
+  const rows = await prisma().$queryRaw<Array<{ branchId: string; currency: string; n: bigint; total: bigint }>>`SELECT "branchId", "currency"::text AS currency, COUNT(*)::bigint AS n, SUM("totalMinor")::bigint AS total FROM "PhSale" WHERE "restaurantId" = ${w.restaurantId} AND "status" IN ('COMPLETED', 'RETURNED_PARTIAL', 'RETURNED_FULL') AND "branchId" = ANY(${branchIds}) AND "completedAt" >= ${window.start} AND "completedAt" < ${window.end} GROUP BY "branchId", "currency"`;
   return rows.map((r) => ({ branchId: r.branchId, currency: r.currency, count: Number(r.n), total: r.total }));
 }
 const sumOf = (rows: Array<{ currency: string; count: number; total: bigint }>, currency: string) => ({
@@ -135,6 +139,11 @@ async function receive(branchId: string, lot: string, expiry: string, qty: numbe
 
 const requestTransfer = async (who: Person, from: string, to: string, qty: number) =>
   dataOf(await act(who, transferActions.request, { ...place(), clientKey: key('req'), fromBranchId: from, toBranchId: to, lines: [{ productId: w.P.id, qty }] }));
+/** Refunds paid in the window, per currency of the sale, for the given branches. */
+async function refundsSql(branchIds: string[], window = WINDOW_UTC): Promise<Map<string, bigint>> {
+  const rows = await prisma().$queryRaw<Array<{ currency: string; total: bigint }>>`SELECT s."currency"::text AS currency, COALESCE(SUM(r."refundMinor"), 0)::bigint AS total FROM "PhReturn" r JOIN "PhSale" s ON s."id" = r."saleId" WHERE s."restaurantId" = ${w.restaurantId} AND s."branchId" = ANY(${branchIds}) AND r."createdAt" >= ${window.start} AND r."createdAt" < ${window.end} GROUP BY s."currency"`;
+  return new Map(rows.map((r) => [r.currency, r.total]));
+}
 const sendTransfer = (who: Person, t: { id: string; version: number }, over: Record<string, unknown> = {}) =>
   act(who, transferActions.send, { ...place(), transferId: t.id, version: t.version, clientKey: key('send'), ...over });
 const receiveTransfer = (who: Person, t: { id: string; version: number }, lines: unknown[]) =>
@@ -142,15 +151,16 @@ const receiveTransfer = (who: Person, t: { id: string; version: number }, lines:
 
 const openShift = async (who: Person, branchId: string, currency: 'IQD' | 'USD') =>
   dataOf(await act(who, shiftActions.open, { restaurantId: w.restaurantId, branchId, currency, openingFloatMinor: 0n, clientKey: key('open') }));
-const sellInput = (branchId: string, currency: 'IQD' | 'USD', qty: number, price: bigint) => ({
+const sellInput = (branchId: string, currency: 'IQD' | 'USD', qty: number, price: bigint, discount = 0n) => ({
   restaurantId: w.restaurantId,
   branchId,
   clientKey: key('sale'),
   currency,
   lines: [{ productId: w.P.id, unitId: w.P.tablet, qty }],
-  payments: [{ method: 'CASH', amountMinor: price * BigInt(qty), clientKey: key('pay') }],
+  ...(discount > 0n ? { invoiceDiscount: { kind: 'amount' as const, value: discount, reason: 'Regular customer' } } : {}),
+  payments: [{ method: 'CASH', amountMinor: price * BigInt(qty) - discount, clientKey: key('pay') }],
 });
-const sell = (who: Person, branchId: string, currency: 'IQD' | 'USD', qty: number, price: bigint) => act(who, saleActions.create, sellInput(branchId, currency, qty, price));
+const sell = (who: Person, branchId: string, currency: 'IQD' | 'USD', qty: number, price: bigint, discount = 0n) => act(who, saleActions.create, sellInput(branchId, currency, qty, price, discount));
 
 /** The sale screen's own search at a branch: what a seller is shown as sellable for P. */
 const sellScreen = async (who: Person, branchId: string) => {
@@ -292,7 +302,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
 
   it('sells at the three branches in IQD and USD (D1 10:00Z)', async () => {
     vi.setSystemTime(at(10));
-    expect(codeOf(await sell(w.cashA, w.A, 'IQD', 5, 300n))).toBe('OK'); // 1,500 IQD
+    expect(codeOf(await sell(w.cashA, w.A, 'IQD', 5, 300n, 60n))).toBe('OK'); // 1,500 IQD less a 60 IQD invoice discount (4%, inside the cashier's 5%) = 1,440 IQD
     expect(codeOf(await sell(w.usdA, w.A, 'USD', 1, 150n))).toBe('OK'); // 1.50 USD
     expect(codeOf(await sell(w.cashB, w.B, 'IQD', 4, 300n))).toBe('OK'); // 1,200 IQD
     expect(codeOf(await sell(w.cashC, w.C, 'IQD', 1, 300n))).toBe('OK'); // 300 IQD
@@ -300,6 +310,17 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     // A: 28 - 6 = 22; B: 20 - 4 = 16; C: 15 - 3 = 12. Sold 13 in all.
     expect(await Promise.all([w.A, w.B, w.C].map(async (b) => (await bucketsOf(b)).available))).toEqual([22, 16, 12]);
     await expectConserved({ held: 50, road: 30, lost: 0, sold: 13, received: 93 });
+  });
+
+  it('a customer of B brings back 1 of the 4 tablets (D1 10:30Z): 300 IQD refunded, the tablet waits in quarantine, 12 are sold net', async () => {
+    vi.setSystemTime(new Date('2026-10-27T10:30:00.000Z'));
+    await openShift(w.mgrB, w.B, 'IQD'); // the refund is paid from the manager's own drawer
+    const sale = await prisma().phSale.findFirstOrThrow({ where: { restaurantId: w.restaurantId, branchId: w.B, currency: 'IQD' }, include: { lines: true } });
+    const made = await act(w.mgrB, returnActions.create, { restaurantId: w.restaurantId, branchId: w.B, saleId: sale.id, lines: [{ saleLineId: sale.lines[0]!.id, baseQty: 1 }], reason: 'Customer changed their mind', clientKey: key('ret') });
+    expect(codeOf(made)).toBe('OK');
+    expect((await prisma().phReturn.findMany({ where: { saleId: sale.id } })).map((r) => r.refundMinor)).toEqual([300n]);
+    expect(await bucketsOf(w.B)).toMatchObject({ available: 16, quarantine: 1 });
+    await expectConserved({ held: 51, road: 30, lost: 0, sold: 12, received: 93 });
   });
 
   // ---- STEP 3: the destination receives 25 and 5 are lost ----------------------------------------------------------------------------
@@ -327,7 +348,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     expect(Object.fromEntries(b.map((x) => [x.batchId, x.available]))).toEqual({ [w.lot.LB]: 16, [w.lot.E]: 18, [w.lot.L]: 7 }); // 41 = 16 + 25
     expect(dataOf(await road(w.owner))).toEqual([]);
     // Held 22 + 41 + 12 = 75, on the road 0, lost 5, sold 13: 93.
-    await expectConserved({ held: 75, road: 0, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 76, road: 0, lost: 5, sold: 12, received: 93 });
     const d = dataOf(await dash(w.owner));
     expect(d.total.transit).toEqual({ units: 0, transfers: 0 });
     expect(d.total.stock.available).toBe(75);
@@ -340,7 +361,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     const sent = dataOf(await sendTransfer(w.mgrB, t));
     expect(sent.lines.map((l: any) => [l.batchId, l.sentQty])).toEqual([[w.lot.E, 6]]);
     // B: E 18 - 6 = 12. On the road 6.
-    await expectConserved({ held: 69, road: 6, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 70, road: 6, lost: 5, sold: 12, received: 93 });
     expect(dataOf(await dash(w.owner)).total.transit).toEqual({ units: 6, transfers: 1 });
 
     vi.setSystemTime(at(11, 28));
@@ -350,7 +371,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     const c = await prisma().phStockBalance.findFirstOrThrow({ where: { branchId: w.C, batchId: w.lot.E } });
     expect([c.available, c.damaged]).toEqual([4, 2]);
     // The damaged units are held (in the damaged bucket), not lost: held 75, lost still 5.
-    await expectConserved({ held: 75, road: 0, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 76, road: 0, lost: 5, sold: 12, received: 93 });
     T.t2 = { id: t.id, version: done.version };
   });
 
@@ -364,7 +385,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     const a = await prisma().phStockBalance.findFirstOrThrow({ where: { branchId: w.A, batchId: w.lot.E } });
     expect([a.available, a.quarantine]).toEqual([0, 5]);
     expect(await sellScreen(w.cashA, w.A)).toEqual({ sellable: 22, lots: [['L', 22]] }); // the 5 in quarantine are not offered
-    await expectConserved({ held: 75, road: 0, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 76, road: 0, lost: 5, sold: 12, received: 93 });
   });
 
   it('T4 (left on the road) and T5 (only asked): 3 tablets from A to C stay in transit; the request moves nothing', async () => {
@@ -374,32 +395,32 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     await requestTransfer(w.mgrB, w.A, w.B, 4); // T5
     T.t4 = { id: t4.id, version: sent.version };
     expect(await sellScreen(w.cashA, w.A)).toEqual({ sellable: 19, lots: [['L', 19]] });
-    await expectConserved({ held: 72, road: 3, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 73, road: 3, lost: 5, sold: 12, received: 93 });
   });
 
   // ---- STEP 5: the final reports, each equal to hand figures ----------------------------------------------------------------------------
   //
-  // Final stock (hand): A: lot L 19 available + lot E 5 quarantine. B: E 7, LB 16, L 7 (all available). C: LC 12 + E 4 available, E 2 damaged.
-  // Value = (available + reserved + quarantine) x cost: A 19 x 120 + 5 x 100 = 2,780; B 7 x 100 + 16 x 100 + 7 x 120 = 3,140;
+  // Final stock (hand): A: lot L 19 available + lot E 5 quarantine. B: E 7, LB 16, L 7 (all available) and 1 of LB in quarantine (the return). C: LC 12 + E 4 available, E 2 damaged.
+  // Value = (available + reserved + quarantine) x cost: A 19 x 120 + 5 x 100 = 2,780; B 7 x 100 + 16 x 100 + 7 x 120 + 1 x 100 returned = 3,240;
   // C 4 x 100 = 400 IQD and 12 x 2.00 = 2,400.00 USD; damaged C 2 x 100 = 200 IQD, apart.
 
   it('stock valuation equals the hand figures per branch and in total (damaged apart, quarantine valued, the road shown apart)', async () => {
     const v = dataOf(await valuation(w.owner));
     const brief = (id: string) => v.byBranch.find((b: any) => b.branchId === id);
     expect([brief(w.A).available, brief(w.A).quarantine, brief(w.A).damaged]).toEqual([19, 5, 0]);
-    expect([brief(w.B).available, brief(w.B).quarantine, brief(w.B).damaged]).toEqual([30, 0, 0]);
+    expect([brief(w.B).available, brief(w.B).quarantine, brief(w.B).damaged]).toEqual([30, 1, 0]);
     expect([brief(w.C).available, brief(w.C).quarantine, brief(w.C).damaged]).toEqual([16, 0, 2]);
     expect(brief(w.A).values).toEqual([{ currency: 'IQD', valueMinor: '2780', damagedValueMinor: '0' }]);
-    expect(brief(w.B).values).toEqual([{ currency: 'IQD', valueMinor: '3140', damagedValueMinor: '0' }]);
+    expect(brief(w.B).values).toEqual([{ currency: 'IQD', valueMinor: '3240', damagedValueMinor: '0' }]);
     expect(brief(w.C).values).toEqual([{ currency: 'IQD', valueMinor: '400', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }]);
     expect(v.totals).toEqual({
       available: 65,
       reserved: 0,
-      quarantine: 5,
+      quarantine: 6,
       damaged: 2,
       noCostRows: 0,
       valuationComplete: true,
-      values: [{ currency: 'IQD', valueMinor: '6320', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }],
+      values: [{ currency: 'IQD', valueMinor: '6420', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }],
     });
     expect(v.inTransit).toEqual({ units: 3, transfers: 1, byDestination: [{ branchId: w.C, units: 3 }], values: [{ currency: 'IQD', valueMinor: '360' }] });
     // The buckets agree with the balances read by SQL.
@@ -425,16 +446,18 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     expect([Number(sql[0]!.lost), Number(sql[0]!.damaged)]).toEqual([r.lost.lostQty, r.lost.damagedQty]);
   });
 
-  // Sales (hand): IQD  A 1,500 (1 sale)  B 1,200 (1)  C 300 (1)  total 3,000 (3 sales);  USD  A 1.50 (1)  C 3.00 (1)  total 4.50 (2).
+  // Sales (hand): IQD  A 1,440 (1 sale: 1,500 less a 60 discount)  B 1,200 (1)  C 300 (1)  total 2,940 (3 sales); B refunded 300 (net 2,640);  USD  A 1.50 (1)  C 3.00 (1)  total 4.50 (2).
 
   it('the sum of the branches = the chain total = the sum of each branch asked alone, per currency, and all equal independent SQL', async () => {
     const sql = await salesSql([w.A, w.B, w.C]);
-    expect(sumOf(sql, 'IQD')).toEqual({ count: 3, total: 3000n });
+    expect(sumOf(sql, 'IQD')).toEqual({ count: 3, total: 2940n });
     expect(sumOf(sql, 'USD')).toEqual({ count: 2, total: 450n });
     expect(sql.map((r) => [r.branchId === w.A ? 'A' : r.branchId === w.B ? 'B' : 'C', r.currency, r.count, r.total]).sort()).toEqual([
-      ['A', 'IQD', 1, 1500n], ['A', 'USD', 1, 150n], ['B', 'IQD', 1, 1200n], ['C', 'IQD', 1, 300n], ['C', 'USD', 1, 300n],
+      ['A', 'IQD', 1, 1440n], ['A', 'USD', 1, 150n], ['B', 'IQD', 1, 1200n], ['C', 'IQD', 1, 300n], ['C', 'USD', 1, 300n],
     ].sort());
 
+    const refunds = await refundsSql([w.A, w.B, w.C]);
+    expect(refunds.get('IQD')).toBe(300n);
     const sales = dataOf(await ask(w.owner, reports.sales, { ...place(), ...WINDOW, groupBy: 'branch' }));
     const dashboard = dataOf(await dash(w.owner));
     for (const currency of ['IQD', 'USD']) {
@@ -446,7 +469,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
       const dashTotal = dashboard.total.sales.find((s: any) => s.currency === currency);
       expect([total.count, BigInt(total.salesMinor)], `report ${currency}`).toEqual([expected.count, expected.total]);
       expect([byBranch.reduce((n: number, b: any) => n + b.count, 0), byBranch.reduce((n: bigint, b: any) => n + BigInt(b.salesMinor), 0n)], `rows ${currency}`).toEqual([expected.count, expected.total]);
-      expect([dashTotal.count, BigInt(dashTotal.salesMinor), BigInt(dashTotal.netMinor)], `dashboard ${currency}`).toEqual([expected.count, expected.total, expected.total]);
+      expect([dashTotal.count, BigInt(dashTotal.salesMinor), BigInt(dashTotal.netMinor)], `dashboard ${currency}`).toEqual([expected.count, expected.total, expected.total - (refunds.get(currency) ?? 0n)]);
       expect([cards.reduce((n: number, s: any) => n + s.count, 0), cards.reduce((n: bigint, s: any) => n + BigInt(s.salesMinor), 0n)], `cards ${currency}`).toEqual([expected.count, expected.total]);
       // (5) each branch asked alone (the branch filter) and summed.
       let count = 0;
@@ -463,23 +486,31 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     }
   });
 
-  it('a person who works in A and B gets the total of A and B only (2,700 IQD, 1.50 USD), in the report, the dashboard and the stock value', async () => {
+  it('a window that holds no sale gives no sale, in the report and in the independent SQL alike', async () => {
+    const later = { start: new Date('2026-10-28T21:00:00.000Z'), end: new Date('2026-10-30T21:00:00.000Z') };
+    expect(await salesSql([w.A, w.B, w.C], later)).toEqual([]);
+    expect((await refundsSql([w.A, w.B, w.C], later)).size).toBe(0);
+    const sales = dataOf(await ask(w.owner, reports.sales, { ...place(), from: '2026-10-29', to: '2026-10-30', groupBy: 'branch' }));
+    expect(sales.totals).toEqual([]);
+  });
+
+  it('a person who works in A and B gets the total of A and B only (2,640 IQD, 1.50 USD), in the report, the dashboard and the stock value', async () => {
     const sql = await salesSql([w.A, w.B]);
-    expect(sumOf(sql, 'IQD')).toEqual({ count: 2, total: 2700n });
+    expect(sumOf(sql, 'IQD')).toEqual({ count: 2, total: 2640n });
     expect(sumOf(sql, 'USD')).toEqual({ count: 1, total: 150n });
     const sales = dataOf(await ask(w.mgrAB, reports.sales, { ...place(), ...WINDOW, groupBy: 'branch' }));
-    expect(sales.totals.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', 2, '2700'], ['USD', 1, '150']]);
+    expect(sales.totals.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', 2, '2640'], ['USD', 1, '150']]);
     expect(sales.byBranch.every((b: any) => b.branchId !== w.C)).toBe(true);
     const d = dataOf(await dash(w.mgrAB));
     expect(d.branches.map((b: any) => b.branchId)).toEqual([w.A, w.B]);
-    expect(d.total.sales.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', 2, '2700'], ['USD', 1, '150']]);
+    expect(d.total.sales.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', 2, '2640'], ['USD', 1, '150']]);
     expect(d.total.stock.available).toBe(19 + 30); // A + B only
-    expect(d.total.stock.values).toEqual([{ currency: 'IQD', valueMinor: '5920', damagedValueMinor: '0' }]); // 2,780 + 3,140
+    expect(d.total.stock.values).toEqual([{ currency: 'IQD', valueMinor: '6020', damagedValueMinor: '0' }]); // 2,780 + 3,240
     expect(d.total.transit).toEqual({ units: 3, transfers: 1 }); // T4 leaves A (a branch of theirs): counted once
     expect(JSON.stringify(d)).not.toContain(w.C); // C is never named, though T4 goes there
     const v = dataOf(await valuation(w.mgrAB));
     expect(v.byBranch.map((b: any) => b.branchId)).toEqual([w.A, w.B]);
-    expect(v.totals.values).toEqual([{ currency: 'IQD', valueMinor: '5920', damagedValueMinor: '0' }]);
+    expect(v.totals.values).toEqual([{ currency: 'IQD', valueMinor: '6020', damagedValueMinor: '0' }]);
     expect(JSON.stringify(v)).not.toContain(w.C);
   });
 
@@ -490,13 +521,13 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     expect([card(w.A).stock.available, card(w.A).stock.quarantine, card(w.B).stock.available, card(w.C).stock.available, card(w.C).stock.damaged]).toEqual([19, 5, 30, 16, 2]);
     expect(card(w.A).stock.values).toEqual([{ currency: 'IQD', valueMinor: '2780', damagedValueMinor: '0' }]);
     expect(card(w.C).stock.values).toEqual([{ currency: 'IQD', valueMinor: '400', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }]);
-    expect(d.total.stock).toMatchObject({ available: 65, quarantine: 5, damaged: 2, valuationComplete: true });
-    expect(d.total.stock.values).toEqual([{ currency: 'IQD', valueMinor: '6320', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }]);
+    expect(d.total.stock).toMatchObject({ available: 65, quarantine: 6, damaged: 2, valuationComplete: true });
+    expect(d.total.stock.values).toEqual([{ currency: 'IQD', valueMinor: '6420', damagedValueMinor: '200' }, { currency: 'USD', valueMinor: '2400', damagedValueMinor: '0' }]);
     expect(d.total.transit).toEqual({ units: 3, transfers: 1 });
     expect(card(w.A).transit.outgoing).toEqual({ units: 3, transfers: 1 });
     expect(card(w.C).transit.incoming).toEqual({ units: 3, transfers: 1 });
     expect(d.total.openTransfers).toEqual({ requested: 1, sent: 1 });
-    await expectConserved({ held: 72, road: 3, lost: 5, sold: 13, received: 93 });
+    await expectConserved({ held: 73, road: 3, lost: 5, sold: 12, received: 93 });
   });
 
   // ---- STEP 6: exports equal the screens ----------------------------------------------------------------------------------------------------
@@ -560,7 +591,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     const owner = (await asPh(w.owner.userId, w.restaurantId))!;
     const scoped = scopedClient(prisma(), { restaurantId: w.restaurantId, allBranches: true });
     const bare = await stockValuation(scoped, { ...owner, role: 'PHARMACIST' }, {}, { groupBy: 'branch', take: 100 });
-    expect(bare.totals).toEqual({ available: 65, reserved: 0, quarantine: 5, damaged: 2 });
+    expect(bare.totals).toEqual({ available: 65, reserved: 0, quarantine: 6, damaged: 2 });
     expect(JSON.stringify(bare)).not.toMatch(/valueMinor|noCostRows|valuationComplete/);
 
     // Roles: cashier, pharmacist and stock clerk read no report, no dashboard, no export.
@@ -594,7 +625,7 @@ describe('phase 6 acceptance: stock in transit appears and is not sold; the sum 
     vi.setSystemTime(new Date(NOW.getTime() + 40 * DAY));
 
     const sales = dataOf(await ask(w.owner, reports.sales, { ...place(), ...WINDOW, groupBy: 'branch' }));
-    expect(sales.totals.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', sumOf(sql, 'IQD').count, '3000'], ['USD', sumOf(sql, 'USD').count, '450']]);
+    expect(sales.totals.map((t: any) => [t.currency, t.count, t.salesMinor])).toEqual([['IQD', sumOf(sql, 'IQD').count, '2940'], ['USD', sumOf(sql, 'USD').count, '450']]);
     expect(dataOf(await valuation(w.owner)).totals.available).toBe(65);
     expect(dataOf(await dash(w.owner)).total.transit).toEqual({ units: 3, transfers: 1 });
     expect(dataOf(await ask(w.owner, reports.transfers, { ...place(), ...WINDOW })).lost.lostQty).toBe(5);

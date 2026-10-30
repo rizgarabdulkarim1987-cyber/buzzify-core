@@ -26,7 +26,7 @@ function statements(sql: string): string[] {
 
 /** Statements that drop, delete, truncate, rename, or update an existing table. */
 function destructive(sql: string): string[] {
-  return statements(sql).filter((s) => /\b(DROP|TRUNCATE|RENAME)\b/i.test(s) || /^DELETE\s+FROM\b/i.test(s) || /^UPDATE\b/i.test(s));
+  return statements(sql).filter((s) => /\b(DROP|TRUNCATE|RENAME)\b/i.test(s) || /\bDELETE\s+FROM\b/i.test(s) || /\bUPDATE\s+"?\w+"?\s+SET\b/i.test(s));
 }
 
 /** Inserts into any table but `Application`. */
@@ -81,6 +81,10 @@ describe('the additive-migration matchers', () => {
       'DELETE FROM "Application"',
       'TRUNCATE "Branch"',
       'UPDATE "Restaurant" SET "name" = \'x\'',
+      // not only at the start of a statement: inside a DO block or a WITH
+      'DO $$ BEGIN DELETE FROM "PhBatch"; END $$',
+      'DO $$ BEGIN UPDATE "PhBatch" SET "lot" = \'x\'; END $$',
+      'WITH gone AS (DELETE FROM "PhBatch" RETURNING 1) SELECT 1',
     ]) {
       expect(destructive(bad), bad).toHaveLength(1);
     }
