@@ -23,6 +23,11 @@
   /* Room for the focus ring, which the scroll container would otherwise clip. */
   padding-block: 0.3rem;
 }
+/* The strip takes focus (tabindex 0), so a keyboard can scroll a strip with no button in it. */
+.tpl-showcase-strip:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: -2px;
+}
 
 .tpl-showcase-card {
   position: relative;
@@ -47,7 +52,23 @@
   min-width: 0;
 }
 
+/*
+ * Long words clamp so the strip stays quick to scan (the full text is still read out). Neither the heading nor the
+ * title button is positioned, so the clamp's overflow does not clip the button's card-wide tap area.
+ */
+.tpl-showcase-card h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
 .tpl-showcase-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
   color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.45;
@@ -55,6 +76,12 @@
 
 /* An offer card: its title's button covers the card, so the whole card is the tap target. */
 .tpl-showcase-link {
+  /* A button is one box inside the heading's lines, so it clamps its own title. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
   color: inherit;
   font: inherit;
   text-align: start;

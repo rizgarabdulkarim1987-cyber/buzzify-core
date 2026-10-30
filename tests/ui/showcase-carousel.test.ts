@@ -110,6 +110,14 @@ describe('ShowcaseCarousel', () => {
     expect(items.map((li) => li.querySelector('h3')?.textContent)).toEqual(['Family meal', 'Open buffet']);
   });
 
+  it('lets keyboard users reach and scroll a strip with no button in it', () => {
+    mount({ aboveSearch: [buffet], belowSearch: [] });
+    const strip = container.querySelector('ul')!;
+    expect(container.querySelector('button')).toBeNull();
+    expect(strip.getAttribute('tabindex')).toBe('0');
+    expect(strip.getAttribute('aria-label')).toBe(en('showcase.label'));
+  });
+
   it('renders every card it is given, even past the view cap of 8', () => {
     const many = Array.from({ length: 12 }, (_, index) => card({ id: `c${index}`, kind: 'BUFFET' }));
     mount({ aboveSearch: many, belowSearch: [] });
@@ -237,6 +245,13 @@ describe('ShowcaseCarousel', () => {
       expect(rule('.tpl-showcase-strip')).toMatch(/overflow-x:\s*auto/);
       expect(rule('.tpl-showcase-strip')).toMatch(/scroll-snap-type:\s*x mandatory/);
       expect(rule('.tpl-showcase-card')).toMatch(/scroll-snap-align:\s*start/);
+    });
+
+    it('clamps a long title and text so the strip stays scannable, and rings the focused strip', () => {
+      expect(rule('.tpl-showcase-card h3')).toMatch(/-webkit-line-clamp:\s*3/);
+      expect(rule('.tpl-showcase-card h3')).toMatch(/line-clamp:\s*3/);
+      expect(rule('.tpl-showcase-text')).toMatch(/-webkit-line-clamp:\s*4/);
+      expect(rule('.tpl-showcase-strip:focus-visible')).toMatch(/outline:/);
     });
 
     it('adds no motion and no composited layers: no animation, transition, transform or will-change', () => {

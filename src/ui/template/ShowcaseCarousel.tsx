@@ -24,7 +24,8 @@ export function ShowcaseCarousel({ slot }: { slot: 'aboveSearch' | 'belowSearch'
   if (cards.length === 0) return null;
   return (
     <section aria-label={t('showcase.label')} dir={direction(locale)} className="tpl-showcase">
-      <ul className="tpl-showcase-strip scroll-hidden">
+      {/* Focusable so a keyboard can scroll a strip of cards with no button (Safari does not focus scroll containers). */}
+      <ul tabIndex={0} aria-label={t('showcase.label')} className="tpl-showcase-strip scroll-hidden">
         {cards.map((card) => (
           <ShowcaseCard key={card.id} card={card} />
         ))}
