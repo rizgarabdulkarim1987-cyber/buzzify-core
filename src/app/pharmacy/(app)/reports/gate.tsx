@@ -1,12 +1,6 @@
-import { ArrowLeft, Lock } from 'lucide-react';
-import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { getPhBranches } from '@/server/pharmacy/actor';
-import { getStudioTranslator } from '@/studio/messages';
-import { requestStudioLocale } from '@/studio/request-locale';
-import { EmptyState } from '@/studio/ui/EmptyState';
-import { PageHeader } from '@/studio/ui/PageHeader';
-import { catalogAccess, roleMay } from '../catalog/access';
+import { phGate } from '@/app/pharmacy/_ui/ph-gate';
+import { roleMay } from '../catalog/access';
 
 /**
  * Who is on a report screen. A role without `report.view` (and a support actor) gets the blocked state and NO data is fetched: the page
@@ -14,25 +8,7 @@ import { catalogAccess, roleMay } from '../catalog/access';
  * write gate here. `mayMargin` is profit.view AND cost.view, the two keys margin needs besides report.view.
  */
 export async function reportsGate(titleKey: string, backTo?: { href: string; labelKey: string }) {
-  const [access, locale] = await Promise.all([catalogAccess(), requestStudioLocale()]);
-  const t = getStudioTranslator(locale);
-  const back = backTo ? (
-    <Link href={backTo.href} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
-      <ArrowLeft aria-hidden className="size-4 shrink-0 rtl:rotate-180" />
-      {t(backTo.labelKey)}
-    </Link>
-  ) : undefined;
-  let blocked: ReactNode = null;
-  if (!roleMay(access.actor, 'report.view')) {
-    blocked = (
-      <>
-        <PageHeader className="max-sm:px-4" title={t(titleKey)} above={back} />
-        <div data-testid="reports-forbidden" className="px-4 pb-10 sm:px-8">
-          <EmptyState icon={<Lock />} title={t('pharmacy.reports.forbidden.title')} body={t(access.actor.role === null ? 'pharmacy.reports.forbidden.support' : 'pharmacy.reports.forbidden.role')} />
-        </div>
-      </>
-    );
-  }
+  const { access, locale, t, back, blocked } = await phGate({ permission: 'report.view', titleKey, backTo, testid: 'reports-forbidden', messages: 'pharmacy.reports' });
   return {
     access,
     locale,
