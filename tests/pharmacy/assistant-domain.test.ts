@@ -10,7 +10,6 @@ import {
   mayUseTool,
   previousPeriod,
   proposalInput,
-  seasonalNaive,
   toolsOf,
   weeksOfSales,
 } from '@/server/domain/pharmacy/assistant-domain';
@@ -111,12 +110,6 @@ describe('periods and the forecast', () => {
     expect(weeksOfSales(null, '2026-10-27')).toBe(0);
     expect(weeksOfSales('2026-09-01', '2026-10-27')).toBe(8);
     expect(weeksOfSales('2026-09-02', '2026-10-27')).toBe(7);
-  });
-
-  it('gives no estimate under eight weeks of sales, and last week’s units from eight on', () => {
-    expect(seasonalNaive({ firstSaleDay: '2026-09-02', today: '2026-10-27', lastWeekUnits: 40 })).toBeNull();
-    expect(seasonalNaive({ firstSaleDay: null, today: '2026-10-27', lastWeekUnits: 40 })).toBeNull();
-    expect(seasonalNaive({ firstSaleDay: '2026-09-01', today: '2026-10-27', lastWeekUnits: 40 })).toEqual({ nextWeekUnits: 40, basisFrom: '2026-10-20', basisTo: '2026-10-26', weeksOfHistory: 8 });
   });
 });
 

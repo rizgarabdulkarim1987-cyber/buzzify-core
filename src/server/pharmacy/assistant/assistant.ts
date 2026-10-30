@@ -6,6 +6,7 @@ import {
   classifyQuestion,
   INSUFFICIENT_DATA,
   mayUseTool,
+  proseProblem,
   seasonalNaive,
   toolsOf,
   UNSAFE_STOCK_REFUSAL,
@@ -46,9 +47,11 @@ export interface AskOptions {
   batchId?: string;
   period?: Period;
   days?: 30 | 60 | 90 | 180;
+  /** For a forecast, which product: a demand figure adds up units of one product only. */
+  productId?: string;
 }
 
-export type AnswerReason = DegradeReason | 'CLINICAL' | 'UNSAFE_STOCK';
+export type AnswerReason = DegradeReason | 'CLINICAL' | 'UNSAFE_STOCK' | 'PRODUCT_NEEDED';
 
 export interface AssistantAnswer {
   /** Prose (the model's, grounded; or a fixed sentence of the code). `null` when only the tables answer. */
@@ -77,6 +80,7 @@ const LINKS: Record<AssistantTool, string> = {
 };
 
 const MAX_TOOLS = 3;
+export const PRODUCT_NEEDED = 'Name a product to forecast its demand: a forecast is made for one product at a time.';
 const SOLD = ['COMPLETED', 'RETURNED_PARTIAL', 'RETURNED_FULL'] as const;
 
 const base = (env: AskEnv, over: Partial<AssistantAnswer>): AssistantAnswer => ({
@@ -110,6 +114,18 @@ function inputFor(tool: AssistantTool, opts: AskOptions): Record<string, unknown
 
 type Plan = Array<{ tool: AssistantTool; input: Record<string, unknown> }>;
 
+/** A period the model chose must be one the reports accept (real days, in order, not too long); otherwise the step is skipped. */
+function periodUsable(input: Record<string, unknown>): boolean {
+  const period = input.period as { from?: unknown; to?: unknown } | undefined;
+  if (period === undefined) return true;
+  try {
+    windowOf(String(period.from), String(period.to));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Tools the model picks when the question names none; anything off the list, repeated or badly shaped is ignored. */
 async function chosenByModel(env: AskEnv, question: string, opts: AskOptions): Promise<Plan> {
   const allowed = toolsOf(env.ph.role);
@@ -120,9 +136,11 @@ async function chosenByModel(env: AskEnv, question: string, opts: AskOptions): P
   for (const call of reply.calls) {
     const tool = allowed.find((t) => t === call.name);
     if (!tool || plan.some((p) => p.tool === tool)) continue;
-    const base = typeof call.input === 'object' && call.input !== null && !Array.isArray(call.input) ? (call.input as Record<string, unknown>) : {};
-    const input = tool === 'transfer_candidates' ? (opts.batchId ? { batchId: opts.batchId } : null) : { ...base, ...(opts.branchId && 'branchId' in toolInputs[tool].shape ? { branchId: opts.branchId } : {}) };
-    if (input === null || !toolInputs[tool].safeParse(input).success) continue;
+    const given = typeof call.input === 'object' && call.input !== null && !Array.isArray(call.input) ? { ...(call.input as Record<string, unknown>) } : {};
+    // The scope of the data is the caller's alone: a branch the model names is dropped, never trusted.
+    delete given.branchId;
+    const input = tool === 'transfer_candidates' ? (opts.batchId ? { batchId: opts.batchId } : null) : { ...given, ...(opts.branchId && 'branchId' in toolInputs[tool].shape ? { branchId: opts.branchId } : {}) };
+    if (input === null || !toolInputs[tool].safeParse(input).success || !periodUsable(input)) continue;
     plan.push({ tool, input });
     if (plan.length === MAX_TOOLS) break;
   }
@@ -130,7 +148,7 @@ async function chosenByModel(env: AskEnv, question: string, opts: AskOptions): P
 }
 
 /** Prose that tells a pharmacy to sell expired stock or gives medical advice is refused whatever the tables say. */
-const unsafeProse = (text: string): boolean => classifyQuestion(text) === 'clinical' || classifyQuestion(text) === 'unsafe_stock';
+const unsafeProse = proseProblem;
 
 export async function ask(env: AskEnv, question: string, opts: AskOptions = {}): Promise<AssistantAnswer> {
   assertStaff(env.ph);
@@ -149,6 +167,7 @@ export async function ask(env: AskEnv, question: string, opts: AskOptions = {}):
       return input === null ? [] : [{ tool, input }];
     });
   let reason: DegradeReason | undefined;
+  let fromModel = false;
   if (plan.length === 0) {
     try {
       plan = await chosenByModel(env, text, opts);
@@ -156,12 +175,21 @@ export async function ask(env: AskEnv, question: string, opts: AskOptions = {}):
       reason = error instanceof AssistantDegraded ? error.reason : 'AI_PROVIDER_ERROR';
     }
     if (plan.length === 0) return base(env, { degraded: true, reason: reason ?? (env.provider ? 'NO_TOOL' : 'NO_AI_PERMISSION') });
+    fromModel = true;
   }
   // A tool the question names but the role may not use is a refusal, not a silent gap.
   for (const step of plan) if (!mayUseTool(env.ph.role, step.tool)) throw new StudioError('FORBIDDEN');
 
   const tables: ToolOutput[] = [];
-  for (const step of plan) tables.push(await runTool(env, step.tool, step.input));
+  for (const step of plan) {
+    try {
+      tables.push(await runTool(env, step.tool, step.input));
+    } catch (error) {
+      // A step the model planned that the reports refuse is a degraded answer, never an error to the caller.
+      if (fromModel && error instanceof StudioError) return base(env, { degraded: true, reason: 'NO_TOOL' });
+      throw error;
+    }
+  }
   const shown = {
     tables,
     period: tables.find((t) => t.period !== null)?.period ?? null,
@@ -184,30 +212,31 @@ export async function ask(env: AskEnv, question: string, opts: AskOptions = {}):
 }
 
 /**
- * Demand over the next 7 days. Needs `report.view` like the reports it stands for. Without eight whole weeks of sales the answer
- * is the sentence `insufficient data` and nothing else; with them it is the units of the last full week, said by code and
- * labelled an estimate (seasonal-naive: next week looks like last week). The model is not involved.
+ * Demand over the next 7 days for ONE product (units of different products are not added together). Needs `report.view` like the
+ * reports it stands for. Without sales of the product in eight different weeks the answer is the sentence `insufficient data` and
+ * nothing else; with them it is the units of the last full week, said by code and labelled an estimate (seasonal-naive: next week
+ * looks like last week; stock-outs, lead time and incoming stock are not considered, and the answer says so). The model is not involved.
  */
 async function forecast(env: AskEnv, opts: AskOptions): Promise<AssistantAnswer> {
   if (!env.ph.role || !canPh(env.ph.role, 'report.view')) throw new StudioError('FORBIDDEN');
   const scope = scopeOf(env.ph, opts.branchId);
   const today = baghdadDayOf(env.now);
   const week = { from: addDays(today, -7), to: addDays(today, -1) };
-  const window = windowOf(week.from, week.to);
-  const [first, last] = await Promise.all([
-    env.scoped.phSale.aggregate({ where: { branchId: { in: scope.branchIds }, status: { in: [...SOLD] } }, _min: { completedAt: true } }),
-    env.scoped.phSaleLine.aggregate({
-      where: { sale: { branchId: { in: scope.branchIds }, status: { in: [...SOLD] }, completedAt: { gte: window.start, lt: window.endExclusive } } },
-      _sum: { baseQty: true },
-    }),
-  ]);
-  const firstSaleDay = first._min.completedAt ? baghdadDayOf(first._min.completedAt) : null;
-  const estimate = seasonalNaive({ firstSaleDay, today, lastWeekUnits: last._sum.baseQty ?? 0 });
   const common = { branches: scope.branchIds, period: week };
+  if (!opts.productId) return base(env, { ...common, answer: PRODUCT_NEEDED, reason: 'PRODUCT_NEEDED' });
+  const window = windowOf(week.from, week.to);
+  const lines = await env.scoped.phSaleLine.findMany({
+    where: { productId: opts.productId, sale: { branchId: { in: scope.branchIds }, status: { in: [...SOLD] }, completedAt: { gte: new Date(env.now.getTime() - 400 * 86_400_000), lt: env.now } } },
+    select: { baseQty: true, sale: { select: { completedAt: true } } },
+    take: 50_000,
+  });
+  const dated = lines.flatMap((l) => (l.sale.completedAt ? [{ day: baghdadDayOf(l.sale.completedAt), at: l.sale.completedAt, qty: l.baseQty }] : []));
+  const lastWeekUnits = dated.filter((d) => d.at >= window.start && d.at < window.endExclusive).reduce((n, d) => n + d.qty, 0);
+  const estimate = seasonalNaive({ saleDays: dated.map((d) => d.day), today, lastWeekUnits });
   if (estimate === null) return base(env, { ...common, answer: INSUFFICIENT_DATA });
   return base(env, {
     ...common,
-    answer: `Estimate: ${estimate.nextWeekUnits} units over the next 7 days, the same as ${estimate.basisFrom} to ${estimate.basisTo}.`,
+    answer: `Estimate: ${estimate.nextWeekUnits} units of this product over the next 7 days, the same as ${estimate.basisFrom} to ${estimate.basisTo}. Based on sales only: stock-outs, supplier lead time and incoming stock are not considered.`,
     label: 'estimate',
     forecast: estimate,
   });

@@ -29,10 +29,17 @@ const PERSONAL_KEY = /patient|customer|prescri|rx|phone|mobile|email|address|dob
 const CONTROL_RANGES: ReadonlyArray<readonly [number, number]> = [[0x0, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x202a, 0x202e], [0x2028, 0x2029], [0x2060, 0x2060], [0xfeff, 0xfeff]];
 const CONTROL = new RegExp(`[${CONTROL_RANGES.map(([a, b]) => `${String.fromCharCode(a)}-${String.fromCharCode(b)}`).join('')}]`, 'g');
 export const MAX_TEXT = 120;
+/** The question a person types may be as long as the action accepts. */
+export const MAX_QUESTION = 1000;
 
 /** Text from the database or the person, made safe to show a model: no control characters, no phone numbers, short. */
 export function cleanText(text: string): string {
   return redactPhones(text.replace(CONTROL, ' ').replace(/\s+/g, ' ').trim()).slice(0, MAX_TEXT);
+}
+
+/** The question, made safe like any text but kept whole up to the length the action accepts. */
+export function cleanQuestion(text: string): string {
+  return redactPhones(text.replace(CONTROL, ' ').replace(/\s+/g, ' ').trim()).slice(0, MAX_QUESTION);
 }
 
 /** Keys whose values are text a person typed (names, lots, invoice numbers): the only strings that can carry a phone number or an instruction. */
@@ -77,11 +84,11 @@ export interface ModelInput {
 
 /** The input of the phrasing call: the question and the tables, each as an untrusted block. */
 export function buildPhraseInput(question: string, outputs: readonly ToolOutput[]): ModelInput {
-  const blocks = [untrusted('question', cleanText(question)), ...outputs.map((o) => untrusted('toolResult', JSON.stringify(forModel(o))))];
+  const blocks = [untrusted('question', cleanQuestion(question)), ...outputs.map((o) => untrusted('toolResult', JSON.stringify(forModel(o))))];
   return { system: SYSTEM_PROMPT, user: blocks.join('\n') };
 }
 
 /** The input of the tool-choosing call: the question alone, no table. */
 export function buildChooseInput(question: string): ModelInput {
-  return { system: CHOOSE_PROMPT, user: untrusted('question', cleanText(question)) };
+  return { system: CHOOSE_PROMPT, user: untrusted('question', cleanQuestion(question)) };
 }

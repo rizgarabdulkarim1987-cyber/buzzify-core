@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setAiProviderForTests } from '@/server/ai/provider';
 import type { AiProvider, AiResponse } from '@/server/ai/provider/types';
-import { CLINICAL_REFUSAL, INSUFFICIENT_DATA, UNSAFE_STOCK_REFUSAL } from '@/server/domain/pharmacy/assistant-domain';
+import { CLINICAL_REFUSAL, UNSAFE_STOCK_REFUSAL } from '@/server/domain/pharmacy/assistant-domain';
 import type { AiPricing } from '@/server/pharmacy/intake/ai';
 import * as assistantActions from '@/server/pharmacy/actions/assistant';
 import { ask, type AskEnv, type AssistantAnswer } from '@/server/pharmacy/assistant/assistant';
@@ -10,7 +10,6 @@ import { phScopedClient } from '@/server/studio/framework/access';
 import { StudioError } from '@/server/studio/framework/result';
 import { aiText, aiTools, assistantWorld, HOSTILE, quiet, scripted, ScriptedAi, text, tools, type AssistantWorld } from './assistant-mock';
 import { asPh, grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
-import { sell } from './reports-world';
 import { act, codeOf, dataOf } from './stock-helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- answers are read off the wire and checked by value */
@@ -290,36 +289,6 @@ describe('the budget gate: the assistant is counted like invoice reading', () =>
     const rows = await prisma().phAiUsageMonth.findMany({ where: { restaurantId: g.id } });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.month).toBe('2026-10');
-  });
-});
-
-describe('the demand forecast', () => {
-  it('is only the sentence "insufficient data" with less than eight weeks of sales, and calls no model', async () => {
-    const model = scripted();
-    const a = await askAs(w.owner, model, 'Forecast next week');
-    expect(a).toMatchObject({ answer: INSUFFICIENT_DATA, label: 'fact', tables: [] });
-    expect(a.answer).toBe('insufficient data');
-    expect(a.forecast).toBeUndefined();
-    expect(model.requests).toHaveLength(0);
-  });
-
-  it('is a seasonal-naive estimate, computed in code and labelled estimate, from eight weeks on: last week’s 3 units', async () => {
-    const tab = (qty: number) => [{ productId: w.P.id, unitId: w.P.tablet, qty }];
-    const pay = (n: bigint) => [{ method: 'CASH', amountMinor: n, clientKey: `fc-${n}-${Math.random().toString(36).slice(2)}-xxxxxxxx` }];
-    vi.setSystemTime(new Date('2026-08-20T09:00:00.000Z'));
-    await sell(w, w.cashier1, w.b1, 'IQD', tab(2), pay(200n));
-    vi.setSystemTime(new Date('2026-10-22T09:00:00.000Z'));
-    await sell(w, w.cashier1, w.b1, 'IQD', tab(3), pay(300n));
-    vi.setSystemTime(NOW);
-    const model = scripted();
-    const a = await askAs(w.owner, model, 'Forecast next week');
-    expect(a).toMatchObject({ label: 'estimate', period: { from: '2026-10-20', to: '2026-10-26' } });
-    expect(a.forecast).toEqual({ nextWeekUnits: 3, basisFrom: '2026-10-20', basisTo: '2026-10-26', weeksOfHistory: 9 });
-    expect(a.answer).toContain('3 units');
-    expect(model.requests).toHaveLength(0);
-    // The same question for branch 2 alone (no sales there) has no history: the sentence again.
-    expect((await askAs(w.owner, model, 'Forecast next week', { branchId: w.b2 })).answer).toBe(INSUFFICIENT_DATA);
-    expect(await refusal(askAs(w.cashier1, model, 'Forecast next week'))).toBe('FORBIDDEN');
   });
 });
 

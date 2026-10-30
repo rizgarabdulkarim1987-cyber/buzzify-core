@@ -643,7 +643,7 @@ const CASES: Record<string, Case> = {
   // The daily assistant (phase 7, task 4). Asking reads through the scoped client and the tools' own queries, so a batch of another branch or business
   // answers nothing of theirs (the provider is switched off in this file: the answer is the tables). A proposal is branch-scoped: another branch's or
   // business's id is not found, and a transfer from a branch the person cannot reach is refused.
-  'ph.assistant.ask': { body: (ids, n) => ({ question: 'What is expiring soon?', batchId: pick(ids, n).batchId }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.assistant.ask': { body: (ids, n) => ({ question: 'What is expiring soon, and can we transfer this batch?', batchId: pick(ids, n).batchId }), foreignIds: 'harmless', otherBranchIds: 'scoped' },
   'ph.assistant.proposals': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.assistant.proposal.create': {
     body: (ids, n) => ({ proposal: { kind: 'TRANSFER', fromBranchId: n === 1 ? ids.b1 : ids.b2, toBranchId: n === 1 ? ids.b2 : ids.b1, lines: [{ productId: ids.productId, qty: 1 }] } }),

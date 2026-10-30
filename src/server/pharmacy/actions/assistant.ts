@@ -29,6 +29,7 @@ export const askAction = defineAction({
   input: phPlaceInput.extend({
     question: z.string().trim().min(1, 'Enter a question').max(1000, 'Enter a question of up to 1000 characters'),
     batchId: z.string().min(1).max(64).optional(),
+    productId: z.string().min(1).max(64).optional(),
     days: z.union([z.literal(30), z.literal(60), z.literal(90), z.literal(180)]).optional(),
     period: periodShape.optional(),
   }),
@@ -41,6 +42,7 @@ export const askAction = defineAction({
     const answer = await ask({ scoped, ph, now, provider }, input.question, {
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.batchId ? { batchId: input.batchId } : {}),
+      ...(input.productId ? { productId: input.productId } : {}),
       ...(input.days ? { days: input.days } : {}),
       ...(input.period ? { period: input.period } : {}),
     });

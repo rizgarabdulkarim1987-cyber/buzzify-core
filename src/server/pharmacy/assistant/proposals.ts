@@ -45,6 +45,7 @@ export async function createProposal(tx: Tx, args: { ph: PhActor; branchId: stri
   const branchId = input.kind === 'TRANSFER' ? input.fromBranchId : args.branchId;
   if (!branchId) throw new StudioError('INVALID', 'Choose the branch', { branchId: 'Choose the branch' });
   if (!reach(ph, branchId)) throw new StudioError('FORBIDDEN');
+  if ((await tx.branch.count({ where: { id: branchId } })) !== 1) throw new StudioError('NOT_FOUND');
   if (input.kind === 'TRANSFER') {
     if (input.fromBranchId === input.toBranchId) throw new StudioError('INVALID', 'Check the highlighted fields', { toBranchId: 'Choose a different branch' });
     const target = await tx.branch.count({ where: { id: input.toBranchId } });

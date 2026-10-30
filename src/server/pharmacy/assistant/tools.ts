@@ -211,7 +211,8 @@ async function unpaidSupplierInvoices(env: ToolEnv) {
   const list = await listPayables(env.scoped, env.ph, { take: ROWS });
   return {
     tool: 'unpaid_supplier_invoices' as const,
-    ...meta(env, env.ph.branchIds, null),
+    // Supplier invoices belong to the business, not to a branch: no branch is named.
+    ...meta(env, [], null),
     rows: list.items.map((i) => ({
       invoiceId: i.id,
       number: i.number,

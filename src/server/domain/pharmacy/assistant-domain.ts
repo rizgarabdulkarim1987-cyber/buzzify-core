@@ -35,17 +35,46 @@ export const UNSAFE_STOCK_REFUSAL = 'I cannot suggest selling expired stock, or 
 
 export type QuestionKind = 'clinical' | 'unsafe_stock' | 'forecast' | 'data';
 
-const CLINICAL =
-  /\b(dos(e|es|age|ing)|diagnos\w*|substitut\w*|interact\w*|side[- ]effects?|contraindicat\w*|pregnan\w*|symptoms?|prescribe\w*|overdos\w*|how (many|much) (pills?|tablets?|capsules?|mg|ml)[^.?]*(take|give)|what (can|should) (i|we|they) (take|give)|alternative (drug|medicine|medication)s?|generic (for|of))\b|جرعة|جرعه|الجرعة|تشخيص|بديل دوائي|الدواء البديل|تداخل|آثار جانبية|الاثار الجانبية|حامل|الحمل|أعراض|اعراض|دۆز|دۆزی|دەرمانی جێگرەوە|جێگرەوەی دەرمان|کاریگەری لاوەکی|سکپڕ|دووگیان|نیشانەکانی/iu;
+/** Doses, diagnosis, interactions, substitutes: the core of what is never answered, in the question and in the prose. */
+const CLINICAL_CORE =
+  /\b(dos(e|es|age|ing)|diagnos\w*|substitut\w*|interact\w*|side[- ]effects?|contraindicat\w*|overdos\w*|alternative (drug|medicine|medication)s?|generic (for|of))\b|جرعة|جرعه|الجرعة|تشخيص|بديل دوائي|الدواء البديل|تداخل|آثار جانبية|الاثار الجانبية|دۆز|دۆزی|دەرمانی جێگرەوە|جێگرەوەی دەرمان|کاریگەری لاوەکی/iu;
+const CHILD = 'child(?:ren)?|kids?|bab(?:y|ies)|infants?|toddlers?|newborns?|elderly|pregnan\\w*';
+/** Giving or taking a medicine, said about a child, a baby, a pregnant woman: asked in other words than "dose". */
+const CLINICAL_PEOPLE = new RegExp(
+  `\\b(?:take|takes|taking|give|giving|given|safe)\\b[^.?!]*\\b(?:${CHILD})\\b|\\b(?:${CHILD})\\b[^.?!]*\\b(?:take|takes|taking|given|safe)\\b|\\bhow often\\b[^.?!]*\\b(?:take|give)\\b|\\bcan (?:i|we|you|a|my) (?:take|give|mix|combine)\\b|` +
+    '(?:طفل|الطفل|أطفال|الأطفال|للأطفال|رضيع|للرضيع|الرضيع|للحامل|الحوامل)[^؟.!]*(?:يأخذ|تناول|يتناول|إعطاء|اعطاء|آمن|امن)|(?:آمن|امن|يأخذ|تأخذ|يتناول|أعطي|اعطي|نعطي)[^؟.!]*(?:طفل|الطفل|أطفال|الأطفال|للأطفال|رضيع|للرضيع|للحامل)|' +
+    '(?:بدەم|بیدەم|بخوات|بخۆن|دەخوات|سەلامەت|ئارام)[^؟.!]*(?:منداڵ|ساوا|کۆرپە)|(?:منداڵ|ساوا|کۆرپە)[^؟.!]*(?:بدەم|بیدەم|بخوات|بخۆن|دەخوات|سەلامەت|ئارام)',
+  'iu',
+);
+/** Only a question: forms and words that are too common in stock prose to refuse an answer for. */
+const CLINICAL_ASKED =
+  /\b(pregnan\w*|symptoms?|prescribe\w*|how (many|much) (pills?|tablets?|capsules?|mg|ml)[^.?]*(take|give)|what (can|should) (i|we|they) (take|give)|is it (ok|okay|safe)|safe (to|for|with|during|while|in))\b|الحمل|للحامل|أعراض|اعراض|سکپڕ|دووگیان|نیشانەکانی/iu;
+/** A dose written into the prose: an amount of a medicine with how often or how long. */
+const DOSE_PROSE =
+  /\b\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|tablets?|pills?|capsules?|drops?|sachets?)\b[^.?!]*\b(?:every|each|daily|a day|per day|times|hourly|hours?)\b|\b(?:take|give|administer)\b[^.?!]*\b\d+\s*(?:mg|mcg|ml|tablets?|pills?|capsules?|drops?)\b|\bevery \d+ hours?\b|\b\d+ times (?:daily|a day|per day)\b/iu;
 const UNSAFE_STOCK =
   /\b(sell|selling|dispens\w*|use|using|give)\b[^.?!]*\b(expired|out[- ]of[- ]date|past (its )?(expiry|date))\b|\b(extend|change|relabel|re-label|alter)\b[^.?!]*\b(expiry|expiration|use[- ]by)\b|\bexpired\b[^.?!]*\b(sell|dispens\w*|customers?)\b|بيع[^.؟!]*(منتهي|منتهية|الصلاحية)|بيع المنتهي|تمديد[^.؟!]*(الصلاحية)|فرۆشتنی[^.؟!]*(بەسەرچوو|بەسەرچووەکان)|بەسەرچوو[^.؟!]*(بفرۆشم|بفرۆشین)/iu;
+/** Encouraging people to buy or take more of a medicine (R7-6): refused in a question and in the prose. */
+const PUSH =
+  /\b(promot\w*|encourag\w*|persuad\w*|upsell\w*|convince\w*|push\w*)\b[^.?!]*\b(customers?|patients?|clients?|people|buyers?|buy\w*|purchas\w*|medicines?|drugs?|medications?|products?|sales?|stock)\b|\b(buy|take|use|consume|purchase|dispense)\s+more\b|\bincrease (the )?(sales|consumption|usage)\b|\bboost (the )?sales\b|(?:ترويج|روج|أروج|اروج|شجع|أشجع|اشجع|تشجيع|اقنع|أقنع|حث|أحث)[^؟.!]*(?:الزبائن|الزبون|المرضى|العملاء|شراء|الدواء|الأدوية|المبيعات|المخزون)|شراء المزيد|استهلاك المزيد|زيادة (?:المبيعات|الاستهلاك)|هان بدە|هاندان|هانی|زیاتر (?:بکڕ|بخۆ)\w*|پڕۆمۆت|فرۆشتن زیاد/iu;
+/** Clearing stock by selling harder: refused in prose, though a fair thing to ask about. */
+const CLEAR_STOCK = /\bclear(?:ing)? (?:the |this |that |our )?(?:stock|inventory)\b|\bmove (?:the )?stock\b|تصريف/iu;
 const FORECAST = /\b(forecast\w*|predict\w*|projection|demand|next (week|month)|will (we|i) sell|expected sales)\b|توقع|تنبؤ|التنبؤ|الطلب المتوقع|پێشبینی|داواکاری داهاتوو/iu;
 
 export function classifyQuestion(question: string): QuestionKind {
-  if (UNSAFE_STOCK.test(question)) return 'unsafe_stock';
-  if (CLINICAL.test(question)) return 'clinical';
+  if (UNSAFE_STOCK.test(question) || PUSH.test(question)) return 'unsafe_stock';
+  if (CLINICAL_CORE.test(question) || CLINICAL_PEOPLE.test(question) || CLINICAL_ASKED.test(question)) return 'clinical';
   if (FORECAST.test(question)) return 'forecast';
   return 'data';
+}
+
+/**
+ * Prose a model wrote that a pharmacy must never show whatever the tables say: medical advice (a dose, a child, a substitute),
+ * selling expired stock, or pushing people to buy and take more. Narrower than the question check on purpose: ordinary words
+ * such as "prescribed" or "symptoms" do not make a stock sentence unsafe.
+ */
+export function proseProblem(text: string): boolean {
+  return CLINICAL_CORE.test(text) || CLINICAL_PEOPLE.test(text) || DOSE_PROSE.test(text) || UNSAFE_STOCK.test(text) || PUSH.test(text) || CLEAR_STOCK.test(text);
 }
 
 const KEYWORDS: Array<[AssistantTool, RegExp]> = [
@@ -90,27 +119,34 @@ export function weeksOfSales(firstSaleDay: string | null, today: string): number
   return Math.max(0, Math.floor((midnight(today).getTime() - midnight(firstSaleDay).getTime()) / (7 * DAY_MS)));
 }
 
+/** How many different weeks (7 days each, counted back from `today`) hold at least one of the sale days. Today itself is not a whole week. */
+export function distinctSaleWeeks(saleDays: readonly string[], today: string): number {
+  const weeks = new Set<number>();
+  for (const day of saleDays) {
+    const back = Math.round((midnight(today).getTime() - midnight(day).getTime()) / DAY_MS);
+    if (back >= 1) weeks.add(Math.floor((back - 1) / 7));
+  }
+  return weeks.size;
+}
+
 export interface ForecastEstimate {
   /** Expected units over the next 7 days: the same as the last 7 days (seasonal-naive with a week as the season). */
   nextWeekUnits: number;
   basisFrom: string;
   basisTo: string;
+  /** How many different weeks hold a sale of the product. */
   weeksOfHistory: number;
 }
 
 /**
- * A seasonal-naive estimate: next week equals the last full week. `null` (the caller then says only "insufficient data") unless
- * sales go back at least 8 whole weeks. `lastWeekUnits` is the units sold in the 7 days before `today`.
+ * A seasonal-naive estimate for ONE product: next week equals the last full week. `null` (the caller then says only
+ * "insufficient data") unless the product sold in at least 8 different weeks. `lastWeekUnits` is the units sold in the 7 days
+ * before `today`; `saleDays` are the days of its sales.
  */
-export function seasonalNaive(args: { firstSaleDay: string | null; today: string; lastWeekUnits: number }): ForecastEstimate | null {
-  const weeks = weeksOfSales(args.firstSaleDay, args.today);
+export function seasonalNaive(args: { saleDays: readonly string[]; today: string; lastWeekUnits: number }): ForecastEstimate | null {
+  const weeks = distinctSaleWeeks(args.saleDays, args.today);
   if (weeks < MIN_FORECAST_WEEKS || !Number.isInteger(args.lastWeekUnits) || args.lastWeekUnits < 0) return null;
-  return {
-    nextWeekUnits: args.lastWeekUnits,
-    basisFrom: addDays(args.today, -7),
-    basisTo: addDays(args.today, -1),
-    weeksOfHistory: weeks,
-  };
+  return { nextWeekUnits: args.lastWeekUnits, basisFrom: addDays(args.today, -7), basisTo: addDays(args.today, -1), weeksOfHistory: weeks };
 }
 
 // Proposals -------------------------------------------------------------------------------------------------------------
