@@ -12,6 +12,7 @@ import { useApp } from '@/ui/AppProviders';
 import { CartBar } from '@/ui/cart/CartBar';
 import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
+import { TapDebug } from '@/ui/debug/TapDebug';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { isInteractiveTarget } from '@/ui/scenes/signal';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
@@ -300,6 +301,7 @@ export function TemplateMenu({
           <TemplateFooter poweredBy={design.poweredBy} motion={animated ? { paused: motionPaused, toggle: () => setMotionPaused((value) => !value) } : null} />
         </div>
         {canOrder && <CartBar />}
+        <TapDebug />
         {opened && (
           <TemplateDetail
             product={opened}
