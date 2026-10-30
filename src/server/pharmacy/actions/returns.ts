@@ -21,6 +21,7 @@ function auditOf(ctx: ActionContext, result: ReturnResult, a: ReturnAudit) {
     currency: { before: null, after: a.currency },
     refundMinor: { before: null, after: a.refundMinor },
     refundMethod: { before: null, after: a.refundMethod },
+    ...(a.creditMinor === '0' ? {} : { creditMinor: { before: null, after: a.creditMinor } }),
     lineCount: { before: null, after: a.lineCount },
     baseQty: { before: null, after: a.baseQty },
     reason: { before: null, after: a.reason },

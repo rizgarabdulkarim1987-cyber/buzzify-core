@@ -32,13 +32,15 @@ export function paidOutHint(amountMinor: bigint | null, expectedMinor: bigint): 
 }
 
 export interface CashRow {
-  key: 'float' | 'sales' | 'change' | 'refunds' | 'paidIn' | 'paidOut';
+  key: 'float' | 'sales' | 'change' | 'refunds' | 'paidIn' | 'paidOut' | 'customerPayments' | 'customerReversals';
   sign: '+' | '-';
   minor: bigint;
 }
 
 /** The lines of the cash identity, in the order they are added and taken away. */
-export function shiftCashRows(totals: { openingFloatMinor: string; expectedMinor: string; cash: { tenderedMinor: string; changeMinor: string; refundsMinor: string; paidInMinor: string; paidOutMinor: string } }): CashRow[] {
+export function shiftCashRows(totals: { openingFloatMinor: string; expectedMinor: string; cash: { tenderedMinor: string; changeMinor: string; refundsMinor: string; paidInMinor: string; paidOutMinor: string; customerPaymentsMinor?: string; customerReversalsMinor?: string } }): CashRow[] {
+  const customerPayments = BigInt(totals.cash.customerPaymentsMinor ?? '0');
+  const customerReversals = BigInt(totals.cash.customerReversalsMinor ?? '0');
   return [
     { key: 'float', sign: '+', minor: BigInt(totals.openingFloatMinor) },
     { key: 'sales', sign: '+', minor: BigInt(totals.cash.tenderedMinor) },
@@ -46,6 +48,9 @@ export function shiftCashRows(totals: { openingFloatMinor: string; expectedMinor
     { key: 'refunds', sign: '-', minor: BigInt(totals.cash.refundsMinor) },
     { key: 'paidIn', sign: '+', minor: BigInt(totals.cash.paidInMinor) },
     { key: 'paidOut', sign: '-', minor: BigInt(totals.cash.paidOutMinor) },
+    // Customer payments taken in cash (credit accounts) are shown only when there were any, so a pharmacy that sells no credit sees the same lines as before.
+    ...(customerPayments > 0n ? [{ key: 'customerPayments' as const, sign: '+' as const, minor: customerPayments }] : []),
+    ...(customerReversals > 0n ? [{ key: 'customerReversals' as const, sign: '-' as const, minor: customerReversals }] : []),
   ];
 }
 

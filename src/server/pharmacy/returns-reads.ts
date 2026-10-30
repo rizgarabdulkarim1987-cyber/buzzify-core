@@ -39,6 +39,8 @@ export interface ReturnSummary {
   branchId: string;
   currency: 'IQD' | 'USD';
   refundMinor: string;
+  /** The part of the refund taken off a customer's balance (phase 7); the rest was handed back by `refundMethod`. */
+  creditMinor: string;
   refundMethod: RefundMethod;
   approvedById: string;
   lineCount: number;
@@ -58,7 +60,7 @@ export async function listReturns(scoped: ScopedClient, ph: PhActor, input: z.in
   }
   const rows = await scoped.phReturn.findMany({
     where,
-    select: { id: true, number: true, saleId: true, branchId: true, currency: true, refundMinor: true, refundMethod: true, approvedById: true, createdAt: true, _count: { select: { lines: true } } },
+    select: { id: true, number: true, saleId: true, branchId: true, currency: true, refundMinor: true, creditMinor: true, refundMethod: true, approvedById: true, createdAt: true, _count: { select: { lines: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.pageSize + 1,
     ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
@@ -73,6 +75,7 @@ export async function listReturns(scoped: ScopedClient, ph: PhActor, input: z.in
       branchId: r.branchId,
       currency: r.currency,
       refundMinor: String(r.refundMinor),
+      creditMinor: String(r.creditMinor),
       refundMethod: r.refundMethod as RefundMethod, // never CREDIT: a return's input excludes it
       approvedById: r.approvedById,
       lineCount: r._count.lines,
@@ -137,6 +140,7 @@ export async function getReturn(scoped: ScopedClient, ph: PhActor, input: { retu
     shiftId: row.shiftId,
     currency: row.currency,
     refundMinor: String(row.refundMinor),
+    creditMinor: String(row.creditMinor),
     refundMethod: row.refundMethod as RefundMethod, // never CREDIT: a return's input excludes it
     approvedById: row.approvedById,
     reason: row.reason,
@@ -276,7 +280,8 @@ export async function returnableOf(scoped: ScopedClient, ph: PhActor, input: { s
       })),
     };
   });
-  const paid = sale.payments.map((p) => ({ method: p.method as RefundMethod, amountMinor: p.amountMinor }));
+  // Credit is not a way to hand money back: a refund of a credit sale first lowers the debt, the rest goes by these methods.
+  const paid = sale.payments.filter((p) => p.method !== 'CREDIT').map((p) => ({ method: p.method as RefundMethod, amountMinor: p.amountMinor }));
   return {
     saleId: sale.id,
     number: sale.number,

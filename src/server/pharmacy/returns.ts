@@ -9,8 +9,10 @@ import {
   saleNumber,
   saleRefundTotal,
 } from '@/server/domain/pharmacy/sale';
+import { splitRefund } from '@/server/domain/pharmacy/credit';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { balanceOf, lockCustomer, refundSale } from './customers';
 import { recordControlledReturn } from './prescriptions';
 import { applyMovement, lockOrder } from './stock';
 
@@ -20,7 +22,9 @@ import { applyMovement, lockOrder } from './stock';
  *
  * Lock order: (1) the return key (advisory, two-int form), (2) the approver's open shift `FOR SHARE` (a close takes it
  * `FOR UPDATE`, so no refund is ever posted into a closed shift; the database trigger is the backstop), (3) the sale row
- * `FOR UPDATE` (two returns of one sale queue up, so the second sees the first's quantities and refunds), (4) the branch's
+ * `FOR UPDATE` (two returns of one sale queue up, so the second sees the first's quantities and refunds), (3b) when the sale was
+ * paid partly on credit (phase 7): the customer row `FOR UPDATE` (customers.ts; the order is shift -> sale -> customer -> stock/number, the
+ * same relative order a credit sale and a customer payment use), (4) the branch's
  * return numbering (advisory, held to the end of the transaction), (5) the return rows, then the allocation counters and
  * the stock balances through `applyMovement` in batch order. The number lock is deliberately taken BEFORE the balances,
  * not last as in a sale: the return row (which carries the number) is the parent of the line rows, and nothing else takes
@@ -33,6 +37,11 @@ import { applyMovement, lockOrder } from './stock';
  * and branch (movement RETURN_QUARANTINE; they become sellable only through the quarantine release, even when the batch
  * has since been recalled or blocked), refunds in the sale's currency, posts a REFUND_CASH row on the approver's shift
  * for a cash refund, and moves the sale to RETURNED_PARTIAL or RETURNED_FULL. The sale's own totals never change.
+ *
+ * A return of a credit sale (phase 7, R7-5): the refund first lowers what the customer still owes (`splitRefund`: at most the credit
+ * of that sale not yet refunded and at most the balance), written as a REFUND ledger row and stored in `PhReturn.creditMinor`; only the
+ * rest is handed back, by one of the methods the sale was paid with other than credit, and only that rest is a cash movement.
+ * `refundMinor` stays the whole value returned (reports, the line shares and the "refunds add up to the total" rule read it).
  *
  * Refund: per line `refundForReturn` on the cumulative quantity, shared over the line's allocations in order; for the
  * sale `saleRefundTotal`, so the return that completes the sale refunds everything still unrefunded (the invoice rounding
@@ -109,6 +118,8 @@ export interface ReturnResult {
   branchId: string;
   currency: 'IQD' | 'USD';
   refundMinor: string;
+  /** The part of the refund taken off the customer's balance (0 unless the sale was on credit). */
+  creditMinor: string;
   refundMethod: RefundMethod;
   saleStatus: 'HELD' | 'COMPLETED' | 'RETURNED_PARTIAL' | 'RETURNED_FULL' | 'HOLD_EXPIRED';
   lineCount: number;
@@ -125,6 +136,7 @@ export interface ReturnAudit {
   branchId: string;
   currency: 'IQD' | 'USD';
   refundMinor: string;
+  creditMinor: string;
   refundMethod: RefundMethod;
   lineCount: number;
   baseQty: number;
@@ -182,6 +194,7 @@ export async function createReturn(
       currency: true,
       refundMinor: true,
       refundMethod: true,
+      creditMinor: true,
       approvedById: true,
       payloadHash: true,
       createdAt: true,
@@ -202,6 +215,7 @@ export async function createReturn(
         branchId: earlier.branchId,
         currency: earlier.currency,
         refundMinor: String(earlier.refundMinor),
+        creditMinor: String(earlier.creditMinor),
         refundMethod: earlier.refundMethod as RefundMethod, // input never names CREDIT, so a stored return never holds it
         saleStatus: earlier.sale.status,
         lineCount: earlier._count.lines,
@@ -236,6 +250,7 @@ export async function createReturn(
       currency: true,
       totalMinor: true,
       roundingMinor: true,
+      customerId: true,
       createdAt: true,
       completedAt: true,
       payments: { select: { method: true, amountMinor: true } },
@@ -295,8 +310,8 @@ export async function createReturn(
     }
   }
 
-  // The method: one the sale was paid with (a sale with no payment, a free one, takes any).
-  const paid = sale.payments.map((p) => ({ method: p.method as RefundMethod, amountMinor: p.amountMinor }));
+  // The method: one the sale was paid with, credit aside (a sale with no payment, a free one, takes any).
+  const paid = sale.payments.filter((p) => p.method !== 'CREDIT').map((p) => ({ method: p.method as RefundMethod, amountMinor: p.amountMinor }));
   const method = input.refundMethod ?? defaultRefundMethod(paid);
   if (paid.length > 0 && !paid.some((p) => p.method === method)) throw conflict('REFUND_METHOD_NOT_PAID', 'This sale was not paid this way');
 
@@ -339,6 +354,17 @@ export async function createReturn(
     throw error;
   }
 
+  // A credit sale (3b): the customer is locked and the refund first lowers what they still owe of THIS sale.
+  let creditMinor = 0n;
+  if (sale.customerId !== null) {
+    await lockCustomer(tx, restaurantId, sale.customerId);
+    const rows = await tx.phCustomerLedger.findMany({ where: { saleId: sale.id, customerId: sale.customerId }, select: { amountMinor: true } });
+    // The CHARGE is positive, every REFUND negative: what is left of the sale's credit is their sum.
+    const creditLeft = rows.reduce((sum, r) => sum + r.amountMinor, 0n);
+    creditMinor = splitRefund({ refundMinor, saleCreditLeftMinor: creditLeft > 0n ? creditLeft : 0n, balanceMinor: await balanceOf(tx, sale.customerId) }).creditMinor;
+  }
+  const handedBackMinor = refundMinor - creditMinor;
+
   // (5) The branch's numbering, then the rows.
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's return numbers
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_NUMBER}::int, hashtext(${branchId}))`;
@@ -356,6 +382,7 @@ export async function createReturn(
       approvedById: ph.userId,
       refundMethod: method,
       refundMinor,
+      creditMinor,
       currency: sale.currency,
       clientKey: input.clientKey,
       payloadHash: hash,
@@ -403,10 +430,14 @@ export async function createReturn(
     now,
   });
 
-  // Cash given back is a negative cash movement of the approver's shift.
-  if (method === 'CASH' && refundMinor > 0n) {
+  if (creditMinor > 0n && sale.customerId !== null) {
+    await refundSale(tx, { restaurantId, customerId: sale.customerId, saleId: sale.id, amountMinor: creditMinor, currency: sale.currency, now });
+  }
+
+  // Cash given back (not what went to a customer's balance) is a negative cash movement of the approver's shift.
+  if (method === 'CASH' && handedBackMinor > 0n) {
     await tx.phCashMovement.create({
-      data: { restaurantId, shiftId: shift.id, type: 'REFUND_CASH', amountMinor: -refundMinor, currency: sale.currency, refType: 'return', refId: made.id, userId: ph.userId, createdAt: now },
+      data: { restaurantId, shiftId: shift.id, type: 'REFUND_CASH', amountMinor: -handedBackMinor, currency: sale.currency, refType: 'return', refId: made.id, userId: ph.userId, createdAt: now },
     });
   }
 
@@ -422,6 +453,7 @@ export async function createReturn(
       branchId,
       currency: sale.currency,
       refundMinor: String(refundMinor),
+      creditMinor: String(creditMinor),
       refundMethod: method,
       saleStatus: statusAfter,
       lineCount: taken.length,
@@ -436,6 +468,7 @@ export async function createReturn(
       branchId,
       currency: sale.currency,
       refundMinor: String(refundMinor),
+      creditMinor: String(creditMinor),
       refundMethod: method,
       lineCount: taken.length,
       baseQty: taken.reduce((s, t) => s + t.baseQty, 0),

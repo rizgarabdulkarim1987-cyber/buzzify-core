@@ -21,7 +21,7 @@ export const MAX_QTY = 2147483647n;
 /** The invoice rounding steps a branch may choose (0 = none). */
 export const ROUNDING_STEPS = [0, 25, 50, 250, 500, 1000, 5000] as const;
 export type RoundingStep = (typeof ROUNDING_STEPS)[number];
-export type PaymentMethod = 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL';
+export type PaymentMethod = 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT';
 
 export type SaleMathCode =
   | 'INVALID_QUANTITY'
@@ -134,7 +134,7 @@ export type PaymentCheck =
   | { ok: true; paidMinor: bigint; changeMinor: bigint }
   | { ok: false; reason: 'SHORT' | 'NON_CASH_OVERPAY' | 'CASH_NOT_NEEDED' | 'INVALID_PAYMENT'; paidMinor: bigint; changeMinor: 0n };
 
-const METHODS: readonly string[] = ['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL'];
+const METHODS: readonly string[] = ['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL', 'CREDIT'];
 
 /**
  * Do the payments settle the total? `paidMinor` is everything tendered. Cash may exceed the total (the change is the
@@ -275,6 +275,8 @@ export function saleRefundTotal(input: {
 /**
  * The cash that should be in the drawer when a shift closes: the opening float plus the cash tendered on sales, minus the
  * change given out and the cash refunds, plus paid in and minus paid out. Every component is a not-negative amount.
+ * Customer payments taken in cash (phase 7) add to it and the cash given back for a corrected customer payment takes away; both
+ * default to 0, so every caller before phase 7 is unchanged.
  */
 export function expectedCash(input: {
   openingFloat: bigint;
@@ -283,9 +285,13 @@ export function expectedCash(input: {
   cashRefunds: bigint;
   paidIn: bigint;
   paidOut: bigint;
+  customerPayments?: bigint;
+  customerReversals?: bigint;
 }): bigint {
   const { openingFloat, cashSales, cashChange, cashRefunds, paidIn, paidOut } = input;
-  return amount(openingFloat) + amount(cashSales) - amount(cashChange) - amount(cashRefunds) + amount(paidIn) - amount(paidOut);
+  return (
+    amount(openingFloat) + amount(cashSales) - amount(cashChange) - amount(cashRefunds) + amount(paidIn) - amount(paidOut) + amount(input.customerPayments ?? 0n) - amount(input.customerReversals ?? 0n)
+  );
 }
 
 /** Counted minus expected: negative is a shortage, positive an excess. */

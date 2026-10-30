@@ -106,31 +106,40 @@ export interface CashTotals {
   refunds: bigint;
   paidIn: bigint;
   paidOut: bigint;
+  /** Cash taken from customers on their account (phase 7), and the cash given back for corrected ones. */
+  customerPayments: bigint;
+  customerReversals: bigint;
 }
 
-/** Reads the shift's cash movements and applies `expectedCash`: CHANGE_OUT, REFUND_CASH and PAID_OUT are stored negative. */
+/**
+ * Reads the shift's cash movements and applies `expectedCash`: CHANGE_OUT, REFUND_CASH and PAID_OUT are stored negative. A
+ * REFUND_CASH whose refType is `customer_payment` is the correction of a customer payment, not a refund of a sale: it is its own figure.
+ */
 export async function cashTotals(scoped: ScopedDb, shiftId: string, openingFloat: bigint): Promise<CashTotals> {
-  const rows = await scoped.phCashMovement.groupBy({ by: ['type'], where: { shiftId }, _sum: { amountMinor: true } });
-  const signed = (type: string) => rows.find((r) => r.type === type)?._sum.amountMinor ?? 0n;
+  const rows = await scoped.phCashMovement.groupBy({ by: ['type', 'refType'], where: { shiftId }, _sum: { amountMinor: true } });
+  const signed = (type: string, customerSide = false) =>
+    rows.filter((r) => r.type === type && (r.refType === 'customer_payment') === customerSide).reduce((sum, r) => sum + (r._sum.amountMinor ?? 0n), 0n);
   const tendered = signed('SALE_CASH');
   const change = -signed('CHANGE_OUT');
   const refunds = -signed('REFUND_CASH');
   const paidIn = signed('PAID_IN');
   const paidOut = -signed('PAID_OUT');
+  const customerPayments = signed('CUSTOMER_PAYMENT', true);
+  const customerReversals = -signed('REFUND_CASH', true);
   // The movements' CHECKs keep every row the right way round, so this refuses only a total that cannot be: the same answer
   // on every path that reads it (close, paid in and out, the live shift and its report), never a crash.
   let expected: bigint;
   try {
-    expected = expectedCash({ openingFloat, cashSales: tendered, cashChange: change, cashRefunds: refunds, paidIn, paidOut });
+    expected = expectedCash({ openingFloat, cashSales: tendered, cashChange: change, cashRefunds: refunds, paidIn, paidOut, customerPayments, customerReversals });
   } catch (error) {
     if (error instanceof SaleMathError) throw new StudioError('CONFLICT', 'Check the amounts', { phCode: 'CASH_NOT_CONSISTENT' });
     throw error;
   }
-  return { expected, tendered, change, refunds, paidIn, paidOut };
+  return { expected, tendered, change, refunds, paidIn, paidOut, customerPayments, customerReversals };
 }
 
 export interface MethodTotal {
-  method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL';
+  method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT';
   count: number;
   amountMinor: string;
 }
@@ -138,21 +147,21 @@ export interface MethodTotal {
 export interface ShiftTotals {
   openingFloatMinor: string;
   expectedMinor: string;
-  cash: { tenderedMinor: string; changeMinor: string; refundsMinor: string; paidInMinor: string; paidOutMinor: string };
+  cash: { tenderedMinor: string; changeMinor: string; refundsMinor: string; paidInMinor: string; paidOutMinor: string; customerPaymentsMinor: string; customerReversalsMinor: string };
   salesCount: number;
   salesTotalMinor: string;
   discountMinor: string;
   roundingMinor: string;
   heldCount: number;
   fullyReturnedCount: number;
-  /** What was tendered with each method (cash before change), over the sales of the shift. */
+  /** What was tendered with each method (cash before change), over the sales of the shift. CREDIT is its own line: money owed, never in the drawer. */
   payments: MethodTotal[];
-  returns: { count: number; refundMinor: string; byMethod: MethodTotal[] };
+  /** `refundMinor` is the value returned; `creditMinor` of it went off customers' balances; `byMethod` is what was handed back (the rest). */
+  returns: { count: number; refundMinor: string; creditMinor: string; byMethod: MethodTotal[] };
 }
 
-const METHODS = ['CARD_MANUAL', 'CASH', 'TRANSFER_MANUAL'] as const;
+const METHODS = ['CARD_MANUAL', 'CASH', 'TRANSFER_MANUAL', 'CREDIT'] as const;
 
-// A CREDIT payment (phase 7) is not a drawer or a refund method: it is left out of these totals until the credit task reports it.
 function byMethod(rows: { method: string; amount: bigint }[]): MethodTotal[] {
   return METHODS.flatMap((method) => {
     const mine = rows.filter((r) => r.method === method);
@@ -166,14 +175,14 @@ export async function shiftTotals(scoped: ScopedDb, shift: { id: string; opening
   const [sales, payments, returns] = await Promise.all([
     scoped.phSale.groupBy({ by: ['status'], where: { shiftId: shift.id }, _count: { _all: true }, _sum: { totalMinor: true, discountMinor: true, roundingMinor: true } }),
     scoped.phPayment.findMany({ where: { sale: { shiftId: shift.id, status: { in: [...SOLD] } } }, select: { method: true, amountMinor: true } }),
-    scoped.phReturn.findMany({ where: { shiftId: shift.id }, select: { refundMethod: true, refundMinor: true } }),
+    scoped.phReturn.findMany({ where: { shiftId: shift.id }, select: { refundMethod: true, refundMinor: true, creditMinor: true } }),
   ]);
   const sold = sales.filter((s) => (SOLD as readonly string[]).includes(s.status));
   const sumOf = (pick: 'totalMinor' | 'discountMinor' | 'roundingMinor') => sold.reduce((a, s) => a + (s._sum[pick] ?? 0n), 0n);
   return {
     openingFloatMinor: String(shift.openingFloatMinor),
     expectedMinor: String(cash.expected),
-    cash: { tenderedMinor: String(cash.tendered), changeMinor: String(cash.change), refundsMinor: String(cash.refunds), paidInMinor: String(cash.paidIn), paidOutMinor: String(cash.paidOut) },
+    cash: { tenderedMinor: String(cash.tendered), changeMinor: String(cash.change), refundsMinor: String(cash.refunds), paidInMinor: String(cash.paidIn), paidOutMinor: String(cash.paidOut), customerPaymentsMinor: String(cash.customerPayments), customerReversalsMinor: String(cash.customerReversals) },
     salesCount: sold.reduce((a, s) => a + s._count._all, 0),
     salesTotalMinor: String(sumOf('totalMinor')),
     discountMinor: String(sumOf('discountMinor')),
@@ -184,7 +193,8 @@ export async function shiftTotals(scoped: ScopedDb, shift: { id: string; opening
     returns: {
       count: returns.length,
       refundMinor: String(returns.reduce((a, r) => a + r.refundMinor, 0n)),
-      byMethod: byMethod(returns.map((r) => ({ method: r.refundMethod, amount: r.refundMinor }))),
+      creditMinor: String(returns.reduce((a, r) => a + r.creditMinor, 0n)),
+      byMethod: byMethod(returns.map((r) => ({ method: r.refundMethod, amount: r.refundMinor - r.creditMinor }))),
     },
   };
 }

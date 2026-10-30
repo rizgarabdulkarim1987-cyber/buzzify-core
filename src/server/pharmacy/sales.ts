@@ -16,11 +16,13 @@ import {
   saleNumber,
   type LineDiscountInput,
 } from '@/server/domain/pharmacy/sale';
+import { creditCheck } from '@/server/domain/pharmacy/credit';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { allocateFefo, costOfBaseQty, sellableStock, toBase, type FefoBatch } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { priceRowsAt } from './prices';
+import { balanceOf, chargeSale, lockCustomer } from './customers';
 import { claimPrescription, recordControlledSale } from './prescriptions';
 import { applyMovement, lockOrder } from './stock';
 
@@ -34,7 +36,10 @@ import { applyMovement, lockOrder } from './stock';
  * then replays it), (2) the seller's shift row `FOR SHARE` (a shift close takes it `FOR UPDATE`, so a sale either
  * finishes before the close or finds the shift closed: no cash is ever posted into a closed shift), (2b) when the sale carries a prescription (phase 7):
  * the prescription row `FOR UPDATE`, then the business-wide prescription-number advisory lock (NS_RX_NUMBER; see claimPrescription in
- * prescriptions.ts), both before any stock lock, (3) the branch's
+ * prescriptions.ts), both before any stock lock, (2c) when part of the sale is paid on credit (phase 7): the customer row `FOR UPDATE`
+ * (customers.ts), after the shift and the prescription and before any stock lock, so the limit is judged on a balance nobody else can move
+ * until this sale commits; a return of a credit sale takes sale row -> customer row in the same relative order, a customer payment takes
+ * shift -> customer, so no cycle forms, (3) the branch's
  * stock balances of the products sold, `FOR UPDATE` in batch order (`COLLATE "C"`, a fixed byte order), (4) the sold
  * batches' rows `FOR SHARE` (a recall or block racing a sale waits for it, or the sale sees it), (5) the branch's sale
  * numbering. Allocation reads the balances only after (3), so two sales of the last unit queue up and the second sees
@@ -84,7 +89,7 @@ export const saleLineInput = z.object({
 });
 
 export const salePaymentInput = z.object({
-  method: z.enum(['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL'], 'Choose how it was paid'),
+  method: z.enum(['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL', 'CREDIT'], 'Choose how it was paid'),
   amountMinor: money.min(1n, 'Enter an amount'),
   reference: z.string().trim().max(200, 'Use at most 200 characters').default(''),
   clientKey: clientKeyText,
@@ -101,6 +106,8 @@ export const saleInput = z.object({
   fromHoldId: z.string().min(1).max(64).optional(),
   /** The prescription this sale dispenses against (phase 7): needed for a controlled (RESTRICTED) line, optional for a prescription (RX) one. */
   prescriptionId: z.string().min(1).max(64).optional(),
+  /** The customer a credit sale is charged to (phase 7): required with a CREDIT payment, refused without one. */
+  customerId: z.string().min(1).max(64).optional(),
 });
 export type SaleInput = z.infer<typeof saleInput>;
 
@@ -160,6 +167,7 @@ export function payloadHash(input: SaleInput): string {
     // Only when present, so the hash of a sale that completes no hold is what it always was.
     ...(input.fromHoldId === undefined ? [] : [input.fromHoldId]),
     ...(input.prescriptionId === undefined ? [] : ['rx', input.prescriptionId]),
+    ...(input.customerId === undefined ? [] : ['customer', input.customerId]),
   ];
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
@@ -196,6 +204,9 @@ export interface SaleAudit {
   fromHoldId: string | null;
   /** Base units of controlled medicine dispensed (0 when none). */
   controlledQty: number;
+  /** The customer charged and the amount put on their account (null and "0" when nothing was sold on credit). */
+  customerId: string | null;
+  creditMinor: string;
 }
 
 interface SaleRow {
@@ -324,7 +335,7 @@ export async function createSale(
     }
   }
 
-  const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true, controlledEnabled: true, controlledMaxQty: true } });
+  const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true, controlledEnabled: true, controlledMaxQty: true, creditEnabled: true } });
   // The column is CHECKed 0..100; clamp anyway so a bad row is never a 500.
   const maxDiscountPercent = Math.min(100, Math.max(0, settings?.maxDiscountPercent ?? 5));
   const roundingStep = input.currency === 'IQD' ? Number(settings?.roundingStepMinor ?? 0n) : 0;
@@ -478,10 +489,49 @@ export async function createSale(
     const used = await tx.phPayment.findFirst({ where: { clientKey: { in: paymentKeys } }, select: { id: true } });
     if (used) throw conflict('PAYMENT_KEY_USED', 'This payment key was already used');
   }
+  // Credit (phase 7): one CREDIT payment at most, only when the business has switched credit on and the seller may, always with a
+  // customer; a customer is never named for a sale that takes no credit. The customer and the limit are judged below, under a lock.
+  const creditPayments = input.payments.filter((p) => p.method === 'CREDIT');
+  if (creditPayments.length > 1) throw invalid('payments', 'Check the payments', 'PAYMENT_INVALID');
+  const creditMinor = creditPayments[0]?.amountMinor ?? 0n;
+  if (creditMinor > 0n) {
+    if (!(settings?.creditEnabled ?? false)) throw conflict('CREDIT_NOT_ENABLED', 'Credit sales are switched off');
+    if (!canPh(role, 'credit.sell')) {
+      throw new StudioError('FORBIDDEN', 'Selling on credit needs permission', { phCode: 'CREDIT_NOT_ALLOWED', payments: 'Selling on credit needs permission' });
+    }
+    if (input.customerId === undefined) throw invalid('customerId', 'Choose the customer for a credit sale', 'CREDIT_NEEDS_CUSTOMER');
+  } else if (input.customerId !== undefined) {
+    throw invalid('customerId', 'Choose a customer only for a credit sale', 'CUSTOMER_WITHOUT_CREDIT');
+  }
 
   // The prescription of a controlled (or prescription) sale: its row and its number are taken before any stock row.
   const restricted = prepared.filter((l) => l.product.rxLevel === 'RESTRICTED').map((l) => ({ productId: l.product.id, tradeName: l.product.tradeName, baseQty: l.baseQty }));
   const claimed = await claimPrescription(tx, { restaurantId, branchId, prescriptionId: input.prescriptionId, restricted, maxQty: settings?.controlledMaxQty ?? 30, now });
+
+  // The customer of a credit sale (2c): found in this business, locked, and the limit judged on the balance as it is under the lock.
+  let creditCustomerId: string | null = null;
+  if (creditMinor > 0n) {
+    const found = await tx.phCustomer.findFirst({ where: { id: input.customerId }, select: { id: true } });
+    if (!found) throw invalid('customerId', 'Choose one of this pharmacy’s customers', 'CUSTOMER_NOT_FOUND');
+    const customer = await lockCustomer(tx, restaurantId, found.id);
+    const verdict = creditCheck({
+      customerCurrency: customer.currency,
+      saleCurrency: input.currency,
+      active: customer.active,
+      balanceMinor: await balanceOf(tx, customer.id),
+      limitMinor: customer.creditLimitMinor,
+      chargeMinor: creditMinor,
+    });
+    if (!verdict.ok) {
+      if (verdict.reason === 'CURRENCY_MISMATCH') throw conflict('CUSTOMER_CURRENCY', 'The customer’s currency is not the sale’s currency');
+      if (verdict.reason === 'CUSTOMER_INACTIVE') throw conflict('CUSTOMER_INACTIVE', 'This customer is archived');
+      if (verdict.reason === 'LIMIT_EXCEEDED') {
+        throw conflict('CREDIT_LIMIT_EXCEEDED', 'This sale is over the customer’s credit limit', { available: String(verdict.availableMinor ?? 0n), requested: String(creditMinor) });
+      }
+      throw invalid('payments', 'Check the payments', 'PAYMENT_INVALID');
+    }
+    creditCustomerId = customer.id;
+  }
 
   // (7) FEFO from the branch's sellable stock, under row locks taken in batch order.
   const soldProducts = [...new Set(prepared.map((l) => l.product.id))];
@@ -572,6 +622,7 @@ export async function createSale(
       payloadHash: hash,
       soldById: ph.userId,
       pharmacistId,
+      customerId: creditCustomerId,
       note: input.note,
       createdAt: now,
       completedAt: now,
@@ -690,6 +741,9 @@ export async function createSale(
       })),
     });
   }
+  if (creditCustomerId !== null) {
+    await chargeSale(tx, { restaurantId, customerId: creditCustomerId, saleId: sale.id, amountMinor: creditMinor, currency: input.currency, now });
+  }
   const cashTendered = input.payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amountMinor, 0n);
   // CHANGE_OUT rows are stored NEGATIVE. expectedCash takes the change as a positive figure to subtract: whoever sums a
   // shift's cash rows must take the magnitude of CHANGE_OUT, not subtract the stored (negative) amount a second time.
@@ -731,6 +785,8 @@ export async function createSale(
       discountMinor: String(discountMinor),
       fromHoldId: input.fromHoldId ?? null,
       controlledQty: controlledEntries.reduce((sum, e) => sum + e.baseQty, 0),
+      customerId: creditCustomerId,
+      creditMinor: String(creditMinor),
     },
   };
 }
