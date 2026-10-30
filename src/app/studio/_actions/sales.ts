@@ -39,6 +39,26 @@ export async function reorderOffers(input: unknown) {
   return invoke(sales.reorderOffers, input);
 }
 
+export async function saveOccasion(input: unknown) {
+  return invoke(sales.saveOccasion, input);
+}
+
+export async function deleteOccasion(input: unknown) {
+  return invoke(sales.deleteOccasion, input);
+}
+
+export async function saveShowcaseCard(input: unknown) {
+  return invoke(sales.saveShowcaseCard, input);
+}
+
+export async function deleteShowcaseCard(input: unknown) {
+  return invoke(sales.deleteShowcaseCard, input);
+}
+
+export async function reorderShowcaseCards(input: unknown) {
+  return invoke(sales.reorderShowcaseCards, input);
+}
+
 export async function saveSalesSettings(input: unknown) {
   return invoke(sales.saveSettings, input);
 }

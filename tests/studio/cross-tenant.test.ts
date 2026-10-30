@@ -96,6 +96,9 @@ interface Side {
   pairingId: string;
   setId: string;
   offerId: string;
+  /** A dated occasion and a showcase card hanging on it (docs/superpowers/plans/2026-10-30-menu-occasions-showcase.md). */
+  occasionId: string;
+  showcaseCardId: string;
   /** A design the restaurant saved from a template preset. */
   designTemplateId: string;
   /** A paid Menu subscription and its payment (docs/superpowers/plans/2026-10-22-business-core-in-menu.md). */
@@ -159,6 +162,10 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     ],
   });
   const offer = await prisma().promotion.create({ data: { menuId: menu.id, kind: 'SPECIAL', productIds: [product.id], translations: { en: { title: `${title} special` } } } });
+  const occasion = await prisma().occasion.create({ data: { menuId: menu.id, startsOn: '2099-03-30', endsOn: '2099-04-02', translations: { en: { name: `${title} Eid` } } } });
+  const showcaseCard = await prisma().showcaseCard.create({
+    data: { menuId: menu.id, slot: 'ABOVE_SEARCH', kind: 'BUFFET', sortOrder: 0, occasionId: occasion.id, price: 15000, translations: { en: { title: `${title} buffet` } } },
+  });
   const published = await publishFixture(prisma(), menu.id);
   const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
   const pending = await prisma().menuRevision.create({
@@ -272,6 +279,8 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pairingId: pairing.id,
     setId: set.id,
     offerId: offer.id,
+    occasionId: occasion.id,
+    showcaseCardId: showcaseCard.id,
     designTemplateId: designTemplate.id,
     subscriptionId: subscription.id,
     paymentId: payment.id,
@@ -423,6 +432,22 @@ const setSave = (first: string, second: string) => ({
   ],
   dayparts: [],
   isActive: true,
+});
+const occasionSave = () => ({ names: { en: 'Planted' }, startsOn: '2099-05-01', endsOn: '2099-05-02', isActive: true });
+const cardSave = (overrides: Record<string, unknown> = {}) => ({
+  slot: 'ABOVE_SEARCH',
+  kind: 'BUFFET',
+  occasionId: null,
+  promotionId: null,
+  bundleId: null,
+  price: 1000,
+  startMinute: null,
+  endMinute: null,
+  daysOfWeek: 127,
+  title: { en: 'Planted' },
+  text: {},
+  isActive: true,
+  ...overrides,
 });
 const offerSave = (productIds: string[], categoryIds: string[]) => ({
   kind: 'SPECIAL',
@@ -849,6 +874,29 @@ const SWEPT: Record<string, Case[]> = {
   'sales.reorderOffers': [
     c("B's offers, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.offerId] })),
     c("B's offer, through A", (w) => ({ menuId: w.a.menuId, order: [w.b.offerId] })),
+  ],
+  'sales.saveOccasion': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...occasionSave() })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, occasionId: w.b.occasionId, version: 1, ...occasionSave() })),
+  ],
+  'sales.deleteOccasion': [
+    c("B's occasion, in B", (w) => ({ menuId: w.b.menuId, occasionId: w.b.occasionId, version: 1 })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, occasionId: w.b.occasionId, version: 1 })),
+  ],
+  'sales.saveShowcaseCard': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...cardSave() })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ occasionId: w.b.occasionId }) })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ kind: 'OFFER', promotionId: w.b.offerId, price: null, title: {} }) })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ kind: 'SET', bundleId: w.b.setId, price: null, title: {} }) })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, cardId: w.b.showcaseCardId, version: 1, ...cardSave() })),
+  ],
+  'sales.deleteShowcaseCard': [
+    c("B's card, in B", (w) => ({ menuId: w.b.menuId, cardId: w.b.showcaseCardId, version: 1 })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, cardId: w.b.showcaseCardId, version: 1 })),
+  ],
+  'sales.reorderShowcaseCards': [
+    c("B's cards, in B", (w) => ({ menuId: w.b.menuId, slot: 'ABOVE_SEARCH', order: [w.b.showcaseCardId] })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, slot: 'ABOVE_SEARCH', order: [w.b.showcaseCardId] })),
   ],
   'sales.saveSettings': [
     c("in B's menu", (w) => ({ menuId: w.b.menuId, ...salesSettings([]) })),

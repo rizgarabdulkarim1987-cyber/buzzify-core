@@ -253,6 +253,8 @@ model Menu {
   bundles         Bundle[]
   bundleItems     BundleItem[]
   promotions      Promotion[]
+  occasions       Occasion[]
+  showcaseCards   ShowcaseCard[]
   schedule        DaypartSchedule[]
   tables          Table[]
   qrCodes         QrCode[]
@@ -507,6 +509,10 @@ model Bundle {
   menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
   items        BundleItem[]
 
+/// How many people the set feeds (shown on its showcase card); null when not stated.
+  people       Int?
+  showcaseCards ShowcaseCard[]
+
   @@unique([menuId, slug])
 }
 
@@ -555,8 +561,75 @@ model Promotion {
   version      Int           @default(1)
   createdAt    DateTime      @default(now())
   menu         Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  showcaseCards ShowcaseCard[]
 
   @@index([menuId])
+}
+
+enum ShowcaseSlot {
+  /// The carousel above the search bar.
+  ABOVE_SEARCH
+  /// The carousel below the search bar.
+  BELOW_SEARCH
+}
+
+enum ShowcaseKind {
+  /// A card for one Promotion.
+  OFFER
+  /// A card for one Bundle (a set meal).
+  SET
+  /// A free-standing buffet card with its own price and hours.
+  BUFFET
+}
+
+/// A dated occasion (Eid, Ramadan) whose cards show only between its dates (docs/superpowers/specs/2026-10-30-menu-occasions-showcase-design.md).
+model Occasion {
+  id           String         @id @default(cuid())
+  menuId       String
+  /// Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive.
+  startsOn     String
+  endsOn       String
+  /// { en: { name }, ar: ..., ckb: ... }
+  translations Json
+  isActive     Boolean        @default(true)
+  sortOrder    Int            @default(0)
+  version      Int            @default(1)
+  createdAt    DateTime       @default(now())
+  menu         Menu           @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  cards        ShowcaseCard[]
+
+  @@index([menuId])
+}
+
+/// One card in a menu showcase carousel; OFFER points at a Promotion, SET at a Bundle, BUFFET carries its own price and hours.
+model ShowcaseCard {
+  id           String       @id @default(cuid())
+  menuId       String
+  slot         ShowcaseSlot
+  kind         ShowcaseKind
+  sortOrder    Int
+  isActive     Boolean      @default(true)
+  /// Set when the card belongs to an occasion and shows only within its dates.
+  occasionId   String?
+  promotionId  String?
+  bundleId     String?
+  /// BUFFET only: integer IQD per person.
+  price        Int?
+  /// BUFFET only: a daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
+  startMinute  Int?
+  endMinute    Int?
+  /// Bit 0 is Monday, as `DaypartSchedule.daysOfWeek`.
+  daysOfWeek   Int          @default(127)
+  /// { en: { title, text }, ar: ..., ckb: ... }
+  translations Json
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now())
+  menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  occasion     Occasion?    @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+  promotion    Promotion?   @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  bundle       Bundle?      @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, slot])
 }
 
 model DaypartSchedule {

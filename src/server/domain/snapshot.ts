@@ -11,6 +11,7 @@ import {
   LOCALES,
   PROMOTION_KINDS,
   VISUAL_KEYS,
+  type Bundle,
   type Catalog,
   type CatalogCategory,
   type CatalogGroup,
@@ -19,6 +20,7 @@ import {
   type CatalogPromotion,
   type Locale,
 } from './types';
+import { SHOWCASE_KINDS, SHOWCASE_SLOTS, type CatalogOccasion, type CatalogShowcaseCard } from './showcase';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -57,11 +59,23 @@ export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 
 /** A category as published; `completesMeal` is left out unless it is set. */
 export type SnapshotCategory = Omit<CatalogCategory, 'completesMeal'> & { completesMeal?: true };
 
-/** The catalog as published; `promotions` is left out when the menu has none. */
-export type SnapshotCatalog = Omit<Catalog, 'menuId' | 'products' | 'categories' | 'promotions'> & {
+/** A bundle as published; `people` arrived with the showcase and is left out when unset. */
+export type SnapshotBundle = Omit<Bundle, 'people'> & { people?: number };
+
+/**
+ * The catalog as published; `promotions`, `occasions` and `showcaseCards` are each left out when the menu has none, so
+ * menus published before keep their hash.
+ */
+export type SnapshotCatalog = Omit<
+  Catalog,
+  'menuId' | 'products' | 'categories' | 'bundles' | 'promotions' | 'occasions' | 'showcaseCards'
+> & {
   categories: SnapshotCategory[];
   products: SnapshotProduct[];
+  bundles: SnapshotBundle[];
   promotions?: CatalogPromotion[];
+  occasions?: CatalogOccasion[];
+  showcaseCards?: CatalogShowcaseCard[];
 };
 
 export interface MenuSnapshot {
@@ -225,6 +239,29 @@ const snapshotPromotion = z.object({
   sortOrder: z.number(),
 });
 
+const snapshotOccasion = z.object({
+  id: z.string(),
+  startsOn: z.string(),
+  endsOn: z.string(),
+  isActive: z.boolean(),
+  translations,
+});
+
+const snapshotShowcaseCard = z.object({
+  id: z.string(),
+  slot: z.enum(SHOWCASE_SLOTS),
+  kind: z.enum(SHOWCASE_KINDS),
+  sortOrder: z.number(),
+  occasionId: z.string().nullable(),
+  promotionId: z.string().nullable(),
+  bundleId: z.string().nullable(),
+  price: nullableNumber,
+  startMinute: nullableNumber,
+  endMinute: nullableNumber,
+  daysOfWeek: z.number(),
+  translations,
+});
+
 const snapshotCatalog = z.object({
   currency: z.string(),
   timeZone: z.string(),
@@ -263,9 +300,12 @@ const snapshotCatalog = z.object({
       dayparts: z.array(daypart),
       translations,
       items: z.array(z.object({ productId: z.string(), variantId: z.string().nullable(), quantity: z.number() })),
+      people: z.number().optional(),
     }),
   ),
   promotions: z.array(snapshotPromotion).optional(),
+  occasions: z.array(snapshotOccasion).optional(),
+  showcaseCards: z.array(snapshotShowcaseCard).optional(),
   schedule: z.array(
     z.object({ daypart, startMinute: z.number(), endMinute: z.number(), daysOfWeek: z.number() }),
   ),
@@ -310,6 +350,11 @@ function freezeCategory(category: CatalogCategory): SnapshotCategory {
   return category.completesMeal ? { ...frozen, completesMeal: true } : frozen;
 }
 
+function freezeBundle(bundle: Bundle): SnapshotBundle {
+  const frozen = omit(bundle, 'people');
+  return bundle.people !== null ? { ...frozen, people: bundle.people } : frozen;
+}
+
 function freezeProduct(product: CatalogProduct): SnapshotProduct {
   const frozen = omit(product, 'isAvailable', 'isHidden', 'stockCount', 'serves');
   return {
@@ -326,7 +371,8 @@ function freezeProduct(product: CatalogProduct): SnapshotProduct {
  * Freezes a draft into the form publishing stores: the live fields (availability, hidden, stock) are dropped and every
  * list gets a fixed order, so the same menu always hashes the same. Categories, products and promotions go by sort
  * order, then id; rules by id; bundles by slug, then id; the schedule by start. What the sales tools added is left out
- * while unused (no promotions, a dish for one, a category that completes no meal). Variants, groups and options have no
+ * while unused (no promotions, occasions or showcase cards, a dish for one, a set with no people count, a category that
+ * completes no meal); occasions go by id, showcase cards by sort order, then id. Variants, groups and options have no
  * sort order of their own in the catalog (the loader already puts them in the editor's order), so they keep the order
  * they came in.
  */
@@ -344,8 +390,10 @@ export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; cat
       products: [...catalog.products].sort(bySortOrderThenId).map(freezeProduct),
       upsellRules: [...catalog.upsellRules].sort(byId),
       pairingRules: [...catalog.pairingRules].sort(byId),
-      bundles: [...catalog.bundles].sort((a, b) => compare(a.slug, b.slug) || compare(a.id, b.id)),
+      bundles: [...catalog.bundles].sort((a, b) => compare(a.slug, b.slug) || compare(a.id, b.id)).map(freezeBundle),
       ...(catalog.promotions.length > 0 ? { promotions: [...catalog.promotions].sort(bySortOrderThenId) } : {}),
+      ...(catalog.occasions.length > 0 ? { occasions: [...catalog.occasions].sort(byId) } : {}),
+      ...(catalog.showcaseCards.length > 0 ? { showcaseCards: [...catalog.showcaseCards].sort(bySortOrderThenId) } : {}),
       schedule: [...catalog.schedule].sort(
         (a, b) => compare(a.startMinute, b.startMinute) || compare(a.daypart, b.daypart),
       ),
@@ -422,7 +470,9 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
     pairingRules: catalog.pairingRules.filter(
       (rule) => isShown(rule.targetProductId) && (rule.sourceProductId === null || isShown(rule.sourceProductId)),
     ),
-    bundles: catalog.bundles.filter((bundle) => bundle.items.every((item) => isShown(item.productId))),
+    bundles: catalog.bundles
+      .filter((bundle) => bundle.items.every((item) => isShown(item.productId)))
+      .map((bundle) => ({ ...bundle, people: bundle.people ?? null })),
     promotions: (catalog.promotions ?? [])
       .map((promotion) => ({
         ...promotion,
@@ -430,6 +480,10 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
         categoryIds: promotion.categoryIds.filter((id) => offeredCategories.has(id)),
       }))
       .filter((promotion) => promotion.productIds.length + promotion.categoryIds.length > 0),
+    // Published like promotions; whether a card shows is decided per request (`liveShowcase`), against the bundles and
+    // offers above.
+    occasions: catalog.occasions ?? [],
+    showcaseCards: catalog.showcaseCards ?? [],
     schedule: catalog.schedule,
   };
 }

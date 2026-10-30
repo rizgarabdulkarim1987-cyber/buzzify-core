@@ -401,4 +401,71 @@ describe('sales fields in a written draft', () => {
     expect(copy.catalog.products.find((p) => p.slug === second!.slug)?.serves).toBe(3);
     expect(copiedCategory.completesMeal).toBe(true);
   });
+
+  it("copies occasions, set people and showcase cards onto the copy's own rows, and drops cards whose reference did not come across", async () => {
+    await resetTestData(prisma);
+    const seeded = await seedAtelier(prisma);
+    const source = await loadDraftSnapshot(prisma, seeded.menuId);
+    const first = source.catalog.products[0]!;
+    const bundle = source.catalog.bundles[0]!;
+    source.catalog.bundles = source.catalog.bundles.map((b) => (b.id === bundle.id ? { ...b, people: 4 } : b));
+    const offer = (id: string, productIds: string[], sortOrder: number) => ({
+      id,
+      kind: 'SPECIAL' as const,
+      percentOff: null,
+      productIds,
+      categoryIds: [],
+      startsOn: null,
+      endsOn: null,
+      startMinute: null,
+      endMinute: null,
+      daysOfWeek: 127,
+      roundTo: 5,
+      translations: {},
+      sortOrder,
+    });
+    source.catalog.promotions = [offer('promo-src', [first.id], 0), offer('promo-empty', ['gone'], 1)];
+    source.catalog.occasions = [{ id: 'occ-src', startsOn: '2026-03-01', endsOn: '2026-03-03', isActive: true, translations: { en: { name: 'Eid' } } }];
+    const card = (id: string, kind: 'OFFER' | 'SET' | 'BUFFET', sortOrder: number, refs: { occasionId?: string; promotionId?: string; bundleId?: string }) => ({
+      id,
+      slot: 'ABOVE_SEARCH' as const,
+      kind,
+      sortOrder,
+      occasionId: refs.occasionId ?? null,
+      promotionId: refs.promotionId ?? null,
+      bundleId: refs.bundleId ?? null,
+      price: kind === 'BUFFET' ? 2500 : null,
+      startMinute: null,
+      endMinute: null,
+      daysOfWeek: 127,
+      translations: { en: { title: id } },
+    });
+    source.catalog.showcaseCards = [
+      card('offer-card', 'OFFER', 0, { promotionId: 'promo-src', occasionId: 'occ-src' }),
+      card('set-card', 'SET', 1, { bundleId: bundle.id }),
+      card('buffet-card', 'BUFFET', 2, { occasionId: 'occ-src' }),
+      card('lost-offer', 'OFFER', 3, { promotionId: 'promo-empty' }),
+      card('lost-set', 'SET', 4, { bundleId: 'gone-bundle' }),
+      card('lost-occasion', 'BUFFET', 5, { occasionId: 'gone-occasion' }),
+    ];
+
+    const target = await prisma.menu.create({
+      data: { restaurantId: seeded.restaurant.id, name: 'Showcase copy', slug: 'showcase-copy', currency: 'USD', defaultLocale: 'en', locales: ['en'], timezone: 'Asia/Baghdad' },
+    });
+    await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, target.id, source));
+
+    const copy = await loadDraftSnapshot(prisma, target.id);
+    const copiedBundle = copy.catalog.bundles.find((b) => b.slug === bundle.slug)!;
+    expect(copiedBundle.people).toBe(4);
+    expect(copy.catalog.occasions).toHaveLength(1);
+    const occasion = copy.catalog.occasions![0]!;
+    expect(occasion).toMatchObject({ startsOn: '2026-03-01', endsOn: '2026-03-03', isActive: true, translations: { en: { name: 'Eid' } } });
+    expect(occasion.id).not.toBe('occ-src');
+    const promotion = copy.catalog.promotions![0]!;
+    expect(copy.catalog.showcaseCards?.map((c) => [c.translations.en?.title, c.kind, c.occasionId, c.promotionId, c.bundleId, c.price])).toEqual([
+      ['offer-card', 'OFFER', occasion.id, promotion.id, null, null],
+      ['set-card', 'SET', null, null, copiedBundle.id, null],
+      ['buffet-card', 'BUFFET', occasion.id, null, null, 2500],
+    ]);
+  });
 });

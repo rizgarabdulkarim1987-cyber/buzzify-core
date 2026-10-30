@@ -7,6 +7,7 @@ import { stageOf } from '@/lib/stage';
 import {
   daypartNow,
   discountFor,
+  inDaypart,
   liveOffers,
   localDate,
   orderability,
@@ -25,6 +26,7 @@ import {
   type VisualKey,
 } from '@/server/domain';
 import { showsCounts } from '@/server/domain/dish-counts';
+import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
 import type { TenantInfo } from './tenant';
 
 export interface MenuOptionView {
@@ -107,6 +109,35 @@ export interface MenuOfferView {
   endsAt: { time: string } | { date: string } | null;
 }
 
+/** A showcase card as a guest's carousel shows it (docs/superpowers/specs/2026-10-30-menu-occasions-showcase-design.md). */
+export interface ShowcaseCardView {
+  id: string;
+  kind: ShowcaseKind;
+  title: string;
+  text: string;
+  /** The name of the occasion the card belongs to, shown as a small label. */
+  occasion: string | null;
+  /** SET: the set's price; BUFFET: the price per person. */
+  price: number | null;
+  /** SET: how many people the package is for, when it says. */
+  people: number | null;
+  /** OFFER: the first dish of the offer guests can see now, which the card opens. */
+  productId: string | null;
+  /** OFFER on categories with no dish of its own shown: its first category with a dish shown, which the card jumps to. */
+  categoryId: string | null;
+  /** SET: the bundle the card adds to the cart. */
+  bundleId: string | null;
+  /** BUFFET: the price is per person. */
+  perPerson: boolean;
+  /** BUFFET: its days and hours; both minutes null for all day. */
+  when: { startMinute: number | null; endMinute: number | null; daysOfWeek: number } | null;
+}
+
+export interface MenuShowcaseView {
+  aboveSearch: ShowcaseCardView[];
+  belowSearch: ShowcaseCardView[];
+}
+
 export interface MenuView {
   restaurant: {
     slug: string;
@@ -123,6 +154,8 @@ export interface MenuView {
   /** `plain` shows prices without the currency symbol. */
   priceStyle: 'symbol' | 'plain';
   offers: MenuOfferView[];
+  /** The live showcase cards around the search box; a slot without any is empty. */
+  showcase: MenuShowcaseView;
 }
 
 const DAY_MS = 86_400_000;
@@ -306,6 +339,10 @@ export function buildMenuView(
       .slice(0, OFFER_SUBJECTS_SHOWN)
       .join(', ');
   const signature = pickSignature(catalog, now, tenant.engineConfig);
+  // Only offers on a dish guests can see now: an offer on dishes all out of their hours says nothing true.
+  const shownOffers = live.filter((offer) =>
+    products.some((product) => offer.productIds.includes(product.id) || offer.categoryIds.includes(product.categoryId)),
+  );
   return {
     restaurant: {
       slug: tenant.slug,
@@ -325,10 +362,7 @@ export function buildMenuView(
     products,
     signatureProductId: signature?.productId ?? null,
     priceStyle: sales.priceStyle,
-    // Only offers on a dish guests can see now: an offer on dishes all out of their hours says nothing true.
-    offers: live
-      .filter((offer) => products.some((product) => offer.productIds.includes(product.id) || offer.categoryIds.includes(product.categoryId)))
-      .map((offer) => ({
+    offers: shownOffers.map((offer) => ({
       id: offer.id,
       kind: offer.kind,
       title: resolveText(offer.translations, 'title', locale, fallback),
@@ -337,5 +371,73 @@ export function buildMenuView(
       percentOff: offer.kind === 'DISCOUNT' ? offer.percentOff : null,
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),
+    showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
   };
+}
+
+/**
+ * The showcase cards live now (`liveShowcase`), resolved for the guest's language. An offer card goes with its offer as
+ * the strip shows it, and a set card only while the set can be ordered: in its times of day with every dish orderable
+ * now, as `detectBundleOpportunities` and pricing require. A card's own title and text win; an offer or set card
+ * without them says what its offer or set says (an offer without text names what it is on, as the strip does).
+ */
+function menuShowcase(
+  catalog: Catalog,
+  shown: {
+    shownOffers: readonly CatalogPromotion[];
+    products: readonly MenuProductView[];
+    current: Daypart | null;
+    offerSubjects: (offer: CatalogPromotion) => string;
+  },
+  locale: Locale,
+  now: Date,
+): MenuShowcaseView {
+  const fallback = catalog.defaultLocale;
+  const shownIds = new Set(shown.products.map((product) => product.id));
+  const shownCategoryIds = new Set(shown.products.map((product) => product.categoryId));
+  const orderable = new Set(shown.products.filter((product) => product.orderState === 'OK').map((product) => product.id));
+  const offers = new Map(shown.shownOffers.map((offer) => [offer.id, offer]));
+  const bundles = new Map(
+    catalog.bundles
+      .filter((bundle) => inDaypart(bundle.dayparts, shown.current) && bundle.items.every((item) => orderable.has(item.productId)))
+      .map((bundle) => [bundle.id, bundle]),
+  );
+  const occasions = new Map(catalog.occasions.map((occasion) => [occasion.id, occasion]));
+  const slots = liveShowcase({
+    cards: catalog.showcaseCards,
+    occasions: catalog.occasions,
+    liveOfferIds: new Set(offers.keys()),
+    shownBundleIds: new Set(bundles.keys()),
+    now,
+    timeZone: catalog.timeZone,
+  });
+
+  const view = (card: CatalogShowcaseCard): ShowcaseCardView => {
+    const offer = card.kind === 'OFFER' && card.promotionId !== null ? offers.get(card.promotionId) : undefined;
+    const bundle = card.kind === 'SET' && card.bundleId !== null ? bundles.get(card.bundleId) : undefined;
+    const occasion = card.occasionId !== null ? occasions.get(card.occasionId) : undefined;
+    const own = (key: string) => resolveText(card.translations, key, locale, fallback);
+    const productId = offer?.productIds.find((id) => shownIds.has(id)) ?? null;
+    return {
+      id: card.id,
+      kind: card.kind,
+      title:
+        own('title') ||
+        (offer ? resolveText(offer.translations, 'title', locale, fallback) : '') ||
+        (bundle ? resolveText(bundle.translations, 'name', locale, fallback) : ''),
+      text:
+        own('text') ||
+        (offer ? resolveText(offer.translations, 'text', locale, fallback) || shown.offerSubjects(offer) : '') ||
+        (bundle ? resolveText(bundle.translations, 'description', locale, fallback) : ''),
+      occasion: occasion ? resolveText(occasion.translations, 'name', locale, fallback) || null : null,
+      price: bundle ? bundle.price : card.kind === 'BUFFET' ? card.price : null,
+      people: bundle?.people ?? null,
+      productId,
+      categoryId: productId === null ? (offer?.categoryIds.find((id) => shownCategoryIds.has(id)) ?? null) : null,
+      bundleId: bundle?.id ?? null,
+      perPerson: card.kind === 'BUFFET',
+      when: card.kind === 'BUFFET' ? { startMinute: card.startMinute, endMinute: card.endMinute, daysOfWeek: card.daysOfWeek } : null,
+    };
+  };
+  return { aboveSearch: slots.ABOVE_SEARCH.map(view), belowSearch: slots.BELOW_SEARCH.map(view) };
 }
