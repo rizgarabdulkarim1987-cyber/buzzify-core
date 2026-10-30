@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
@@ -19,6 +19,7 @@ import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
+import { diagFlags, withDiag } from './diag';
 import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
@@ -31,13 +32,16 @@ const TemplateDetail = dynamic(() => import('@/ui/product/TemplateDetail'));
 /** How many products the hero features when the business picked none. */
 const FEATURED_FALLBACK = 6;
 
+// The address does not change under the menu: nothing to subscribe to.
+const noSubscription = () => () => {};
+
 /**
  * A menu drawn with a template preset (spec `2026-10-18-template-studio-design.md`, section 5). The design is the
  * snapshot's resolved one, so what guests see is exactly what was published; the Studio's preview passes a design of
  * its own to show changes before they are saved.
  */
 export function TemplateMenu({
-  view,
+  view: served,
   design,
   tagline,
   fontClass,
@@ -52,6 +56,10 @@ export function TemplateMenu({
   initialProductId?: string | null;
 }) {
   const { t, tenant, preview, addLine, announce } = useApp();
+  // `?diag=` switches (diag.ts), read after hydration: null until then.
+  const search = useSyncExternalStore(noSubscription, () => window.location.search, () => null);
+  const diag = useMemo(() => (search === null ? null : diagFlags(search)), [search]);
+  const view = useMemo(() => (diag ? withDiag(served, diag) : served), [served, diag]);
   const reduced = usePrefersReducedMotion();
   const [query, setQuery] = useState('');
   const [dietary, setDietary] = useState<ReadonlySet<DietaryTag>>(new Set());
@@ -67,9 +75,10 @@ export function TemplateMenu({
 
   // Warm the product surface shortly after the menu is interactive so the first tap feels instant.
   useEffect(() => {
+    if (diag === null || diag.has('nowarm')) return;
     const warm = setTimeout(() => void import('@/ui/product/TemplateDetail'), 1500);
     return () => clearTimeout(warm);
-  }, []);
+  }, [diag]);
 
   const dietaryAvailable = useMemo(() => new Set(view.products.flatMap((product) => (product.dietary ?? []).filter(isDietaryTag))), [view.products]);
 
