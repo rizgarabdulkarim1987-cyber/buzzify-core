@@ -564,3 +564,354 @@
     box-shadow: 0 10px 30px rgb(11 92 58 / 0.22);
   }
 }
+
+/*
+ * The whole cashier's look on a big screen (the till's "Cashier look" setting): where the pages menu sits, how the
+ * header, the lists and the cards are shaped. The dish tiles of the order screen are in the block above. Pure CSS on
+ * data-desk; phones keep their own layout, and nothing moves.
+ */
+@media screen and (min-width: 1024px) {
+  /* ---- A pages menu down the side: Big photos (labelled rail) and Split (icons only) ---- */
+  .till[data-desk='photo'],
+  .till[data-desk='split'] {
+    --rail: 7.5rem;
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .till[data-desk='split'] {
+    --rail: 5rem;
+  }
+  .till[data-desk='photo']::before,
+  .till[data-desk='split']::before {
+    content: '';
+    grid-column: 1;
+    grid-row: 1 / -1;
+    background: #0b3d30;
+  }
+  .till[data-desk='split']::before {
+    background: var(--s-surface);
+    border-inline-end: 1px solid var(--s-line);
+  }
+  .till[data-desk='photo'] > header,
+  .till[data-desk='split'] > header {
+    display: contents;
+  }
+  .till[data-desk='photo'] > header > a,
+  .till[data-desk='split'] > header > a {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: center;
+    padding: 1rem 0.5rem 0.5rem;
+  }
+  .till[data-desk='photo'] > header > a > span:not(.inline-flex),
+  .till[data-desk='split'] > header > a > span:not(.inline-flex) {
+    display: none;
+  }
+  .till[data-desk='photo'] > header > a .brand-logo-light {
+    display: none;
+  }
+  .till[data-desk='photo'] > header > a .brand-logo-dark {
+    display: block;
+  }
+  .till[data-desk='photo'] > header > a img,
+  .till[data-desk='split'] > header > a img {
+    max-width: 4.5rem;
+  }
+  .till[data-desk='photo'] > header > nav,
+  .till[data-desk='split'] > header > nav {
+    grid-column: 1;
+    grid-row: 2 / -1;
+    flex-direction: column;
+    align-content: start;
+    gap: 0.25rem;
+    width: auto;
+    padding: 0.5rem 0.5rem 1rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .till[data-desk='photo'] > header > nav a,
+  .till[data-desk='split'] > header > nav a {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+    min-height: 4.25rem;
+    border-radius: 1rem;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.1;
+    text-align: center;
+    white-space: normal;
+  }
+  .till[data-desk='photo'] > header > nav a svg,
+  .till[data-desk='split'] > header > nav a svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .till[data-desk='photo'] > header > nav a {
+    color: #bfe0d4;
+  }
+  .till[data-desk='photo'] > header > nav a:hover {
+    background: rgb(255 255 255 / 0.1);
+  }
+  .till[data-desk='photo'] > header > nav a[aria-current='page'] {
+    background: #fff;
+    color: #0b6b52;
+    box-shadow: none;
+  }
+  .till[data-desk='split'] > header > nav a {
+    font-size: 0;
+  }
+  .till[data-desk='split'] > header > nav a[aria-current='page'] {
+    background: var(--s-ink);
+    color: var(--s-on-ink);
+    box-shadow: none;
+  }
+  .till[data-desk='photo'] > header > div:last-child,
+  .till[data-desk='split'] > header > div:last-child {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: stretch;
+    justify-content: flex-end;
+    margin-inline-start: 0;
+    padding: 0.5rem 1.5rem;
+    border-bottom: 1px solid var(--s-line);
+  }
+  .till[data-desk='photo'] > main,
+  .till[data-desk='split'] > main {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .till[data-desk='photo'] > footer,
+  .till[data-desk='split'] > footer {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  /* ---- A pages dock along the bottom: Cards, Register and Stack ---- */
+  .till[data-desk='cards'] > header > nav,
+  .till[data-desk='register'] > header > nav,
+  .till[data-desk='stack'] > header > nav {
+    display: none;
+  }
+  .till[data-desk='cards'] > nav,
+  .till[data-desk='register'] > nav,
+  .till[data-desk='stack'] > nav {
+    display: flex;
+    justify-content: safe center;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--s-line);
+    background: var(--s-surface);
+  }
+  .till[data-desk='cards'] > nav a,
+  .till[data-desk='stack'] > nav a {
+    flex: none;
+    min-width: 6rem;
+    border-radius: 1.25rem;
+  }
+  .till[data-desk='cards'] > nav a[aria-current='page'] {
+    background: var(--s-ink);
+    color: var(--s-on-ink);
+    box-shadow: none;
+  }
+  .till[data-desk='stack'] > nav a[aria-current='page'] {
+    background: var(--s-info-wash);
+    color: var(--s-ink);
+    box-shadow: none;
+  }
+  .till[data-desk='register'] > nav {
+    gap: 0;
+    padding: 0;
+    background: #14201b;
+    border-top: 0;
+  }
+  .till[data-desk='register'] > nav a {
+    flex: 1;
+    min-height: 3.75rem;
+    border-radius: 0;
+    border-inline-end: 1px solid #26332d;
+    color: #a9bdb3;
+    font-size: 0.9375rem;
+  }
+  .till[data-desk='register'] > nav a svg {
+    display: none;
+  }
+  .till[data-desk='register'] > nav a[aria-current='page'] {
+    background: var(--s-ink);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  /* ---- Quick rows: a slim header, everything dense ---- */
+  .till[data-desk='rows'] > header {
+    padding-block: 0.25rem;
+    border-bottom: 2px solid var(--s-ink);
+  }
+  .till[data-desk='rows'] > header > nav a {
+    min-height: 2.25rem;
+    border-radius: 0.375rem;
+    padding-inline: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .till[data-desk='rows'] > header > nav a svg {
+    display: none;
+  }
+  .till[data-desk='rows'] > header > nav a[aria-current='page'] {
+    background: var(--s-ink);
+    color: var(--s-on-ink);
+    box-shadow: none;
+  }
+
+  /* ---- Board: a bold menu under a thick rule, square cards ---- */
+  .till[data-desk='board'] > header {
+    border-bottom: 3px solid var(--s-ink);
+  }
+  .till[data-desk='board'] > header > nav a {
+    border-radius: 0.375rem;
+    font-weight: 700;
+  }
+  .till[data-desk='board'] > header > nav a[aria-current='page'] {
+    background: var(--s-ink);
+    color: var(--s-on-ink);
+    box-shadow: none;
+  }
+
+  /* ---- The same look on every page: the shape of cards, panels and figures ---- */
+  .till[data-desk='photo'] .till-card,
+  .till[data-desk='photo'] .till-panel,
+  .till[data-desk='photo'] .till-stat {
+    border: 0;
+    border-radius: 1.5rem;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 0.14);
+  }
+  .till[data-desk='rows'] .till-card,
+  .till[data-desk='rows'] .till-panel,
+  .till[data-desk='rows'] .till-stat {
+    border-radius: 0.5rem;
+    border-inline-start: 5px solid var(--s-ink);
+  }
+  .till[data-desk='cards'] .till-card,
+  .till[data-desk='cards'] .till-panel,
+  .till[data-desk='cards'] .till-stat {
+    border: 0;
+    border-radius: 1.5rem;
+    box-shadow: 0 6px 22px rgb(0 0 0 / 0.12);
+  }
+  .till[data-desk='split'] .till-card,
+  .till[data-desk='split'] .till-panel,
+  .till[data-desk='split'] .till-stat {
+    border-radius: 0.75rem;
+  }
+  .till[data-desk='board'] .till-card,
+  .till[data-desk='board'] .till-panel,
+  .till[data-desk='board'] .till-stat {
+    border-radius: 0.5rem;
+    border-inline-start: 7px solid var(--s-ink);
+  }
+  .till[data-desk='register'] .till-card,
+  .till[data-desk='register'] .till-panel,
+  .till[data-desk='register'] .till-stat {
+    border-radius: 0.375rem;
+  }
+  .till[data-desk='stack'] .till-card,
+  .till[data-desk='stack'] .till-panel,
+  .till[data-desk='stack'] .till-stat {
+    border-radius: 1.125rem;
+  }
+
+  /* ---- Stack: one comfortable column ---- */
+  .till[data-desk='stack'] {
+    background: var(--s-hover);
+  }
+  .till[data-desk='stack'] > main > div {
+    width: 100%;
+    max-width: 62rem;
+    margin-inline: auto;
+  }
+  .till[data-desk='stack'] .pos-tiles {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .till[data-desk='stack'] .pos-tile {
+    flex-direction: row;
+    align-items: center;
+    min-height: 5.25rem;
+    border-radius: 1.125rem;
+  }
+  .till[data-desk='stack'] .pos-tile-img {
+    margin: 0.5rem;
+    width: 4.5rem;
+    height: 4.5rem;
+    aspect-ratio: auto;
+    border-radius: 0.875rem;
+  }
+  .till[data-desk='stack'] .pos-order-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+
+  /* ---- Split: compact dishes beside the bill ---- */
+  .till[data-desk='split'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.5rem;
+  }
+  .till[data-desk='split'] .pos-tile-img {
+    aspect-ratio: 16 / 10;
+  }
+  .till[data-desk='split'] .pos-order-grid {
+    grid-template-columns: minmax(0, 1fr) 21rem;
+  }
+
+  /* ---- Board: squared-off dishes with a colour bar ---- */
+  .till[data-desk='board'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.5rem;
+  }
+  .till[data-desk='board'] .pos-tile {
+    border-radius: 0.5rem;
+    border-inline-start: 6px solid hsl(var(--hue) 70% 45%);
+  }
+  .till[data-desk='board'] .pos-cats button {
+    border-radius: 0.375rem;
+    min-height: 2.75rem;
+    font-weight: 700;
+  }
+  .till[data-desk='board'] .pos-cats button[aria-selected='true'] {
+    background: var(--s-ink);
+    color: var(--s-on-ink);
+  }
+  .till[data-desk='board'] .pos-ticket {
+    border-radius: 0.5rem;
+  }
+
+  /* ---- Register: the bill on the left, big coloured text buttons ---- */
+  .till[data-desk='register'] .pos-order-grid {
+    grid-template-columns: 26rem minmax(0, 1fr);
+  }
+  .till[data-desk='register'] .pos-ticket {
+    order: -1;
+    border-radius: 0.375rem;
+    font-size: 1.0625rem;
+  }
+  .till[data-desk='register'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.5rem;
+  }
+  .till[data-desk='register'] .pos-tile {
+    min-height: 6rem;
+    justify-content: center;
+    border: 0;
+    border-radius: 0.375rem;
+    background: hsl(var(--hue) 60% 34%) !important;
+  }
+  .till[data-desk='register'] .pos-tile-img {
+    display: none;
+  }
+  .till[data-desk='register'] .pos-tile-body span {
+    color: #fff;
+  }
+  .till[data-desk='register'] .pos-cats button {
+    border-radius: 0.375rem;
+  }
+}
