@@ -19,7 +19,7 @@ import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
-import { Hero } from './heroes';
+import { Hero, SignatureStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
 import { useFavorites } from './favorites';
@@ -220,6 +220,7 @@ export function TemplateMenu({
           </a>
           <TemplateHeader />
           {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
+          {query.trim() === '' && showsSignatureStrip(heroKind, body, signature !== undefined) && <SignatureStrip />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">

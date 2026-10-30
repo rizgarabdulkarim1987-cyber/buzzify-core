@@ -441,6 +441,41 @@ function CompactHero({ tagline }: { tagline?: string }) {
   );
 }
 
+/** The hero kinds that feature the lead dish (the signature first) themselves; every other kind is the short line only. */
+const FEATURING_HEROES: ReadonlySet<string> = new Set(['editorial', 'asymmetric', 'arch', 'chapters', 'spotlight', 'carousel', 'pedestal', 'collection', 'daily', 'occasion', 'flavorWall', 'catch']);
+/** The shapes that draw the signature dish in their own way. */
+const SIGNATURE_SHAPES: ReadonlySet<string> = new Set(['book', 'carpet', 'depth', 'theatre']);
+
+/** Whether the menu shows the signature dish in the strip under its hero: it has one and nothing else shows it. */
+export function showsSignatureStrip(heroKind: string, body: string, hasSignature: boolean): boolean {
+  return hasSignature && !FEATURING_HEROES.has(heroKind) && !SIGNATURE_SHAPES.has(body);
+}
+
+/** The signature dish of the hour as a quiet strip: its photo, why it is shown now, its name and price. */
+export function SignatureStrip() {
+  const { signature, openProduct } = useTemplate();
+  if (!signature) return null;
+  return (
+    <section aria-labelledby="signature-title" className="tpl-hero px-(--gutter)">
+      <div className="flex items-center gap-4">
+        <button type="button" tabIndex={-1} aria-hidden onClick={() => openProduct(signature.id)} className="block w-24 shrink-0">
+          <ProductMedia product={signature} priority suffix="hero" sizes="96px" className="aspect-square w-full" />
+        </button>
+        <div className="min-w-0">
+          <PickCaption />
+          <h2 id="signature-title" className="tpl-display tpl-name-sm">
+            {signature.name}
+          </h2>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Price product={signature} className="text-base" />
+            <ViewButton product={signature} className="tpl-button-ghost" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Hero({ kind, tagline }: { kind: HeroKind; tagline?: string }) {
   switch (kind) {
     case 'editorial':
