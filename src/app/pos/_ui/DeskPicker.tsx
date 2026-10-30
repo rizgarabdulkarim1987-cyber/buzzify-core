@@ -43,7 +43,7 @@ export function DeskSection({ current }: { current: DeskId }) {
   }
 
   return (
-    <section className="mt-5 hidden flex-col gap-3 lg:flex" aria-labelledby="desk-title">
+    <section className="mb-6 hidden flex-col gap-3 lg:flex" aria-labelledby="desk-title">
       <div>
         <h3 id="desk-title" className="text-base font-bold">{t('pos.desk.title')}</h3>
         <p className="text-sm text-muted">{t('pos.desk.subtitle')}</p>
