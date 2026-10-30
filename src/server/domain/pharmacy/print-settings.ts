@@ -62,7 +62,8 @@ export function readPrintSettings(stored: unknown): PrintSettings {
 
 /** The settings of one workstation, or the defaults when it has none. */
 export function settingsOfWorkstation(all: PrintSettings, name: string): WorkstationSettings {
-  return all.workstations[name.trim()] ?? DEFAULT_WORKSTATION;
+  const key = name.trim();
+  return (Object.hasOwn(all.workstations, key) ? all.workstations[key] : undefined) ?? DEFAULT_WORKSTATION;
 }
 
 /** The stored value with one workstation set; refused (zod error) when it would hold more than the allowed number. */

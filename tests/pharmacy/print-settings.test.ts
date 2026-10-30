@@ -76,3 +76,14 @@ describe('print settings', () => {
     expect(dataOf(await ask(w.owner, printQueries.get, at()))).toMatchObject({ print: { workstations: {} } });
   });
 });
+
+describe('print settings in a lapsed (read-only) pharmacy', () => {
+  it('stay readable, but even the owner cannot save', async () => {
+    const got = dataOf(await ask(w.owner, printQueries.get, at())) as View;
+    vi.setSystemTime(new Date(NOW.getTime() + 40 * 86_400_000));
+    expect(codeOf(await ask(w.owner, printQueries.get, at()))).toBe('OK');
+    expect(codeOf(await act(w.owner, printActions.set, { ...at(), workstation: 'Counter 1', settings: DEFAULT_WORKSTATION, version: got.version }))).toBe('FORBIDDEN');
+    vi.setSystemTime(NOW);
+    expect((dataOf(await ask(w.owner, printQueries.get, at())) as View).print).toEqual({ workstations: {} });
+  });
+});

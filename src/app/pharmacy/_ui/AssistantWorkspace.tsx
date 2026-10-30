@@ -55,7 +55,7 @@ export function AssistantWorkspace({ branches, caps, writable, forecast }: Assis
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchId, setBatchId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [answer, setAnswer] = useState<{ value: AnswerLite; days: number; productId: string | null } | null>(null);
+  const [answer, setAnswer] = useState<{ value: AnswerLite; days: number } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [proposed, setProposed] = useState<Record<string, 'pending' | 'done'>>({});
   const [made, setMade] = useState<string[]>([]);
@@ -103,7 +103,7 @@ export function AssistantWorkspace({ branches, caps, writable, forecast }: Assis
     }
     setProposed({});
     setMade([]);
-    setAnswer({ value: result.data as AnswerLite, days, productId: product?.id ?? null });
+    setAnswer({ value: result.data as AnswerLite, days });
   };
 
   const propose = async (args: ProposeArgs) => {

@@ -39,7 +39,6 @@ interface Props {
   /** Row keys with a proposal in flight or made. */
   proposed: Record<string, 'pending' | 'done'>;
   /** The product of the transfer table (its rows carry a batch, not a product). */
-  transferProductId?: string;
 }
 
 const TH = 'whitespace-nowrap px-3 py-2 text-start text-xs font-semibold text-muted';
@@ -85,7 +84,7 @@ function Propose({ kind, rowKey, args, caps, t, state, onPropose }: { kind: Prop
   );
 }
 
-export function ToolTable({ output, branchName, caps, t, onPropose, proposed, transferProductId }: Props) {
+export function ToolTable({ output, branchName, caps, t, onPropose, proposed }: Props) {
   const label = t(`pharmacy.assistant.tool.${output.tool}`);
   const tool: AssistantTool = output.tool;
   const action = rowAction(tool, caps);
@@ -234,7 +233,7 @@ export function ToolTable({ output, branchName, caps, t, onPropose, proposed, tr
                         <Num value={r.suggestedQty} />
                       </td>
                       <td className={TD}>
-                        {action && <Propose kind="TRANSFER" rowKey={key} args={propose(r, key, r.fromBranchId, { productId: transferProductId ?? output.batch.productId })} caps={caps} t={t} state={proposed[key]} onPropose={onPropose} />}
+                        {action && <Propose kind="TRANSFER" rowKey={key} args={propose(r, key, r.fromBranchId, { productId: output.batch.productId })} caps={caps} t={t} state={proposed[key]} onPropose={onPropose} />}
                       </td>
                     </tr>
                   );

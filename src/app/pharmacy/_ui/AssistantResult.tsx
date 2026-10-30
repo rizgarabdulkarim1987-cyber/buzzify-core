@@ -52,7 +52,6 @@ export function AssistantResult({
   days,
   onPropose,
   proposed,
-  transferProductId,
   footer,
 }: {
   answer: AnswerLite;
@@ -61,7 +60,6 @@ export function AssistantResult({
   days: number | null;
   onPropose: (a: ProposeArgs) => void;
   proposed: Record<string, 'pending' | 'done'>;
-  transferProductId?: string;
   footer?: ReactNode;
 }) {
   const t = useT();
@@ -134,7 +132,7 @@ export function AssistantResult({
           {answer.tables.map((table) => (
             <div key={table.tool} className="flex min-w-0 flex-col gap-2" data-testid={`result-${table.tool}`}>
               <h3 className="text-md font-semibold text-text">{t(`pharmacy.assistant.tool.${table.tool}`)}</h3>
-              <ToolTable output={table} branchName={branchName} caps={caps} t={t} onPropose={onPropose} proposed={proposed} {...(transferProductId ? { transferProductId } : {})} />
+              <ToolTable output={table} branchName={branchName} caps={caps} t={t} onPropose={onPropose} proposed={proposed} />
               <Link href={linkFor(table.tool, answer, days)} data-testid="result-link" className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
                 <Link2 aria-hidden className="size-4 shrink-0" />
                 {t('pharmacy.assistant.open')}

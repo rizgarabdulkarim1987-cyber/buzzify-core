@@ -529,3 +529,20 @@ describe('the printed figures match hand figures from a real sale', () => {
     expect(280 + 470).toBe(750);
   });
 });
+
+describe('a lapsed (read-only) pharmacy', () => {
+  it('still prints a sale and a return slip but refuses to log a reprint, and writes no row', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const line = await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: s.id } });
+    const made = dataOf(await act(w.manager, returnActions.create, { ...at(w), saleId: s.id, lines: [{ saleLineId: line.id, baseQty: 1 }], reason: 'x y z', clientKey: key('ret') })) as { id: string };
+    vi.setSystemTime(new Date(NOW.getTime() + 40 * 86_400_000)); // past the period and the grace days
+    expect(codeOf(await get(w, w.cashier, s.id))).toBe('OK');
+    expect(codeOf(await ask(w.cashier, printQueries.returnReceipt, { ...at(w), returnId: made.id }))).toBe('OK');
+    expect(codeOf(await reprint(w, w.manager, s.id))).toBe('FORBIDDEN');
+    expect(codeOf(await act(w.manager, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: key('rr'), width: '80' }))).toBe('FORBIDDEN');
+    expect(await prisma().phReceiptReprint.count()).toBe(0);
+    vi.setSystemTime(NOW);
+  });
+});

@@ -1,6 +1,7 @@
 import { ClipboardList, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { OtherBranchNotice } from '@/app/pharmacy/_ui/OtherBranchNotice';
 import { ReceiveBlocked } from '@/app/pharmacy/_ui/ReceiveBlocked';
 import { MoneyLocked } from '@/app/pharmacy/_ui/ReasonAction';
 import { SupplierReturnForm } from '@/app/pharmacy/_ui/SupplierReturnForm';
@@ -57,10 +58,13 @@ export default async function NewSupplierReturnPage({ searchParams }: { searchPa
   }
   const page = await query(suppliers, { ...access.placeInput, active: true });
   // Opened from an accepted assistant suggestion: the lines it names are shown above the form, which is the same form as always.
-  const accepted = await acceptedProposal(access.placeInput, typeof raw.proposal === 'string' ? raw.proposal : undefined, 'SUPPLIER_RETURN');
+  const found = await acceptedProposal(access.placeInput, typeof raw.proposal === 'string' ? raw.proposal : undefined, 'SUPPLIER_RETURN');
+  const otherBranch = found !== null && found.branchId !== access.place.branchId;
+  const accepted = otherBranch ? null : found;
   return (
     <>
       {header}
+      {otherBranch && <OtherBranchNotice t={t} />}
       {accepted && (
         <p data-testid="assistant-prefill" className="mx-4 mb-3 flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text sm:mx-8">
           <Sparkles aria-hidden className="mt-px size-4 shrink-0 text-muted" />

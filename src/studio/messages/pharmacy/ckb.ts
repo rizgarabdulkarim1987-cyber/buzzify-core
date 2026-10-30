@@ -3131,6 +3131,8 @@ const pharmacy: Messages = {
   'pharmacy.assistant.prefillOrder': 'لە پێشنیاری یاریدەدەرەوە پڕکراوەتەوە. پێش ناردن هەموو ڕیزێک و دابینکەرەکە بپشکنە.',
   'pharmacy.assistant.prefillReturn': 'ئەم گەڕاندنەوەیە پەیڕەوی پێشنیارێکی یاریدەدەر دەکات.',
   'pharmacy.assistant.prefillReturnLink': 'ڕیزە پێشنیارکراوەکان ببینە',
+  'pharmacy.assistant.otherBranchNotice': 'ئەم پێشنیارە هی لقێکی ترە، بۆیە هیچ پڕنەکرایەوە. سەرەتا بگۆڕە بۆ ئەو لقە.',
+  'pharmacy.assistant.otherBranchLink': 'گۆڕینی لق',
   'pharmacy.print.blocked.readOnly': 'دەرمانخانەکە تا {date} تەنها بۆ خوێندنەوەیە. دەتوانیت چاپ بکەیت و بخوێنیتەوە، بەڵام ڕێکخستنەکانی چاپ و تۆماری لەبەرگیراوەکان ناگۆڕدرێن.',
   'pharmacy.print.blocked.role': 'ڕۆڵەکەت دەتوانێت چاپ بکات، بەڵام ناتوانێت ڕێکخستنەکانی چاپ بگۆڕێت.',
   'pharmacy.print.blocked.support': 'دۆخی پشتگیری تەنها دەخوێنێتەوە و ناتوانێت ڕێکخستنەکانی چاپ بگۆڕێت.',

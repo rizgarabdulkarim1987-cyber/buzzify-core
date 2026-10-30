@@ -44,4 +44,9 @@ describe('print settings shape', () => {
     expect(settingsOfWorkstation(saved, 'Counter 1').labelSize).toBe('58');
     expect(settingsOfWorkstation(saved, 'Counter 2')).toEqual(DEFAULT_WORKSTATION);
   });
+
+  it('a workstation named like a built-in property gets the defaults, not the object prototype', () => {
+    const none = { workstations: {} };
+    for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) expect(settingsOfWorkstation(none, name), name).toEqual(DEFAULT_WORKSTATION);
+  });
 });

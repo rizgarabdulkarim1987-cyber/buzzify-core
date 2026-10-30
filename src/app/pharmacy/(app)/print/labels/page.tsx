@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Shelf and batch labels. Every staff role that sees the catalog may print them (the price appears only for a role that may see prices); the page
+ * Shelf and batch labels. Every staff role that sees the catalog may print them (`catalog.view` is the only price permission the pharmacy has: the POS shows every such role the sale price, so the label may too); the page
  * reads only, so it works while the pharmacy is read-only. A support actor gets the blocked state.
  */
 export default async function LabelsPage() {

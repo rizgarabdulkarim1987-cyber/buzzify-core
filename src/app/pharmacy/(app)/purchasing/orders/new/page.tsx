@@ -1,5 +1,6 @@
 import { Lock, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
+import { OtherBranchNotice } from '@/app/pharmacy/_ui/OtherBranchNotice';
 import { PurchaseOrderEditor } from '@/app/pharmacy/_ui/PurchaseOrderEditor';
 import { emptyPoDraft } from '@/app/pharmacy/_ui/purchasing-logic';
 import { currencies } from '@/server/pharmacy/queries/prices';
@@ -45,7 +46,10 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
   }
   const [currencyList, supplierPage] = await Promise.all([query(currencies, access.placeInput), query(suppliers, { ...access.placeInput, active: true })]);
   // Opened from an accepted assistant suggestion: the existing form, pre-filled with the products and quantities (the supplier and the costs are the person's to enter). Nothing is saved until Save.
-  const accepted = await acceptedProposal(access.placeInput, typeof raw.proposal === 'string' ? raw.proposal : undefined, 'REORDER');
+  const found = await acceptedProposal(access.placeInput, typeof raw.proposal === 'string' ? raw.proposal : undefined, 'REORDER');
+  // A suggestion of another branch is never filled into this branch's order: the person is told and switches branch deliberately.
+  const otherBranch = found !== null && found.branchId !== access.place.branchId;
+  const accepted = otherBranch ? null : found;
   let initial: ReturnType<typeof emptyPoDraft> | null = null;
   if (accepted && accepted.proposal.kind === 'REORDER') {
     const lines = await prefillLines(access.placeInput, accepted.proposal.lines);
@@ -54,6 +58,7 @@ export default async function NewOrderPage({ searchParams }: { searchParams: Pro
   return (
     <>
       {head}
+      {otherBranch && <OtherBranchNotice t={t} />}
       {initial && (
         <p data-testid="assistant-prefill" className="mx-4 mb-3 flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text sm:mx-8">
           <Sparkles aria-hidden className="mt-px size-4 shrink-0 text-muted" />

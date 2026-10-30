@@ -3149,6 +3149,8 @@ const pharmacy: Messages = {
   'pharmacy.assistant.prefillOrder': 'معبأ من اقتراح المساعد. تحقق من كل بند ومن المورد قبل الإرسال.',
   'pharmacy.assistant.prefillReturn': 'هذا الإرجاع يتبع اقتراحاً من المساعد.',
   'pharmacy.assistant.prefillReturnLink': 'اعرض البنود المقترحة',
+  'pharmacy.assistant.otherBranchNotice': 'هذا الاقتراح يخص فرعاً آخر، لذلك لم يُعبأ شيء. بدّل إلى ذلك الفرع أولاً.',
+  'pharmacy.assistant.otherBranchLink': 'بدّل الفرع',
   'pharmacy.print.blocked.readOnly': 'الصيدلية للقراءة فقط حتى {date}. يمكنك الطباعة والقراءة، لكن لا يمكن تغيير إعدادات الطباعة ولا سجلات النسخ.',
   'pharmacy.print.blocked.role': 'دورك يسمح بالطباعة لكن لا يسمح بتغيير إعدادات الطباعة.',
   'pharmacy.print.blocked.support': 'وضع الدعم للقراءة فقط ولا يمكنه تغيير إعدادات الطباعة.',

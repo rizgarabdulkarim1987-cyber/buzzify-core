@@ -438,18 +438,36 @@ test.describe('Pharmacy phase 7 assistant and printing @desktop', () => {
     expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 1 });
     await other2.context().close();
 
-    // The reorder suggestion opens a purchase order draft with its line; again nothing is created.
+    // The reorder suggestion is for the SECOND branch and the manager works in Main: nothing is pre-filled, the person is told in words and
+    // can switch branch deliberately. Switching to the suggestion's branch gives the draft with its line. Nothing is created either way.
     await m.goto(`/pharmacy/assistant/proposals/${ids.proposals!.REORDER}`);
     await m.getByTestId('proposal-accept').click();
     await expect(m).toHaveURL(/\/pharmacy\/purchasing\/orders\/new\?proposal=/);
+    const poUrl = m.url();
+    await expect(m.getByTestId('assistant-other-branch')).toBeVisible();
+    await expect(m.getByTestId('assistant-other-branch').getByRole('link')).toHaveAttribute('href', '/pharmacy/select');
+    await expect(m.getByTestId('assistant-prefill')).toHaveCount(0);
+    await expect(m.getByTestId('po-line')).toHaveCount(0);
+    await m.screenshot({ path: `${SHOTS}/en-assistant-other-branch-order.png`, fullPage: true });
+    expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 2 });
+    const atSecond = await session(browser, manager, shop, shop.branches[1]!.name);
+    await atSecond.goto(poUrl);
+    await expect(atSecond.getByTestId('assistant-prefill')).toBeVisible();
+    await expect(atSecond.getByTestId('assistant-other-branch')).toHaveCount(0);
+    await expect(atSecond.getByTestId('po-line')).toHaveCount(1);
+    expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 2 });
+    // The supplier return suggestion is for Main: accepted from Second it shows the same notice; from Main it follows the suggestion.
+    await atSecond.goto(`/pharmacy/assistant/proposals/${ids.proposals!.SUPPLIER_RETURN}`);
+    await atSecond.getByTestId('proposal-accept').click();
+    await expect(atSecond).toHaveURL(/\/pharmacy\/purchasing\/returns\/new\?proposal=/);
+    const retUrl = atSecond.url();
+    await expect(atSecond.getByTestId('assistant-other-branch')).toBeVisible();
+    await expect(atSecond.getByTestId('assistant-prefill')).toHaveCount(0);
+    await m.goto(retUrl);
     await expect(m.getByTestId('assistant-prefill')).toBeVisible();
-    await expect(m.getByTestId('po-line')).toHaveCount(1);
-    expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 2 });
-    // The supplier return suggestion is dismissed: nothing opens.
-    await m.goto(`/pharmacy/assistant/proposals/${ids.proposals!.SUPPLIER_RETURN}`);
-    await m.getByTestId('proposal-dismiss').click();
-    await expect(m.getByTestId('proposal-decided')).toHaveAttribute('data-state', 'dismissed');
-    expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 2 });
+    await expect(m.getByTestId('assistant-other-branch')).toHaveCount(0);
+    expect(await counts(shop.id)).toEqual({ transfers: 0, orders: 0, returns: 0, proposals: 3, accepted: 3 });
+    await atSecond.context().close();
     await m.context().close();
   });
 
@@ -540,6 +558,94 @@ test.describe('Pharmacy phase 7 assistant and printing @desktop', () => {
     expect((await logRows()).map((r) => r.copyNumber)).toEqual([1, 2]);
     await o.screenshot({ path: `${SHOTS}/en-a4-invoice-copy.png`, fullPage: true });
     await o.context().close();
+  });
+
+  test('a credit sale on the A4 invoice shows its CREDIT line and the customer name only to a role that may see customers; a return slip can be reprinted with one numbered log row', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const client = db();
+    try {
+      await client.phSettings.update({ where: { restaurantId: shop.id }, data: { creditEnabled: true } });
+    } finally {
+      await client.$disconnect();
+    }
+    const o = await session(browser, owner, shop, main);
+    await o.goto('/pharmacy/customers');
+    await o.getByTestId('customer-new').click();
+    await o.getByTestId('customer-name').fill('Credit Customer');
+    await o.getByTestId('customer-phone').fill('0770 123 4567');
+    await o.getByTestId('customer-limit').fill('5000');
+    await o.getByTestId('customer-save').click();
+    await expect(o.getByTestId('customer-detail')).toBeVisible();
+    await o.context().close();
+
+    // 2 tablets (500), wholly on the account, by a pharmacist (who may sell on credit).
+    const p = await session(browser, pharmacist, shop, main);
+    await openShift(p);
+    await p.getByTestId('sell-search').fill(names.name);
+    await p.getByTestId('result').filter({ hasText: names.name }).getByTestId('add-unit').first().click();
+    await expect(p.getByTestId('cart-line')).toHaveCount(1);
+    await p.getByTestId('qty-input').fill('2');
+    await p.keyboard.press('F4');
+    await p.getByTestId('pay-credit-toggle').check();
+    await p.getByTestId('customer-search').fill('Credit');
+    await p.getByTestId('customer-option').first().click();
+    await p.getByTestId('pay-credit-amount').fill('500');
+    await p.getByTestId('pay-confirm').click();
+    await expect(p.getByTestId('sale-done')).toBeVisible();
+    await p.getByTestId('receipt-done').click();
+    const check = db();
+    let creditSale: string;
+    try {
+      creditSale = (await check.phSale.findFirstOrThrow({ where: { restaurantId: shop.id }, orderBy: { createdAt: 'desc' }, select: { id: true } })).id;
+    } finally {
+      await check.$disconnect();
+    }
+    // The pharmacist may see customer names: the name and the CREDIT line are on the paper.
+    await p.goto(`/pharmacy/sales/${creditSale}/invoice`);
+    await expect(p.getByTestId('a4-sheet')).toBeVisible();
+    await expect(p.getByTestId('a4-customer')).toContainText('Credit Customer');
+    await expect(p.getByTestId('a4-payment')).toHaveCount(1);
+    await expect(p.getByTestId('a4-payment')).toHaveAttribute('data-method', 'CREDIT');
+    await expect(p.getByTestId('a4-total')).toContainText('500');
+
+    // The same person as a plain cashier (catalog.view, own sales only; no right to see customers): the CREDIT line stays, the name is never sent.
+    const demote = async (role: 'CASHIER' | 'PHARMACIST') => {
+      const c = db();
+      try {
+        await c.phStaff.updateMany({ where: { restaurantId: shop.id, userId: pharmacist.userId }, data: { role } });
+      } finally {
+        await c.$disconnect();
+      }
+    };
+    await demote('CASHIER');
+    try {
+      await p.goto(`/pharmacy/sales/${creditSale}/invoice`);
+      await expect(p.getByTestId('a4-sheet')).toBeVisible();
+      await expect(p.getByTestId('a4-payment')).toHaveAttribute('data-method', 'CREDIT');
+      await expect(p.getByTestId('a4-customer')).toHaveCount(0);
+      await expect(p.locator('body')).not.toContainText('Credit Customer');
+    } finally {
+      await demote('PHARMACIST');
+    }
+    await p.context().close();
+
+    // The return slip: reprinting writes one numbered row for the RETURN, and prints.
+    const m = await session(browser, manager, shop, main);
+    await m.goto(`/pharmacy/returns/${ids.ret}/slip`);
+    await expect(m.getByTestId('a4-sheet')).toBeVisible();
+    await expect(m.getByTestId('a4-copy-marker')).toHaveCount(0);
+    await m.getByTestId('a4-reprint').click();
+    await expect(m.getByTestId('a4-logged')).toContainText('1');
+    await expect(m.getByTestId('a4-copy-marker')).toBeVisible();
+    expect(await prints(m)).toBe(1);
+    const rows = db();
+    try {
+      expect(await rows.phReceiptReprint.findMany({ where: { restaurantId: shop.id, returnId: ids.ret! }, select: { copyNumber: true, saleId: true } })).toEqual([{ copyNumber: 1, saleId: null }]);
+    } finally {
+      await rows.$disconnect();
+    }
+    await m.screenshot({ path: `${SHOTS}/en-slip-copy.png`, fullPage: true });
+    await m.context().close();
   });
 
   // -----------------------------------------------------------------------------------------------------------------------------

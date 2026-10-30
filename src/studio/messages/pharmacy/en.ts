@@ -3137,6 +3137,8 @@ const pharmacy: Messages = {
   'pharmacy.assistant.prefillOrder': 'Filled in from an assistant suggestion. Check every line and the supplier before you submit.',
   'pharmacy.assistant.prefillReturn': 'This return follows an assistant suggestion.',
   'pharmacy.assistant.prefillReturnLink': 'See the suggested lines',
+  'pharmacy.assistant.otherBranchNotice': 'This suggestion belongs to another branch, so nothing was filled in. Switch to that branch first.',
+  'pharmacy.assistant.otherBranchLink': 'Switch branch',
   'pharmacy.print.blocked.readOnly': 'The pharmacy is read only until {date}. You can print and read, but print settings and copy records cannot be changed.',
   'pharmacy.print.blocked.role': 'Your role can print but cannot change print settings.',
   'pharmacy.print.blocked.support': 'Support mode can read but cannot change print settings.',
