@@ -203,7 +203,7 @@ async function inTransitNow(scoped: ScopedClient, scope: Scope, withCost: boolea
   return {
     units: units.reduce((s, r) => s + r.units, 0),
     transfers: all[0]?.n ?? 0,
-    byDestination: sortBy(units.map((u) => ({ branchId: u.branchId, units: u.units })), (r) => r.branchId),
+    byDestination: sortBy(units.map((u) => ({ branchId: scope.branchIds.includes(u.branchId) ? u.branchId : '', units: u.units })), (r) => r.branchId),
     ...(withCost ? { values: sortBy(values.map((v) => ({ currency: v.cur, valueMinor: money(v.value) })), (r) => r.currency) } : {}),
   };
 }
