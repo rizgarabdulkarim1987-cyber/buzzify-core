@@ -299,6 +299,18 @@
   flex-shrink: 0;
   line-height: 1.5;
 }
+/* The dish's order and view counts as a line of their own, under a card that has no badge row. */
+.tpl-counts {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+span.tpl-counts:not(.tpl-badge) {
+  display: block;
+}
+.tpl-flavor .tpl-counts {
+  color: var(--tile-text);
+}
 /* The regular price, crossed out beside the price during a discount, and "Only 2 left". */
 .tpl-was {
   margin-inline-start: 0.45em;

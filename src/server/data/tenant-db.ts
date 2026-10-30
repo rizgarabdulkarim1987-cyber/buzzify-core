@@ -9,6 +9,8 @@ export const MENU_SCOPED_MODELS = [
   'MenuWheel',
   'WheelSlice',
   'WheelSpin',
+  'ProductViewTotal',
+  'ProductViewMark',
   'Category',
   'Product',
   'ProductVariant',

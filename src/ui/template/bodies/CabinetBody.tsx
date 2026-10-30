@@ -6,7 +6,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import './shared/shapes.css';
 import './cabinet.css';
 
@@ -186,6 +186,7 @@ function Card({ product, priority, order }: { product: MenuProductView; priority
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open cb-name text-start">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <span className="cb-foot">
         <QuickAction product={product} className="cb-add relative z-[2]" />
         <Price product={product} className="cb-price" />

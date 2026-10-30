@@ -5,7 +5,7 @@ import { formatCount } from '@/server/domain/money';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Description, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { Description, DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { layoutBook } from './book-pages';
 import './shared/photo-card.css';
 import './shared/shapes.css';
@@ -303,6 +303,7 @@ function House({ product }: { product: MenuProductView }) {
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-display bk-house-name">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <span className="bk-house-foot">
         <Price product={product} className="bk-price" />
         <QuickAction product={product} variant="icon" className="relative z-[2]" />
@@ -325,6 +326,7 @@ function Dish({ product }: { product: MenuProductView }) {
           <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-display bk-dish-name text-start">
             {product.name}
           </button>
+          <DishCounts product={product} />
           <span aria-hidden className="bk-leader" />
           <Price product={product} className="bk-price" />
         </div>

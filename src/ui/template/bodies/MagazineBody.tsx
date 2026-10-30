@@ -5,7 +5,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Nav } from '../navs';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionHeading } from '../sections';
 import { splitLead } from './lead';
 import './shared/photo-card.css';
@@ -88,6 +88,7 @@ function Tile({ product, shape, lead = false, priority }: { product: MenuProduct
           <button type="button" onClick={() => openProduct(product.id)} className={`tpl-open mg-tile-name text-start${lead ? ' tpl-display mg-lead-name' : ''}`}>
             {product.name}
           </button>
+          <DishCounts product={product} />
           <Price product={product} className="mg-price mg-lead-price" />
         </div>
         <QuickAction product={product} variant="icon" className="mg-add relative z-[2]" />

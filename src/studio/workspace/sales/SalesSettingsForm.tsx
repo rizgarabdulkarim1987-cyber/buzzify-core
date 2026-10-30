@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { useState, useTransition, type ReactNode } from 'react';
+import { toast } from 'sonner';
+import { setMenuDishCountsEnabled } from '@/app/studio/_actions/dish-counts';
 import { saveSalesSettings } from '@/app/studio/_actions/sales';
 import type { FeatureKey } from '@/server/domain/entitlements';
 import type { UpgradeInfo } from '@/server/studio/services/plans';
 import type { SalesSettingsView } from '@/server/studio/services/sales';
-import { useT } from '@/studio/i18n';
+import { describeFailure } from '@/studio/errors';
+import { useLocale, useT } from '@/studio/i18n';
 import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
@@ -27,6 +31,7 @@ function SwitchRow({
   onChange,
   feature,
   upgrade,
+  disabled = false,
 }: {
   label: string;
   hint: ReactNode;
@@ -34,6 +39,7 @@ function SwitchRow({
   onChange: (checked: boolean) => void;
   feature?: FeatureKey;
   upgrade: UpgradeInfo;
+  disabled?: boolean;
 }) {
   const locked = feature !== undefined && !upgrade.allowed.includes(feature);
   return (
@@ -43,7 +49,7 @@ function SwitchRow({
           <span className="text-base text-text">{label}</span>
           <span className="max-w-[60ch] text-sm text-muted">{hint}</span>
         </span>
-        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
+        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} disabled={disabled} />
       </label>
       {locked && feature && <UpgradeHint feature={feature} info={upgrade} />}
     </div>
@@ -53,8 +59,20 @@ function SwitchRow({
 /** The Sales tab's Settings: the labels guests see, the categories that complete a meal, and how much the menu suggests. */
 export function SalesSettingsForm({ menuId, view }: { menuId: string; view: View }) {
   const t = useT();
+  const { locale } = useLocale();
+  const router = useRouter();
   const name = useNamer(view.defaultLocale);
   const { pending, errors, save } = useSave();
+  const [dishCounts, setDishCounts] = useState(view.dishCountsEnabled);
+  const [switching, startSwitching] = useTransition();
+  // The counts switch is read live by guests, so it saves on its own and needs no publish or Save.
+  const toggleDishCounts = (enabled: boolean) =>
+    startSwitching(async () => {
+      const result = await setMenuDishCountsEnabled({ menuId, enabled });
+      if (!result.ok) return void toast.error(describeFailure(t, locale, result.error).message);
+      setDishCounts(enabled);
+      router.refresh();
+    });
   const [form, setForm] = useState({
     priceStyle: view.priceStyle,
     showMostOrdered: view.showMostOrdered,
@@ -104,6 +122,15 @@ export function SalesSettingsForm({ menuId, view }: { menuId: string; view: View
             checked={form.showLowStock}
             onChange={(showLowStock) => change({ showLowStock })}
             feature="selling.socialProof"
+            upgrade={view.upgrade}
+          />
+          <SwitchRow
+            label={t('sales.settings.dishCounts')}
+            hint={t('sales.settings.dishCountsHint')}
+            checked={dishCounts}
+            onChange={toggleDishCounts}
+            disabled={switching}
+            feature="menu.dishCounts"
             upgrade={view.upgrade}
           />
         </div>

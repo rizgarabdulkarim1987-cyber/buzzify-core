@@ -3,7 +3,7 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useTemplate } from '../../context';
-import { Price, ProductMedia, QuickAction } from '../../parts';
+import { DishCounts, Price, ProductMedia, QuickAction } from '../../parts';
 import './photo-card.css';
 
 export interface IconDishProps {
@@ -71,6 +71,7 @@ export function IconDish({ product, prefix, suffix, cell, head, price, pricePlac
         {product.name}
       </button>
       {pricePlace === 'after' && priceTag}
+      <DishCounts product={product} className="block text-center" />
     </li>
   );
 }

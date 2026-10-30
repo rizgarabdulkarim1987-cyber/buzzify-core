@@ -79,7 +79,7 @@ export interface TenantInfo {
    * Which extras this menu offers guests: its own switch (read live, like `feedbackEnabled`) and the plan both have to be on.
    * `aboutTitle` is the title the restaurant gave its own page, per language ('' when it left it empty).
    */
-  extras: { intro: boolean; about: boolean; wheel: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
+  extras: { intro: boolean; about: boolean; wheel: boolean; dishCounts: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
   /** The live revision everything else here, and the catalog, is read from. */
   revisionId: string;
   /** The menu's current slug. */

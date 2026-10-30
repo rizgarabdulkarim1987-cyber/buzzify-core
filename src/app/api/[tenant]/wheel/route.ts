@@ -1,11 +1,12 @@
 import { isLocale } from '@/lib/locale';
 import { loadWheelState, spin } from '@/server/data/wheel';
+import { clientIp } from '@/server/http/client-ip';
 import { hashAddress, newGuestKey, readGuestKey } from '@/server/http/guest-cookie';
 import { handleTenantGet, handleTenantRequest, problem } from '@/server/http/route';
 import { wheelSpinSchema } from '@/server/http/schemas';
 
 const NO_STORE = { 'cache-control': 'no-store' };
-const addressOf = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+const addressOf = (request: Request) => clientIp(request.headers) || 'unknown';
 
 /** The wheel's slices (no weights) and how many spins this guest has left today. Never cached: it depends on the guest. */
 export async function GET(request: Request, ctx: { params: Promise<{ tenant: string }> }) {
