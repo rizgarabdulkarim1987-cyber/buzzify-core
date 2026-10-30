@@ -262,7 +262,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
         open={deleting !== null}
         onOpenChange={(next) => !next && setDeleting(null)}
         title={t('sales.sets.deleteTitle')}
-        body={deleting ? t('sales.sets.deleteBody', { name: name(deleting.names) }) : undefined}
+        body={deleting ? `${t('sales.sets.deleteBody', { name: name(deleting.names) })} ${t('sales.deleteRemovesCards')}` : undefined}
         confirmLabel={t('sales.delete')}
         onConfirm={async () => {
           if (!deleting) return true;

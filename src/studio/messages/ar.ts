@@ -1158,6 +1158,7 @@ const ar: Messages = {
   'sales.off': 'متوقف',
   'sales.edit': 'تعديل',
   'sales.delete': 'حذف',
+  'sales.deleteRemovesCards': 'تُحذف معه البطاقات المميزة التي تستخدمه.',
   'sales.active': 'أظهره للضيوف',
   'sales.priority': 'الأولوية',
   'sales.priorityHint': 'الأعلى يأتي أولًا عندما تناسب عدة ترقيات.',

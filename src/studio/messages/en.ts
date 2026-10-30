@@ -1153,6 +1153,7 @@ const en: Messages = {
   'sales.off': 'Off',
   'sales.edit': 'Edit',
   'sales.delete': 'Delete',
+  'sales.deleteRemovesCards': 'Showcase cards that use it are removed too.',
   'sales.active': 'Show to guests',
   'sales.priority': 'Priority',
   'sales.priorityHint': 'Higher comes first when several upgrades fit.',

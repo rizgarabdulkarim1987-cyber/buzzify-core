@@ -320,7 +320,7 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
         open={deleting !== null}
         onOpenChange={(next) => !next && setDeleting(null)}
         title={t('sales.offers.deleteTitle')}
-        body={deleting ? t('sales.offers.deleteBody', { name: name(deleting.title) }) : undefined}
+        body={deleting ? `${t('sales.offers.deleteBody', { name: name(deleting.title) })} ${t('sales.deleteRemovesCards')}` : undefined}
         confirmLabel={t('sales.delete')}
         onConfirm={async () => {
           if (!deleting) return true;

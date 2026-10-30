@@ -1157,6 +1157,7 @@ const ckb: Messages = {
   'sales.off': 'ڕاگیراو',
   'sales.edit': 'دەستکاری',
   'sales.delete': 'سڕینەوە',
+  'sales.deleteRemovesCards': 'ئەو کارتە دیارانەی بەکاری دەهێنن لەگەڵیدا دەسڕدرێنەوە.',
   'sales.active': 'بە میوانەکانی پیشان بدە',
   'sales.priority': 'گرنگی',
   'sales.priorityHint': 'بەرزتر یەکەم دێت کاتێک چەند بەرزکردنەوەیەک دەگونجێن.',
