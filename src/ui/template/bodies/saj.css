@@ -68,7 +68,7 @@
   inline-size: var(--cf-card);
   block-size: var(--cf-card);
   aspect-ratio: 1;
-  padding: 4%;
+  padding: 15%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 22% 30%, var(--sj-char) 0 3%, transparent 4%),
