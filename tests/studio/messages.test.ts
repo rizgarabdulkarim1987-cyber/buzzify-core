@@ -143,6 +143,7 @@ describe('server texts', () => {
     'A design is saved on a menu, whose restaurant has a plan',
     'An audit entry names a restaurant other than its target',
     'A pharmacy definition ran without its pharmacy',
+    'A sale of a controlled medicine has no prescription',
     'Invoice storage is not configured',
     'An intake storage key is made from plain ids',
     'A file to keep needs its object written first',

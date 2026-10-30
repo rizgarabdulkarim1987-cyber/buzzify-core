@@ -645,6 +645,23 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Units reported lost need a person who can view reports': 'error.text.phTrLossApproval',
   'Sending out of expiry order needs a person who can override batches': 'error.text.phTrOverride',
   'You do not work at either branch of this transfer': 'error.text.phTrNotYourBranch',
+  'Settings not found': 'error.text.phRxSettingsNotFound',
+  'Prescription not found': 'error.text.phRxNotFound',
+  'Enter the prescription number': 'error.text.phRxEnterNumber',
+  'Enter the prescriber’s name': 'error.text.phRxEnterPrescriber',
+  'Write the document type and at most the last 4 characters of its number': 'error.text.phRxIdNote',
+  'This key was already used for a different prescription': 'error.text.phRxKeyMismatch',
+  'The prescription date is in the future': 'error.text.phRxDateFuture',
+  'This prescription is too old to use': 'error.text.phRxTooOld',
+  'The file is larger than 5 MB': 'error.text.phRxFileTooLarge',
+  'Prescription files cannot be stored yet': 'error.text.phRxStorageOff',
+  'Choose the prescription for this sale': 'error.text.phRxChoose',
+  'This prescription was already used for a sale': 'error.text.phRxUsed',
+  'A controlled medicine needs the patient’s name': 'error.text.phRxPatientNeeded',
+  'This is more of a controlled medicine than one sale may carry': 'error.text.phRxQtyLimit',
+  'This prescription number was already used for this medicine': 'error.text.phRxDuplicate',
+  'Cross-origin requests are refused': 'error.text.phRxCrossOrigin',
+  'Choose the pharmacy': 'error.text.phChoosePharmacy',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

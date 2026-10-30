@@ -106,6 +106,11 @@ interface Ids {
   /** A requested transfer from branch 1 to branch 2 and one from branch 2 to branch 1 (phase 6, task 2); each touches both branches. */
   transfer1: string;
   transfer2: string;
+  /** A prescription with one stored file and one register row in branch 1 / in branch 2 (phase 7, task 2); branch-scoped. */
+  rx1: string;
+  rx2: string;
+  rxFile1: string;
+  rxFile2: string;
 }
 interface World {
   a: Ids;
@@ -127,10 +132,12 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
+  // The business's settings row (provisioning makes it; the controlled-drug settings definitions read and save it).
+  await prisma().phSettings.create({ data: { restaurantId: biz.id } });
   const category = await prisma().phCategory.create({ data: { restaurantId: biz.id, name: `${label} cat`, nameKey: `${label}-cat`.toLowerCase() }, select: { id: true } });
   const tradeName = `${label}DRUG`;
   const product = await makeProduct(biz.id, tradeName);
@@ -297,6 +304,25 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
   };
   withDocs.transfer1 = await transferIn(base.b1, base.b2, 1);
   withDocs.transfer2 = await transferIn(base.b2, base.b1, 2);
+  // One prescription in each branch with a stored file (straight in the database; the object is never read) and a register row of the
+  // seeded sale (phase 7, task 2).
+  const rxIn = async (branchId: string, n: 1 | 2, saleId: string, batchId: string) => {
+    const made = await prisma().phPrescription.create({
+      data: { restaurantId: base.restaurantId, branchId, number: `SEED-RX-${n}`, prescriberName: `Seed prescriber ${n}`, patientName: `Seed patient ${n}`, issuedOn: new Date('2026-10-20T00:00:00.000Z'), clientKey: `seed-rx-${branchId}`, payloadHash: 'seed', createdById: owner.userId },
+      select: { id: true },
+    });
+    const file = await prisma().phRxAttachment.create({
+      data: { restaurantId: base.restaurantId, branchId, prescriptionId: made.id, storageKey: `intake/${base.restaurantId}/rx-seed-${n}`, mime: 'image/png', sizeBytes: 10, sha256: createHash('sha256').update(`seed-rx-file-${branchId}`).digest('hex'), uploadedById: owner.userId },
+      select: { id: true },
+    });
+    const line = await prisma().phSaleLine.findFirstOrThrow({ where: { saleId }, select: { id: true } });
+    await prisma().phControlledEntry.create({
+      data: { restaurantId: base.restaurantId, branchId, saleId, saleLineId: line.id, productId: base.productId, batchId, prescriptionId: made.id, baseQty: 1, kind: 'SALE', dispensedById: owner.userId, createdAt: NOW },
+    });
+    return { rx: made.id, file: file.id };
+  };
+  const [x1, x2] = [await rxIn(base.b1, 1, base.sale1, base.batch1), await rxIn(base.b2, 2, base.sale2, base.batch2)];
+  Object.assign(withDocs, { rx1: x1.rx, rx2: x2.rx, rxFile1: x1.file, rxFile2: x2.file });
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -344,8 +370,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -552,6 +578,20 @@ const CASES: Record<string, Case> = {
   'ph.intake.cancel': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.batch.get': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.batch.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Prescriptions and controlled medicines (phase 7, task 2): a prescription, its file and the register are branch-scoped, so another branch's or
+  // business's id is not found. Creating and the settings save work only in the caller's own place (a stale version changes nothing).
+  'ph.rx.create': { body: () => ({ clientKey: key(), number: `PLANTED ${key()}`, prescriberName: 'Planted', issuedOn: '2026-10-20' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.rx.file.add': {
+    body: (ids, n) => ({ prescriptionId: pick(ids, n).rxId, base64: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString('base64') }),
+    foreignIds: 'refused',
+    otherBranchIds: 'refused',
+  },
+  'ph.rx.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.rx.get': { body: (ids, n) => ({ prescriptionId: pick(ids, n).rxId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.rx.register': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.rx.attachment.read': { body: (ids, n) => ({ id: pick(ids, n).rxFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.settings.controlled.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.settings.controlled.set': { body: () => ({ controlledEnabled: false, controlledMaxQty: 30, rxRetentionDays: 3650, version: 99 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -636,6 +676,32 @@ describe('the pharmacy isolation sweep', () => {
       'ph.intake.scan', 'ph.intake.usage',
     ]);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('covers every phase 7 prescription and controlled-drug definition, each with a sweep case of its own', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.rx.') || name.startsWith('ph.settings.controlled.'));
+    expect(names.sort()).toEqual([
+      'ph.rx.attachment.read', 'ph.rx.create', 'ph.rx.file.add', 'ph.rx.get', 'ph.rx.list', 'ph.rx.register',
+      'ph.settings.controlled.get', 'ph.settings.controlled.set',
+    ]);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('has real prescription rows to guard: the owner sees both branches’ prescriptions and register rows, the branch-1 manager only branch 1’s', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    for (const name of ['ph.rx.list', 'ph.rx.register']) {
+      const owner = json(await run(DEFINITIONS.get(name)!, ownerA, { restaurantId: a.restaurantId }));
+      expect(owner, `${name} shows branch 1 to the owner`).toContain(a.b1);
+      expect(owner, `${name} shows branch 2 to the owner`).toContain(a.b2);
+      expect(owner, `${name} shows nothing of the other business`).not.toContain(b.restaurantId);
+      const mine = json(await run(DEFINITIONS.get(name)!, managerA1, { restaurantId: a.restaurantId }));
+      expect(mine, `${name} shows branch 1 to the manager`).toContain(a.b1);
+      expect(mine, `${name} leaks branch 2 to the branch-1 manager`).not.toContain(a.b2);
+    }
+    const list = json(await run(DEFINITIONS.get('ph.rx.list')!, ownerA, { restaurantId: a.restaurantId }));
+    expect(list).toContain(a.rx1);
+    expect(list).toContain(a.rx2);
+    expect(list).not.toContain(b.rx1);
   });
 
   it('covers every phase 6 transfer definition', () => {
@@ -795,6 +861,11 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     receiptLines: await prisma().phReceiptLine.findMany({ where: { receiptId: { in: receipts.map((r) => r.id) } }, orderBy }),
     counts,
     countLines: await prisma().phStockCountLine.findMany({ where: { countId: { in: counts.map((c) => c.id) } }, orderBy }),
+    // Prescriptions, their files and the controlled register are branch-scoped (phase 7).
+    prescriptions: await prisma().phPrescription.findMany({ where, orderBy }),
+    rxFiles: await prisma().phRxAttachment.findMany({ where, orderBy }),
+    controlled: await prisma().phControlledEntry.findMany({ where, orderBy }),
+    settings: branchId ? undefined : await prisma().phSettings.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     // Support reads are logged by design (a granted Super Admin leaves a `support.read` row even when refused): checked on their own.
     audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId, action: { not: 'support.read' } }, orderBy }),
   });
@@ -807,8 +878,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ids.transfer1, ids.transfer2, ...docs(1), ...docs(2)];

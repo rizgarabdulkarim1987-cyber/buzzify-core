@@ -926,6 +926,118 @@ describe('Studio enforcement rules', () => {
       });
     });
 
+    describe('prescriptions, their files and the controlled register: one writer, an append-only register, bytes only through the gate (phase 7)', () => {
+      const SERVICE = 'src/server/pharmacy/prescriptions.ts';
+      const TABLES = ['PhPrescription', 'PhRxAttachment', 'PhControlledEntry'];
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)';
+      /** Relations of those tables a write could be nested through (`attachments: { create: ... }`). */
+      const NESTED = ['attachments', 'entries'];
+
+      /** The tables of this group `source` writes: by any receiver, a destructured delegate, raw SQL, or a nested write. */
+      function rxTableWrites(source: string): string[] {
+        const found: string[] = [];
+        for (const table of TABLES) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push(table);
+          else if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(table);
+          else if (new RegExp(`(?:insert\\s+into|update|delete\\s+from)\\s+(?:"${table}"|${table}\\b)`, 'i').test(source)) found.push(table);
+        }
+        if (new RegExp(`\\b(?:${NESTED.join('|')})\\s*:\\s*\\{\\s*(?:create|createMany|connectOrCreate|upsert|update|updateMany|delete|deleteMany)\\b`).test(source)) found.push('nested');
+        return found;
+      }
+      const offenders = (path: string, source: string) => (path === SERVICE ? [] : rxTableWrites(source));
+
+      /** Anything that could change or remove a register row, in ANY file: the service that appends to it included. */
+      function registerMutations(source: string): string[] {
+        const found: string[] = [];
+        if (/\bphControlledEntry\s*\.\s*(?:update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\b/.test(source)) found.push('mutation');
+        if (/\{[^}]*\bphControlledEntry\b[^}]*\}\s*=/.test(source)) found.push('destructured delegate');
+        if (/(?:\bupdate|delete\s+from|truncate(?:\s+table)?)\s+(?:only\s+)?"?PhControlledEntry\b/i.test(source)) found.push('raw sql');
+        if (/\bentries\s*:\s*\{\s*(?:update|updateMany|upsert|delete|deleteMany|set|disconnect)\b/.test(source)) found.push('nested');
+        return found;
+      }
+
+      /** The only files that open the private store for a prescription file; of these only the service reads bytes back. */
+      const STORE_USERS = [SERVICE, 'src/server/pharmacy/actions/prescriptions.ts', 'src/server/pharmacy/queries/prescriptions.ts'];
+      const usesRxStore = (source: string) => /\brxStorage(?:Key)?\s*\(/.test(source);
+      const readsStoredBytes = (source: string) => /\b(?:storage|store)\s*\.\s*get\s*\(/.test(source) || /\bgetIntakeStorage\s*\(\s*\)\s*\.\s*get\b/.test(source);
+      const callsGate = (source: string) => /\breadAttachment\s*\(/.test(source);
+      const touchesFileRows = (source: string) => /\bphRxAttachment\b/.test(source) || (/\battachments\b/.test(source) && /\bstorageKey\b/.test(source));
+
+      it('recognises a write however the receiver is spelled, raw SQL and a nested write included', () => {
+        expect(rxTableWrites('await tx.phPrescription.create({ data });')).toEqual(['PhPrescription']);
+        expect(rxTableWrites('await ctx.scoped!.phRxAttachment.deleteMany({});')).toEqual(['PhRxAttachment']);
+        expect(rxTableWrites('await getPrisma().phControlledEntry.createMany({ data });')).toEqual(['PhControlledEntry']);
+        expect(rxTableWrites('const { phPrescription } = tx;')).toEqual(['PhPrescription']);
+        expect(rxTableWrites('await tx.$executeRaw`UPDATE "PhPrescription" SET "saleId" = NULL`;')).toEqual(['PhPrescription']);
+        expect(rxTableWrites('await tx.$executeRaw`insert into "PhControlledEntry" ("id") values (1)`;')).toEqual(['PhControlledEntry']);
+        expect(rxTableWrites('await tx.phPrescription.update({ where, data: { attachments: { create: [] } } });')).toEqual(['PhPrescription', 'nested']);
+        expect(rxTableWrites('await tx.phPrescription.findMany({});\nawait tx.phRxAttachment.count();\nawait tx.phControlledEntry.aggregate({});')).toEqual([]);
+        expect(rxTableWrites('await tx.$queryRaw`SELECT "id" FROM "PhPrescription" WHERE "id" = ${id} FOR UPDATE`;')).toEqual([]);
+      });
+
+      it('names a write in a file that is not the prescription service', () => {
+        expect(offenders('src/server/pharmacy/sales.ts', 'await tx.phControlledEntry.createMany({ data });')).toEqual(['PhControlledEntry']);
+        expect(offenders('src/server/pharmacy/returns.ts', 'await tx.phPrescription.updateMany({ where, data });')).toEqual(['PhPrescription']);
+        expect(offenders('src/server/pharmacy/actions/prescriptions.ts', 'await tx.phRxAttachment.create({ data });')).toEqual(['PhRxAttachment']);
+        expect(offenders('src/app/api/pharmacy/rx-attachments/route.ts', 'await tx.phPrescription.delete({ where });')).toEqual(['PhPrescription']);
+        expect(offenders(SERVICE, 'await tx.phPrescription.create({ data });\nawait tx.phControlledEntry.createMany({ data });')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => offenders(path, read(path)).map((table) => `${path}: ${table}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the service’s own writes, so the check is not passing on a stale path', () => {
+        const written = rxTableWrites(read(SERVICE));
+        for (const table of TABLES) expect(written, table).toContain(table);
+      });
+
+      it('has no way to change or delete a register row: not by update, delete, upsert, truncate, a destructured delegate or raw SQL (negative self-test)', () => {
+        expect(registerMutations('await tx.phControlledEntry.update({ where, data });')).toEqual(['mutation']);
+        expect(registerMutations('await tx.phControlledEntry.deleteMany({});')).toEqual(['mutation']);
+        expect(registerMutations('await tx.phControlledEntry.upsert({});')).toEqual(['mutation']);
+        expect(registerMutations('const { phControlledEntry } = tx;')).toEqual(['destructured delegate']);
+        expect(registerMutations('await tx.$executeRaw`UPDATE "PhControlledEntry" SET "baseQty" = 0`;')).toEqual(['raw sql']);
+        expect(registerMutations('await tx.$executeRaw`DELETE FROM "PhControlledEntry"`;')).toEqual(['raw sql']);
+        expect(registerMutations('await tx.$executeRaw`TRUNCATE TABLE "PhControlledEntry"`;')).toEqual(['raw sql']);
+        expect(registerMutations('await tx.phPrescription.update({ data: { entries: { deleteMany: {} } } });')).toEqual(['nested']);
+        expect(registerMutations('await tx.phControlledEntry.createMany({ data });\nawait tx.phControlledEntry.findMany({});\nawait tx.phControlledEntry.count();')).toEqual([]);
+        expect(registerMutations('await tx.$queryRaw`SELECT 1 FROM "PhControlledEntry" e JOIN "PhPrescription" p ON p."id" = e."prescriptionId" FOR UPDATE`;')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts, the prescription service included', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => registerMutations(read(path)).map((what) => `${path}: ${what}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the register’s appends in the service, so the check above is not passing on a stale path', () => {
+        expect(read(SERVICE)).toMatch(/\bphControlledEntry\s*\.\s*createMany\b/);
+      });
+
+      it('opens the private store for a prescription file only in the service, its action and its query, and reads bytes back only in the service', () => {
+        expect(usesRxStore('const storage = rxStorage();')).toBe(true);
+        expect(usesRxStore('const key = rxStorageKey(restaurantId, id);')).toBe(true);
+        expect(usesRxStore('const storage = getIntakeStorage();')).toBe(false);
+        expect(readsStoredBytes('const found = await storage.get(row.storageKey);')).toBe(true);
+        expect(readsStoredBytes('await storage.put(key, bytes, mime);')).toBe(false);
+        const files = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')];
+        expect(files.filter((path) => usesRxStore(read(path)) && !STORE_USERS.includes(path))).toEqual([]);
+        expect(files.filter((path) => usesRxStore(read(path)) && path !== SERVICE && readsStoredBytes(read(path)))).toEqual([]);
+        expect(usesRxStore(read(SERVICE)) || readsStoredBytes(read(SERVICE))).toBe(true);
+      });
+
+      it('reads the file rows only in the service, and calls the gated read only from the one query', () => {
+        expect(touchesFileRows('await scoped.phRxAttachment.findFirst({ where });')).toBe(true);
+        expect(touchesFileRows('select: { attachments: { select: { id: true } } }')).toBe(false);
+        expect(touchesFileRows('select: { attachments: { select: { storageKey: true } } }')).toBe(true);
+        const files = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')];
+        expect(files.filter((path) => touchesFileRows(read(path)) && path !== SERVICE && !path.endsWith('tenant-db.ts'))).toEqual([]);
+        expect(files.filter((path) => callsGate(read(path)) && path !== SERVICE)).toEqual(['src/server/pharmacy/queries/prescriptions.ts']);
+      });
+    });
+
     it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
       const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')].flatMap((path) =>
         pharmacyClientViolations(path, read(path)).map((specifier) => `${path}: ${specifier}`),
