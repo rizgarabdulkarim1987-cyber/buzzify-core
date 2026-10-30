@@ -420,6 +420,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Enter the expiry': 'error.text.phExpiryEnter',
   'Enter the expiry as MM/YYYY or YYYY-MM-DD': 'error.text.phExpiryFormat',
   'Enter the cost': 'error.text.phCostEnter',
+  'Choose a report': 'error.text.phChooseReport',
+  'Choose CSV or XLSX': 'error.text.phChooseFormat',
   'Choose IQD or USD': 'error.text.phCurrencyChoose',
   'A zero cost needs “free of charge” confirmed': 'error.text.phCostFree',
   'Use at most 200 lines': 'error.text.phReceiptTooManyLines',

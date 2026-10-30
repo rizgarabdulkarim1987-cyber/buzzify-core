@@ -2399,6 +2399,8 @@ const pharmacy: Messages = {
   'pharmacy.transfers.lostAnswer': 'لم يصل الرد، فقد يكون تغييرك محفوظا بالفعل. تم تحديث الصفحة: تحقق منها قبل المحاولة مجددا.',
   'error.text.phChainNeedsMany': 'عرض السلسلة يحتاج إلى أكثر من فرع واحد',
   'error.text.phReportTooLarge': 'هذا التقرير يحتوي على صفوف أكثر مما يتسع له ملف واحد. ضيّق التواريخ أو اختر فرعا.',
+  'error.text.phChooseReport': 'اختر تقريرا',
+  'error.text.phChooseFormat': 'اختر CSV أو XLSX',
 };
 
 export default pharmacy;
