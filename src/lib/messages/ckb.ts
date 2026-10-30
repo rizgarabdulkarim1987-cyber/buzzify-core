@@ -44,6 +44,8 @@ const ckb: Messages = {
   'menu.mostOrdered': 'زۆرترین داواکراو',
   'menu.fewLeft_other': 'تەنها {n} ماوە',
   'menu.serves_other': 'بۆ {n} کەس · هەر کەسێک {price}',
+  'menu.orderCount_other': '{n} داواکاری',
+  'menu.viewCount_other': '{n} بینین',
   'menu.percentOff': '−{percent}%',
   'menu.regularPrice': 'نرخی ئاسایی {price}',
   'offers.label': 'ئۆفەرەکان',

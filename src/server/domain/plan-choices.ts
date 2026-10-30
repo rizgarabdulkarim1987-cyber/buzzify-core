@@ -247,6 +247,8 @@ export interface GuestFeatures {
   intro: boolean;
   about: boolean;
   wheel: boolean;
+  /** The plan holds the order and view counts on dish cards (also needs the menu's switch). */
+  dishCounts: boolean;
   rails: RailStyle[];
 }
 
@@ -261,6 +263,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     intro: allows(entitlements, 'menu.intro'),
     about: allows(entitlements, 'menu.about'),
     wheel: allows(entitlements, 'menu.wheel'),
+    dishCounts: allows(entitlements, 'menu.dishCounts'),
     rails: allowedRails(entitlements),
   };
 }

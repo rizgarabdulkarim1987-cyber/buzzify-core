@@ -19,8 +19,8 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, intro: true, about: true, wheel: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
-  extras: { intro: false, about: false, wheel: false, aboutTitle: { en: '', ar: '', ckb: '' } },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, intro: true, about: true, wheel: true, dishCounts: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   motions: [],
   brand: {
     logoText: 'TEST',
@@ -207,6 +207,20 @@ describe('the sales tools on the menu', () => {
     });
     expect(buildMenuView(breakfastOnly, tenant, 'en', at(18)).offers).toEqual([]);
     expect(buildMenuView(breakfastOnly, tenant, 'en', at(8)).offers.map((o) => o.id)).toEqual(['hh']);
+  });
+
+  it('gives a dish its order and view counts only from its first paid order, and only when the menu shows them', () => {
+    const on: TenantInfo = { ...tenant, extras: { ...tenant.extras, dishCounts: true } };
+    const dishCounts = new Map([
+      [IDS.burger, { orders: 5, views: 40 }],
+      [IDS.fries, { orders: 0, views: 12 }],
+    ]);
+    const shown = buildMenuView(makeCatalog(), on, 'en', at(12), { dishCounts });
+    expect(burgerOf(shown).counts).toEqual({ orders: 5, views: 40 });
+    expect(shown.products.find((p) => p.id === IDS.fries)).not.toHaveProperty('counts');
+    expect(shown.products.find((p) => p.id === IDS.espresso)).not.toHaveProperty('counts');
+    expect(burgerOf(buildMenuView(makeCatalog(), tenant, 'en', at(12), { dishCounts }))).not.toHaveProperty('counts');
+    expect(burgerOf(buildMenuView(makeCatalog(), on, 'en', at(12)))).not.toHaveProperty('counts');
   });
 
   it('marks the most ordered dishes only when the menu shows them and the plan includes it', () => {

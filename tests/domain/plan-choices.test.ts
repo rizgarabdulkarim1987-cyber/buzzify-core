@@ -101,9 +101,9 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
-    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, dishCounts: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
   });
 });
 

@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/photo-card.css';
 import './shared/shapes.css';
@@ -112,6 +112,7 @@ function Card({ product, priority }: { product: MenuProductView; priority: boole
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name rg-name text-start">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <div className="rg-foot">
         <QuickAction product={product} variant="icon" className="rg-add relative z-[2]" />
         <Price product={product} className="tpl-price-tight rg-price" />

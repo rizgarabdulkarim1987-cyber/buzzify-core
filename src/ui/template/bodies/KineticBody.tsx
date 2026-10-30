@@ -5,7 +5,7 @@ import { formatCount } from '@/server/domain/money';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { dishWords, useRowEntrance } from './useRowEntrance';
@@ -109,6 +109,7 @@ function KineticItem({ product, at, priority }: { product: MenuProductView; at: 
           </span>
         ))}
       </button>
+      <DishCounts product={product} />
       <div className="kn-foot">
         <span className="kn-spin">
           <Price product={product} className="tpl-price-tight kn-price" />
