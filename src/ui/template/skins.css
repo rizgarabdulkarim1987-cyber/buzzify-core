@@ -949,25 +949,21 @@ span.tpl-counts:not(.tpl-badge) {
 @keyframes tpl-rise {
   from {
     transform: translateY(40px);
-    opacity: 0;
   }
 }
 @keyframes tpl-pop {
   from {
     transform: scale(0.97);
-    opacity: 0;
   }
 }
 @keyframes tpl-slide {
   from {
     transform: translateX(40px);
-    opacity: 0;
   }
 }
 @keyframes tpl-slide-rtl {
   from {
     transform: translateX(-40px);
-    opacity: 0;
   }
 }
 .tpl-detail-body {
