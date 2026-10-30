@@ -169,6 +169,9 @@ export function TemplateMenu({
     [addLine, announce, t],
   );
 
+  const toggleFavorites = favorites.toggle;
+  const toggleFavorite = useCallback((product: MenuProductView) => toggleFavorites(product.id), [toggleFavorites]);
+
   const context = useMemo<TemplateContextValue>(
     () => ({
       design,
@@ -184,10 +187,10 @@ export function TemplateMenu({
       canOrder,
       quickAdd,
       isFavorite: favorites.has,
-      toggleFavorite: (product) => favorites.toggle(product.id),
+      toggleFavorite,
       reduced,
     }),
-    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites, reduced],
+    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites.has, toggleFavorite, reduced],
   );
 
   const toggleDietary = (tag: DietaryTag) =>
