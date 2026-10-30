@@ -131,6 +131,16 @@ export function Shell({
             {t('pharmacy.nav.movements')}
           </Link>
         )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && (
+          <Link href="/pharmacy/reports" className={LINK}>
+            {t('pharmacy.nav.reports')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && actor.branchIds.length > 1 && (
+          <Link href="/pharmacy/chain" className={LINK}>
+            {t('pharmacy.nav.chain')}
+          </Link>
+        )}
       </nav>
       {notice}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
