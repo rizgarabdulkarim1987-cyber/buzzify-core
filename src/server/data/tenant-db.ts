@@ -22,7 +22,6 @@ export const MENU_SCOPED_MODELS = [
   'BundleItem',
   'Promotion',
   'DaypartSchedule',
-  'MenuMotion',
   'Table',
   'QrCode',
   'ImportJob',

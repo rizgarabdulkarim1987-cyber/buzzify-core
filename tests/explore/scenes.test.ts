@@ -37,7 +37,6 @@ const view = (products: MenuProductView[]): MenuView => ({
   signatureProductId: null,
   priceStyle: 'symbol',
   offers: [],
-  motions: { categories: {} },
 });
 
 describe('buildScenes', () => {

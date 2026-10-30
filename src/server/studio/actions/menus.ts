@@ -332,7 +332,6 @@ export const duplicateMenu = defineAction({
         if (dropScene) delete design.sceneAsset;
         await tx.brandConfig.update({ where: { id: copied.id }, data: { ...within, ...(dropScene ? { design: json(design) } : {}) } });
       }
-      if (!allows(destination, 'design.menuMotions')) await tx.menuMotion.deleteMany({ where: { menuId } });
       await refreshDraftHash(tx, menuId);
 
       ctx.audit({

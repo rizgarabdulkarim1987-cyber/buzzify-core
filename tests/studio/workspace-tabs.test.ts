@@ -6,9 +6,8 @@ const ALL_BUILT = new Set(WORKSPACE_TABS.map((tab) => tab.key));
 const keys = (tabs: WorkspaceTab[]) => tabs.map((tab) => tab.key);
 
 describe('the menu workspace tabs', () => {
-  it('lists the tabs in order (spec 10.3 and the Sales tab), Design (template studio) before Brand and Motion after it, Content at the menu address itself', () => {
-    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'about', 'intro', 'settings', 'qr', 'data', 'revisions', 'preview']);
-    expect(WORKSPACE_TABS.find((tab) => tab.key === 'motion')).toMatchObject({ path: '/motion', needs: ['brand.edit'] });
+  it('lists the tabs in order (spec 10.3 and the Sales tab), Design (template studio) before Brand, Content at the menu address itself', () => {
+    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'about', 'intro', 'settings', 'qr', 'data', 'revisions', 'preview']);
     expect(WORKSPACE_TABS[0]!.path).toBe('');
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'preview')!.path).toBe('/preview');
   });

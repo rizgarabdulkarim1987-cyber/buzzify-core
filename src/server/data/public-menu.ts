@@ -99,7 +99,6 @@ export function tenantInfo(
     brand: clampBrandView(snapshot.brand, entitlements),
     seo: settings.seo,
     features,
-    motions: allows(entitlements, 'design.menuMotions') ? (snapshot.motions ?? []) : [],
   };
 }
 

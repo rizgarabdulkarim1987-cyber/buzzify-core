@@ -9,7 +9,6 @@ import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
-import { slotOf, type SnapshotMotion } from '@/server/domain/menu-motions';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
 import type { CatalogPromotion } from '@/server/domain/types';
 import { SCENE_KINDS } from '@/server/media/kinds';
@@ -195,24 +194,6 @@ function designFromSnapshot(stored: unknown, assetMap?: ReadonlyMap<string, stri
   return overrides;
 }
 
-/** A placement row as the snapshot's builder reads it: the place comes from the slot, which the service writes with it. */
-function motionFromRow(row: { slot: string; categoryId: string | null; motionId: string; params: unknown; texts: unknown }) {
-  const place = row.slot.startsWith('category:') ? 'category' : row.slot;
-  return { place, ...(row.categoryId ? { categoryId: row.categoryId } : {}), motionId: row.motionId, params: row.params, texts: row.texts };
-}
-
-/**
- * A snapshot's motions as draft rows, each category mapped through `categoryIds` when given (a copy has new ones); a
- * motion whose category has no new id is left out.
- */
-function motionRows(menuId: string, motions: readonly SnapshotMotion[] = [], categoryIds?: ReadonlyMap<string, string>) {
-  return motions.flatMap((motion) => {
-    const categoryId = motion.categoryId === undefined ? null : categoryIds ? categoryIds.get(motion.categoryId) : motion.categoryId;
-    if (categoryId === undefined) return [];
-    return [{ menuId, slot: slotOf(motion.place, categoryId), categoryId, motionId: motion.motionId, params: json(motion.params), texts: json(motion.texts) }];
-  });
-}
-
 /**
  * The menu as it would be published now: its settings, its restaurant's name (what guests see), its brand kit and its
  * draft catalog. Works on any client, including the transaction a publish runs in.
@@ -232,7 +213,6 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   });
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
-  const motions = await db.menuMotion.findMany({ where: { menuId }, select: { slot: true, categoryId: true, motionId: true, params: true, texts: true } });
   const displayName = menu.restaurant.name;
   const settings = snapshotMenu(menu, displayName);
   const { showPoweredBy, ...details } = menu.restaurant;
@@ -246,7 +226,7 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const sceneAssets = sceneAssetIds(brand);
   if (productAssets.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
-    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog, motions: motions.map(motionFromRow) });
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
   // Scene files apart from pictures, so a photo, logo or search image can never resolve to one.
@@ -257,7 +237,7 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
     media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog, motions: motions.map(motionFromRow) });
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog });
 }
 
 /**
@@ -341,7 +321,6 @@ export async function writeDraftFromSnapshot(
   const where = { menuId };
 
   // Children before parents, so nothing relies on a cascade.
-  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
@@ -376,8 +355,6 @@ export async function writeDraftFromSnapshot(
           select: { id: true, slug: true },
         });
   const categoryIds = idMap(catalog.categories, (c) => c.slug, categories, (c) => c.slug);
-  const motions = motionRows(menuId, snapshot.motions, categoryIds);
-  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const products =
     catalog.products.length === 0
@@ -632,7 +609,6 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
 
   // Children before parents, so nothing relies on a cascade.
-  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
@@ -813,9 +789,6 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
       })),
     });
   }
-
-  const motions = motionRows(menuId, snapshot.motions);
-  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const brandFields = brandRowFromSnapshot(brand);
   await tx.brandConfig.upsert({

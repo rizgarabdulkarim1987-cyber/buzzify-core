@@ -6,7 +6,6 @@ import { RAIL_STYLES } from '@/lib/rail';
 import type { BrandView, SeoText } from '@/server/data/tenant';
 import type { EngineConfig } from './config';
 import { menuDesignSchema } from './design-schema';
-import { cleanMotion, slotOf, type SnapshotMotion } from './menu-motions';
 import {
   DAYPARTS,
   LOCALES,
@@ -70,8 +69,6 @@ export interface MenuSnapshot {
   menu: SnapshotMenu;
   brand: BrandView;
   catalog: SnapshotCatalog;
-  /** The motions placed on the menu, sorted by slot; left out when there are none, so such a menu hashes as before. */
-  motions?: SnapshotMotion[];
 }
 
 /** What changes without a publish: sold-out and hidden products, stock, and sold-out options. */
@@ -274,42 +271,18 @@ const snapshotCatalog = z.object({
   ),
 });
 
-// The motions are read entry by entry (`placedMotions`), so one that can no longer be placed is dropped, not fatal.
-const snapshotSchema: z.ZodType<Omit<MenuSnapshot, 'motions'> & { motions?: unknown[] }> = z.object({
+const snapshotSchema: z.ZodType<MenuSnapshot> = z.object({
   schemaVersion: z.literal(SNAPSHOT_SCHEMA_VERSION),
   menu: snapshotMenu,
   brand: brandView,
   catalog: snapshotCatalog,
-  motions: z.array(z.unknown()).optional(),
 });
 
 /** Reads a stored snapshot. A snapshot of a version this code does not know is refused, never guessed at. */
 export function parseSnapshot(json: unknown): MenuSnapshot {
   const version = typeof json === 'object' && json !== null ? (json as { schemaVersion?: unknown }).schemaVersion : undefined;
   if (version !== SNAPSHOT_SCHEMA_VERSION) throw new Error(`Unsupported snapshot schema version ${String(version)}`);
-  const { motions, ...snapshot } = snapshotSchema.parse(json);
-  const placed = placedMotions(motions ?? [], snapshot.menu.locales, snapshot.catalog.categories);
-  return placed.length > 0 ? { ...snapshot, motions: placed } : snapshot;
-}
-
-/**
- * A menu's motions as a snapshot holds them: each cleaned (`cleanMotion`) against the menu's languages and categories,
- * the ones that cannot be placed dropped, one per slot (the first), sorted by slot.
- */
-export function placedMotions(
-  raw: readonly unknown[],
-  locales: readonly Locale[],
-  categories: ReadonlyArray<{ id: string }>,
-): SnapshotMotion[] {
-  const ctx = { locales, categoryIds: new Set(categories.map((category) => category.id)) };
-  const bySlot = new Map<string, SnapshotMotion>();
-  for (const entry of raw) {
-    const motion = cleanMotion(entry, ctx);
-    if (!motion) continue;
-    const slot = slotOf(motion.place, motion.categoryId);
-    if (!bySlot.has(slot)) bySlot.set(slot, motion);
-  }
-  return [...bySlot.entries()].sort(([a], [b]) => compare(a, b)).map(([, motion]) => motion);
+  return snapshotSchema.parse(json);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -355,12 +328,10 @@ function freezeProduct(product: CatalogProduct): SnapshotProduct {
  * order, then id; rules by id; bundles by slug, then id; the schedule by start. What the sales tools added is left out
  * while unused (no promotions, a dish for one, a category that completes no meal). Variants, groups and options have no
  * sort order of their own in the catalog (the loader already puts them in the editor's order), so they keep the order
- * they came in. The menu's motions are cleaned and go by slot (`placedMotions`); without any, the snapshot has no
- * `motions` key.
+ * they came in.
  */
-export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; catalog: Catalog; motions?: readonly unknown[] }): MenuSnapshot {
+export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; catalog: Catalog }): MenuSnapshot {
   const { catalog } = input;
-  const motions = placedMotions(input.motions ?? [], input.menu.locales, catalog.categories);
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     menu: input.menu,
@@ -379,7 +350,6 @@ export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; cat
         (a, b) => compare(a.startMinute, b.startMinute) || compare(a.daypart, b.daypart),
       ),
     },
-    ...(motions.length > 0 ? { motions } : {}),
   };
 }
 
