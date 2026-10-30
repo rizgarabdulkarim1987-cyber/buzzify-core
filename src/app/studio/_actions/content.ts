@@ -39,3 +39,7 @@ export async function moveProduct(input: unknown) {
 export async function loadProduct(input: unknown) {
   return invokeQuery(contentQueries.product, input);
 }
+
+export async function attachPhotos(input: unknown) {
+  return invoke(content.attachPhotos, input);
+}

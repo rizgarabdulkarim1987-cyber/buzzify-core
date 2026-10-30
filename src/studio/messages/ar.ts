@@ -1430,6 +1430,14 @@ const ar: Messages = {
   'qr.deleted': 'حُذف الرمز',
 
   // The Import and export tab
+  'data.photos.title': 'صور لعدة أصناف دفعة واحدة',
+  'data.photos.intro': 'اختر صوراً أسماؤها مثل عناوين الأصناف (adana-kebab.jpg للصنف adana-kebab). تُضاف كل صورة إلى مكتبة الوسائط وتصبح صورة صنفها في المسودة. انشر بعدها ليراها الضيوف.',
+  'data.photos.replace': 'استبدال الصور الموجودة في الأصناف',
+  'data.photos.start': 'إضافة {n} صورة',
+  'data.photos.progress': 'جارٍ إضافة الصور',
+  'data.photos.result': 'أُضيفت {attached} صورة، وبقيت صورة {kept} صنف كما هي.',
+  'data.photos.unmatched': 'لا يوجد صنف بهذه العناوين: {names}',
+  'data.photos.failed': 'تعذّر إرسال هذه الملفات: {names}',
   'data.export.title': 'التصدير',
   'data.export.intro': 'المسودة كجدول، بالصيغة التي يقرؤها الاستيراد.',
   'data.export.csv': 'تنزيل CSV',
