@@ -26,8 +26,10 @@
 /*
  * The strip takes focus (tabindex 0), so a keyboard can scroll a strip with no button in it. `--accent-ink` is set on
  * every template's root by designStyle() (design-style.ts); the fallback keeps a visible ring if a skin ever drops it.
+ * Scoped under `.tpl` to outrank skins.css's `.tpl :focus-visible`, which loads later and would push the ring outside
+ * the full-width strip (its sides off screen) and draw a second ring round the offer link.
  */
-.tpl-showcase-strip:focus-visible {
+.tpl .tpl-showcase-strip:focus-visible {
   outline: 2px solid var(--accent-ink, currentColor);
   outline-offset: -2px;
 }
@@ -97,7 +99,7 @@
   inset: 0;
   border-radius: var(--radius-card);
 }
-.tpl-showcase-link:focus-visible {
+.tpl .tpl-showcase-link:focus-visible {
   outline: none;
 }
 .tpl-showcase-card:has(.tpl-showcase-link:focus-visible) {

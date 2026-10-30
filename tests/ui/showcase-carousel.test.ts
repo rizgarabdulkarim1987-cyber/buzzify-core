@@ -264,5 +264,13 @@ describe('ShowcaseCarousel', () => {
       expect(rules).toMatch(/\.tpl-showcase-strip:focus-visible\s*\{[^}]*outline:[^;]*var\(--accent-ink, currentColor\)/);
       expect(rules).not.toMatch(/var\(--accent-ink\)/);
     });
+
+    it('outranks skins.css’s `.tpl :focus-visible`, which loads after it, for its own focus rules', () => {
+      // Same specificity would let the later skins.css rule win: the strip's ring moved outside the full-width strip
+      // (its sides off screen) and the offer link drew a second ring inside the card's.
+      const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(rules).toMatch(/\.tpl \.tpl-showcase-strip:focus-visible\s*\{/);
+      expect(rules).toMatch(/\.tpl \.tpl-showcase-link:focus-visible\s*\{\s*outline: none;/);
+    });
   });
 });
