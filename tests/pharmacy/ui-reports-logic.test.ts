@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   bpPercent,
+  callPlan,
   chainHref,
+  chainIsEmpty,
   exportParams,
+  filtersKey,
   filterMessageKey,
   formatMinor,
   LONG_RANGE_DAYS,
   marginNotices,
+  maxPagesOf,
+  moreState,
   parseChainFilters,
   parseFilters,
   PRESETS,
   presetRange,
   isLongRange,
   rangeDays,
+  rowCap,
+  rowsPerPage,
   REPORT_SPECS,
   reportHref,
   specOf,
@@ -105,7 +112,9 @@ describe('parseFilters', () => {
   });
   it('first value of a repeated parameter; pages capped', () => {
     expect(parseFilters(sales, { group: ['branch', 'user'] }, ctx).filters.groupBy).toBe('branch');
-    expect(parseFilters(sales, { pages: '999' }, ctx).filters.pages).toBe(20);
+    expect(parseFilters(sales, { pages: '999' }, ctx).filters.pages).toBe(maxPagesOf(sales));
+    expect(parseFilters(specOf('lowStock'), { pages: '999' }, ctx).filters.pages).toBe(20);
+    expect(parseFilters(specOf('expiry'), { pages: '999' }, ctx).filters.pages).toBe(40);
     expect(parseFilters(sales, { pages: 'x' }, ctx).filters.pages).toBe(1);
   });
   it('an as-of-today report has no dates and ignores them', () => {
@@ -257,5 +266,72 @@ describe('notices come from the report fields', () => {
   });
   it('transfers always carry the scope note', () => {
     expect(transfersNotices({ scope: 'transfers-touching-the-branches-shown' } as never).map((n) => n.key)).toEqual(['transfers.scope']);
+  });
+});
+
+describe('Load more: caps, calls and the last state', () => {
+  const low = specOf('lowStock');
+  const expiry = specOf('expiry');
+  it('page sizes and caps per report (aggregated in memory: 500 rows; keyset: 2,000)', () => {
+    expect([rowsPerPage(sales), rowsPerPage(expiry), rowsPerPage(low)]).toEqual([100, 50, 100]);
+    expect([rowCap(sales), rowCap(specOf('margin')), rowCap(specOf('stockValuation')), rowCap(low), rowCap(expiry)]).toEqual([500, 500, 500, 2000, 2000]);
+    expect([maxPagesOf(sales), maxPagesOf(low), maxPagesOf(expiry)]).toEqual([5, 20, 40]);
+  });
+  it('an in-memory report is read in ONE call however many pages are asked for (a call re-runs the whole aggregate)', () => {
+    expect(callPlan(sales, 1)).toEqual([100]);
+    expect(callPlan(sales, 5)).toEqual([500]);
+    expect(callPlan(sales, 99)).toEqual([500]);
+    expect(callPlan(specOf('margin'), 3)).toEqual([300]);
+  });
+  it('a keyset report is read in a few big calls, never one per page, and stops at its cap', () => {
+    expect(callPlan(low, 1)).toEqual([100]);
+    expect(callPlan(low, 10)).toEqual([500, 500]);
+    expect(callPlan(low, 12)).toEqual([500, 500, 200]);
+    expect(callPlan(low, 20)).toEqual([500, 500, 500, 500]);
+    expect(callPlan(low, 500)).toEqual([500, 500, 500, 500]);
+    expect(callPlan(expiry, 40)).toEqual(Array(20).fill(100));
+    for (const spec of REPORT_SPECS.filter((x) => x.paged)) expect(callPlan(spec, 99).reduce((a, b) => a + b, 0)).toBe(rowCap(spec));
+  });
+  it('the link becomes a sentence at the cap instead of looping on the same page', () => {
+    expect(moreState(low, 1, true)).toBe('more');
+    expect(moreState(low, 19, true)).toBe('more');
+    expect(moreState(low, 20, true)).toBe('capped');
+    expect(moreState(sales, 5, true)).toBe('capped');
+    expect(moreState(sales, 4, true)).toBe('more');
+    expect(moreState(low, 20, false)).toBe('none');
+    expect(moreState(specOf('damaged'), 1, true)).toBe('none');
+  });
+});
+
+describe('the filter form restarts on a new address', () => {
+  const fields = (branch: string) => [{ value: branch }, { value: 'IQD' }];
+  it('the key follows the dates and the chosen values', () => {
+    const base = filtersKey({ from: '2026-10-01', to: '2026-10-30', fields: fields('') });
+    expect(filtersKey({ from: '2026-10-01', to: '2026-10-30', fields: fields('') })).toBe(base);
+    expect(filtersKey({ from: '2026-10-30', to: '2026-10-30', fields: fields('') })).not.toBe(base);
+    expect(filtersKey({ from: '2026-10-01', to: '2026-10-30', fields: fields('b1') })).not.toBe(base);
+  });
+});
+
+describe('the chain dashboard is empty only when every figure is nothing', () => {
+  const none = (over: Record<string, unknown> = {}) => {
+    const card = { sales: [], stock: { available: null, reserved: null, quarantine: null, damaged: null }, expiry: { expired: { units: 0 }, d30: { units: 0 } }, lowStock: 0, transit: { units: 0, transfers: 0 }, openTransfers: { requested: 0, sent: 0 } };
+    return { total: { ...card, ...over }, branches: [{ sales: [] }, { sales: [] }] } as never;
+  };
+  it('null stock buckets (an empty business) count as none', () => {
+    expect(chainIsEmpty(none())).toBe(true);
+    expect(chainIsEmpty(none({ stock: { available: 0, reserved: 0, quarantine: 0, damaged: 0 } }))).toBe(true);
+  });
+  it.each([
+    ['reserved stock', { stock: { available: 0, reserved: 2, quarantine: 0, damaged: 0 } }],
+    ['quarantined stock', { stock: { available: 0, reserved: 0, quarantine: 1, damaged: 0 } }],
+    ['damaged stock', { stock: { available: 0, reserved: 0, quarantine: 0, damaged: 1 } }],
+    ['expired units', { expiry: { expired: { units: 1 }, d30: { units: 0 } } }],
+    ['units expiring soon', { expiry: { expired: { units: 0 }, d30: { units: 3 } } }],
+    ['a transfer on the road', { transit: { units: 4, transfers: 1 } }],
+    ['an open request', { openTransfers: { requested: 1, sent: 0 } }],
+    ['low stock', { lowStock: 1 }],
+  ])('%s is not empty', (_name, over) => {
+    expect(chainIsEmpty(none(over as Record<string, unknown>))).toBe(false);
   });
 });

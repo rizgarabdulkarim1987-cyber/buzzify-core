@@ -1,8 +1,10 @@
+import { formatNumber } from '@/lib/pos-format';
 import { addDays, baghdadDay, baghdadWindow, ReportsError, validDay } from '@/server/domain/pharmacy/reports-domain';
 import { dashboardWindow } from '@/server/domain/pharmacy/chain-domain';
 import type { ExpiryReport, ValuationReport } from '@/server/pharmacy/reports-stock';
 import type { MarginReport } from '@/server/pharmacy/reports-margin';
 import type { TransfersReport } from '@/server/pharmacy/reports-ledger';
+import type { ChainDashboard } from '@/server/pharmacy/chain';
 
 /**
  * Pure rules of the report screens (phase 6, task 6; R6-7..R6-9, R6-11). No DOM, no clock (the clock is an argument). The
@@ -94,7 +96,52 @@ export const isLongRange = (from: string, to: string): boolean => validDay(from)
 
 // Filters ------------------------------------------------------------------------------------------------------------------
 
-export const MAX_PAGES = 20;
+/**
+ * Rows per "page" of each report and the most a screen shows (ruling R6-16). The three reports the server aggregates in memory
+ * (sales, margin, valuation) are read in ONE call of at most 500 rows (a call re-runs the whole aggregate, so pages are never walked one by
+ * one); the keyset reports (returns, discounts, expiry, transfers, low stock) are read in a few big keyset calls. Past the cap the screen says so
+ * and points to the file, which has its own larger limit.
+ */
+export const IN_MEMORY_REPORTS: readonly ReportId[] = ['sales', 'margin', 'stockValuation'];
+export const IN_MEMORY_ROW_CAP = 500;
+export const KEYSET_ROW_CAP = 2000;
+export const rowsPerPage = (spec: ReportSpec): number => (spec.id === 'expiry' ? 50 : 100);
+export const rowCap = (spec: ReportSpec): number => (IN_MEMORY_REPORTS.includes(spec.id) ? IN_MEMORY_ROW_CAP : KEYSET_ROW_CAP);
+export const maxPagesOf = (spec: ReportSpec): number => Math.floor(rowCap(spec) / rowsPerPage(spec));
+/** The most rows one server call may take (the server's own limit for that report). */
+const callMax = (spec: ReportSpec): number => (spec.id === 'expiry' ? 100 : 500);
+/** The `take` of each server call that reads `pages` pages: one call when it fits, else big calls carried on by the keyset cursor (never one per page). */
+export function callPlan(spec: ReportSpec, pages: number): number[] {
+  let left = Math.min(Math.max(1, pages), maxPagesOf(spec)) * rowsPerPage(spec);
+  const plan: number[] = [];
+  while (left > 0) {
+    const take = Math.min(left, callMax(spec));
+    plan.push(take);
+    left -= take;
+  }
+  return plan;
+}
+/** What sits under the rows: a "Load more" link, a sentence saying the cap was reached, or nothing. */
+export function moreState(spec: ReportSpec, pages: number, hasMore: boolean): 'more' | 'capped' | 'none' {
+  if (!spec.paged || !hasMore) return 'none';
+  return pages >= maxPagesOf(spec) ? 'capped' : 'more';
+}
+/** The key of the filter form: a new address (a preset, a link) starts the form again from the address's values instead of keeping what was typed. */
+export const filtersKey = (parts: { from: string; to: string; fields: ReadonlyArray<{ value: string }> }): string => [parts.from, parts.to, ...parts.fields.map((f) => f.value)].join('|');
+/** Nothing at all on the chain dashboard: no sales, no stock in any bucket, nothing on the road, nothing open, nothing below its minimum, nothing expiring (a null bucket counts as none). */
+export function chainIsEmpty(d: ChainDashboard): boolean {
+  const t = d.total;
+  const n = (v: number | null | undefined) => v ?? 0;
+  return (
+    d.branches.every((b) => b.sales.length === 0) &&
+    t.sales.length === 0 &&
+    n(t.stock.available) + n(t.stock.reserved) + n(t.stock.quarantine) + n(t.stock.damaged) === 0 &&
+    t.expiry.expired.units + t.expiry.d30.units === 0 &&
+    t.transit.transfers === 0 &&
+    t.openTransfers.requested + t.openTransfers.sent === 0 &&
+    t.lowStock === 0
+  );
+}
 type Raw = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
 
@@ -126,9 +173,9 @@ function periodProblem(from: string, to: string): FilterProblem | null {
   }
 }
 
-function pagesOf(text: string | undefined): number {
+function pagesOf(text: string | undefined, max: number): number {
   if (text === undefined || !/^\d{1,3}$/.test(text)) return 1;
-  return Math.max(1, Math.min(Number(text), MAX_PAGES));
+  return Math.max(1, Math.min(Number(text), max));
 }
 
 /** Reads an address into filters. A bad value is a problem (and the screen fetches nothing); the typed text is kept so the form shows it. */
@@ -165,7 +212,7 @@ export function parseFilters(spec: ReportSpec, raw: Raw, ctx: { now: Date; branc
     if (spec.statuses!.includes(statusText)) status = statusText;
     else problems.push({ field: 'status', code: 'badChoice' });
   }
-  return { filters: { from, to, branchId, currency, groupBy, status, pages: spec.paged ? pagesOf(one(raw.pages)) : 1 }, problems };
+  return { filters: { from, to, branchId, currency, groupBy, status, pages: spec.paged ? pagesOf(one(raw.pages), maxPagesOf(spec)) : 1 }, problems };
 }
 
 /** The address of a report with these filters; `over` replaces parameters (a changed filter starts again at the first page). Defaults are left out, the dates are always carried. */
@@ -250,6 +297,40 @@ export function bpPercent(bp: number | null): string | null {
   if (bp === null) return null;
   const abs = Math.abs(bp).toString().padStart(3, '0');
   return `${bp < 0 ? '-' : ''}${abs.slice(0, -2)}.${abs.slice(-2)}%`;
+}
+
+// Counts in sentences ------------------------------------------------------------------------------------------------------
+
+/**
+ * The parameters of a sentence that has a number in it: `count` is the NUMBER (it picks the plural form: one, two, few, many, other), `n` is the
+ * text of it (Latin digits, grouped). A sentence that is given a pre-formatted count as text never gets a plural form ("1 lines").
+ */
+export const countParams = (count: number): { count: number; n: string } => ({ count, n: formatNumber(count) });
+
+/**
+ * Names joined as a sentence part in the reader's language, kept as parts so each name can be isolated (a branch name in the other script must not
+ * reorder the list around it). English "A, B, and C"; Arabic and Sorani "A، B و C" (the Arabic comma, never the Latin one).
+ */
+export function listParts(items: readonly string[], locale: string): Array<{ kind: 'item' | 'text'; value: string }> {
+  if (locale === 'en') {
+    return new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).formatToParts(items).map((p) => ({ kind: p.type === 'element' ? 'item' : 'text', value: p.value }));
+  }
+  const out: Array<{ kind: 'item' | 'text'; value: string }> = [];
+  items.forEach((item, i) => {
+    if (i > 0) out.push({ kind: 'text', value: i === items.length - 1 ? ' و ' : '، ' });
+    out.push({ kind: 'item', value: item });
+  });
+  return out;
+}
+
+/** An average duration in the unit a person reads: hours (one decimal) from an hour up, else whole minutes, at least one. `count` picks the plural form. */
+export function durationParts(seconds: number): { unit: 'hours' | 'minutes'; count: number; text: string } {
+  if (seconds >= 3600) {
+    const count = Math.round(seconds / 360) / 10;
+    return { unit: 'hours', count, text: String(count) };
+  }
+  const count = Math.max(1, Math.round(seconds / 60));
+  return { unit: 'minutes', count, text: String(count) };
 }
 
 // Notices ------------------------------------------------------------------------------------------------------------------

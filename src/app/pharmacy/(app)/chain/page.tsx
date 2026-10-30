@@ -6,15 +6,14 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { ReportExport } from '@/app/pharmacy/_ui/ReportExport';
 import { ReportFilters, type FilterField } from '@/app/pharmacy/_ui/ReportFilters';
 import { phMessage } from '@/app/pharmacy/_ui/ph-failure';
-import { chainHref, filterMessageKey, parseChainFilters, PRESETS, presetRange } from '@/app/pharmacy/_ui/reports-logic';
-import { dashboard as chainDashboardQuery } from '@/server/pharmacy/queries/chain';
-import { invokeQuery } from '@/server/studio/framework/invoke';
+import { chainHref, chainIsEmpty, filterMessageKey, parseChainFilters, PRESETS, presetRange } from '@/app/pharmacy/_ui/reports-logic';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { reportsGate } from '../reports/gate';
+import { loadChain } from '../reports/load';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pharmacy.chain.title') };
@@ -70,7 +69,7 @@ export default async function ChainPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const result = await invokeQuery(chainDashboardQuery, { restaurantId: access.actor.restaurantId, from: filters.from, to: filters.to, ...(filters.currency ? { currency: filters.currency } : {}) });
+  const result = await loadChain({ from: filters.from, to: filters.to, ...(filters.currency ? { currency: filters.currency } : {}) });
   if (!result.ok) {
     if (result.error.fields?.phCode === 'CHAIN_NEEDS_MANY_BRANCHES') return oneBranch;
     if (result.error.code === 'FORBIDDEN') {
@@ -104,13 +103,13 @@ export default async function ChainPage({ searchParams }: { searchParams: Promis
     );
   }
   const d = result.data;
-  const empty = d.branches.every((b) => b.sales.length === 0) && !d.total.stock.available && d.total.transit.transfers === 0 && d.total.openTransfers.requested + d.total.openTransfers.sent === 0 && d.total.lowStock === 0;
+  const empty = chainIsEmpty(d);
   const params: Record<string, string> = { report: 'chain', from: filters.from, to: filters.to, ...(filters.currency ? { currency: filters.currency } : {}) };
   return (
     <>
       {header}
       <div className="flex min-w-0 flex-col gap-5 px-4 pb-10 sm:px-8" data-testid="chain-screen">
-        <OfflineNotice />
+        <OfflineNotice messageKey="pharmacy.reports.offline" />
         {bar}
         <ReportExport params={params} />
         {empty ? (
@@ -118,7 +117,7 @@ export default async function ChainPage({ searchParams }: { searchParams: Promis
             <EmptyState icon={<SearchX />} title={t('pharmacy.reports.empty.title')} body={t('pharmacy.reports.empty.dated', { from: filters.from, to: filters.to, where: t('pharmacy.reports.filter.branch.all').toLowerCase() })} />
           </div>
         ) : (
-          <ChainView d={d} f={filters} t={t} />
+          <ChainView d={d} f={filters} t={t} locale={locale} />
         )}
       </div>
     </>

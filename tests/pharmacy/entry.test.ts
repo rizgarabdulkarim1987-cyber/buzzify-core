@@ -70,7 +70,8 @@ describe('the place cookie', () => {
 
 describe('pharmacy messages', () => {
   it('every pharmacy.* key exists in en, ar and ckb', () => {
-    const keys = (catalog: Record<string, string>) => Object.keys(catalog).sort();
+    // Plural forms differ by language (Arabic has six, English two), so a key counts once whatever forms it has.
+    const keys = (catalog: Record<string, string>) => [...new Set(Object.keys(catalog).map((key) => key.replace(/_(zero|one|two|few|many|other)$/, '')))].sort();
     expect(keys(pharmacyAr)).toEqual(keys(pharmacyEn));
     expect(keys(pharmacyCkb)).toEqual(keys(pharmacyEn));
     // Registered in the Studio catalogs, so the screens find them in every language.

@@ -1,4 +1,4 @@
-import { CircleAlert, Lock, RotateCcw, SearchX } from 'lucide-react';
+import { CircleAlert, Info, Lock, RotateCcw, SearchX } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -8,6 +8,7 @@ import { ReportExport } from '@/app/pharmacy/_ui/ReportExport';
 import { ReportFilters, type FilterField } from '@/app/pharmacy/_ui/ReportFilters';
 import { phMessage } from '@/app/pharmacy/_ui/ph-failure';
 import { phDate } from '@/app/pharmacy/_ui/ph-date';
+import { formatNumber } from '@/lib/pos-format';
 import { DiscountsView, MarginView, ReturnsView, SalesView } from '@/app/pharmacy/_ui/report-views';
 import { DamagedView, ExpiryView, LowStockView, TransfersView, ValuationView } from '@/app/pharmacy/_ui/report-views-stock';
 import { NoticeLine } from '@/app/pharmacy/_ui/reports-parts';
@@ -16,10 +17,12 @@ import {
   expiryNotices,
   filterMessageKey,
   marginNotices,
+  moreState,
   parseFilters,
   PRESETS,
   presetRange,
   reportHref,
+  rowCap,
   specOfSlug,
   transfersNotices,
   valuationNotices,
@@ -55,7 +58,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const titleKey = `pharmacy.reports.${spec.messageKey}.title`;
   const g = await reportsGate(titleKey, { href: '/pharmacy/reports', labelKey: 'pharmacy.reports.back' });
   if (g.blocked) return g.blocked;
-  const { t, locale, access } = g;
+  const { t, locale } = g;
   const header = (actions?: ReactNode) => <PageHeader className="max-sm:px-4" above={g.back} title={t(titleKey)} description={t(`pharmacy.reports.${spec.messageKey}.about`)} actions={actions} />;
   if (spec.gated === 'margin' && !g.mayMargin) {
     return (
@@ -102,7 +105,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
     );
   }
 
-  const result = await loadReport(spec, filters, access.actor.restaurantId);
+  const result = await loadReport(spec, filters);
   const where = filters.branchId ? (branches.find((b) => b.id === filters.branchId)?.name ?? '') : t('pharmacy.reports.filter.branch.all').toLowerCase();
   if (!result.ok) {
     const forbidden = result.error.code === 'FORBIDDEN';
@@ -136,6 +139,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const data = result.data as any;
   const date = (iso: string) => phDate(iso, locale);
   const empty = isEmpty(spec, data);
+  const more = moreState(spec, filters.pages, data.nextCursor !== null && data.nextCursor !== undefined);
   const notices: Notice[] =
     spec.id === 'margin' ? marginNotices(data) : spec.id === 'stockValuation' ? valuationNotices(data) : spec.id === 'expiry' ? expiryNotices(data) : spec.id === 'transfers' ? transfersNotices(data) : [];
   const ctx = { t, locale };
@@ -146,7 +150,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
     <>
       {header()}
       <div className="flex min-w-0 flex-col gap-5 px-4 pb-10 sm:px-8" data-testid="report-screen" data-report={spec.id}>
-        <OfflineNotice />
+        <OfflineNotice messageKey="pharmacy.reports.offline" />
         {bar}
         <ReportExport params={exportQuery} />
         {empty ? (
@@ -156,7 +160,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
               title={t('pharmacy.reports.empty.title')}
               body={spec.dated ? t('pharmacy.reports.empty.dated', { from: filters.from, to: filters.to, where }) : t('pharmacy.reports.empty.current', { where })}
               action={
-                <Link href={reportHref(spec, { ...filters, branchId: null, currency: null, status: null }, spec.dated ? presetRange('last30', new Date()) : {})} className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+                <Link href={reportHref(spec, { ...filters, branchId: null, currency: null, status: null, groupBy: null }, spec.dated ? presetRange('last30', new Date()) : {})} className={buttonClasses('secondary', 'lg', 'min-h-11')}>
                   {t('pharmacy.reports.empty.reset')}
                 </Link>
               }
@@ -180,12 +184,18 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
             {spec.id === 'damaged' && <DamagedView r={data} ctx={stock} />}
             {spec.id === 'transfers' && <TransfersView r={data} ctx={stock} date={date} />}
             {spec.id === 'lowStock' && <LowStockView r={data} ctx={stock} />}
-            {spec.paged && data.nextCursor && (
+            {more === 'more' && (
               <nav aria-label={t(titleKey)}>
                 <Link href={reportHref(spec, filters, { pages: String(filters.pages + 1) })} rel="next" scroll={false} className={buttonClasses('secondary', 'lg', 'min-h-11')} data-testid="report-more">
                   {t('pharmacy.purchasing.loadMore')}
                 </Link>
               </nav>
+            )}
+            {more === 'capped' && (
+              <p data-testid="report-capped" className="flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
+                <Info aria-hidden className="mt-px size-4 shrink-0" />
+                <span className="min-w-0">{t('pharmacy.reports.capped', { count: rowCap(spec), n: formatNumber(rowCap(spec)) })}</span>
+              </p>
             )}
           </>
         )}
