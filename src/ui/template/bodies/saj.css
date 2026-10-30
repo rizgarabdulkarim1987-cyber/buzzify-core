@@ -11,7 +11,7 @@
   --sj-wheat: color-mix(in oklab, #f4d9a6 85%, var(--accent));
   --sj-wheat-lo: color-mix(in oklab, #c98a45 85%, var(--accent));
   --sj-char: #8a4a17;
-  --cf-card: 8.75rem;
+  --cf-card: 10.25rem;
   --cf-far-scale: 0.72;
   --cf-far-fade: 0.85;
   --cf-tilt: 14deg;
@@ -68,7 +68,7 @@
   inline-size: var(--cf-card);
   block-size: var(--cf-card);
   aspect-ratio: 1;
-  padding: 15%;
+  padding: 10%;
   border-radius: 50%;
   background:
     radial-gradient(circle at 22% 30%, var(--sj-char) 0 3%, transparent 4%),
