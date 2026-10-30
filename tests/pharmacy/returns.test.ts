@@ -141,7 +141,7 @@ describe('a partial return', () => {
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.return.create' } });
     expect(audit.entityId).toBe(made.id);
     const text = JSON.stringify(audit.changes);
-    expect(text).toContain('Customer changed their mind');
+    expect(text).not.toContain('Customer changed their mind');
     expect(text).toContain('R20261027-000001');
     expect(Object.keys(audit.changes as object).filter((k) => /cost|customer|patient|name|phone/i.test(k))).toEqual([]);
   });
@@ -674,7 +674,7 @@ describe('cancel', () => {
     expect(sum(lines.map((l) => l.refundMinor))).toBe(2100n);
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.sale.cancel' } });
     expect(audit.entityId).toBe(s.id);
-    expect(JSON.stringify(audit.changes)).toContain('Sold by mistake');
+    expect(JSON.stringify(audit.changes)).not.toContain('Sold by mistake');
   });
 
   it('after a partial return refunds and returns only what remains; a second cancel finds nothing', async () => {

@@ -223,7 +223,7 @@ describe('opening a shift', () => {
 });
 
 describe('paid in and paid out', () => {
-  it('writes signed movements into the own open shift and audits them with the reason', async () => {
+  it('writes signed movements into the own open shift and audits them without the reason text', async () => {
     const w = await world();
     const id = await opened(w, w.cashier, 1000n);
     const inn = dataOf(await paidIn(w, w.cashier, 300n, { reason: '  Float top up  ' }));
@@ -238,7 +238,9 @@ describe('paid in and paid out', () => {
     const logs = await prisma().auditLog.findMany({ where: { action: { in: ['ph.shift.paidIn', 'ph.shift.paidOut'] } }, orderBy: { action: 'asc' } });
     expect(logs.map((l) => [l.action, l.entityId])).toEqual([['ph.shift.paidIn', inn.id], ['ph.shift.paidOut', out.id]]);
     const text = JSON.stringify(logs.map((l) => l.changes));
-    expect(text).toContain('Courier fee');
+    expect(text).not.toContain('Courier fee');
+    expect(text).not.toContain('Float top up');
+    expect(text).toContain('hasReason');
     expect(text).toContain(id);
     expect(text).not.toMatch(/patient|customer/i);
   });

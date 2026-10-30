@@ -38,7 +38,7 @@ const changes = (done: MovementDone, reason: string) => ({
   baseQty: { before: null, after: done.baseQty },
   bucketFrom: { before: null, after: done.from },
   bucketTo: { before: null, after: done.to },
-  reason: { before: null, after: reason.slice(0, 300) },
+  hasReason: { before: null, after: reason.trim() !== '' },
 });
 
 const answer = (done: MovementDone) => ({ id: done.id, replayed: done.replayed, reversed: done.reversed });
@@ -126,7 +126,7 @@ export const reverse = defineAction({
           reversesId: { before: null, after: done.reversesId },
           type: { before: null, after: done.type },
           batchId: { before: null, after: done.batchId },
-          reason: { before: null, after: input.reason.slice(0, 300) },
+          hasReason: { before: null, after: input.reason.trim() !== '' },
         },
       });
       return { id: done.id, reversesId: done.reversesId };

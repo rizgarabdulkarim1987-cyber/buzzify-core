@@ -3,10 +3,13 @@ import { GET } from '@/app/api/pharmacy/rx-attachments/[id]/route';
 import * as assistantActions from '@/server/pharmacy/actions/assistant';
 import * as controlledSettings from '@/server/pharmacy/actions/controlled-settings';
 import * as creditSettings from '@/server/pharmacy/actions/credit-settings';
+import * as countActions from '@/server/pharmacy/actions/counts';
 import * as customerActions from '@/server/pharmacy/actions/customers';
 import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as rxActions from '@/server/pharmacy/actions/prescriptions';
 import * as saleActions from '@/server/pharmacy/actions/sales';
+import * as shiftActions from '@/server/pharmacy/actions/shifts';
+import * as stockActions from '@/server/pharmacy/actions/stock';
 import { ask as askAssistant, type AskEnv, type AssistantAnswer } from '@/server/pharmacy/assistant/assistant';
 import { withIntakeStorage } from '@/server/pharmacy/intake/storage';
 import * as assistantQueries from '@/server/pharmacy/queries/assistant';
@@ -66,6 +69,8 @@ const SECRETS = {
   customer: 'Zahra Customer Alpha',
   phone: '0770 555 0199',
   customerNote: 'pays on Fridays only',
+  retReason: 'ZQXRET back for Mrs Patient',
+  cancelReason: 'ZQXCAN cancelled for Mr Patient',
   question: 'QZX-question-token',
 };
 
@@ -222,10 +227,10 @@ describe('controlled drugs: the register nets with sales and returns', () => {
 
   it('a return of 12 of S1 and the cancellation of S2 bring the register to 8 dispensed, batch by batch, and every unit is accounted for', async () => {
     const lineId = await lineOf(S.s1!);
-    dataOf(await act(w.manager1, returnActions.create, { ...place(w.b1), saleId: S.s1, lines: [{ saleLineId: lineId, baseQty: 12 }], reason: 'Customer changed their mind', clientKey: key('ret') }));
+    dataOf(await act(w.manager1, returnActions.create, { ...place(w.b1), saleId: S.s1, lines: [{ saleLineId: lineId, baseQty: 12 }], reason: SECRETS.retReason, clientKey: key('ret') }));
     let reg = await registerSql();
     expect(total(reg.byBatch)).toBe(18);
-    dataOf(await act(w.manager1, returnActions.cancel, { ...place(w.b1), saleId: S.s2, reason: 'entered by mistake', refundMethod: 'CASH', clientKey: key('can') }));
+    dataOf(await act(w.manager1, returnActions.cancel, { ...place(w.b1), saleId: S.s2, reason: SECRETS.cancelReason, refundMethod: 'CASH', clientKey: key('can') }));
     reg = await registerSql();
     expect(total(reg.byBatch)).toBe(8);
     expect(reg.bySale).toEqual({ [S.s1!]: 8, [S.s2!]: 0 });
@@ -595,6 +600,62 @@ describe('no fabrication: the assistant never states a figure the tools did not 
     const expired = await askAs(w.owner, scripted(), 'Can we sell the expired batch to customers?');
     expect([dose.reason, expired.reason]).toEqual(['CLINICAL', 'UNSAFE_STOCK']);
     expect([dose.tables, expired.tables]).toEqual([[], []]);
+  });
+});
+
+// ==========================================================================================================================================
+describe('free-text reasons stay in their own tables: no action writes one into an audit row', () => {
+  const FREE = { adjust: 'ZQXADJ lost near Mrs Patient', damage: 'ZQXDMG dropped by Mr Patient', reverse: 'ZQXREV undo for Mrs Patient', release: 'ZQXREL checked for Mr Patient', count: 'ZQXCNT recount for Mrs Patient', paidIn: 'ZQXPIN float from Mrs Patient', paidOut: 'ZQXPOUT courier Mr Patient', close: 'ZQXCLS short because Mrs Patient' };
+  const rowsOf = async (action: string) => (await prisma().auditLog.findMany({ where: { restaurantId: w.a.id, action } })).map((r) => JSON.stringify(r.changes));
+
+  it('adjust, damage, reverse and quarantine release keep the reason on the movement and out of the audit', async () => {
+    const at = place(w.b1);
+    const adjusted = dataOf(await act(w.owner, stockActions.adjust, { ...at, batchId: w.ids.pb1, direction: 'out', bucketFrom: 'available', baseQty: 1, reason: FREE.adjust, clientKey: key('adj') })) as any;
+    dataOf(await act(w.owner, stockActions.damage, { ...at, batchId: w.ids.pb1, fromBucket: 'available', baseQty: 1, reason: FREE.damage, clientKey: key('dmg') }));
+    dataOf(await act(w.owner, stockActions.reverse, { ...at, movementId: adjusted.id, reason: FREE.reverse }));
+    dataOf(await act(w.owner, stockActions.quarantineRelease, { ...at, batchId: L1, decision: 'RESTOCK', baseQty: 1, reason: FREE.release, clientKey: key('rel') }));
+    // The text is kept where it lives: on the movement rows.
+    expect((await prisma().phStockMovement.findUniqueOrThrow({ where: { id: adjusted.id } })).reason).toBe(FREE.adjust);
+    for (const action of ['ph.stock.adjust', 'ph.stock.damage', 'ph.stock.reverse', 'ph.stock.quarantine.release']) {
+      const rows = await rowsOf(action);
+      expect(rows.length, action).toBeGreaterThan(0);
+      for (const row of rows) expect(row, action).not.toContain('ZQX');
+    }
+  });
+
+  it('a count approval keeps its reason on the count and out of the audit', async () => {
+    const at = place(w.b1);
+    const opened = dataOf(await act(w.owner, countActions.open, { ...at, scope: 'BRANCH', blind: false, note: '' })) as any;
+    const lines = await prisma().phStockCountLine.findMany({ where: { countId: opened.id } });
+    dataOf(await act(w.owner, countActions.record, { ...at, countId: opened.id, lines: lines.map((l) => ({ lineId: l.id, countedQty: l.expectedQty })) }));
+    dataOf(await act(w.owner, countActions.submit, { ...at, countId: opened.id }));
+    dataOf(await act(w.owner, countActions.approve, { ...at, countId: opened.id, reason: FREE.count }));
+    const rows = await rowsOf('ph.count.approve');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toContain('ZQX');
+  });
+
+  it('paid in, paid out and a shift closed with a reason keep the reason on the cash rows and out of the audit', async () => {
+    const at = place(w.b1);
+    dataOf(await act(w.owner, shiftActions.paidIn, { ...at, amountMinor: 300n, reason: FREE.paidIn, clientKey: key('in') }));
+    dataOf(await act(w.owner, shiftActions.paidOut, { ...at, amountMinor: 100n, reason: FREE.paidOut, clientKey: key('out') }));
+    const mine = await prisma().phShift.findFirstOrThrow({ where: { userId: w.manager1.userId, closedAt: null } });
+    dataOf(await act(w.manager1, shiftActions.close, { ...at, shiftId: mine.id, countedMinor: 1n, reason: FREE.close }));
+    expect((await prisma().phCashMovement.findMany({ where: { type: 'PAID_IN' } })).map((m) => m.reason)).toContain(FREE.paidIn);
+    for (const action of ['ph.shift.paidIn', 'ph.shift.paidOut', 'ph.shift.close']) {
+      const rows = await rowsOf(action);
+      expect(rows.length, action).toBeGreaterThan(0);
+      for (const row of rows) expect(row, action).not.toContain('ZQX');
+    }
+  });
+
+  it('a return and a cancellation keep the reason on the return and out of the audit', async () => {
+    expect((await prisma().phReturn.findMany({ where: { saleId: S.s1 } })).map((r) => r.reason)).toContain(SECRETS.retReason);
+    for (const action of ['ph.return.create', 'ph.sale.cancel']) {
+      const rows = await rowsOf(action);
+      expect(rows.length, action).toBeGreaterThan(0);
+      for (const row of rows) expect(row, action).not.toContain('ZQX');
+    }
   });
 });
 

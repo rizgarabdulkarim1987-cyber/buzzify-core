@@ -36,7 +36,7 @@ describe('ph.stock.adjust', () => {
     const row = await prisma().phStockMovement.findUniqueOrThrow({ where: { id: done.id } });
     expect(row).toMatchObject({ type: 'ADJUST', availableDelta: -30, reason: 'Lost in the shop', branchId: at.branchId });
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.stock.adjust', entityId: done.id } });
-    expect(JSON.stringify(audit.changes)).toContain('Lost in the shop');
+    expect(JSON.stringify(audit.changes)).not.toContain('Lost in the shop');
   });
 
   it('in: adds to available; a unit and qty are converted with toBase', async () => {

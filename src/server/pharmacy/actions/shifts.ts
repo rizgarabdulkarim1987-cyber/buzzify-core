@@ -7,7 +7,7 @@ import { StudioError } from '@/server/studio/framework/result';
 /**
  * Shifts and cash (phase 3). Open, paid in and paid out need `shift.use` and name the ONE branch in the place; closing
  * is open to every pharmacy role at the framework and judged by the service (the owner of the shift, or `report.view`
- * with a reason). Audit entries carry ids, amounts, the variance and the capped reason; never a customer field.
+ * with a reason). Audit entries carry ids, amounts, the variance and whether a reason was given (the text stays on its row); never a customer field.
  */
 
 const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
@@ -69,7 +69,7 @@ async function runCash(ctx: CashCtx, input: CashMoveInput & { branchId?: string 
             branchId: { before: null, after: audit.branchId },
             amountMinor: { before: null, after: audit.amountMinor },
             currency: { before: null, after: audit.currency },
-            reason: { before: null, after: audit.reason },
+            hasReason: { before: null, after: audit.reason.trim() !== '' },
           },
         });
       }
@@ -122,7 +122,7 @@ export const close = defineAction({
           expectedMinor: { before: null, after: audit.expectedMinor },
           countedMinor: { before: null, after: audit.countedMinor },
           varianceMinor: { before: null, after: audit.varianceMinor },
-          reason: { before: null, after: audit.reason },
+          hasReason: { before: null, after: audit.reason.trim() !== '' },
           approvedById: { before: null, after: audit.approvedById },
           closedById: { before: null, after: audit.closedById },
         },

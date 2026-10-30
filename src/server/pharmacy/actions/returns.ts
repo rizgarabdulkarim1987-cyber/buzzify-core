@@ -7,7 +7,7 @@ import { StudioError } from '@/server/studio/framework/result';
 /**
  * Returns and cancels (phase 3). Both need `return.approve` (a cashier cannot): the actor IS the approver and the refund
  * lands on their own open shift. The place names the ONE branch the sale was made in. Idempotent by `clientKey`.
- * Audit entries carry ids, number, quantities, amounts and the capped reason; never a customer field or a cost.
+ * Audit entries carry ids, number, quantities, amounts and whether a reason was given (the text stays on the return); never a customer field or a cost.
  */
 
 const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
@@ -24,7 +24,7 @@ function auditOf(ctx: ActionContext, result: ReturnResult, a: ReturnAudit) {
     ...(a.creditMinor === '0' ? {} : { creditMinor: { before: null, after: a.creditMinor } }),
     lineCount: { before: null, after: a.lineCount },
     baseQty: { before: null, after: a.baseQty },
-    reason: { before: null, after: a.reason },
+    hasReason: { before: null, after: a.reason.trim() !== '' },
     status: { before: a.statusBefore, after: a.statusAfter },
   };
   if (a.kind === 'cancel') ctx.audit({ action: 'ph.sale.cancel', entityType: 'PhSale', entityId: a.saleId, changes: { ...common, returnId: { before: null, after: result.id } } });

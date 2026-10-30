@@ -138,7 +138,7 @@ export const approve = defineAction({
           entityId: done.id,
           changes: {
             status: { before: 'SUBMITTED', after: 'APPROVED' },
-            reason: { before: null, after: input.reason },
+            hasReason: { before: null, after: input.reason.trim() !== '' },
             selfApproved: { before: null, after: done.selfApproved },
             countedLines: { before: null, after: done.countedLines },
             differenceCount: { before: null, after: done.movements },
