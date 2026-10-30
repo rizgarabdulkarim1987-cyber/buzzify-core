@@ -569,6 +569,11 @@ const pharmacy: Messages = {
   'error.text.phHoldExpired': 'ماوەی ئەم سەبەتە ڕاگیراوە بەسەرچووە',
   'error.text.phReceiptWidth': 'پانی وەسڵ هەڵبژێرە',
   'error.text.phReceiptLanguage': 'زمان هەڵبژێرە',
+  'error.text.phPaperSize': 'قەبارەی کاغەز هەڵبژێرە',
+  'error.text.phLabelSize': 'قەبارەی لەیبڵ هەڵبژێرە',
+  'error.text.phMarginRange': 'ڕووباری لە 0 بۆ 40 ملم بنووسە',
+  'error.text.phWorkstationName': 'ناوی ئەم وێستگەی کارە بنووسە تا 40 پیت',
+  'error.text.phWorkstationMax': 'زۆرترین 20 وێستگەی کار بەکاربێنە',
   'error.text.phReceiptChoose': 'فرۆشتن یان گەڕاندنەوەیەک هەڵبژێرە',
   'error.text.phSaleNoReceipt': 'ئەم فرۆشتنە وەسڵی نییە',
   // Stock and movement screens

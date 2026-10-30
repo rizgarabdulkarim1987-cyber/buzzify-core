@@ -575,6 +575,11 @@ const pharmacy: Messages = {
   'error.text.phHoldExpired': 'This held cart has expired',
   'error.text.phReceiptWidth': 'Choose a receipt width',
   'error.text.phReceiptLanguage': 'Choose a language',
+  'error.text.phPaperSize': 'Choose a paper size',
+  'error.text.phLabelSize': 'Choose a label size',
+  'error.text.phMarginRange': 'Enter a margin from 0 to 40 mm',
+  'error.text.phWorkstationName': 'Name this workstation in up to 40 characters',
+  'error.text.phWorkstationMax': 'Use at most 20 workstations',
   'error.text.phReceiptChoose': 'Choose a sale or a return',
   'error.text.phSaleNoReceipt': 'This sale has no receipt',
   // Stock and movement screens

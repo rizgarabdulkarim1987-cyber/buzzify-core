@@ -640,6 +640,9 @@ const CASES: Record<string, Case> = {
   'ph.credit.payment.reverse': { body: (ids, n) => ({ paymentId: pick(ids, n).custPayId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.credit.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credit.settings.set': { body: () => ({ creditEnabled: false, version: 1 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // Printing settings (phase 7, task 6): one JSON value on the business's own settings row; a stale version changes nothing.
+  'ph.print.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.print.settings.set': { body: () => ({ workstation: 'Isolation', settings: { paper: 'A4', marginMm: { top: 10, right: 10, bottom: 10, left: 10 }, labelSize: '50x30', showPrice: true }, version: 999 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // The daily assistant (phase 7, task 4). Asking reads through the scoped client and the tools' own queries, so a batch of another branch or business
   // answers nothing of theirs (the provider is switched off in this file: the answer is the tables). A proposal is branch-scoped: another branch's or
   // business's id is not found, and a transfer from a branch the person cannot reach is refused.

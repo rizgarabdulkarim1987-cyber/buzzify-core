@@ -569,6 +569,11 @@ const pharmacy: Messages = {
   'error.text.phHoldExpired': 'انتهت صلاحية هذه السلة المعلّقة',
   'error.text.phReceiptWidth': 'اختر عرض الإيصال',
   'error.text.phReceiptLanguage': 'اختر اللغة',
+  'error.text.phPaperSize': 'اختر حجم الورق',
+  'error.text.phLabelSize': 'اختر حجم الملصق',
+  'error.text.phMarginRange': 'أدخل هامشًا من 0 إلى 40 ملم',
+  'error.text.phWorkstationName': 'سمِّ محطة العمل هذه بما لا يزيد على 40 حرفًا',
+  'error.text.phWorkstationMax': 'استخدم 20 محطة عمل كحد أقصى',
   'error.text.phReceiptChoose': 'اختر عملية بيع أو إرجاع',
   'error.text.phSaleNoReceipt': 'لا يوجد إيصال لهذا البيع',
   // Stock and movement screens
