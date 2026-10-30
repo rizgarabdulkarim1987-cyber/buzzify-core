@@ -875,7 +875,14 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
       })),
     });
   }
-  const snapshotCards = catalog.showcaseCards ?? [];
+  // Only cards whose offer, set and occasion the snapshot holds: an older snapshot can carry a card on an offer or set
+  // that was switched off, and writing it would break its foreign key.
+  const heldIds = (rows: Array<{ id: string }>) => new Set(rows.map((row) => row.id));
+  const [heldOffers, heldSets, heldOccasions] = [heldIds(catalog.promotions ?? []), heldIds(catalog.bundles), heldIds(snapshotOccasions)];
+  const held = (set: Set<string>, id: string | null) => id === null || set.has(id);
+  const snapshotCards = (catalog.showcaseCards ?? []).filter(
+    (c) => held(heldOffers, c.promotionId) && held(heldSets, c.bundleId) && held(heldOccasions, c.occasionId),
+  );
   if (snapshotCards.length > 0) {
     await tx.showcaseCard.createMany({
       data: snapshotCards.map((c) => ({

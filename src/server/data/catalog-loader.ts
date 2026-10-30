@@ -58,7 +58,14 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
   const promotions = await db.promotion.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder });
   // Occasions load switched off too: whether one is on is part of what decides its cards (`isOccasionLive`).
   const occasions = await db.occasion.findMany({ where: { menuId }, orderBy: bySortOrder });
-  const showcaseCards = await db.showcaseCard.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder });
+  // A card is loaded only with what it points at: one on an offer or set that is switched off (or an occasion that is
+  // gone) could never show, and a snapshot holding it without its offer or set could not be restored.
+  const ids = (rows: Array<{ id: string }>) => new Set(rows.map((row) => row.id));
+  const [promotionIds, bundleIds, occasionIds] = [ids(promotions), ids(bundles), ids(occasions)];
+  const holds = (set: Set<string>, id: string | null) => id === null || set.has(id);
+  const showcaseCards = (await db.showcaseCard.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder })).filter(
+    (card) => holds(promotionIds, card.promotionId) && holds(bundleIds, card.bundleId) && holds(occasionIds, card.occasionId),
+  );
   const schedule = await db.daypartSchedule.findMany({ where: { menuId }, orderBy: { startMinute: 'asc' } });
   const roundTo = menuPriceStep(menu);
 

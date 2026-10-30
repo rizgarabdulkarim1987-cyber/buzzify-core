@@ -151,6 +151,42 @@ describe('restore to draft', () => {
     expect(await prisma().promotion.findUnique({ where: { id: offer.id } })).not.toBeNull();
   });
 
+  it('publishes and restores a menu whose cards that are on point at an offer and a set that are off', async () => {
+    const menuId = a.menu.id;
+    const offer = await prisma().promotion.create({
+      data: { menuId, kind: 'SPECIAL', productIds: [a.product.id], categoryIds: [], isActive: false, translations: { en: { title: 'Off offer' } } },
+    });
+    const set = await prisma().bundle.create({
+      data: { menuId, slug: 'off-set', price: 900, dayparts: [], isActive: false, translations: { en: { name: 'Off set' } }, items: { create: [{ menuId, productId: a.product.id }] } },
+    });
+    await prisma().showcaseCard.createMany({
+      data: [
+        { menuId, slot: 'ABOVE_SEARCH', kind: 'OFFER', sortOrder: 0, promotionId: offer.id, translations: {} },
+        { menuId, slot: 'ABOVE_SEARCH', kind: 'SET', sortOrder: 1, bundleId: set.id, translations: {} },
+        { menuId, slot: 'BELOW_SEARCH', kind: 'BUFFET', sortOrder: 0, price: 2000, translations: { en: { title: 'Buffet' } } },
+      ],
+    });
+    // The snapshot leaves out a card whose offer or set it does not hold, so the revision stays whole.
+    const draft = await loadDraftSnapshot(prisma(), menuId);
+    expect(draft.catalog.showcaseCards?.map((card) => card.kind)).toEqual(['BUFFET']);
+    const published = await publishFixture(prisma(), menuId);
+    const r2 = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
+    expect(r2.snapshotHash).toBe(snapshotHash(draft));
+
+    await prisma().$transaction((tx) => restoreDraftFromSnapshot(tx, menuId, parseSnapshot(r2.snapshot)));
+    expect((await menuRow()).draftHash).toBe(r2.snapshotHash);
+  });
+
+  it('restores an old snapshot whose card points at an offer it does not hold, leaving that card out', async () => {
+    const snapshot = parseSnapshot(r1.snapshot);
+    snapshot.catalog.showcaseCards = [
+      { id: 'orphan', slot: 'ABOVE_SEARCH', kind: 'OFFER', sortOrder: 0, occasionId: null, promotionId: 'gone-offer', bundleId: null, price: null, startMinute: null, endMinute: null, daysOfWeek: 127, translations: {} },
+      { id: 'lost-occasion', slot: 'ABOVE_SEARCH', kind: 'BUFFET', sortOrder: 1, occasionId: 'gone-occasion', promotionId: null, bundleId: null, price: 5, startMinute: null, endMinute: null, daysOfWeek: 127, translations: {} },
+    ];
+    await prisma().$transaction((tx) => restoreDraftFromSnapshot(tx, a.menu.id, snapshot));
+    expect(await prisma().showcaseCard.count({ where: { menuId: a.menu.id } })).toBe(0);
+  });
+
   it('restores the rail choice, the logo text, the font pair and the logos', async () => {
     const logo = await prisma().mediaAsset.create({
       data: {
