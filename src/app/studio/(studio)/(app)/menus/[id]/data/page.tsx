@@ -20,6 +20,7 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   return (
     <ImportExport
       menuId={id}
+      restaurantId={menu.restaurant.id}
       slug={menu.slug}
       currency={menu.currency}
       canImport={permissions.has('import.run')}

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import * as content from '@/server/studio/services/content';
+import { attachPhotos as attachPhotosService, attachPhotosFields } from '@/server/studio/services/photos';
 import { contentSlugField, idField, namesField, priceField, productSaveFields } from '@/server/studio/services/content';
 
 /**
@@ -78,4 +79,12 @@ export const moveProduct = defineAction({
   input: z.object({ menuId: idField, productId: idField, categoryId: idField, index: z.number().int().min(0).max(10_000) }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => content.moveProduct(ctx, input),
+});
+
+export const attachPhotos = defineAction({
+  name: 'content.attachPhotos',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...attachPhotosFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => attachPhotosService(ctx, input),
 });

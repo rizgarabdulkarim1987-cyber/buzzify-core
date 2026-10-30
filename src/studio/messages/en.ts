@@ -1425,6 +1425,14 @@ const en: Messages = {
   'qr.deleted': 'Code deleted',
 
   // The Import and export tab
+  'data.photos.title': 'Photos for many dishes',
+  'data.photos.intro': 'Pick photos named after the addresses of the dishes (adana-kebab.jpg is for the dish adana-kebab). Each is added to the media library and becomes the picture of that dish in the draft. Publish afterwards to show them to guests.',
+  'data.photos.replace': 'Replace pictures dishes already have',
+  'data.photos.start': 'Add {n} photos',
+  'data.photos.progress': 'Adding photos',
+  'data.photos.result': '{attached} photos added, {kept} dishes kept the picture they had.',
+  'data.photos.unmatched': 'No dish has these addresses: {names}',
+  'data.photos.failed': 'These could not be sent: {names}',
   'data.export.title': 'Export',
   'data.export.intro': 'The draft as a sheet, in the format an import reads.',
   'data.export.csv': 'Download CSV',

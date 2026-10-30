@@ -1429,6 +1429,14 @@ const ckb: Messages = {
   'qr.deleted': 'کۆدەکە سڕایەوە',
 
   // The Import and export tab
+  'data.photos.title': 'وێنە بۆ چەند خواردنێک بە یەکجار',
+  'data.photos.intro': 'وێنەکان هەڵبژێرە کە ناوەکانیان وەک ناونیشانی خواردنەکان بن (adana-kebab.jpg بۆ خواردنی adana-kebab). هەر وێنەیەک دەخرێتە کتێبخانەی میدیا و دەبێتە وێنەی خواردنەکەی لە ڕەشنووس. دواتر بڵاوی بکەرەوە تا میوانەکان ببینن.',
+  'data.photos.replace': 'جێگۆڕکێی ئەو وێنانەی خواردنەکان هەیانە',
+  'data.photos.start': 'زیادکردنی {n} وێنە',
+  'data.photos.progress': 'وێنەکان زیاد دەکرێن',
+  'data.photos.result': '{attached} وێنە زیادکرا، {kept} خواردن وێنەکەی خۆی هێشتەوە.',
+  'data.photos.unmatched': 'هیچ خواردنێک ئەم ناونیشانانەی نییە: {names}',
+  'data.photos.failed': 'ئەم فایلانە نەنێردران: {names}',
   'data.export.title': 'هەناردەکردن',
   'data.export.intro': 'ڕەشنووسەکە وەک خشتە، بەو شێوەیەی هاوردەکردن دەیخوێنێتەوە.',
   'data.export.csv': 'داگرتنی CSV',
