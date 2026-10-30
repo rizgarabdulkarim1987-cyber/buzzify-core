@@ -79,7 +79,8 @@ export interface SalesReport {
   totals: MoneyTotals[];
   byBranch: Array<MoneyTotals & { branchId: string }>;
   /** Payments of those sales by method, per currency; cash is net of the change given. */
-  payments: Array<{ currency: Currency; method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL'; amountMinor: string; count: number }>;
+  /** `CREDIT` is what was put on customers' accounts: owed, not received, so it stands on its own line and is no takings. */
+  payments: Array<{ currency: Currency; method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT'; amountMinor: string; count: number }>;
   rows: SalesRowView[];
   hasMore: boolean;
   nextCursor: string | null;
@@ -243,19 +244,23 @@ export interface ReturnRowView {
   reason: string;
   approvedById: string;
   approverName: string | null;
-  method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL';
+  /** `CREDIT` when the whole refund went off the customer's balance and nothing was handed back. */
+  method: 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL' | 'CREDIT';
   currency: Currency;
   refundMinor: string;
+  /** The part of the refund taken off a customer's balance (not money handed back). */
+  creditMinor: string;
   createdAt: string;
 }
 
 export interface ReturnsReport {
   from: string;
   to: string;
-  totals: Array<{ currency: Currency; count: number; refundMinor: string }>;
-  byBranch: Array<{ branchId: string; currency: Currency; count: number; refundMinor: string }>;
+  totals: Array<{ currency: Currency; count: number; refundMinor: string; creditMinor: string }>;
+  byBranch: Array<{ branchId: string; currency: Currency; count: number; refundMinor: string; creditMinor: string }>;
   byReason: Array<{ reason: string; count: number }>;
-  byMethod: Array<{ currency: Currency; method: ReturnRowView['method']; count: number; refundMinor: string }>;
+  /** Money handed back, by the method it went out by: the credit part of a refund is left out (it is in `creditMinor`) and a return that handed nothing back is not counted. */
+  byMethod: Array<{ currency: Currency; method: Exclude<ReturnRowView['method'], 'CREDIT'>; count: number; refundMinor: string }>;
   rows: ReturnRowView[];
   hasMore: boolean;
   nextCursor: string | null;
@@ -275,33 +280,33 @@ export async function returnsReport(scoped: ScopedClient, ph: PhActor, place: { 
     ${input.userId ? Prisma.sql`AND o."soldById" = ${input.userId}` : Prisma.empty}`;
   const from = Prisma.sql`"PhReturn" r JOIN "PhSale" o ON o."restaurantId" = r."restaurantId" AND o."id" = r."saleId"`;
   const [rows, grouped, reasons, methods] = await Promise.all([
-    scoped.$queryRaw<Array<{ id: string; number: string | null; saleId: string; saleNumber: string | null; branchId: string; reason: string; approvedById: string; approverName: string | null; method: ReturnRowView['method']; currency: Currency; refundMinor: bigint; createdAt: Date }>>(Prisma.sql`
-      SELECT r."id", r."number", r."saleId", o."number" AS "saleNumber", r."branchId", r."reason", r."approvedById", u."name" AS "approverName", r."refundMethod"::text AS "method",
-             r."currency"::text AS "currency", r."refundMinor", r."createdAt"
+    scoped.$queryRaw<Array<{ id: string; number: string | null; saleId: string; saleNumber: string | null; branchId: string; reason: string; approvedById: string; approverName: string | null; method: ReturnRowView['method']; currency: Currency; refundMinor: bigint; creditMinor: bigint; createdAt: Date }>>(Prisma.sql`
+      SELECT r."id", r."number", r."saleId", o."number" AS "saleNumber", r."branchId", r."reason", r."approvedById", u."name" AS "approverName", CASE WHEN r."creditMinor" = r."refundMinor" AND r."refundMinor" > 0 THEN 'CREDIT' ELSE r."refundMethod"::text END AS "method",
+             r."currency"::text AS "currency", r."refundMinor", r."creditMinor", r."createdAt"
       FROM ${from} LEFT JOIN "user" u ON u."id" = r."approvedById"
       WHERE ${where} ${after} ORDER BY r."createdAt" DESC, r."id" DESC LIMIT ${input.take + 1}`),
-    scoped.$queryRaw<Array<{ gb: number; cur: Currency; branchId: string | null; n: number; refund: bigint }>>(Prisma.sql`
-      SELECT GROUPING(r."branchId")::int AS "gb", r."currency"::text AS "cur", r."branchId", COUNT(*)::int AS "n", SUM(r."refundMinor")::bigint AS "refund"
+    scoped.$queryRaw<Array<{ gb: number; cur: Currency; branchId: string | null; n: number; refund: bigint; credit: bigint }>>(Prisma.sql`
+      SELECT GROUPING(r."branchId")::int AS "gb", r."currency"::text AS "cur", r."branchId", COUNT(*)::int AS "n", SUM(r."refundMinor")::bigint AS "refund", SUM(r."creditMinor")::bigint AS "credit"
       FROM ${from} WHERE ${where} GROUP BY GROUPING SETS ((r."currency"), (r."currency", r."branchId"))`),
     scoped.$queryRaw<Array<{ reason: string; n: number }>>(Prisma.sql`
       SELECT r."reason", COUNT(*)::int AS "n" FROM ${from} WHERE ${where} GROUP BY r."reason" ORDER BY COUNT(*) DESC, r."reason" LIMIT 20`),
-    scoped.$queryRaw<Array<{ cur: Currency; method: ReturnRowView['method']; n: number; refund: bigint }>>(Prisma.sql`
-      SELECT r."currency"::text AS "cur", r."refundMethod"::text AS "method", COUNT(*)::int AS "n", SUM(r."refundMinor")::bigint AS "refund"
-      FROM ${from} WHERE ${where} GROUP BY r."currency", r."refundMethod" ORDER BY 1, 2`),
+    scoped.$queryRaw<Array<{ cur: Currency; method: Exclude<ReturnRowView['method'], 'CREDIT'>; n: number; refund: bigint }>>(Prisma.sql`
+      SELECT r."currency"::text AS "cur", r."refundMethod"::text AS "method", COUNT(*)::int AS "n", SUM(r."refundMinor" - r."creditMinor")::bigint AS "refund"
+      FROM ${from} WHERE ${where} AND r."refundMinor" > r."creditMinor" GROUP BY r."currency", r."refundMethod" ORDER BY 1, 2`),
   ]);
   const more = rows.length > input.take;
   const page = more ? rows.slice(0, input.take) : rows;
   return {
     from: input.from,
     to: input.to,
-    totals: grouped.filter((g) => g.gb === 1).map((g) => ({ currency: g.cur, count: g.n, refundMinor: money(g.refund) })).sort((a, b) => (a.currency < b.currency ? -1 : 1)),
+    totals: grouped.filter((g) => g.gb === 1).map((g) => ({ currency: g.cur, count: g.n, refundMinor: money(g.refund), creditMinor: money(g.credit) })).sort((a, b) => (a.currency < b.currency ? -1 : 1)),
     byBranch: grouped
       .filter((g) => g.gb === 0)
-      .map((g) => ({ branchId: g.branchId!, currency: g.cur, count: g.n, refundMinor: money(g.refund) }))
+      .map((g) => ({ branchId: g.branchId!, currency: g.cur, count: g.n, refundMinor: money(g.refund), creditMinor: money(g.credit) }))
       .sort((a, b) => (a.currency !== b.currency ? (a.currency < b.currency ? -1 : 1) : a.branchId < b.branchId ? -1 : 1)),
     byReason: reasons.map((r) => ({ reason: r.reason, count: r.n })),
     byMethod: methods.map((m) => ({ currency: m.cur, method: m.method, count: m.n, refundMinor: money(m.refund) })),
-    rows: page.map((r) => ({ ...r, refundMinor: money(r.refundMinor), createdAt: r.createdAt.toISOString() })),
+    rows: page.map((r) => ({ ...r, refundMinor: money(r.refundMinor), creditMinor: money(r.creditMinor), createdAt: r.createdAt.toISOString() })),
     hasMore: more,
     nextCursor: more ? page[page.length - 1]!.id : null,
   };

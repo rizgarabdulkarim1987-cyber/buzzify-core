@@ -174,8 +174,8 @@ describe('returns report', () => {
     ]);
     const numbers = await prisma().phSale.findMany({ where: { restaurantId: w.a.id, id: { in: r.rows.map((x: { saleId: string }) => x.saleId) } }, select: { id: true, number: true } });
     for (const row of r.rows) expect(row.saleNumber).toBe(numbers.find((n) => n.id === row.saleId)!.number);
-    expect(r.totals).toEqual([{ currency: 'IQD', count: 2, refundMinor: '2450' }]);
-    expect(r.byBranch).toEqual([{ branchId: w.b1, currency: 'IQD', count: 2, refundMinor: '2450' }]);
+    expect(r.totals).toEqual([{ currency: 'IQD', count: 2, refundMinor: '2450', creditMinor: '0' }]);
+    expect(r.byBranch).toEqual([{ branchId: w.b1, currency: 'IQD', count: 2, refundMinor: '2450', creditMinor: '0' }]);
     expect(r.byReason).toEqual([{ reason: 'Damaged box', count: 1 }, { reason: 'Wrong medicine', count: 1 }]);
     expect(r.byMethod).toEqual([
       { currency: 'IQD', method: 'CASH', count: 1, refundMinor: '450' },

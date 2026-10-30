@@ -280,7 +280,7 @@ describe('returning a credit sale', () => {
     const totals = await shiftNow(w, w.manager, w.b1);
     expect(totals.cash.refundsMinor).toBe('600');
     expect(totals.returns).toMatchObject({ refundMinor: '2000', creditMinor: '1400' });
-    expect(totals.returns.byMethod).toEqual([{ method: 'CASH', count: 2, amountMinor: '600' }]);
+    expect(totals.returns.byMethod).toEqual([{ method: 'CASH', count: 1, amountMinor: '600' }]);
   });
 
   it('when the customer already paid their whole debt, a refund goes back by the original method and the balance is not pushed below zero', async () => {

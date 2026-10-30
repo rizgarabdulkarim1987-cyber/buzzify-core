@@ -175,16 +175,16 @@ async function returnsSheet(scoped: ScopedClient, ph: PhActor, place: Place, raw
   const input = parsedWhole(returnsInput, { from: raw.from, to: raw.to, userId: raw.userId, currency: raw.currency }, take);
   const r = await returnsReport(scoped, ph, place, input);
   const labels = await labelsFor(scoped, ph, { branches: scopeOf(ph, place.branchId).branchIds });
-  // number, saleNumber, date, branch, reason, approvedBy, method, currency, refund, count, rowType
-  const line = (c: { branch?: string; reason?: string; method?: string; currency?: Currency; refund?: string; count?: number }, type: string): Cell[] => [
-    '', '', '', c.branch ?? '', c.reason ?? '', '', c.method ?? '', c.currency ?? '', c.refund !== undefined && c.currency ? money(c.refund, c.currency) : '', nOrBlank(c.count), type,
+  // number, saleNumber, date, branch, reason, approvedBy, method, currency, refund, credit, count, rowType
+  const line = (c: { branch?: string; reason?: string; method?: string; currency?: Currency; refund?: string; credit?: string; count?: number }, type: string): Cell[] => [
+    '', '', '', c.branch ?? '', c.reason ?? '', '', c.method ?? '', c.currency ?? '', c.refund !== undefined && c.currency ? money(c.refund, c.currency) : '', c.credit !== undefined && c.currency ? money(c.credit, c.currency) : '', nOrBlank(c.count), type,
   ];
   return {
-    headers: ['number', 'saleNumber', 'date', 'branch', 'reason', 'approvedBy', 'method', 'currency', 'refund', 'count', 'rowType'],
+    headers: ['number', 'saleNumber', 'date', 'branch', 'reason', 'approvedBy', 'method', 'currency', 'refund', 'credit', 'count', 'rowType'],
     rows: [
-      ...r.rows.map((x): Cell[] => [x.number ?? '', x.saleNumber ?? '', dateOf(x.createdAt), named(labels.branch, x.branchId), x.reason, x.approverName ?? '', x.method, x.currency, money(x.refundMinor, x.currency), '', 'row']),
-      ...r.totals.map((t) => line({ currency: t.currency, refund: t.refundMinor, count: t.count }, 'total')),
-      ...r.byBranch.map((t) => line({ branch: named(labels.branch, t.branchId), currency: t.currency, refund: t.refundMinor, count: t.count }, 'branch')),
+      ...r.rows.map((x): Cell[] => [x.number ?? '', x.saleNumber ?? '', dateOf(x.createdAt), named(labels.branch, x.branchId), x.reason, x.approverName ?? '', x.method, x.currency, money(x.refundMinor, x.currency), money(x.creditMinor, x.currency), '', 'row']),
+      ...r.totals.map((t) => line({ currency: t.currency, refund: t.refundMinor, credit: t.creditMinor, count: t.count }, 'total')),
+      ...r.byBranch.map((t) => line({ branch: named(labels.branch, t.branchId), currency: t.currency, refund: t.refundMinor, credit: t.creditMinor, count: t.count }, 'branch')),
       ...r.byReason.map((t) => line({ reason: t.reason, count: t.count }, 'reason')),
       ...r.byMethod.map((t) => line({ method: t.method, currency: t.currency, refund: t.refundMinor, count: t.count }, 'method')),
     ],

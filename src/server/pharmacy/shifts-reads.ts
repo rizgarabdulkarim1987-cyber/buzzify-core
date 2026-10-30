@@ -194,7 +194,8 @@ export async function shiftTotals(scoped: ScopedDb, shift: { id: string; opening
       count: returns.length,
       refundMinor: String(returns.reduce((a, r) => a + r.refundMinor, 0n)),
       creditMinor: String(returns.reduce((a, r) => a + r.creditMinor, 0n)),
-      byMethod: byMethod(returns.map((r) => ({ method: r.refundMethod, amount: r.refundMinor - r.creditMinor }))),
+      // A return that handed nothing back (all of it off a balance) is not a return by that method.
+      byMethod: byMethod(returns.filter((r) => r.refundMinor > r.creditMinor).map((r) => ({ method: r.refundMethod, amount: r.refundMinor - r.creditMinor }))),
     },
   };
 }

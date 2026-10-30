@@ -34,7 +34,7 @@ function CurrencyFigures({ currency, children }: { currency: Currency; children:
   );
 }
 
-const METHODS = ['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL'] as const;
+const METHODS = ['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL', 'CREDIT'] as const;
 
 // Sales ----------------------------------------------------------------------------------------------------------------------
 
@@ -149,6 +149,7 @@ export function ReturnsView({ r, ctx, date }: { r: Data<ReturnsReport>; ctx: Vie
         <Figures
           items={r.totals.flatMap((x) => [
             { label: `${t(key('col.refund'))} (${x.currency})`, value: <Money minor={x.refundMinor} currency={x.currency} testid={`refund-${x.currency}`} />, strong: true },
+            ...(x.creditMinor !== '0' ? [{ label: `${t(key('col.credit'))} (${x.currency})`, value: <Money minor={x.creditMinor} currency={x.currency} testid={`credit-${x.currency}`} /> }] : []),
             { label: `${t(key('col.count'))} (${x.currency})`, value: <Num value={x.count} testid={`count-${x.currency}`} /> },
           ])}
         />
@@ -183,7 +184,7 @@ export function ReturnsView({ r, ctx, date }: { r: Data<ReturnsReport>; ctx: Vie
           testid="report-rows"
           scrollHint={hint(t)}
           caption={t(key('returns.rows'))}
-          cols={[{ h: t(key('col.number')) }, { h: t(key('col.sale')) }, { h: t(key('col.date')) }, { h: t(key('col.branch')) }, { h: t(key('col.reason')) }, { h: t(key('col.approvedBy')) }, { h: t(key('col.method')) }, { h: t(key('col.refund')), num: true }]}
+          cols={[{ h: t(key('col.number')) }, { h: t(key('col.sale')) }, { h: t(key('col.date')) }, { h: t(key('col.branch')) }, { h: t(key('col.reason')) }, { h: t(key('col.approvedBy')) }, { h: t(key('col.method')) }, { h: t(key('col.refund')), num: true }, { h: t(key('col.credit')), num: true }]}
           rows={r.rows.map((x) => [
             <bdi key="n" dir="ltr">{x.number ?? '-'}</bdi>,
             <bdi key="s" dir="ltr">{x.saleNumber ?? '-'}</bdi>,
@@ -193,6 +194,7 @@ export function ReturnsView({ r, ctx, date }: { r: Data<ReturnsReport>; ctx: Vie
             x.approverName ? <Name key="a">{x.approverName}</Name> : t(key('unknown')),
             t(key(`method.${x.method}`)),
             <Money key="m" minor={x.refundMinor} currency={x.currency} />,
+            <Money key="c" minor={x.creditMinor} currency={x.currency} />,
           ])}
         />
       </Section>
