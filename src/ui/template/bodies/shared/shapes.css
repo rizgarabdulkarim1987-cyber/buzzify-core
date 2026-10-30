@@ -188,7 +188,7 @@
  * menu's product sheet (a 40px rise), so the same name would let load order pick one for both.
  */
 :where([data-body]) .tpl-rise {
-  animation: tpl-cell-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: tpl-cell-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
   animation-delay: calc(var(--i, 0) * 28ms);
 }
 @keyframes tpl-cell-rise {
