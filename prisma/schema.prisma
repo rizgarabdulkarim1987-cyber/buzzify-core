@@ -525,18 +525,19 @@ model PairingRule {
 }
 
 model Bundle {
-  id            String         @id @default(cuid())
-  menuId        String
-  slug          String
-  price         Int
-  dayparts      Daypart[]
-  translations  Json
-  isActive      Boolean        @default(true)
-  version       Int            @default(1)
-  menu          Menu           @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  items         BundleItem[]
-  /// How many people the set feeds (shown on its showcase card); null when not stated.
-  people        Int?
+  id           String       @id @default(cuid())
+  menuId       String
+  slug         String
+  price        Int
+  dayparts     Daypart[]
+  translations Json
+  isActive     Boolean      @default(true)
+  version      Int          @default(1)
+  menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  items        BundleItem[]
+
+/// How many people the set feeds (shown on its showcase card); null when not stated.
+  people       Int?
   showcaseCards ShowcaseCard[]
 
   @@unique([menuId, slug])
@@ -565,28 +566,28 @@ enum PromotionKind {
 
 /// A timed offer on some dishes or categories (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1).
 model Promotion {
-  id            String         @id @default(cuid())
-  menuId        String
-  kind          PromotionKind
+  id           String        @id @default(cuid())
+  menuId       String
+  kind         PromotionKind
   /// DISCOUNT only: 5 to 90.
-  percentOff    Int?
-  productIds    String[]
-  categoryIds   String[]
+  percentOff   Int?
+  productIds   String[]
+  categoryIds  String[]
   /// Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive; null is open-ended.
-  startsOn      String?
-  endsOn        String?
+  startsOn     String?
+  endsOn       String?
   /// A daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
-  startMinute   Int?
-  endMinute     Int?
+  startMinute  Int?
+  endMinute    Int?
   /// Bit 0 is Monday, as `DaypartSchedule.daysOfWeek`.
-  daysOfWeek    Int            @default(127)
+  daysOfWeek   Int           @default(127)
   /// { en: { title, text }, ar: ..., ckb: ... }
-  translations  Json
-  isActive      Boolean        @default(true)
-  sortOrder     Int            @default(0)
-  version       Int            @default(1)
-  createdAt     DateTime       @default(now())
-  menu          Menu           @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  translations Json
+  isActive     Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  menu         Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
   showcaseCards ShowcaseCard[]
 
   @@index([menuId])
@@ -1527,16 +1528,16 @@ model PosTable {
 
 /// A guest at a table asked for the bill. Unseen until someone at the till or the floor marks it seen.
 model PosBillCall {
-  id           String     @id @default(cuid())
-  restaurantId String
-  tableId      String
-  tableNumber  Int
-  createdAt    DateTime   @default(now())
-  seenAt       DateTime?
+  id             String     @id @default(cuid())
+  restaurantId   String
+  tableId        String
+  tableNumber    Int
+  createdAt      DateTime   @default(now())
+  seenAt         DateTime?
   /// Plain id (no relation): the person who marked it seen.
-  seenByUserId String?
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table        PosTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  seenByUserId   String?
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table          PosTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, seenAt])
   @@index([tableId, createdAt])
@@ -2601,15 +2602,15 @@ model PlatformAdvert {
 /// How often a platform advert was seen and clicked in a menu on a day: counts only, no person, address or cookie.
 /// Global (no tenant scope): the Super Admin reads it across restaurants. Rows go when the advert goes.
 model PlatformAdvertDaily {
-  id                String @id @default(cuid())
-  advertId          String
+  id           String   @id @default(cuid())
+  advertId     String
   /// The menu and restaurant the advert was shown on (not tenant columns: the platform reads these across all restaurants).
   shownMenuId       String
   shownRestaurantId String
   /// YYYY-MM-DD in UTC.
-  day               String
-  views             Int    @default(0)
-  clicks            Int    @default(0)
+  day          String
+  views        Int      @default(0)
+  clicks       Int      @default(0)
 
   @@unique([advertId, shownMenuId, day])
   @@index([day])
