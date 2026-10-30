@@ -114,7 +114,7 @@ const inputLabelled = (text: string) => {
 };
 const slotList = (slot: 'ABOVE_SEARCH' | 'BELOW_SEARCH') => document.querySelector(`ul[aria-label="${en(`sales.showcase.slot.${slot}`)}"]`)!;
 const rowOf = (name: string) => [...document.querySelectorAll('li')].find((li) => li.textContent?.includes(name))!;
-const editor = (rules: object = baseRules) => mount(createElement(ShowcaseEditor, { menuId: 'm1', rules: rules as never }));
+const editor = (rules: object = baseRules, canEdit = true) => mount(createElement(ShowcaseEditor, { menuId: 'm1', rules: rules as never, canEdit }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -215,6 +215,17 @@ describe('the showcase editor', () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error.mock.calls[0]![0]).toBeTruthy();
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('is read only for someone without the right to edit content', () => {
+    editor(baseRules, false);
+    expect(button(en('sales.showcase.addOccasion'))).toBeUndefined();
+    expect(button(en('sales.showcase.addCardTo', { slot: en('sales.showcase.slot.ABOVE_SEARCH') }))).toBeUndefined();
+    expect(button(en('sales.showcase.editOne', { name: 'First' }))).toBeUndefined();
+    expect(button(en('sales.showcase.deleteOne', { name: 'First' }))).toBeUndefined();
+    expect(button(en('sales.showcase.moveDown', { name: 'First' }))).toBeUndefined();
+    expect(button(en('sales.showcase.showOne', { name: 'First' }))?.hasAttribute('disabled') ?? true).toBe(true);
+    expect(rowOf('First').textContent).toContain('First');
   });
 
   it('asks before deleting a card', async () => {

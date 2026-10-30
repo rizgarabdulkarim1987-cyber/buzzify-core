@@ -98,7 +98,9 @@ const cardInput = (card: Card) => ({
  * The Showcase page: cards in two strips on the guest menu, above and below the search (a special offer, a set or a
  * package for N, or an open buffet), each of which may hang on a dated occasion such as Eid.
  */
-export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: SalesRules }) {
+/** `canEdit`: the person holds `content.edit`, which every showcase action needs; without it the page only lists. */
+export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rules: SalesRules; canEdit: boolean }) {
+  const readOnly = !canEdit;
   const t = useT();
   const { locale } = useLocale();
   const name = useNamer(rules.defaultLocale);
@@ -245,9 +247,11 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
         title={t('sales.showcase.occasions')}
         hint={t('sales.showcase.occasionsHint')}
         action={
-          <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} onClick={() => openOccasion({ names: {}, startsOn: today, endsOn: today, isActive: true })}>
-            {t('sales.showcase.addOccasion')}
-          </Button>
+          !readOnly && (
+            <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} onClick={() => openOccasion({ names: {}, startsOn: today, endsOn: today, isActive: true })}>
+              {t('sales.showcase.addOccasion')}
+            </Button>
+          )
         }
       >
         {rules.occasions.length === 0 ? (
@@ -270,7 +274,7 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
                     openOccasion({ occasionId: occasion.id, version: occasion.version, names: occasion.names, startsOn: occasion.startsOn, endsOn: occasion.endsOn, isActive: occasion.isActive })
                   }
                   onDelete={() => setDeletingOccasion(occasion)}
-                  readOnly={false}
+                  readOnly={readOnly}
                 />
               );
             })}
@@ -287,9 +291,11 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
             title={slotLabel}
             hint={t(`sales.showcase.slotHint.${slot}`)}
             action={
-              <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} aria-label={t('sales.showcase.addCardTo', { slot: slotLabel })} onClick={() => openCard(blankCard(slot))}>
-                {t('sales.showcase.addCard')}
-              </Button>
+              !readOnly && (
+                <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} aria-label={t('sales.showcase.addCardTo', { slot: slotLabel })} onClick={() => openCard(blankCard(slot))}>
+                  {t('sales.showcase.addCard')}
+                </Button>
+              )
             }
           >
             {cards.length === 0 ? (
@@ -316,16 +322,16 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
                       deleteLabel={t('sales.showcase.deleteOne', { name: label })}
                       onEdit={() => openCard(draftOf(card))}
                       onDelete={() => setDeletingCard(card)}
-                      readOnly={false}
+                      readOnly={readOnly}
                       extra={
                         <span className="flex items-center gap-1">
                           <Switch
                             aria-label={t('sales.showcase.showOne', { name: label })}
                             checked={card.isActive}
-                            disabled={pending}
+                            disabled={pending || readOnly}
                             onCheckedChange={(isActive) => void save(() => saveShowcaseCard({ menuId, ...cardInput(card), isActive }), undefined, undefined, { inline: false })}
                           />
-                          {cards.length > 1 && (
+                          {!readOnly && cards.length > 1 && (
                             <span className="flex items-center">
                               <IconButton
                                 label={t('sales.showcase.moveUp', { name: label })}
