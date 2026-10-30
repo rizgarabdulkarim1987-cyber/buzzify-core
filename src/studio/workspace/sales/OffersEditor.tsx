@@ -20,7 +20,7 @@ import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { Switch } from '@/studio/ui/Switch';
 import type { Names } from '../content/shared';
 import { TranslationFields } from '../content/TranslationFields';
-import { Locked, PageIntro, RuleList, RuleRow, useNamer, useSave, type RulesView } from './shared';
+import { ALL_DAYS, clock, Locked, minuteOf, PageIntro, RuleList, RuleRow, useNamer, useSave, WeekdayToggles, weekText, type RulesView } from './shared';
 
 type Offer = RulesView['offers'][number];
 
@@ -41,18 +41,9 @@ interface OfferDraft {
   isActive: boolean;
 }
 
-const ALL_DAYS = 127;
-const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-
 /** Western digits for Arabic-Indic and Persian ones, so a number typed on an Arabic keyboard reads. */
 function latinDigits(text: string): string {
   return text.replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
-}
-
-const clock = (minute: number | null) => (minute === null ? '' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
-function minuteOf(text: string): number | null {
-  const match = /^(\d{2}):(\d{2})$/.exec(text);
-  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 const blank = (): OfferDraft => ({
@@ -110,9 +101,6 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
   const toggle = (list: string[], id: string, on: boolean) => (on ? [...new Set([...list, id])] : list.filter((entry) => entry !== id));
 
   const schedule = (offer: Pick<Offer, 'startsOn' | 'endsOn' | 'startMinute' | 'endMinute' | 'daysOfWeek'>) => {
-    const days =
-      offer.daysOfWeek === ALL_DAYS ? t('sales.offers.everyDay') : DAYS.filter((day) => offer.daysOfWeek & (1 << day)).map((day) => t(`sales.weekday.${day}`)).join(', ');
-    const hours = offer.startMinute === null ? t('sales.offers.allDay') : `${clock(offer.startMinute)}–${clock(offer.endMinute)}`;
     const date = (value: string) => formatDate(`${value}T12:00:00Z`, locale);
     const dates =
       offer.startsOn && offer.endsOn
@@ -122,7 +110,7 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
           : offer.endsOn
             ? t('sales.offers.until', { date: date(offer.endsOn) })
             : '';
-    return [days, hours, dates].filter(Boolean).join(' · ');
+    return [weekText(t, offer), dates].filter(Boolean).join(' · ');
   };
   const targets = (offer: Pick<Offer, 'productIds' | 'categoryIds'>) =>
     [...offer.categoryIds.map((id) => t('sales.offers.allOf', { category: category(id) })), ...offer.productIds.map(dish)].join(', ');
@@ -323,26 +311,7 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
               </Field>
             </div>
 
-            <fieldset className="flex flex-col gap-1.5">
-              <legend className="mb-1.5 text-sm font-medium text-text">{t('sales.offers.days')}</legend>
-              <div className="flex flex-wrap gap-1.5">
-                {DAYS.map((day) => {
-                  const on = (draft.daysOfWeek & (1 << day)) !== 0;
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => change({ daysOfWeek: draft.daysOfWeek ^ (1 << day) })}
-                      className={cx('h-8 min-w-12 rounded-md border px-2.5 text-sm transition-colors', on ? 'border-text bg-text text-bg' : 'border-line bg-surface text-text hover:border-muted')}
-                    >
-                      {t(`sales.weekday.${day}`)}
-                    </button>
-                  );
-                })}
-              </div>
-              {errors.daysOfWeek && <p className="text-sm text-danger">{errors.daysOfWeek}</p>}
-            </fieldset>
+            <WeekdayToggles value={draft.daysOfWeek} onChange={(daysOfWeek) => change({ daysOfWeek })} error={errors.daysOfWeek} />
 
             <label className="flex items-center justify-between gap-4">
               <span className="text-sm text-text">{t('sales.active')}</span>

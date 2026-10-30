@@ -18,7 +18,7 @@ import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
 import { IconButton } from '@/studio/ui/IconButton';
 import { Select, type SelectOption } from '@/studio/ui/Select';
-import { StatusBadge } from '@/studio/ui/StatusBadge';
+import { StatusBadge, type StatusTone } from '@/studio/ui/StatusBadge';
 import { displayName, type Names } from '../content/shared';
 
 /** The pieces the Sales tab's pages share (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). */
@@ -171,12 +171,15 @@ export function RuleRow({
   readOnly,
   extra,
   stateLabel,
+  stateTone,
 }: {
   title: ReactNode;
   details: ReactNode;
   isActive: boolean;
   /** A state that says more than on or off, such as an offer past its end date. */
   stateLabel?: string;
+  /** The badge's tone when `stateLabel` is given; grey unless said otherwise. */
+  stateTone?: StatusTone;
   editLabel: string;
   deleteLabel: string;
   onEdit: () => void;
@@ -191,7 +194,7 @@ export function RuleRow({
         <span className="text-base font-medium text-text">{title}</span>
         <span className="text-sm text-muted">{details}</span>
       </div>
-      <StatusBadge tone={isActive && !stateLabel ? 'success' : 'neutral'}>{stateLabel ?? (isActive ? t('sales.on') : t('sales.off'))}</StatusBadge>
+      <StatusBadge tone={stateLabel ? (stateTone ?? 'neutral') : isActive ? 'success' : 'neutral'}>{stateLabel ?? (isActive ? t('sales.on') : t('sales.off'))}</StatusBadge>
       {extra}
       {!readOnly && (
         <span className="flex items-center gap-1">
@@ -212,6 +215,53 @@ export function RuleList({ label, children }: { label: string; children: ReactNo
       {children}
     </ul>
   );
+}
+
+/** Every weekday: bit 0 is Monday, as in the daypart schedule. */
+export const ALL_DAYS = 127;
+export const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+
+/** Minutes after midnight as `HH:MM`, or empty for none. */
+export const clock = (minute: number | null) => (minute === null ? '' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+
+/** `HH:MM` as minutes after midnight, or null when empty or unreadable. */
+export function minuteOf(text: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(text);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+/** The days of the week a rule runs on, as toggles over a weekday bitmask. */
+export function WeekdayToggles({ value, onChange, error }: { value: number; onChange: (next: number) => void; error?: string | undefined }) {
+  const t = useT();
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="mb-1.5 text-sm font-medium text-text">{t('sales.offers.days')}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {DAYS.map((day) => {
+          const on = (value & (1 << day)) !== 0;
+          return (
+            <button
+              key={day}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(value ^ (1 << day))}
+              className={cx('h-8 min-w-12 rounded-md border px-2.5 text-sm transition-colors', on ? 'border-text bg-text text-bg' : 'border-line bg-surface text-text hover:border-muted')}
+            >
+              {t(`sales.weekday.${day}`)}
+            </button>
+          );
+        })}
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+    </fieldset>
+  );
+}
+
+/** The days and hours a rule runs at, in words: "Every day · All day", "Fri, Sat · 13:00–16:00". */
+export function weekText(t: (key: string) => string, rule: { daysOfWeek: number; startMinute: number | null; endMinute: number | null }): string {
+  const days = rule.daysOfWeek === ALL_DAYS ? t('sales.offers.everyDay') : DAYS.filter((day) => rule.daysOfWeek & (1 << day)).map((day) => t(`sales.weekday.${day}`)).join(', ');
+  const hours = rule.startMinute === null ? t('sales.offers.allDay') : `${clock(rule.startMinute)}–${clock(rule.endMinute)}`;
+  return `${days} · ${hours}`;
 }
 
 /** The times of day a rule runs at, in words. */
