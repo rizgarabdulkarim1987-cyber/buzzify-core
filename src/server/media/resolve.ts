@@ -37,6 +37,16 @@ export async function loadAssets(
   return new Map(rows.map((row) => [row.id, row]));
 }
 
+/** The library model ids a list of draft media entries picks (a dish's 3D model, apart from its photos). */
+export function modelAssetIds(media: readonly unknown[]): string[] {
+  const ids: string[] = [];
+  for (const entry of media) {
+    const value = entry as { kind?: unknown; assetId?: unknown } | null;
+    if (value?.kind === 'model' && typeof value.assetId === 'string') ids.push(value.assetId);
+  }
+  return ids;
+}
+
 /** The asset ids a list of draft media entries names. */
 export function mediaAssetIds(media: readonly unknown[]): string[] {
   const ids: string[] = [];
@@ -120,9 +130,15 @@ export function resolveDraftMedia(
   assets: ReadonlyMap<string, ResolvableAsset>,
   defaultLocale: Locale,
   mediaUrl: (key: string) => string,
+  models: ReadonlyMap<string, ResolvableAsset> = new Map(),
 ): unknown[] {
   return media.map((entry) => {
     const value = entry as { kind?: unknown; assetId?: unknown } | null;
+    if (value?.kind === 'model' && typeof value.assetId === 'string') {
+      const asset = models.get(value.assetId);
+      const original = asset ? variantsOf(asset).original : '';
+      return asset && original ? { kind: 'model3d', url: mediaUrl(original), assetId: asset.id } : { kind: 'model', assetId: value.assetId };
+    }
     if (value?.kind !== 'asset' || typeof value.assetId !== 'string') return entry;
     const asset = assets.get(value.assetId);
     return asset ? resolveOne(asset, defaultLocale, mediaUrl) : { kind: 'asset', assetId: value.assetId };
@@ -141,6 +157,9 @@ export function draftMediaFromSnapshot(media: readonly unknown[], assetMap?: Rea
     }
     if (value?.kind === 'asset' && typeof value.assetId === 'string') {
       return { kind: 'asset', assetId: assetMap?.get(value.assetId) ?? value.assetId };
+    }
+    if (value?.kind === 'model3d' && typeof value.assetId === 'string') {
+      return { kind: 'model', assetId: assetMap?.get(value.assetId) ?? value.assetId };
     }
     return entry;
   });

@@ -34,10 +34,19 @@ export type MediaItem =
   | ArtItem
   | ImageItem
   | { kind: 'video'; url: string; poster: string }
-  | { kind: 'model3d'; url: string; poster: string };
+  | ModelItem;
 
-/** What a product's draft row may hold: a library asset not yet resolved into an image, or anything guests see. */
-export type DraftMediaItem = MediaItem | { kind: 'asset'; assetId: string };
+/** A dish's own 3D model (a GLB from the library). A GLB has no picture of itself, so the poster is optional. */
+export interface ModelItem {
+  kind: 'model3d';
+  url: string;
+  poster?: string;
+  /** The library model it came from, so restoring the revision to the draft links it again. */
+  assetId?: string;
+}
+
+/** What a product's draft row may hold: a library asset (photo) or model not yet resolved, or anything guests see. */
+export type DraftMediaItem = MediaItem | { kind: 'asset'; assetId: string } | { kind: 'model'; assetId: string };
 
 /** Same-origin paths and https URLs only. Protocol-relative and script URLs are rejected. */
 export function isSafeMediaUrl(value: unknown): value is string {
@@ -96,8 +105,13 @@ export function parseMedia(raw: unknown): MediaItem[] {
       if (isSafeMediaUrl(v.url) && typeof v.alt === 'string' && Number.isFinite(v.width) && Number.isFinite(v.height)) {
         items.push({ kind: 'image', url: v.url, alt: v.alt, width: Number(v.width), height: Number(v.height), ...imageExtras(v) });
       }
-    } else if (v.kind === 'video' || v.kind === 'model3d') {
-      if (isSafeMediaUrl(v.url) && isSafeMediaUrl(v.poster)) items.push({ kind: v.kind, url: v.url, poster: v.poster });
+    } else if (v.kind === 'video') {
+      if (isSafeMediaUrl(v.url) && isSafeMediaUrl(v.poster)) items.push({ kind: 'video', url: v.url, poster: v.poster });
+    } else if (v.kind === 'model3d') {
+      if (isSafeMediaUrl(v.url)) {
+        const assetId = typeof v.assetId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v.assetId) ? v.assetId : undefined;
+        items.push({ kind: 'model3d', url: v.url, ...(isSafeMediaUrl(v.poster) ? { poster: v.poster } : {}), ...(assetId ? { assetId } : {}) });
+      }
     }
   }
   return items;
