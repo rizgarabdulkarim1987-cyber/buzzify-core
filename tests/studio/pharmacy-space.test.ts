@@ -77,3 +77,10 @@ describe('the restaurant pickers of a space', () => {
     expect(await findRestaurantOptionsIn.pharmacy('al')).toEqual([{ value: 'r1', label: 'Alpha', detail: 'C-1 · Erbil' }]);
   });
 });
+
+describe('a pharmacy has no till', () => {
+  it('does not show the till staff on the people tab of a pharmacy', () => {
+    const page = readFileSync('src/app/studio/(studio)/(app)/restaurants/[id]/people/page.tsx', 'utf8');
+    expect(page).toMatch(/restaurant.can.manage && restaurant.sector !== 'PHARMACY'/);
+  });
+});

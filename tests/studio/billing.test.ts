@@ -810,7 +810,6 @@ describe('billing.restaurant', () => {
     expect(view.applications.map((app) => [app.id, app.planCodes])).toEqual([
       ['menu', ['BASIC', 'PRO', 'PREMIUM']],
       ['cashier', ['BASIC', 'PRO', 'PREMIUM']],
-      ['pharmacy', []],
     ]);
     expect(view.subscriptions).toHaveLength(1);
     expect(view.subscriptions[0]).toMatchObject({ id, storedStatus: 'ACTIVE', status: 'GRACE', planCode: 'PRO' });
