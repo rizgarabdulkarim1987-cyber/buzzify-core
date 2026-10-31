@@ -5,31 +5,9 @@ import { loadAssets } from '@/server/media/resolve';
 import { getStorage } from '@/server/storage/storage';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
-import { upgradeInfo, type UpgradeInfo } from '@/server/studio/services/plans';
+import { upgradeInfo } from '@/server/studio/services/plans';
 import { thumbKey } from '@/server/studio/services/media';
-
-export interface StoryStudioRow {
-  id: string;
-  assetId: string;
-  /** The library picture's thumbnail; null when the picture is gone from the library. */
-  thumb: string | null;
-  productId: string | null;
-  captions: Partial<Record<Locale, string>>;
-  /** ISO instant the story ends. */
-  expiresAt: string;
-  isActive: boolean;
-  ended: boolean;
-}
-
-export interface StoriesStudioView {
-  restaurantId: string;
-  locales: Locale[];
-  defaultLocale: Locale;
-  timezone: string;
-  products: Array<{ id: string; name: string }>;
-  stories: StoryStudioRow[];
-  upgrade: UpgradeInfo;
-}
+import type { StoriesStudioView, StoryStudioRow } from '@/server/studio/services/stories-view';
 
 function nameOf(row: { slug: string; translations: unknown }, locale: string): string {
   const map = (row.translations ?? {}) as Record<string, { name?: unknown } | undefined>;

@@ -50,7 +50,7 @@ export const saveStory = defineAction({
       const now = new Date();
       // Other stories already running count toward the cap; the one being saved is judged by what it becomes.
       const othersRunning = () => tx.menuStory.count({ where: { menuId: input.menuId, isActive: true, expiresAt: { gt: now }, ...(input.storyId ? { id: { not: input.storyId } } : {}) } });
-      const overCap = new StudioError('INVALID', undefined, { assetId: `A menu shows at most ${MAX_LIVE_STORIES} stories at a time` });
+      const overCap = new StudioError('INVALID', undefined, { assetId: 'A menu shows at most 12 stories at a time' });
 
       let storyId = input.storyId;
       let before: boolean | null = null;

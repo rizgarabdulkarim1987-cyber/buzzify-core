@@ -63,6 +63,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'The story has a block that is not allowed': 'error.text.aboutStory',
   'Choose a dish or a category, not both': 'error.text.aboutTargetBoth',
   'Choose a dish of this menu': 'error.text.aboutProduct',
+  'Choose how long the story runs': 'error.text.storyHours',
+  'A menu shows at most 12 stories at a time': 'error.text.storiesCap',
   'Choose a category of this menu': 'error.text.aboutCategory',
   'Save the wheel before switching it on': 'error.text.wheelSaveFirst',
   'A wheel needs 4 to 12 dishes': 'error.text.wheelSlices',

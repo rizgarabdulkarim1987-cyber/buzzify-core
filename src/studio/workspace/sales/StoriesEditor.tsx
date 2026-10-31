@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { deleteStory, saveStory } from '@/app/studio/_actions/stories';
 import type { Locale } from '@/lib/locale';
 import { DEFAULT_STORY_HOURS, STORY_HOURS } from '@/server/domain/stories';
-import type { StoriesStudioView, StoryStudioRow } from '@/server/studio/queries/stories';
+import type { StoriesStudioView, StoryStudioRow } from '@/server/studio/services/stories-view';
 import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
