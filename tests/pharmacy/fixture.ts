@@ -33,6 +33,7 @@ export async function resetWorld(): Promise<void> {
       { id: 'menu', name: { en: 'Menu' } },
       { id: 'cashier', name: { en: 'Cashier' } },
       { id: 'pharmacy', name: { en: 'Pharmacy' } },
+      { id: 'retail', name: { en: 'Retail' } },
     ],
   });
 }

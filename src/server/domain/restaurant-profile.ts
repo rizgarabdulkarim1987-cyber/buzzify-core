@@ -8,7 +8,7 @@ export const RESTAURANT_TYPES = ['CAFE', 'RESTAURANT', 'BAKERY', 'ICE_CREAM', 'F
 export type RestaurantType = (typeof RESTAURANT_TYPES)[number];
 
 /** What kind of business it is: a menu or cashier customer (food), or a pharmacy. */
-export const BUSINESS_SECTORS = ['FOOD', 'PHARMACY'] as const;
+export const BUSINESS_SECTORS = ['FOOD', 'PHARMACY', 'RETAIL'] as const;
 export type BusinessSector = (typeof BUSINESS_SECTORS)[number];
 
 /** The currencies a pharmacy may price in (money is kept per currency, never converted). */

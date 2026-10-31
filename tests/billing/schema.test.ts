@@ -53,7 +53,7 @@ describe('billing tables', () => {
     expect(await prisma.subscription.count({ where: { restaurantId: restaurant.id } })).toBe(2);
   });
 
-  it('leaves exactly three applications however often the seed runs', async () => {
+  it('leaves exactly four applications however often the seed runs', async () => {
     await seedApplications(prisma);
     await seedApplications(prisma);
     const apps = await prisma.application.findMany({ orderBy: { sortOrder: 'asc' } });
@@ -61,6 +61,7 @@ describe('billing tables', () => {
       ['menu', 'ACTIVE'],
       ['cashier', 'DISABLED'],
       ['pharmacy', 'DISABLED'],
+      ['retail', 'DISABLED'],
     ]);
   });
 
@@ -105,7 +106,7 @@ describe('a database built by the migrations alone', () => {
     await onAdmin(`DROP DATABASE IF EXISTS "${name}"`);
   });
 
-  it('has the menu, cashier and pharmacy products without the seed', async () => {
+  it('has the menu, cashier, pharmacy and retail products without the seed', async () => {
     const client = new pg.Client({ connectionString: databaseUrl(name) });
     await client.connect();
     try {

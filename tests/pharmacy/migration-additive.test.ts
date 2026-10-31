@@ -229,11 +229,11 @@ describe('pharmacy migrations', () => {
     });
   });
 
-  it('a pharmacy migration only inserts the pharmacy application row', () => {
+  it('a pharmacy or retail migration only inserts its own application row', () => {
     for (const { name, sql } of migrations) {
       expect(insertsOutsideApplication(sql), name).toEqual([]);
       for (const insert of applicationInserts(sql)) {
-        expect(insert, name).toMatch(/'pharmacy'/);
+        expect(insert, name).toMatch(/'(pharmacy|retail)'/);
         expect(insert, name).toMatch(/\bON CONFLICT\b/i);
       }
     }

@@ -149,6 +149,8 @@ model Restaurant {
   posAiCalls            PosAiCall[]
   posAiSummaries        PosAiSummary[]
   phSettings            PhSettings?
+  retailLink            RetailLink?
+  retailOutbox          RetailOutbox?
   phStaffs              PhStaff[]
   phStaffBranches       PhStaffBranch[]
   phCategories          PhCategory[]
@@ -2290,6 +2292,7 @@ model PosAiSummary {
 enum BusinessSector {
   FOOD
   PHARMACY
+  RETAIL
 }
 
 /// What a person may do in a pharmacy.
@@ -4337,4 +4340,52 @@ model ProductViewMark {
   @@unique([menuId, productId, day, guestKey])
   @@index([menuId, productId, day, ipHash])
   @@index([createdAt])
+}
+
+/// The link between a RETAIL business and its shop in Buzzify Retails (docs/superpowers/plans/2026-10-31-retail-link-part-b.md).
+model RetailLink {
+  restaurantId     String     @id
+  /// The shop's id in Retails, from the provision answer; null until provisioned.
+  retailBusinessId String?
+  currencies       Currency[] @default([IQD])
+  /// The per-shop AI master switch Retails applies as its `ai.intake` override.
+  aiIntake         Boolean    @default(false)
+  /// Grows by one in the transaction of every change that alters the snapshot. 0 = nothing to send yet.
+  stateVersion     Int        @default(0)
+  /// The highest version Retails answered 200 for (applied or not).
+  acceptedVersion  Int        @default(0)
+  /// sha256 of the last sent snapshot without its version: the reconcile's drift check.
+  sentHash         String?
+  provisionedAt    DateTime?
+  /// What the last reconcile read from Retails (display only).
+  remoteVersion    Int?
+  remoteStatus     String?
+  aiUsageMonth     String?
+  aiUsageHalfUnits Int?
+  reconciledAt     DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([reconciledAt])
+}
+
+/// What is still to be delivered to Retails for one business: one coalescing row (the snapshot is built at send time).
+model RetailOutbox {
+  restaurantId  String     @id
+  dueVersion    Int
+  attempts      Int        @default(0)
+  nextAttemptAt DateTime   @default(now())
+  leasedUntil   DateTime?
+  /// OWNER or SUBSCRIPTION while the business cannot be provisioned yet; no attempt is spent then.
+  waitingFor    String?
+  /// A code only (HTTP_503, TIMEOUT, NETWORK, PLAN_LIMIT, INVALID_INPUT ...), never a body.
+  lastError     String?
+  lastAttemptAt DateTime?
+  failedAt      DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([failedAt, nextAttemptAt])
 }
