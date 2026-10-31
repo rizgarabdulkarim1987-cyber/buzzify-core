@@ -265,6 +265,7 @@ const posTill: Messages = {
   'pos.requests.emptyHint': 'تظهر هنا بعد ثوانٍ من إرسال الزبون لها.',
   'pos.requests.table': 'طاولة {n}',
   'pos.requests.sentAt': 'أُرسل {time}',
+  'pos.requests.reward': 'بطاقة الأختام عند الضيف مكتملة: قدّم له {reward}',
   'pos.requests.guestNote': 'ملاحظة الزبون',
   'pos.requests.joinBanner': 'على هذه الطاولة طلب مفتوح. القبول يضيف هذه الأصناف إليه.',
   'pos.requests.openOrder': 'فتح الطلب',

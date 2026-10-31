@@ -295,6 +295,8 @@ export interface GuestFeatures {
   whatsapp: boolean;
   /** A guest can share a dish as a card (`share.dishCards`). */
   shareCards: boolean;
+  /** A guest can keep a stamp card with the restaurant (`loyalty.stampCard`). */
+  stampCard: boolean;
   rails: RailStyle[];
 }
 
@@ -320,6 +322,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     callWaiter: allows(entitlements, 'table.callWaiter'),
     whatsapp: allows(entitlements, 'contact.whatsapp'),
     shareCards: allows(entitlements, 'share.dishCards'),
+    stampCard: allows(entitlements, 'loyalty.stampCard'),
     rails: allowedRails(entitlements),
   };
 }

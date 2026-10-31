@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/ui/AppProviders';
+import { StampCardPanel, useStampCard } from './stamp-card';
 import { BasketParts, useTableBasket } from './table-basket';
 
 const POLL_MS = 5_000;
@@ -140,6 +141,9 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
   const shared = tenant.features.tableBasket === true && !preview && table !== null && available && scanned && canSend;
   const basket = useTableBasket(shared && !sent);
   const followed = basket.view?.sent?.publicId ?? null;
+  // The guest's stamp card, when the plan and the restaurant have one; it goes with the order so the paid order earns its stamp.
+  const stamp = useStampCard(tenant.features.stampCard === true && !preview && table !== null && available && scanned && canSend, sent?.publicId ?? null);
+  const card = stamp.card && stamp.token ? { card: { token: stamp.token, redeem: stamp.redeem } } : {};
 
   // Another phone at the table sent the basket: follow the same order.
   useEffect(() => {
@@ -204,7 +208,7 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
         response = await fetch(`/api/${tenant.slug}/table-basket/send`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ table, token: basket.token, locale, note }),
+          body: JSON.stringify({ table, token: basket.token, locale, note, ...card }),
         });
       } else {
         response = await fetch(api, {
@@ -218,6 +222,7 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
               bundles: [],
             },
             note,
+            ...card,
           }),
         });
       }
@@ -239,7 +244,7 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
     } finally {
       setBusy(false);
     }
-  }, [api, basket, busy, cart.lines, locale, note, replaceCart, shared, t, table, tenant.slug]);
+  }, [api, basket, busy, card, cart.lines, locale, note, replaceCart, shared, t, table, tenant.slug]);
 
   const again = () => {
     try {
@@ -298,6 +303,7 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
         rows={2}
         className="mt-1 w-full rounded-xl border border-line bg-transparent p-3"
       />
+      <StampCardPanel stamp={stamp} />
       {error ? <p className="mt-2 text-sm text-accent" role="alert">{error}</p> : null}
       <button type="button" onClick={() => void send()} disabled={busy || (shared && (nothing || blocked))} className="mt-4 min-h-12 w-full rounded-full bg-accent px-6 text-lg text-on-accent disabled:opacity-60" data-testid="qr-send">
         {busy ? t('qr.sending') : t(shared ? 'basket.send' : 'qr.send')}

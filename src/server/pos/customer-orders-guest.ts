@@ -1,3 +1,4 @@
+import { canRedeem, cardKeyOf } from '@/server/domain/pos/loyalty-rules';
 import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
@@ -53,6 +54,8 @@ export interface GuestOrderInput {
   lines: (CartLineInput & { note: string })[];
   bundleCount: number;
   note: string;
+  /** The guest's stamp card, when the phone sent one: counted only while the restaurant runs the program and the plan has it. */
+  card?: { token: string; redeem: boolean };
 }
 
 /**
@@ -87,7 +90,10 @@ export async function submitCustomerOrder(
     // and the table's limits one after the other.
     await tx.posSettings.updateMany({ where: { restaurantId: gate.restaurantId }, data: { restaurantId: gate.restaurantId } });
     // Read under that lock: the request keeps the captain step it was sent with, whatever the switch does later.
-    const settings = await tx.posSettings.findFirst({ where: { restaurantId: gate.restaurantId }, select: { captainApproval: true } });
+    const settings = await tx.posSettings.findFirst({ where: { restaurantId: gate.restaurantId }, select: { captainApproval: true, loyaltyEnabled: true, loyaltyStampsRequired: true } });
+    const cardKey = input.card && settings?.loyaltyEnabled && tenant.features.stampCard ? cardKeyOf(input.card.token) : null;
+    // The reward is asked for only by a card that holds the stamps for it now.
+    const redeemReward = cardKey !== null && input.card?.redeem === true && canRedeem((await tx.posLoyaltyCard.findFirst({ where: { restaurantId: gate.restaurantId, cardKey }, select: { stamps: true } }))?.stamps ?? 0, settings?.loyaltyStampsRequired ?? 0);
     const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
     // The table was removed between the gate and here.
     if (locked.count === 0) throw new QrGateClosed();
@@ -109,6 +115,8 @@ export async function submitCustomerOrder(
         locale: input.locale,
         customerNote: input.note,
         requiresCaptain: settings?.captainApproval ?? false,
+        cardKey,
+        redeemReward,
         createdAt: now,
         lines: {
           create: lines.map((line) => ({

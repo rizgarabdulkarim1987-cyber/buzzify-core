@@ -276,6 +276,12 @@ export function RequestCard({ request, role, catalog, now, call, busy, onReject,
         </Button>
       ) : null}
 
+      {request.reward !== null ? (
+        <p className="rounded-md bg-info-wash px-3 py-2 text-sm font-medium text-text" dir="auto">
+          {t('pos.requests.reward', { reward: request.reward })}
+        </p>
+      ) : null}
+
       {request.customerNote ? (
         <div className="rounded-md bg-surface px-3 py-2 text-sm">
           <p className="text-muted">{t('pos.requests.guestNote')}</p>
