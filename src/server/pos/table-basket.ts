@@ -128,6 +128,7 @@ export interface SendBasketInput {
   token: string;
   locale: Locale;
   note: string;
+  card?: { token: string; redeem: boolean };
 }
 
 /**
@@ -142,7 +143,7 @@ export async function sendBasket(prisma: PrismaClient, tenant: TenantInfo, catal
   if (!parts.some((part) => part.ownerKey === ownerKey && isLive(part, now))) throw new BasketRefusal('NOT_A_GUEST');
   const lines = mergedLines(parts, now);
   if (lines.length === 0) throw new BasketRefusal('NOTHING_TO_SEND');
-  const { publicId } = await submitCustomerOrder(prisma, tenant, catalog, { table: input.table, locale: input.locale, lines, bundleCount: 0, note: input.note }, now);
+  const { publicId } = await submitCustomerOrder(prisma, tenant, catalog, { table: input.table, locale: input.locale, lines, bundleCount: 0, note: input.note, ...(input.card ? { card: input.card } : {}) }, now);
   // Marked in one statement; a part changed after it was read (its owner added a dish this instant) keeps its newer lines.
   const live = parts.filter((part) => isLive(part, now));
   const db = menuDb(prisma, tenant.id);

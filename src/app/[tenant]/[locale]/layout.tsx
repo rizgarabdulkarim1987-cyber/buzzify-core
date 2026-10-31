@@ -102,7 +102,7 @@ export default async function RootLayout({
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
-            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true, tableBasket: tenant.features.tableBasket === true, callWaiter: tenant.features.callWaiter === true, shareCards: tenant.features.shareCards === true },
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true, tableBasket: tenant.features.tableBasket === true, callWaiter: tenant.features.callWaiter === true, shareCards: tenant.features.shareCards === true, stampCard: tenant.features.stampCard === true },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
             ...(tenant.whatsapp ? { whatsapp: tenant.whatsapp } : {}),
             // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
