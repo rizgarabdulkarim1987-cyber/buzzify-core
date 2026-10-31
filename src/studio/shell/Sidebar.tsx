@@ -6,6 +6,7 @@ import {
   CreditCard,
   Images,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Megaphone,
   Pill,
@@ -67,7 +68,7 @@ function initials(name: string): string {
  * The Studio's frame on the reading direction's start side: the product's name, Jump to (the button and Ctrl+K), the areas
  * the person may use (the current one marked with the amber edge), the language switch, and the person's own menu.
  */
-export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: SidebarUser }) {
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string } }) {
   const t = useT();
   const pathname = usePathname();
 
@@ -78,6 +79,19 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
           <Wordmark />
         </Link>
       </div>
+
+      {space && (
+        <div className="flex flex-col gap-0.5 px-3 pb-2">
+          <Link
+            href="/studio"
+            className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted transition-colors hover:bg-hover hover:text-text"
+          >
+            <LayoutGrid aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{t('hub.allProjects')}</span>
+          </Link>
+          <p className="truncate px-2.5 pt-1 text-xs font-medium uppercase tracking-wide text-muted">{space.name}</p>
+        </div>
+      )}
 
       <div className="px-3 pb-2">
         <JumpTo />
@@ -117,7 +131,7 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
   );
 }
 
-function UserMenu({ user }: { user: SidebarUser }) {
+export function UserMenu({ user }: { user: SidebarUser }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();

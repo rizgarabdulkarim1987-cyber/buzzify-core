@@ -3403,6 +3403,13 @@ const ar: Messages = {
   'introPage.fileChosen': 'تم اختيار الملف (يظهر الفيديو بعد معالجته)',
   'introPage.statusOn': 'الواجهة مفعّلة: يراها الزائر قبل القائمة.',
   'introPage.statusOff': 'الواجهة متوقفة: يدخل الزائر القائمة مباشرة. فعّلها من الأسفل.',
+  'hub.title': 'اختر المشروع',
+  'hub.food': 'المنيو والكاشير',
+  'hub.pharmacy': 'الصيدلية',
+  'hub.platform': 'المنصة',
+  'hub.allProjects': 'كل المشاريع',
+  'nav.team': 'الفريق',
+  'nav.teamSettings': 'الإعدادات',
 };
 
 export default ar;

@@ -3374,6 +3374,13 @@ const en: Messages = {
   'introPage.fileChosen': 'File chosen (a video shows after it is processed)',
   'introPage.statusOn': 'The intro is ON: guests see it before the menu.',
   'introPage.statusOff': 'The intro is OFF: guests go straight to the menu. Turn it on below.',
+  'hub.title': 'Choose a project',
+  'hub.food': 'Menu and Cashier',
+  'hub.pharmacy': 'Pharmacy',
+  'hub.platform': 'Platform',
+  'hub.allProjects': 'All projects',
+  'nav.team': 'Team',
+  'nav.teamSettings': 'Settings',
 };
 
 export default en;

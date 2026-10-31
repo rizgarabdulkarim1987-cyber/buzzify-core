@@ -3379,6 +3379,13 @@ const ckb: Messages = {
   'introPage.fileChosen': 'فایل هەڵبژێردرا (ڤیدیۆ دوای پرۆسەکردن دەردەکەوێت)',
   'introPage.statusOn': 'دەروازە چالاکە: میوان پێش مینیو دەیبینێت.',
   'introPage.statusOff': 'دەروازە ڕاگیراوە: میوان یەکسەر دەچێتە مینیو. لە خوارەوە چالاکی بکە.',
+  'hub.title': 'پڕۆژەیەک هەڵبژێرە',
+  'hub.food': 'مینیو و کاشێر',
+  'hub.pharmacy': 'دەرمانخانە',
+  'hub.platform': 'پلاتفۆرم',
+  'hub.allProjects': 'هەموو پڕۆژەکان',
+  'nav.team': 'تیم',
+  'nav.teamSettings': 'ڕێکخستنەکان',
 };
 
 export default ckb;
