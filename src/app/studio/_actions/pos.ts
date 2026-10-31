@@ -16,10 +16,6 @@ export async function updatePosSettings(input: unknown) {
   return invoke(pos.updatePosSettings, input);
 }
 
-export async function createPosStaff(input: unknown) {
-  return invoke(pos.createPosStaff, input);
-}
-
 export async function changePosStaffRole(input: unknown) {
   return invoke(pos.changePosStaffRole, input);
 }
@@ -54,6 +50,10 @@ export async function posCreateProduct(input: unknown) {
 
 export async function posSaveProductBasics(input: unknown) {
   return invoke(pos.posSaveProductBasics, input);
+}
+
+export async function posSetProductPicture(input: unknown) {
+  return invoke(pos.posSetProductPicture, input);
 }
 
 export async function posDeleteProduct(input: unknown) {
@@ -223,6 +223,14 @@ export async function setPosRequestLineQuantity(input: unknown) {
 
 export async function removePosRequestLine(input: unknown) {
   return invoke(requests.removePosRequestLine, input);
+}
+
+export async function addPosRequestLine(input: unknown) {
+  return invoke(requests.addPosRequestLine, input);
+}
+
+export async function approvePosRequest(input: unknown) {
+  return invoke(requests.approvePosRequest, input);
 }
 
 export async function ensurePosMenuTables(input: unknown) {

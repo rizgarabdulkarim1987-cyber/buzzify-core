@@ -4,6 +4,7 @@ import { localDigits } from '@/lib/digits';
 import type { MenuOfferView, MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
+import { dishCountsText } from './dish-counts-text';
 
 /**
  * What the sales tools add to a dish wherever it is shown (docs/superpowers/specs/2026-10-18-sales-tools-design.md,
@@ -13,9 +14,16 @@ import { useApp } from '@/ui/AppProviders';
 
 const PILL = 'rounded-full border px-2 py-px text-xs';
 
+/** "340 orders · 1,200 views" in the guest's language and digits; null while the dish has no paid order or the menu does not show counts. */
+export function useCountsLabel(product: Pick<MenuProductView, 'counts'>): string | null {
+  const { t, locale, tenant } = useApp();
+  return product.counts ? dishCountsText(product.counts, t, (value) => formatCount(value, locale, tenant.numeralSystem)) : null;
+}
+
 /** The dish's sales labels, as quiet pills beside its other badges. */
-export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice'> }) {
+export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice' | 'counts'> }) {
   const { t, tenant } = useApp();
+  const counts = useCountsLabel(product);
   return (
     <>
       {product.special && <span className={`${PILL} border-accent/55 text-accent`}>{product.special}</span>}
@@ -25,13 +33,14 @@ export function SalesPills({ product }: { product: Pick<MenuProductView, 'specia
         </span>
       )}
       {product.mostOrdered && <span className={`${PILL} border-line text-muted`}>{t('menu.mostOrdered')}</span>}
+      {counts && <span className={`${PILL} border-line tabular-nums text-muted`}>{counts}</span>}
     </>
   );
 }
 
 /** Whether the dish has any sales label to show. */
-export function hasSalesPills(product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'regularPrice'>): boolean {
-  return Boolean(product.special || product.mostOrdered || product.regularPrice !== undefined);
+export function hasSalesPills(product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'regularPrice' | 'counts'>): boolean {
+  return Boolean(product.special || product.mostOrdered || product.regularPrice !== undefined || product.counts);
 }
 
 /**

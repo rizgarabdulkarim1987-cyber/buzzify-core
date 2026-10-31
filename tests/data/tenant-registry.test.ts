@@ -6,9 +6,12 @@ import {
   MENU_CONFINED_MODELS,
   MENU_SCOPED_MODELS,
   PHARMACY_BRANCH_SCOPED_MODELS,
+  PHARMACY_EITHER_BRANCH_MODELS,
   RESTAURANT_CONFINED_MODELS,
   RESTAURANT_OR_SHARED_MODELS,
   RESTAURANT_SCOPED_MODELS,
+  TRANSFER_NESTED_KEYS,
+  TRANSFER_RELATIONS,
   UNSCOPED_LOOKUP_MODELS,
 } from '@/server/data/tenant-db';
 
@@ -18,6 +21,11 @@ function parseModels(schema: string): Map<string, string> {
     models.set(match[1] as string, match[2] as string);
   }
   return models;
+}
+
+/** The required String fields of a model body whose name is branchId or ends in BranchId: its columns that name a branch. */
+function requiredBranchColumns(body: string): string[] {
+  return [...body.matchAll(/^\s*(\w*[bB]ranchId)\s+String(?!\?)\b/gm)].map((m) => m[1] as string);
 }
 
 describe('tenant scoping registry', () => {
@@ -61,9 +69,42 @@ describe('tenant scoping registry', () => {
 
   // A required branchId names a branch of the row's restaurant: such a model is confined to the branches in a client's scope.
   it('lists every model with a required branchId column as branch-scoped, and only real models', () => {
-    const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body));
+    const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body) && requiredBranchColumns(body).length === 1);
     expect([...PHARMACY_BRANCH_SCOPED_MODELS].sort()).toEqual(withBranch);
     for (const model of PHARMACY_BRANCH_SCOPED_MODELS) expect(models.has(model), `${model} is a model`).toBe(true);
+  });
+
+  // A model that joins two branches (both ends required, no branchId) is confined by either end, so a new one cannot be served
+  // to a client limited to branches without a decision here.
+  it('lists every model with two or more required branch columns as either-branch, and only real models', () => {
+    const joining = names((body) => requiredBranchColumns(body).length >= 2);
+    expect([...PHARMACY_EITHER_BRANCH_MODELS].sort()).toEqual(joining);
+    for (const model of PHARMACY_EITHER_BRANCH_MODELS) {
+      expect(models.has(model), `${model} is a model`).toBe(true);
+      expect(RESTAURANT_SCOPED_MODELS as readonly string[], model).toContain(model);
+      expect(PHARMACY_BRANCH_SCOPED_MODELS, `${model} is not also single-branch`).not.toContain(model);
+    }
+  });
+
+  // The relations that reach a transfer from another model (and every relation of a transfer model) are the schema's, not a list
+  // someone remembers: a new relation to PhTransfer or PhTransferLine must be blocked for a client limited to branches.
+  it('blocks every relation field that reaches a transfer from another model, and every relation of a transfer model', () => {
+    const transferModels = new Set<string>(PHARMACY_EITHER_BRANCH_MODELS);
+    const relations = (body: string) => [...body.matchAll(/^\s*(\w+)\s+(\w+)(\[\])?\??(?:[ \t]+@relation|[ \t]*$)/gm)].map((m) => ({ name: m[1] as string, type: m[2] as string }));
+    const reaching: string[] = [];
+    for (const [name, body] of models) {
+      if (transferModels.has(name)) continue;
+      for (const field of relations(body)) if (transferModels.has(field.type)) reaching.push(field.name);
+    }
+    expect([...TRANSFER_RELATIONS].sort()).toEqual([...new Set(reaching)].sort());
+    expect(reaching.length).toBeGreaterThanOrEqual(6);
+    for (const model of PHARMACY_EITHER_BRANCH_MODELS) {
+      const own = relations(models.get(model) as string)
+        .filter((field) => models.has(field.type))
+        .map((field) => field.name)
+        .sort();
+      expect([...(TRANSFER_NESTED_KEYS[model] ?? [])].sort(), model).toEqual(own);
+    }
   });
 
   it('confines only models outside the scoped classes, each by a required column it has', () => {

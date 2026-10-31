@@ -242,8 +242,8 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
   const choice = useProductChoice(product, initialVariantId);
   const titleId = `tpl-title-${product.slug}`;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div className="flex min-h-0 flex-auto flex-col">
+      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain">
         <div className="relative">
           <Media product={product} kind={kind} selectedIds={choice.selected} />
           <CloseButton onClose={close} />
@@ -279,8 +279,8 @@ function Steps({ props, close }: { props: TemplateDetailProps; close: () => void
   ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div className="flex min-h-0 flex-auto flex-col">
+      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain">
         <div className="relative">
           <Media product={product} kind="sheet" selectedIds={choice.selected} />
           <CloseButton onClose={close} />

@@ -13,6 +13,10 @@ export const FORBIDDEN_AUDIT_FIELDS: readonly RegExp[] = [
   /address/i,
   /dob|birth/i,
   /attachment/i,
+  /prescriber/i,
+  /licen[cs]e/i,
+  // Free text a person typed (a reason, a note, a question): its text stays in its own table; audit keeps `hasReason`, a length or a code.
+  /^(reason|notes?|memo|comments?|question|answer|text|message)$/i,
 ];
 
 export class PharmacyAuditError extends Error {

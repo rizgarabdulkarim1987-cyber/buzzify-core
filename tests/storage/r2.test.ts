@@ -86,6 +86,28 @@ describe('r2Storage', () => {
     });
   });
 
+  it('strict delete reports each key R2 refused, and does not ask for a quiet answer', async () => {
+    const client = fakeClient({
+      DeleteObjectsCommand: () => ({ Deleted: [{ Key: 'a' }], Errors: [{ Key: 'b', Code: 'AccessDenied', Message: 'no' }] }),
+    });
+    const storage = r2Storage(CONFIG, client);
+    await expect(storage.delete(['a', 'b'], { strict: true })).rejects.toThrow(/1 of 2/);
+    expect(client.sent[0]!.input).toEqual({ Bucket: 'bucket', Delete: { Objects: [{ Key: 'a' }, { Key: 'b' }], Quiet: false } });
+    // The default stays quiet, as the media code expects.
+    await storage.delete(['a']);
+    expect(client.sent[1]!.input).toMatchObject({ Delete: { Quiet: true } });
+  });
+
+  it('strict delete is fine when nothing was refused', async () => {
+    const client = fakeClient({ DeleteObjectsCommand: () => ({ Deleted: [{ Key: 'a' }] }) });
+    await expect(r2Storage(CONFIG, client).delete(['a'], { strict: true })).resolves.toBeUndefined();
+  });
+
+  it('signs a download that opens in the browser when asked for inline', async () => {
+    const url = new URL(await r2Storage(CONFIG, fakeClient()).presignGet('k/a', { fileName: 'invoice', expiresInSec: 300, inline: true }));
+    expect(url.searchParams.get('response-content-disposition')).toBe("inline; filename*=UTF-8''invoice");
+  });
+
   it('answers null for a missing object and refuses one larger than allowed before reading it', async () => {
     let read = false;
     const storage = r2Storage(

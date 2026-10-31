@@ -156,6 +156,40 @@ describe('pharmacy plans', () => {
     expect(await prisma().subscription.findUniqueOrThrow({ where: { id: legacy.id } })).toMatchObject({ planCode: 'PRO', version: 1 });
   });
 
+  it('a mismatched subscription cannot be reactivated or paid: a FOOD business on a pharmacy plan and vice versa', async () => {
+    const shop = await pharmacy('Shop', { subscription: 'none' });
+    const cafe = await pharmacy('Cafe', { sector: 'FOOD', subscription: 'none' });
+    const soon = new Date(Date.now() + 10 * 86_400_000);
+    const legacy = (restaurantId: string, applicationId: string, planCode: string, status: 'CANCELLED' | 'ACTIVE') =>
+      prisma().subscription.create({
+        data: { restaurantId, applicationId, planCode, status, period: 'MONTHLY', currency: 'IQD', priceMinor: 0, currentPeriodStart: new Date(), currentPeriodEnd: soon, graceDays: 7, version: 1 },
+      });
+    const foodOnPharmacy = await legacy(cafe.id, 'pharmacy', 'starter', 'CANCELLED');
+    const pharmacyOnMenu = await legacy(shop.id, 'menu', 'PRO', 'CANCELLED');
+
+    for (const sub of [foodOnPharmacy, pharmacyOnMenu]) {
+      expect(await run(owner, billing.reactivate, { restaurantId: sub.restaurantId, subscriptionId: sub.id, version: 1 })).toMatchObject({
+        ok: false,
+        error: { code: 'CONFLICT', message: WRONG_SECTOR },
+      });
+      expect(await prisma().subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({ status: 'CANCELLED', version: 1 });
+    }
+
+    const paying = [await legacy(cafe.id, 'pharmacy', 'starter2', 'ACTIVE'), await legacy(shop.id, 'cashier', 'PRO', 'ACTIVE')];
+    for (const sub of paying) {
+      const paid = await run(owner, billing.recordPayment, {
+        restaurantId: sub.restaurantId,
+        subscriptionId: sub.id,
+        amountMinor: 1000,
+        method: 'CASH',
+        paidAt: new Date(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      expect(paid).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: WRONG_SECTOR } });
+    }
+    expect(await prisma().payment.count()).toBe(0);
+  });
+
   it('a plan taken off sale cannot be chosen again but keeps its subscribers', async () => {
     const { id } = await pharmacy('Subscriber', { subscription: 'none' });
     dataOf(await run(owner, appPlans.upsert, planInput()));

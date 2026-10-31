@@ -141,3 +141,42 @@ export async function grant(
 
 export const asPh = (userId: string, restaurantId: string, branchId?: string) =>
   resolvePhActor(prisma(), userId, { restaurantId, branchId, now: NOW });
+
+/** Waits (bounded) until some backend of this database is waiting on a lock: a writer queued behind a row the test holds. Replaces a sleep: the race is then really in progress. */
+export async function untilBlockedOnALock(timeoutMs = 5000, atLeast = 1) {
+  const until = Date.now() + timeoutMs;
+  for (;;) {
+    // eslint-disable-next-line no-restricted-properties -- the test inspects the database's own lock waits, no tenant rows
+    const rows = await prisma().$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if ((rows[0]?.n ?? 0n) >= BigInt(atLeast)) return;
+    if (Date.now() > until) throw new Error(`fewer than ${atLeast} backends ever waited on a lock`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+/**
+ * Holds `FOR UPDATE` on one row (by table and id) until `release()`; resolves once the lock is held. Writers started while
+ * it is held queue behind it in the order they asked (wait for each with `untilBlockedOnALock(…, n)`), so a race between two
+ * of them has a known winner and no sleeps.
+ */
+export async function holdRowLock(table: string, id: string): Promise<{ release: () => Promise<void> }> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held!: () => void;
+  const locked = new Promise<void>((resolve) => {
+    held = resolve;
+  });
+  const done = prisma().$transaction(
+    async (tx) => {
+      // eslint-disable-next-line no-restricted-properties -- the test holds a row lock by table name; no tenant data is read
+      await tx.$queryRawUnsafe(`SELECT "id" FROM "${table}" WHERE "id" = $1 FOR UPDATE`, id);
+      held();
+      await gate;
+    },
+    { timeout: 30_000 },
+  );
+  await Promise.race([locked, done]);
+  return { release: async () => { release(); await done; } };
+}

@@ -41,4 +41,15 @@ describe('pharmacy audit redaction rule', () => {
       PharmacyAuditError,
     );
   });
+
+  it('free text and prescriber fields are refused: reason, note, question, prescriber, licence', () => {
+    for (const field of ['reason', 'Note', 'notes', 'memo', 'comment', 'question', 'answer', 'prescriberName', 'prescriberLicense', 'licenseNo']) {
+      expect(() => assertAuditSafe('PhReturn', { [field]: change() }), field).toThrow(PharmacyAuditError);
+    }
+    expect(() => assertAuditSafe('PhReturn', { lines: change({ items: [{ reason: 'x' }] }) })).toThrow(/reason/);
+  });
+
+  it('the markers that replace free text pass: hasReason, noteLength, reason codes', () => {
+    expect(() => assertAuditSafe('PhReturn', { hasReason: change(true), noteLength: change(4), degradeReason: change('NO_TOOL'), status: change('OK') })).not.toThrow();
+  });
 });

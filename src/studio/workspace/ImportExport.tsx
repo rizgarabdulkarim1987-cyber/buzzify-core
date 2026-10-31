@@ -17,9 +17,11 @@ import { cx } from '@/studio/ui/cx';
 import { FormSection } from '@/studio/ui/FormSection';
 import { AiMenuImport } from './AiMenuImport';
 import { ImportPreviewPanel, type Status } from './ImportPreview';
+import { PhotoBatch } from './PhotoBatch';
 
 export interface ImportExportProps {
   menuId: string;
+  restaurantId: string;
   slug: string;
   currency: string;
   canImport: boolean;
@@ -66,7 +68,7 @@ async function send(url: string, headers: Record<string, string>, file: File): P
  * reason), what guests would see change at once and the products the sheet leaves out, then applied to the draft or
  * discarded.
  */
-export function ImportExport({ menuId, slug, currency, canImport, canExport, canChangeLive }: ImportExportProps) {
+export function ImportExport({ menuId, restaurantId, slug, currency, canImport, canExport, canChangeLive }: ImportExportProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -170,6 +172,12 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
           <code dir="ltr" className="block rounded-md bg-surface px-3 py-2 font-mono text-sm leading-relaxed text-text">
             {SHEET_COLUMNS.join(', ')}
           </code>
+        </FormSection>
+      )}
+
+      {canImport && !job && (
+        <FormSection id="photos-title" title={t('data.photos.title')} intro={t('data.photos.intro')}>
+          <PhotoBatch menuId={menuId} restaurantId={restaurantId} />
         </FormSection>
       )}
 

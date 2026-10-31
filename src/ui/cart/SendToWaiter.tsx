@@ -51,16 +51,11 @@ export function SendToWaiter({ canSend }: { canSend: boolean }) {
   return hydrated ? <Panel canSend={canSend} /> : null;
 }
 
+/** The order panel and the bill button share one question: is ordering open for this table, and was the table scanned. */
 function Panel({ canSend }: { canSend: boolean }) {
-  const { t, tenant, locale, table, cart, hydrated, preview, replaceCart } = useApp();
+  const { tenant, table, hydrated, preview } = useApp();
   const [available, setAvailable] = useState(false);
   const [scanned] = useState(() => table !== null && scannedHere(tenant.slug, table));
-  const [sent, setSent] = useState<Sent | null>(() => readSent(tenant.slug));
-  const [phase, setPhase] = useState<Phase>('PENDING');
-  const [reason, setReason] = useState('');
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
   const api = `/api/${tenant.slug}/qr-order`;
 
   useEffect(() => {
@@ -72,6 +67,64 @@ function Panel({ canSend }: { canSend: boolean }) {
       .catch(() => setAvailable(false));
     return () => controller.abort();
   }, [api, hydrated, preview, table, scanned]);
+
+  return (
+    <>
+      <OrderPanel canSend={canSend} available={available} scanned={scanned} />
+      {available && scanned && !preview && table !== null ? <BillButton table={table} /> : null}
+    </>
+  );
+}
+
+/** One button: the waiter brings the bill. Shown only where ordering from the table is open. */
+function BillButton({ table }: { table: number }) {
+  const { t, tenant } = useApp();
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'tooMany' | 'failed'>('idle');
+  const call = async () => {
+    if (state === 'busy') return;
+    setState('busy');
+    try {
+      const response = await fetch(`/api/${tenant.slug}/bill-call`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ table }),
+      });
+      setState(response.ok ? 'sent' : response.status === 429 ? 'tooMany' : 'failed');
+    } catch {
+      setState('failed');
+    }
+  };
+  return (
+    <section className="mt-6" aria-live="polite" data-testid="bill-call">
+      {state === 'sent' ? (
+        <p className="rounded-2xl border border-line p-4">{t('qr.billSent')}</p>
+      ) : (
+        <>
+          {state === 'tooMany' || state === 'failed' ? (
+            <p className="mb-2 text-sm text-accent" role="alert">
+              {t(state === 'tooMany' ? 'qr.billTooMany' : 'qr.billFailed')}
+            </p>
+          ) : null}
+          <button type="button" onClick={() => void call()} disabled={state === 'busy'} className="min-h-12 w-full rounded-full border border-line px-6 disabled:opacity-60" data-testid="bill-call-button">
+            {t('qr.bill')}
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function OrderPanel({ canSend, available, scanned }: { canSend: boolean; available: boolean; scanned: boolean }) {
+  const { t, tenant, locale, table, cart, preview, replaceCart } = useApp();
+  const [sent, setSent] = useState<Sent | null>(() => readSent(tenant.slug));
+  const [phase, setPhase] = useState<Phase>('PENDING');
+  const [reason, setReason] = useState('');
+  // Held for the captain's check before the cashier sees it as ready to accept.
+  const [withCaptain, setWithCaptain] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const api = `/api/${tenant.slug}/qr-order`;
 
   useEffect(() => {
     if (!sent || phase !== 'PENDING') return;
@@ -87,8 +140,10 @@ function Panel({ canSend }: { canSend: boolean }) {
           return;
         }
         if (!response.ok) return;
-        const body = (await response.json()) as { status: Phase; rejectReason: string };
-        if (stopped || body.status === 'PENDING') return;
+        const body = (await response.json()) as { status: Phase; rejectReason: string; awaitingCaptain?: boolean };
+        if (stopped) return;
+        setWithCaptain(body.status === 'PENDING' && body.awaitingCaptain === true);
+        if (body.status === 'PENDING') return;
         setPhase(body.status);
         setReason(body.rejectReason);
       } catch {
@@ -129,6 +184,7 @@ function Panel({ canSend }: { canSend: boolean }) {
       const next = { publicId: body.publicId, table };
       writeSent(tenant.slug, next);
       setPhase('PENDING');
+      setWithCaptain(false);
       setReason('');
       setNote('');
       setSent(next);
@@ -152,6 +208,11 @@ function Panel({ canSend }: { canSend: boolean }) {
       <section className="mt-8 rounded-2xl border border-line p-4" aria-live="polite" data-testid="qr-status">
         <h2 className="font-display text-xl">{t(`qr.${phase}.title`)}</h2>
         <p className="mt-1 text-muted">{t(`qr.${phase}.body`)}</p>
+        {phase === 'PENDING' && withCaptain ? (
+          <p className="mt-2" data-testid="qr-with-captain">
+            {t('qr.captain')}
+          </p>
+        ) : null}
         {phase === 'REJECTED' && reason ? <p className="mt-2 break-words" dir="auto">{reason}</p> : null}
         {phase !== 'PENDING' ? (
           <button type="button" onClick={again} className="mt-4 min-h-12 rounded-full border border-line px-6">

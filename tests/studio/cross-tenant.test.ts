@@ -96,6 +96,9 @@ interface Side {
   pairingId: string;
   setId: string;
   offerId: string;
+  /** A dated occasion and a showcase card hanging on it (docs/superpowers/plans/2026-10-30-menu-occasions-showcase.md). */
+  occasionId: string;
+  showcaseCardId: string;
   /** A design the restaurant saved from a template preset. */
   designTemplateId: string;
   /** A paid Menu subscription and its payment (docs/superpowers/plans/2026-10-22-business-core-in-menu.md). */
@@ -159,6 +162,10 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     ],
   });
   const offer = await prisma().promotion.create({ data: { menuId: menu.id, kind: 'SPECIAL', productIds: [product.id], translations: { en: { title: `${title} special` } } } });
+  const occasion = await prisma().occasion.create({ data: { menuId: menu.id, startsOn: '2099-03-30', endsOn: '2099-04-02', translations: { en: { name: `${title} Eid` } } } });
+  const showcaseCard = await prisma().showcaseCard.create({
+    data: { menuId: menu.id, slot: 'ABOVE_SEARCH', kind: 'BUFFET', sortOrder: 0, occasionId: occasion.id, price: 15000, translations: { en: { title: `${title} buffet` } } },
+  });
   const published = await publishFixture(prisma(), menu.id);
   const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
   const pending = await prisma().menuRevision.create({
@@ -272,6 +279,8 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pairingId: pairing.id,
     setId: set.id,
     offerId: offer.id,
+    occasionId: occasion.id,
+    showcaseCardId: showcaseCard.id,
     designTemplateId: designTemplate.id,
     subscriptionId: subscription.id,
     paymentId: payment.id,
@@ -423,6 +432,22 @@ const setSave = (first: string, second: string) => ({
   ],
   dayparts: [],
   isActive: true,
+});
+const occasionSave = () => ({ names: { en: 'Planted' }, startsOn: '2099-05-01', endsOn: '2099-05-02', isActive: true });
+const cardSave = (overrides: Record<string, unknown> = {}) => ({
+  slot: 'ABOVE_SEARCH',
+  kind: 'BUFFET',
+  occasionId: null,
+  promotionId: null,
+  bundleId: null,
+  price: 1000,
+  startMinute: null,
+  endMinute: null,
+  daysOfWeek: 127,
+  title: { en: 'Planted' },
+  text: {},
+  isActive: true,
+  ...overrides,
 });
 const offerSave = (productIds: string[], categoryIds: string[]) => ({
   kind: 'SPECIAL',
@@ -623,6 +648,7 @@ const SWEPT: Record<string, Case[]> = {
     c("copies B's menu into A", (w) => ({ menuId: w.b.menuId, name: 'Copy', slug: 'copy-out-of-b', targetRestaurantId: w.a.restaurantId })),
   ],
   'menus.delete': [c("B's menu", (w) => ({ menuId: w.b.menuId, confirmName: w.b.menuName }))],
+  'menus.bulkDelete': [c("deletes B's menu", (w) => ({ menuIds: [w.b.menuId], confirm: 'DELETE' }), { kind: 'perItem' })],
   // The guests' complaints and suggestions box
   'menus.setFeedback': [
     c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
@@ -651,6 +677,8 @@ const SWEPT: Record<string, Case[]> = {
   'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
   // The wheel: B's menu through A's session.
   'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  // The dish counts switch: B's menu through A's session.
+  'menus.setDishCountsEnabled': [c("switches on B's dish counts", (w) => ({ menuId: w.b.menuId, enabled: true }))],
   'menus.saveWheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId, spinsPerDay: 1, startsAt: null, endsAt: null, title: {}, slices: [] }))],
   'menus.wheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
@@ -660,6 +688,7 @@ const SWEPT: Record<string, Case[]> = {
 
   // People
   'people.inviteOwner': [c('into B', (w) => ({ restaurantId: w.b.restaurantId, email: address('planted-owner') }))],
+  'people.createTillStaff': [c('a till person into B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', email: address('planted-till'), role: 'CASHIER', password: GOOD }))],
   'people.revokeInvitation': [
     c("B's invitation, in B", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.b.restaurantId })),
     c("B's invitation, through A", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.a.restaurantId })),
@@ -770,6 +799,10 @@ const SWEPT: Record<string, Case[]> = {
     })),
     c("A's product with B's picture", (w) => ({ ...productSave(w.a.menuId, w.a.productId, w.a.categoryId), media: [{ kind: 'asset', assetId: w.b.assetId }] })),
   ],
+  'content.setSelling': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1, serves: 3 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1, serves: 3 })),
+  ],
   'content.deleteProduct': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1 })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1 })),
@@ -797,6 +830,7 @@ const SWEPT: Record<string, Case[]> = {
   ],
 
   // The Sales tab
+  'sales.dishes': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.rules': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.overview': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
@@ -841,6 +875,29 @@ const SWEPT: Record<string, Case[]> = {
     c("B's offers, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.offerId] })),
     c("B's offer, through A", (w) => ({ menuId: w.a.menuId, order: [w.b.offerId] })),
   ],
+  'sales.saveOccasion': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...occasionSave() })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, occasionId: w.b.occasionId, version: 1, ...occasionSave() })),
+  ],
+  'sales.deleteOccasion': [
+    c("B's occasion, in B", (w) => ({ menuId: w.b.menuId, occasionId: w.b.occasionId, version: 1 })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, occasionId: w.b.occasionId, version: 1 })),
+  ],
+  'sales.saveShowcaseCard': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...cardSave() })),
+    c("B's occasion, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ occasionId: w.b.occasionId }) })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ kind: 'OFFER', promotionId: w.b.offerId, price: null, title: {} }) })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, ...cardSave({ kind: 'SET', bundleId: w.b.setId, price: null, title: {} }) })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, cardId: w.b.showcaseCardId, version: 1, ...cardSave() })),
+  ],
+  'sales.deleteShowcaseCard': [
+    c("B's card, in B", (w) => ({ menuId: w.b.menuId, cardId: w.b.showcaseCardId, version: 1 })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, cardId: w.b.showcaseCardId, version: 1 })),
+  ],
+  'sales.reorderShowcaseCards': [
+    c("B's cards, in B", (w) => ({ menuId: w.b.menuId, slot: 'ABOVE_SEARCH', order: [w.b.showcaseCardId] })),
+    c("B's card, through A", (w) => ({ menuId: w.a.menuId, slot: 'ABOVE_SEARCH', order: [w.b.showcaseCardId] })),
+  ],
   'sales.saveSettings': [
     c("in B's menu", (w) => ({ menuId: w.b.menuId, ...salesSettings([]) })),
     c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...salesSettings([w.b.categoryId]) })),
@@ -877,13 +934,12 @@ const SWEPT: Record<string, Case[]> = {
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
     c('everyone, on the platform', () => ({})),
     c("everyone, on the platform, searching for B's", () => ({ q: 'bravo' })),
-    c("A's people", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
-    c("A's people, searching for B's owner", (w) => ({ restaurantId: w.a.restaurantId, q: w.b.ownerEmail }), SCOPED),
+    c("A's people", (w) => ({ restaurantId: w.a.restaurantId })),
   ],
   'people.listInvitations': [
     c("B's invitations", (w) => ({ restaurantId: w.b.restaurantId, status: 'all' })),
     c('every invitation, on the platform', () => ({ status: 'all' })),
-    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' }), SHOWS_OWN),
+    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' })),
   ],
   'people.restaurantMembers': [c("B's members", (w) => ({ restaurantId: w.b.restaurantId }))],
   'people.restaurantPolicy': [c("B's policy", (w) => ({ restaurantId: w.b.restaurantId }))],
@@ -945,6 +1001,7 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   // The platform's pharmacy list (`platform.settings`): it names no restaurant, so A's people are refused it outright.
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
+  'pos.setCaptainApproval': [c("switching B's captain approval", (w) => ({ restaurantId: w.b.restaurantId, enabled: true }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
   // The platform's intro background and adverts (`platform.settings`).
   'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
@@ -1136,12 +1193,12 @@ afterAll(async () => {
  * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
  * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
  */
-const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
+const TILL = ['pos.updateSettings', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
   'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
   'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
   'pos.importPreview', 'pos.importAiPreview', 'pos.importAiPhotos', 'pos.importAiTranslate', 'pos.importApply', 'pos.importDiscard',
   'pos.createArea', 'pos.renameArea', 'pos.deleteArea', 'pos.createTables', 'pos.deleteTable', 'pos.moveTable', 'pos.floor',
-  'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.approvers', 'pos.breakdown', 'pos.idleMinutes', 'pos.activity', 'pos.mergeOrders', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
+  'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.approveRequest', 'pos.addRequestLine', 'pos.placeCaptainOrder', 'pos.markBillCallSeen', 'pos.billCalls', 'pos.requestCatalog', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.approvers', 'pos.breakdown', 'pos.idleMinutes', 'pos.activity', 'pos.mergeOrders', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
   'pos.aiAsk', 'pos.aiPhraseSummary', 'pos.aiLabelComplaints', 'pos.aiSupplyExtract', 'pos.aiState', 'pos.aiSummary', 'pos.aiAlerts', 'pos.aiComplaintLabels',
   'pos.syncSnapshot', 'pos.discardSyncOperation', 'pos.restaurantLogo',
   'pos.savePrinter', 'pos.removePrinter', 'pos.openDrawer', 'pos.logReprint', 'pos.logOrderReprint', 'pos.setProductBarcode', 'pos.printers', 'pos.sectionList', 'pos.expo',

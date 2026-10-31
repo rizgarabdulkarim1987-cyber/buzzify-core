@@ -251,6 +251,7 @@ describe('sets', () => {
         dayparts: [],
         isActive: true,
         itemsTotal: 800,
+        people: null,
       },
     ]);
     expect(read.products.find((p) => p.id === a.product.id)?.variants).toEqual([]);

@@ -2,36 +2,101 @@
 
 import { Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
-import { DESK_COOKIE, DESKS, type DeskId } from '@/lib/pos-floor';
+import { useTransition, type CSSProperties, type ReactNode } from 'react';
+import { DESK_COOKIE, DESK_LAYOUT, DESKS, LAYOUT_COOKIE, type DeskId } from '@/lib/pos-floor';
 import { useT } from '@/studio/i18n';
 
 const YEAR = 60 * 60 * 24 * 365;
 
 function save(id: DeskId) {
   document.cookie = `${DESK_COOKIE}=${id}; path=/; max-age=${YEAR}; samesite=lax`;
+  const layout = DESK_LAYOUT[id];
+  if (layout) document.cookie = `${LAYOUT_COOKIE}=${layout}; path=/; max-age=${YEAR}; samesite=lax`;
 }
 
-/** A tiny sketch of each look: the dish tile, the category and the ticket, as the cashier will see them. */
-function Sketch({ id }: { id: DeskId }) {
-  const tile = (i: number) => <span key={i} className="block rounded-[3px] bg-[hsl(28_70%_70%)]" style={id === 'rows' ? { height: 6, borderInlineStart: '3px solid hsl(8 80% 50%)', background: 'var(--s-muted)' } : id === 'photo' ? { background: `hsl(${[28, 8, 335, 200][i % 4]} 65% 62%)` } : { background: `hsl(${[28, 150, 8, 45][i % 4]} 60% 72%)`, borderBottom: '4px solid var(--s-muted)' }} />;
-  const cols = id === 'rows' ? 2 : id === 'cards' ? 5 : 4;
-  const count = id === 'rows' ? 8 : id === 'cards' ? 10 : 8;
-  return (
-    <span className="flex h-full gap-[3px]">
-      {id === 'photo' ? <span className="flex w-[14%] flex-col gap-[3px]">{[28, 45, 8, 150].map((h) => <span key={h} className="block flex-1 rounded-[3px]" style={{ background: `hsl(${h} 80% 62%)` }} />)}</span> : null}
-      <span className="flex flex-1 flex-col gap-[3px]">
-        {id !== 'photo' ? <span className="flex gap-[3px]">{[28, 45, 8].map((h) => <span key={h} className="block h-[7px] flex-1 rounded-full" style={{ background: `hsl(${h} 80% 62%)` }} />)}</span> : null}
-        <span className="grid flex-1 content-start gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-          {Array.from({ length: count }, (_, i) => tile(i))}
-        </span>
-      </span>
-      <span className="block w-[28%] rounded-[3px] bg-[hsl(0_0%_88%)]" style={id === 'cards' ? { borderRadius: 8 } : undefined} />
+const box = (key: string | number, style?: CSSProperties, strong = false) => (
+  <span key={key} className="wire block" style={{ ...style, ...(strong ? { background: 'var(--s-muted)' } : null) }} />
+);
+const grid = (n: number, cols: number, style?: CSSProperties) => (
+  <span className="grid flex-1 content-start gap-[3px]" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, ...style }}>
+    {Array.from({ length: n }, (_, i) => box(i, undefined, i === 1))}
+  </span>
+);
+const bar = (key: string, strong: boolean) => box(key, { height: 7, flex: 'none' }, strong);
+const rail = (width: string) => <span className="flex flex-col gap-[3px]" style={{ width }}>{Array.from({ length: 5 }, (_, i) => box(i, { flex: 1 }, i === 0))}</span>;
+const ticket = (width = '28%') => box('t', { width, flex: 'none' });
+
+/** A small sketch of each look's whole cashier: where the pages menu sits, the dishes and the bill. */
+const SKETCH: Record<DeskId, ReactNode> = {
+  classic: (
+    <span className="flex h-full flex-col gap-[3px]">
+      {bar('n', false)}
+      <span className="flex flex-1 gap-[3px]">{grid(8, 4)}{ticket()}</span>
     </span>
-  );
-}
+  ),
+  photo: (
+    <span className="flex h-full gap-[3px]">
+      {rail('12%')}
+      {grid(6, 3)}
+      {ticket('24%')}
+    </span>
+  ),
+  rows: (
+    <span className="flex h-full flex-col gap-[3px]">
+      {bar('n', true)}
+      <span className="flex flex-1 gap-[3px]">
+        <span className="grid flex-1 grid-cols-2 content-start gap-[3px]">{Array.from({ length: 12 }, (_, i) => box(i, { height: 5 }))}</span>
+        {ticket('26%')}
+      </span>
+    </span>
+  ),
+  cards: (
+    <span className="flex h-full flex-col gap-[3px]">
+      <span className="flex flex-1 gap-[3px]">{grid(6, 3)}{box('t', { width: '28%', flex: 'none', borderRadius: 8 })}</span>
+      {box('d', { height: 9, flex: 'none', borderRadius: 6 })}
+    </span>
+  ),
+  split: (
+    <span className="flex h-full gap-[3px]">
+      {rail('7%')}
+      {box('l', { width: '24%', flex: 'none' })}
+      {grid(6, 3)}
+      {ticket('22%')}
+    </span>
+  ),
+  board: (
+    <span className="flex h-full flex-col gap-[3px]">
+      {bar('n', false)}
+      <span className="flex flex-1 gap-[3px]">
+        {Array.from({ length: 4 }, (_, c) => (
+          <span key={c} className="flex flex-1 flex-col gap-[3px]">
+            {Array.from({ length: 4 - (c % 2) }, (_, i) => box(i, { height: 8, flex: 'none' }, i === 0))}
+          </span>
+        ))}
+      </span>
+    </span>
+  ),
+  register: (
+    <span className="flex h-full flex-col gap-[3px]">
+      <span className="flex flex-1 gap-[3px]">
+        {box('t', { width: '34%', flex: 'none' })}
+        <span className="grid flex-1 grid-cols-3 gap-[3px]">{Array.from({ length: 9 }, (_, i) => box(i, undefined, i % 4 === 1))}</span>
+      </span>
+      {bar('n', true)}
+    </span>
+  ),
+  stack: (
+    <span className="flex h-full flex-col items-center gap-[3px]">
+      {bar('n', false)}
+      <span className="flex w-[46%] flex-1 flex-col gap-[3px]">
+        {Array.from({ length: 5 }, (_, i) => box(i, { height: 8, flex: 'none' }, i === 1))}
+        {box('p', { height: 9, marginTop: 'auto', flex: 'none' }, true)}
+      </span>
+    </span>
+  ),
+};
 
-/** The "order look" choices, shown inside the screen-look dialog. Big screens only: phones keep their own layout. */
+/** The cashier look choices, shown inside the screen-look dialog. Big screens only: phones keep their own layout. */
 export function DeskSection({ current }: { current: DeskId }) {
   const t = useT();
   const router = useRouter();
@@ -43,7 +108,7 @@ export function DeskSection({ current }: { current: DeskId }) {
   }
 
   return (
-    <section className="mt-5 hidden flex-col gap-3 lg:flex" aria-labelledby="desk-title">
+    <section className="mb-6 hidden flex-col gap-3 lg:flex" aria-labelledby="desk-title">
       <div>
         <h3 id="desk-title" className="text-base font-bold">{t('pos.desk.title')}</h3>
         <p className="text-sm text-muted">{t('pos.desk.subtitle')}</p>
@@ -55,7 +120,7 @@ export function DeskSection({ current }: { current: DeskId }) {
             <li key={id}>
               <button type="button" data-desk-option={id} aria-pressed={on} disabled={pending} onClick={() => choose(id)} className="layout-option flex w-full flex-col gap-2 rounded-xl p-2 text-start">
                 <span aria-hidden="true" className="relative block aspect-[16/10] w-full">
-                  <Sketch id={id} />
+                  {SKETCH[id]}
                   {on ? (
                     <span className="absolute end-1 top-1 grid size-6 place-items-center rounded-full bg-ink text-on-ink">
                       <Check size={16} />

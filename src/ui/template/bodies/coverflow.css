@@ -89,9 +89,9 @@
   display: flex;
   gap: var(--cf-gap);
   margin: 0;
-  /* Room on both sides so the first and the last card can each reach the middle (with a 1rem start the first one never could: the row opened on the second). */
+  /* The row opens at its start edge so the first screen holds three cards (never further than 0.9 of a card step from the middle, on wide rows); the last card can reach the middle. */
   padding-block: 0.75rem 0.5rem;
-  padding-inline: calc(50% - var(--cf-card) / 2);
+  padding-inline: max(1rem, calc(50% - var(--cf-card) / 2 - 0.9 * (var(--cf-card) + var(--cf-gap)))) calc(50% - var(--cf-card) / 2);
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
@@ -187,6 +187,8 @@
 /* ------------------------------------------------------------------ the arrows and the counter */
 
 :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-ctl {
+  /* Air between the dishes (tray, name, price) and the arrows with their counter. */
+  margin-block-start: 1.75rem;
   display: flex;
   align-items: center;
   justify-content: center;

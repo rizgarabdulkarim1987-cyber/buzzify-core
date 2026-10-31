@@ -20,7 +20,7 @@ const POS_QUERIES = { actor: 4, gate: 2 };
 const SET_1: string[] = ['audit.view', 'brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.delete', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'people.manage', 'permissions.manage', 'platform.settings', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.create', 'restaurant.delete', 'restaurant.edit', 'restaurant.status'];
 const SET_2: string[] = ['audit.view', 'brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.delete', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'people.manage', 'permissions.manage', 'plans.manage', 'platform.settings', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.create', 'restaurant.delete', 'restaurant.edit', 'restaurant.status'];
 const SET_3: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit'];
-const SET_4: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'people.invite', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit', 'restaurant.status'];
+const SET_4: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.now', 'publish.rollback', 'publish.schedule', 'qr.manage', 'restaurant.edit', 'restaurant.status'];
 const SET_5: string[] = ['brand.edit', 'content.availability', 'content.edit', 'content.media', 'content.prices', 'export.run', 'import.run', 'media.manage', 'menu.create', 'menu.duplicate', 'menu.settings', 'menu.status', 'prices.bulk', 'publish.rollback', 'publish.schedule', 'restaurant.edit'];
 const SET_6: string[] = ['content.availability', 'content.edit', 'content.media', 'content.prices', 'prices.bulk', 'publish.now'];
 const SET_7: string[] = ['content.availability', 'content.edit', 'content.media', 'content.prices', 'menu.create', 'publish.now', 'publish.schedule'];
@@ -157,12 +157,6 @@ describe('golden: the Studio navigation', () => {
       icon: 'media'
     },
     {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    },
-    {
       key: 'people',
       href: '/studio/people',
       labelKey: 'nav.people',
@@ -242,12 +236,6 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.media',
       icon: 'media'
     },
-    {
-      key: 'motion',
-      href: '/studio/motion',
-      labelKey: 'nav.motion',
-      icon: 'motion'
-    }
   ],
     );
   });

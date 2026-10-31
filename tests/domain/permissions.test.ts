@@ -78,6 +78,7 @@ describe('permission keys', () => {
         'restaurant.create',
         'restaurant.delete',
         'menu.delete',
+        'people.invite',
         'people.manage',
         'permissions.manage',
         'audit.view',
@@ -145,16 +146,16 @@ describe('role defaults', () => {
 
 describe('client policy', () => {
   it('applies a client policy', () => {
-    const policy = parsePolicy({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } });
+    const policy = parsePolicy({ OWNER: { grant: ['export.run'], revoke: ['publish.now'] } });
     const set = effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy });
-    expect(set.has('people.invite')).toBe(true);
+    expect(set.has('export.run')).toBe(true);
     expect(set.has('publish.now')).toBe(false);
   });
 
   it('only applies the policy of the actor role', () => {
-    const policy = parsePolicy({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } });
+    const policy = parsePolicy({ OWNER: { grant: ['export.run'], revoke: ['publish.now'] } });
     const designer = effectivePermissions({ isSuperAdmin: false, role: 'DESIGNER', policy });
-    expect(designer.has('people.invite')).toBe(false);
+    expect(designer.has('export.run')).toBe(true);
     expect(designer.has('publish.now')).toBe(true);
   });
 
@@ -179,10 +180,10 @@ describe('client policy', () => {
   it('drops unknown keys, unknown roles and repeats, and keeps valid grants and revokes', () => {
     expect(
       parsePolicy({
-        OWNER: { grant: ['people.invite', 'people.invite', 'bogus.key', 42], revoke: ['publish.now', 'nope'] },
-        SUPER_ADMIN: { grant: ['people.invite'], revoke: [] },
+        OWNER: { grant: ['export.run', 'export.run', 'people.invite', 'bogus.key', 42], revoke: ['publish.now', 'nope'] },
+        SUPER_ADMIN: { grant: ['export.run'], revoke: [] },
       }),
-    ).toEqual({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } });
+    ).toEqual({ OWNER: { grant: ['export.run'], revoke: ['publish.now'] } });
   });
 
   it('tolerates garbage input by returning an empty policy for that part', () => {

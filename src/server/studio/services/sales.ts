@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
+import type { Badge } from '@/lib/product-tags';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig, salesSettings, type SalesSettings } from '@/server/domain/config';
 import { localDate } from '@/server/domain/offers';
+import { SHOWCASE_KINDS, SHOWCASE_SLOTS, isOccasionLive, type ShowcaseKind, type ShowcaseSlot } from '@/server/domain/showcase';
 import { DAYPARTS, PROMOTION_KINDS, type Daypart, type PromotionKind } from '@/server/domain/types';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
@@ -88,6 +90,8 @@ export const setFields = {
     .max(SET_ITEMS_MAX, 'Use at most 8 dishes in a set'),
   dayparts: daypartsField,
   isActive: z.boolean(),
+  /** How many people the set feeds (a package for N); left out on an edit keeps what is saved, null clears it. */
+  people: z.number().int().min(2, 'Use 2 to 12 people').max(12, 'Use 2 to 12 people').nullable().optional(),
 };
 export type SetSave = z.infer<z.ZodObject<typeof setFields>>;
 export const sameSetRef = (row: { bundleId?: string | undefined; version?: number | undefined }) =>
@@ -124,6 +128,38 @@ export const offerFields = {
 export type OfferSave = z.infer<z.ZodObject<typeof offerFields>>;
 export const sameOfferRef = (row: { offerId?: string | undefined; version?: number | undefined }) =>
   (row.offerId === undefined) === (row.version === undefined);
+
+export const occasionFields = {
+  occasionId: idField.optional(),
+  version: versionField.optional(),
+  names: namesField,
+  startsOn: z.string().refine(isDate, 'Use a date such as 2026-10-31'),
+  endsOn: z.string().refine(isDate, 'Use a date such as 2026-10-31'),
+  isActive: z.boolean(),
+};
+export type OccasionSave = z.infer<z.ZodObject<typeof occasionFields>>;
+export const sameOccasionRef = (row: { occasionId?: string | undefined; version?: number | undefined }) =>
+  (row.occasionId === undefined) === (row.version === undefined);
+
+export const showcaseCardFields = {
+  cardId: idField.optional(),
+  version: versionField.optional(),
+  slot: z.enum(SHOWCASE_SLOTS),
+  kind: z.enum(SHOWCASE_KINDS),
+  occasionId: idField.nullable(),
+  promotionId: idField.nullable(),
+  bundleId: idField.nullable(),
+  price: priceField.nullable(),
+  startMinute: minuteField,
+  endMinute: minuteField,
+  daysOfWeek: z.number().int().min(1, 'Choose at least one day').max(127, 'Choose at least one day'),
+  title: namesField,
+  text: namesField,
+  isActive: z.boolean(),
+};
+export type ShowcaseCardSave = z.infer<z.ZodObject<typeof showcaseCardFields>>;
+export const sameCardRef = (row: { cardId?: string | undefined; version?: number | undefined }) =>
+  (row.cardId === undefined) === (row.version === undefined);
 
 export const settingsFields = {
   version: versionField,
@@ -332,6 +368,7 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
 
     const items = input.items.map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity }));
     const fields = { price: input.price, dayparts: daypartsOf(input.dayparts), isActive: input.isActive };
+    const peopleOf = (saved: number | null) => (input.people === undefined ? saved : input.people);
     const taken = async (slug: string, except?: string) =>
       Boolean(await tx.bundle.findFirst({ where: { slug, ...(except ? { id: { not: except } } : {}) }, select: { id: true } }));
 
@@ -340,9 +377,10 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
         if (input.slug !== undefined && (await taken(input.slug))) throw slugTaken();
         const slug = input.slug ?? uniqueSlug(slugFromNames(input.names, 'set'), new Set((await tx.bundle.findMany({ select: { slug: true } })).map((row) => row.slug)));
         const translations = withTexts({}, { name: input.names, description: input.descriptions });
-        const row = await tx.bundle.create({ data: { menuId, slug, ...fields, translations }, select: { id: true } });
+        const people = peopleOf(null);
+        const row = await tx.bundle.create({ data: { menuId, slug, ...fields, people, translations }, select: { id: true } });
         await tx.bundleItem.createMany({ data: items.map((item) => ({ menuId, bundleId: row.id, ...item })) });
-        ctx.audit({ action: 'set.created', entityType: 'Bundle', entityId: row.id, changes: { names: { before: null, after: present(input.names) }, price: { before: null, after: input.price }, items: { before: null, after: items } } });
+        ctx.audit({ action: 'set.created', entityType: 'Bundle', entityId: row.id, changes: { names: { before: null, after: present(input.names) }, price: { before: null, after: input.price }, items: { before: null, after: items }, ...(people === null ? {} : { people: { before: null, after: people } }) } });
         return { id: row.id, version: 1 };
       }
 
@@ -363,7 +401,8 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
       const slug = input.slug ?? row.slug;
       if (slug !== row.slug && (await taken(slug, row.id))) throw slugTaken();
       const translations = withTexts(row.translations, { name: input.names, description: input.descriptions });
-      await updateWithVersion(tx.bundle, { id: row.id, version: input.version, data: { slug, ...fields, translations }, entityType: 'Bundle' }, tx);
+      const people = peopleOf(row.people);
+      await updateWithVersion(tx.bundle, { id: row.id, version: input.version, data: { slug, ...fields, people, translations }, entityType: 'Bundle' }, tx);
       await tx.bundleItem.deleteMany({ where: { bundleId: row.id } });
       await tx.bundleItem.createMany({ data: items.map((item) => ({ menuId, bundleId: row.id, ...item })) });
       const before = row.items.map((item) => ({ productId: item.productId, variantId: item.variantId, quantity: item.quantity }));
@@ -379,6 +418,7 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
           items: [before, items],
           dayparts: [row.dayparts, fields.dayparts],
           isActive: [row.isActive, fields.isActive],
+          people: [row.people, people],
         }),
       });
       return { id: row.id, version: input.version + 1 };
@@ -521,6 +561,178 @@ export function reorderOffers(ctx: ActionContext, input: { order: string[] }): P
   });
 }
 
+// Occasions and showcase cards ------------------------------------------------------------------------------------------
+
+/** What an occasion's fields cannot state alone, as per-field messages; empty when it may be saved. */
+function occasionProblems(input: OccasionSave, defaultLocale: Locale): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (input.endsOn < input.startsOn) fields.endsOn = 'End on or after the start date';
+  if (!present(input.names)[defaultLocale]) fields.names = 'Enter a name in the main language of the menu';
+  return fields;
+}
+
+/** Creates an occasion (Eid, Ramadan: dates that cards can hang on), or saves one at the version the person read. */
+export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{ id: string; version: number }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const menu = await tx.menu.findFirstOrThrow({ where: { id: menuId }, select: { defaultLocale: true } });
+    const problems = occasionProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
+    if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
+
+    const fields = { startsOn: input.startsOn, endsOn: input.endsOn, isActive: input.isActive };
+    if (input.occasionId === undefined || input.version === undefined) {
+      const last = await tx.occasion.aggregate({ _max: { sortOrder: true } });
+      const sortOrder = last._max.sortOrder === null ? 0 : last._max.sortOrder + 1;
+      const row = await tx.occasion.create({ data: { menuId, ...fields, sortOrder, translations: withTexts({}, { name: input.names }) }, select: { id: true } });
+      ctx.audit({ action: 'occasion.created', entityType: 'Occasion', entityId: row.id, changes: { names: { before: null, after: present(input.names) }, startsOn: { before: null, after: fields.startsOn }, endsOn: { before: null, after: fields.endsOn } } });
+      return { id: row.id, version: 1 };
+    }
+
+    const row = await tx.occasion.findFirst({ where: { id: input.occasionId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    const translations = withTexts(row.translations, { name: input.names });
+    await updateWithVersion(tx.occasion, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'Occasion' }, tx);
+    ctx.audit({
+      action: 'occasion.updated',
+      entityType: 'Occasion',
+      entityId: row.id,
+      changes: changed({
+        names: [textsOf(row.translations, 'name'), present(input.names)],
+        startsOn: [row.startsOn, fields.startsOn],
+        endsOn: [row.endsOn, fields.endsOn],
+        isActive: [row.isActive, fields.isActive],
+      }),
+    });
+    return { id: row.id, version: input.version + 1 };
+  });
+}
+
+/** Removes an occasion and, with it, the cards that hang on it. */
+export function deleteOccasion(ctx: ActionContext, input: { occasionId: string; version: number }): Promise<{ deleted: true }> {
+  return editDraft(ctx, async (tx) => {
+    const row = await tx.occasion.findFirst({ where: { id: input.occasionId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    await deleteWithVersion(tx.occasion, { id: row.id, version: input.version, entityType: 'Occasion' }, tx);
+    ctx.audit({ action: 'occasion.deleted', entityType: 'Occasion', entityId: row.id, changes: { names: { before: textsOf(row.translations, 'name'), after: null } } });
+    return { deleted: true };
+  });
+}
+
+/** What a card's fields cannot state alone, as per-field messages; empty when it may be saved. */
+function cardProblems(input: ShowcaseCardSave, defaultLocale: Locale): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (input.kind === 'OFFER' && input.promotionId === null) fields.promotionId = 'Choose an offer for this card';
+  if (input.kind !== 'OFFER' && input.promotionId !== null) fields.promotionId = 'Only an offer card points at an offer';
+  if (input.kind === 'SET' && input.bundleId === null) fields.bundleId = 'Choose a set for this card';
+  if (input.kind !== 'SET' && input.bundleId !== null) fields.bundleId = 'Only a set card points at a set';
+  if (input.kind === 'BUFFET') {
+    if (input.price === null) fields.price = 'Enter a price for the buffet';
+    if (!present(input.title)[defaultLocale]) fields.title = 'Enter a title in the main language of the menu';
+    if ((input.startMinute === null) !== (input.endMinute === null)) fields.endMinute = 'Give both a start and an end time, or neither';
+    else if (input.startMinute !== null && input.startMinute === input.endMinute) fields.endMinute = 'End at a different time than the start';
+  } else {
+    if (input.price !== null) fields.price = 'Only a buffet card has its own price and hours';
+    if (input.startMinute !== null || input.endMinute !== null) fields.endMinute = 'Only a buffet card has its own price and hours';
+  }
+  return fields;
+}
+
+/**
+ * Creates a showcase card at the end of its slot, or saves one at the version the person read. An offer card points at
+ * an offer and a set card at a set (a package for N is a set with people); a buffet carries its own price and hours.
+ * More than eight live cards in a slot are allowed: guests see the first eight.
+ */
+export function saveShowcaseCard(ctx: ActionContext, input: ShowcaseCardSave): Promise<{ id: string; version: number }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const menu = await tx.menu.findFirstOrThrow({ where: { id: menuId }, select: { defaultLocale: true } });
+    const problems = cardProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
+    if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
+
+    if (input.occasionId !== null && !(await tx.occasion.findFirst({ where: { id: input.occasionId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+    if (input.promotionId !== null && !(await tx.promotion.findFirst({ where: { id: input.promotionId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+    if (input.bundleId !== null && !(await tx.bundle.findFirst({ where: { id: input.bundleId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+
+    const fields = {
+      kind: input.kind as ShowcaseKind,
+      occasionId: input.occasionId,
+      promotionId: input.promotionId,
+      bundleId: input.bundleId,
+      price: input.kind === 'BUFFET' ? input.price : null,
+      startMinute: input.kind === 'BUFFET' ? input.startMinute : null,
+      endMinute: input.kind === 'BUFFET' ? input.endMinute : null,
+      daysOfWeek: input.daysOfWeek,
+      isActive: input.isActive,
+    };
+    const endOfSlot = async (slot: ShowcaseSlot) => {
+      const last = await tx.showcaseCard.aggregate({ where: { slot }, _max: { sortOrder: true } });
+      return last._max.sortOrder === null ? 0 : last._max.sortOrder + 1;
+    };
+    if (input.cardId === undefined || input.version === undefined) {
+      const translations = withTexts({}, { title: input.title, text: input.text });
+      const row = await tx.showcaseCard.create({ data: { menuId, slot: input.slot, ...fields, sortOrder: await endOfSlot(input.slot), translations }, select: { id: true } });
+      ctx.audit({ action: 'showcase.created', entityType: 'ShowcaseCard', entityId: row.id, changes: { kind: { before: null, after: fields.kind }, slot: { before: null, after: input.slot }, title: { before: null, after: present(input.title) } } });
+      return { id: row.id, version: 1 };
+    }
+
+    const row = await tx.showcaseCard.findFirst({ where: { id: input.cardId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    // Moving to another slot puts the card at the end of that slot.
+    const sortOrder = row.slot === input.slot ? row.sortOrder : await endOfSlot(input.slot);
+    const translations = withTexts(row.translations, { title: input.title, text: input.text });
+    await updateWithVersion(tx.showcaseCard, { id: row.id, version: input.version, data: { ...fields, slot: input.slot, sortOrder, translations }, entityType: 'ShowcaseCard' }, tx);
+    ctx.audit({
+      action: 'showcase.updated',
+      entityType: 'ShowcaseCard',
+      entityId: row.id,
+      changes: changed({
+        title: [textsOf(row.translations, 'title'), present(input.title)],
+        text: [textsOf(row.translations, 'text'), present(input.text)],
+        slot: [row.slot, input.slot],
+        kind: [row.kind, fields.kind],
+        occasionId: [row.occasionId, fields.occasionId],
+        promotionId: [row.promotionId, fields.promotionId],
+        bundleId: [row.bundleId, fields.bundleId],
+        price: [row.price, fields.price],
+        startMinute: [row.startMinute, fields.startMinute],
+        endMinute: [row.endMinute, fields.endMinute],
+        daysOfWeek: [row.daysOfWeek, fields.daysOfWeek],
+        isActive: [row.isActive, fields.isActive],
+      }),
+    });
+    return { id: row.id, version: input.version + 1 };
+  });
+}
+
+export function deleteShowcaseCard(ctx: ActionContext, input: { cardId: string; version: number }): Promise<{ deleted: true }> {
+  return editDraft(ctx, async (tx) => {
+    const row = await tx.showcaseCard.findFirst({ where: { id: input.cardId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    await deleteWithVersion(tx.showcaseCard, { id: row.id, version: input.version, entityType: 'ShowcaseCard' }, tx);
+    ctx.audit({ action: 'showcase.deleted', entityType: 'ShowcaseCard', entityId: row.id, changes: { title: { before: textsOf(row.translations, 'title'), after: null } } });
+    return { deleted: true };
+  });
+}
+
+/** Puts the cards of one slot in the order given, which must name each of them once. A reorder moves no version. */
+export function reorderShowcaseCards(ctx: ActionContext, input: { slot: ShowcaseSlot; order: string[] }): Promise<{ reordered: true }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const rows = await tx.showcaseCard.findMany({ where: { slot: input.slot }, select: { id: true, sortOrder: true }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+    const ids = new Set(rows.map((row) => row.id));
+    if (input.order.some((id) => !ids.has(id))) throw new StudioError('NOT_FOUND');
+    if (input.order.length !== rows.length || new Set(input.order).size !== rows.length) {
+      throw new StudioError('INVALID', 'The cards changed while you were editing. Reload to see them.');
+    }
+    const current = new Map(rows.map((row) => [row.id, row.sortOrder]));
+    for (const [index, id] of input.order.entries()) {
+      if (current.get(id) !== index) await tx.showcaseCard.updateMany({ where: { id }, data: { sortOrder: index } });
+    }
+    const before = rows.map((row) => row.id);
+    if (JSON.stringify(before) !== JSON.stringify(input.order)) {
+      ctx.audit({ action: 'showcase.reordered', entityType: 'ShowcaseOrder', entityId: menuId, changes: { order: { before, after: input.order } } });
+    }
+    return { reordered: true };
+  });
+}
+
 // Settings ------------------------------------------------------------------------------------------------------------
 
 /**
@@ -587,15 +799,18 @@ export interface SalesSettingsView extends SalesSettings {
   upsellDeltaCapRatio: number;
   cartPairingMaxOffers: number;
   categories: Array<{ id: string; names: Names; completesMeal: boolean }>;
+  /** The owner's switch for the order and view counts on dish cards (read live; the plan's grant is in `upgrade`). */
+  dishCountsEnabled: boolean;
 }
 
 export async function salesSettingsView(db: QueryContext['db'], menuId: string): Promise<SalesSettingsView> {
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true, defaultLocale: true } });
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true, defaultLocale: true, dishCountsEnabled: true } });
   const categories = await db.category.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, translations: true, completesMeal: true } });
   const config = resolveEngineConfig(menu.engineConfig);
   return {
     ...salesSettings(config),
     version: menu.version,
+    dishCountsEnabled: menu.dishCountsEnabled,
     defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
     upsellMaxOffers: config.upsellMaxOffers,
     pairingMaxOffers: config.pairingMaxOffers,
@@ -656,6 +871,8 @@ export interface SalesRules {
     isActive: boolean;
     /** What the set's dishes cost bought one by one, at their regular prices now. */
     itemsTotal: number;
+    /** How many people it feeds (a package for N), or null. */
+    people: number | null;
   }>;
   offers: Array<{
     id: string;
@@ -676,9 +893,120 @@ export interface SalesRules {
     /** Its end date has passed in the menu's time zone: guests no longer see it. */
     ended: boolean;
   }>;
+  occasions: Array<{
+    id: string;
+    version: number;
+    names: Names;
+    startsOn: string;
+    endsOn: string;
+    isActive: boolean;
+  }>;
+  showcase: Array<{
+    id: string;
+    version: number;
+    slot: ShowcaseSlot;
+    kind: ShowcaseKind;
+    sortOrder: number;
+    occasionId: string | null;
+    promotionId: string | null;
+    bundleId: string | null;
+    price: number | null;
+    startMinute: number | null;
+    endMinute: number | null;
+    daysOfWeek: number;
+    title: Names;
+    text: Names;
+    isActive: boolean;
+    /** Why guests do not see the card now, from the draft; null when nothing about its occasion, offer or set hides it. */
+    hiddenReason: ShowcaseHiddenReason | null;
+  }>;
 }
 
-export async function salesRules(db: QueryContext['db'], menuId: string, now: Date = new Date()): Promise<SalesRules> {
+export type ShowcaseHiddenReason = 'PLAN' | 'OFFER_OFF' | 'OFFER_ENDED' | 'SET_OFF' | 'SET_UNAVAILABLE' | 'OCCASION_OFF' | 'OCCASION_ENDED' | 'OCCASION_UPCOMING';
+
+/** What the restaurant's plan serves guests (`servedCatalog`): without timed offers no offer card shows, without smart selling no set card. */
+export interface ShowcasePlan {
+  offers: boolean;
+  smartSelling: boolean;
+}
+
+/** Every dish's selling settings, by category, with the version each is saved at (Sales > Dishes). */
+export interface SalesDishes {
+  locales: Locale[];
+  defaultLocale: Locale;
+  currency: string;
+  numeralSystem: string;
+  categories: Array<{
+    id: string;
+    names: Names;
+    products: Array<{
+      id: string;
+      version: number;
+      names: Names;
+      isSignature: boolean;
+      isFeatured: boolean;
+      badges: Badge[];
+      cost: number | null;
+      priority: number;
+      serves: number | null;
+      lowStockThreshold: number | null;
+    }>;
+  }>;
+}
+
+export async function salesDishes(db: QueryContext['db'], menuId: string): Promise<SalesDishes> {
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true } });
+  const order = [{ sortOrder: 'asc' as const }, { id: 'asc' as const }];
+  const categories = await db.category.findMany({ where: { menuId }, orderBy: order, select: { id: true, translations: true } });
+  const products = await db.product.findMany({
+    where: { menuId },
+    orderBy: order,
+    select: {
+      id: true,
+      categoryId: true,
+      translations: true,
+      version: true,
+      isSignature: true,
+      isFeatured: true,
+      badges: true,
+      cost: true,
+      priority: true,
+      serves: true,
+      lowStockThreshold: true,
+    },
+  });
+  return {
+    locales: menu.locales.filter(isLocale),
+    defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
+    currency: menu.currency,
+    numeralSystem: menu.numeralSystem,
+    categories: categories.map((category) => ({
+      id: category.id,
+      names: textsOf(category.translations, 'name'),
+      products: products
+        .filter((product) => product.categoryId === category.id)
+        .map((product) => ({
+          id: product.id,
+          version: product.version,
+          names: textsOf(product.translations, 'name'),
+          isSignature: product.isSignature,
+          isFeatured: product.isFeatured,
+          badges: product.badges as Badge[],
+          cost: product.cost,
+          priority: product.priority,
+          serves: product.serves,
+          lowStockThreshold: product.lowStockThreshold,
+        })),
+    })),
+  };
+}
+
+export async function salesRules(
+  db: QueryContext['db'],
+  menuId: string,
+  now: Date = new Date(),
+  plan: ShowcasePlan = { offers: true, smartSelling: true },
+): Promise<SalesRules> {
   const menu = await db.menu.findUniqueOrThrow({
     where: { id: menuId },
     select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true, timezone: true },
@@ -700,8 +1028,35 @@ export async function salesRules(db: QueryContext['db'], menuId: string, now: Da
   const pairings = await db.pairingRule.findMany({ where: { menuId }, orderBy: { id: 'asc' } });
   const sets = await db.bundle.findMany({ where: { menuId }, orderBy: [{ slug: 'asc' }, { id: 'asc' }], include: { items: { orderBy: { id: 'asc' } } } });
   const offers = await db.promotion.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+  const occasions = await db.occasion.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+  const cards = await db.showcaseCard.findMany({ where: { menuId }, orderBy: [{ slot: 'asc' }, { sortOrder: 'asc' }, { id: 'asc' }] });
+  const gone = await db.product.findMany({ where: { menuId, OR: [{ isAvailable: false }, { isHidden: true }, { stockCount: { lte: 0 } }] }, select: { id: true } });
+  const goneIds = new Set(gone.map((product) => product.id));
   const order = new Map(categories.map((category, index) => [category.id, index]));
   const priced = new Map(products.map((product) => [product.id, product]));
+  const occasionById = new Map(occasions.map((occasion) => [occasion.id, occasion]));
+  const offerById = new Map(offers.map((offer) => [offer.id, offer]));
+  const setById = new Map(sets.map((bundle) => [bundle.id, bundle]));
+  const hiddenReason = (card: (typeof cards)[number]): ShowcaseHiddenReason | null => {
+    if ((card.kind === 'OFFER' && !plan.offers) || (card.kind === 'SET' && !plan.smartSelling)) return 'PLAN';
+    const occasion = card.occasionId === null ? undefined : occasionById.get(card.occasionId);
+    if (occasion) {
+      if (!occasion.isActive) return 'OCCASION_OFF';
+      if (today > occasion.endsOn) return 'OCCASION_ENDED';
+      if (!isOccasionLive({ ...occasion, translations: {} }, now, menu.timezone)) return 'OCCASION_UPCOMING';
+    }
+    const offer = card.promotionId === null ? undefined : offerById.get(card.promotionId);
+    if (card.kind === 'OFFER' && offer) {
+      if (!offer.isActive) return 'OFFER_OFF';
+      if (offer.endsOn !== null && offer.endsOn < today) return 'OFFER_ENDED';
+    }
+    const bundle = card.bundleId === null ? undefined : setById.get(card.bundleId);
+    if (card.kind === 'SET' && bundle) {
+      if (!bundle.isActive) return 'SET_OFF';
+      if (bundle.items.some((item) => goneIds.has(item.productId))) return 'SET_UNAVAILABLE';
+    }
+    return null;
+  };
 
   return {
     locales: menu.locales.filter(isLocale),
@@ -754,6 +1109,7 @@ export async function salesRules(db: QueryContext['db'], menuId: string, now: Da
         dayparts: bundle.dayparts as Daypart[],
         isActive: bundle.isActive,
         itemsTotal: itemsTotalOf(items, priced),
+        people: bundle.people,
       };
     }),
     offers: offers.map((offer) => ({
@@ -773,6 +1129,32 @@ export async function salesRules(db: QueryContext['db'], menuId: string, now: Da
       isActive: offer.isActive,
       sortOrder: offer.sortOrder,
       ended: offer.endsOn !== null && offer.endsOn < today,
+    })),
+    occasions: occasions.map((occasion) => ({
+      id: occasion.id,
+      version: occasion.version,
+      names: textsOf(occasion.translations, 'name'),
+      startsOn: occasion.startsOn,
+      endsOn: occasion.endsOn,
+      isActive: occasion.isActive,
+    })),
+    showcase: cards.map((card) => ({
+      id: card.id,
+      version: card.version,
+      slot: card.slot,
+      kind: card.kind,
+      sortOrder: card.sortOrder,
+      occasionId: card.occasionId,
+      promotionId: card.promotionId,
+      bundleId: card.bundleId,
+      price: card.price,
+      startMinute: card.startMinute,
+      endMinute: card.endMinute,
+      daysOfWeek: card.daysOfWeek,
+      title: textsOf(card.translations, 'title'),
+      text: textsOf(card.translations, 'text'),
+      isActive: card.isActive,
+      hiddenReason: hiddenReason(card),
     })),
   };
 }

@@ -187,6 +187,8 @@ function catalogFor(menuId: string): Catalog {
     pairingRules: [],
     bundles: [],
     promotions: [],
+    occasions: [],
+    showcaseCards: [],
     schedule: [],
   };
 }

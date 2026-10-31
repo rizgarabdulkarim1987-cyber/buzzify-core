@@ -160,6 +160,13 @@ const posAi: Messages = {
   'cashierOverview.aiSwitchOn': 'تفعيل',
   'cashierOverview.aiSwitchOff': 'إيقاف',
   'cashierOverview.aiSaveLimit': 'حفظ الحد',
+  'cashierOverview.captain': 'تأكيد الكابتن',
+  'cashierOverview.captainOn': 'مفعّل',
+  'cashierOverview.captainOff': 'غير مفعّل',
+  'cashierOverview.captainSwitchOn': 'تفعيل',
+  'cashierOverview.captainSwitchOff': 'إيقاف',
+  'cashierOverview.captainSaved': 'تم حفظ تأكيد الكابتن',
+  'activity.action.pos.captain.approval': 'غيّر تأكيد الكابتن',
   'cashierOverview.aiSaved': 'تم حفظ الحزمة',
 };
 

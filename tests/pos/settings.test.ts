@@ -84,6 +84,7 @@ describe('posSettings', () => {
       invoiceTaxNumber: '',
       invoiceFooter: '',
       requireApproval: true,
+      captainApproval: false,
       catalogMenuId: null,
       version: 0,
     });

@@ -160,6 +160,13 @@ const posAi: Messages = {
   'cashierOverview.aiSwitchOn': 'چالاککردن',
   'cashierOverview.aiSwitchOff': 'ڕاگرتن',
   'cashierOverview.aiSaveLimit': 'هەڵگرتنی سنوور',
+  'cashierOverview.captain': 'پەسەندکردنی کاپتن',
+  'cashierOverview.captainOn': 'چالاکە',
+  'cashierOverview.captainOff': 'چالاک نەکراوە',
+  'cashierOverview.captainSwitchOn': 'چالاککردن',
+  'cashierOverview.captainSwitchOff': 'ڕاگرتن',
+  'cashierOverview.captainSaved': 'پەسەندکردنی کاپتن هەڵگیرا',
+  'activity.action.pos.captain.approval': 'پەسەندکردنی کاپتنی گۆڕی',
   'cashierOverview.aiSaved': 'پاکێجەکە هەڵگیرا',
 };
 

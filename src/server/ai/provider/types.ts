@@ -44,5 +44,7 @@ export interface AiResponse {
 
 export interface AiProvider {
   readonly name: 'anthropic' | 'openai' | 'fake';
+  /** The model this provider would use for a purpose. Optional: canned test providers have none. The pharmacy's price is checked against it. */
+  modelFor?(purpose: AiPurpose): string;
   complete(req: AiRequest): Promise<AiResponse>;
 }

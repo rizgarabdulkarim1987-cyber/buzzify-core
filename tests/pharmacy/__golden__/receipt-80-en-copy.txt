@@ -1,0 +1,26 @@
+                Al Noor Pharmacy
+                Karrada, Baghdad
+               +964 770 000 0000
+------------------------------------------------
+                  Receipt [Rx]
+                 *** COPY 2 ***
+No.                              20261028-000123
+Date                            2026-10-28 17:03
+Cashier                                     Sara
+Currency                                     IQD
+------------------------------------------------
+Panadol 500 mg
+  2 tablet x 250                             450
+  Discount                                   -50
+Amoxil 250 mg [Rx]
+  1 strip x 2,000                          1,900
+  Discount                                  -100
+------------------------------------------------
+Subtotal                                   2,500
+Discount                                    -150
+Total                                  2,350 IQD
+Cash                                       3,000
+Paid                                   3,000 IQD
+Change                                   650 IQD
+------------------------------------------------
+         Keep out of reach of children

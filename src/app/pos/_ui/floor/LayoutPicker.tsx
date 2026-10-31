@@ -117,6 +117,7 @@ export function LayoutPicker({ current, desk }: { current: LayoutId; desk: DeskI
         {t('pos.layout.open')}
       </button>
       <Dialog open={open} onOpenChange={setOpen} title={t('pos.layout.title')} description={t('pos.layout.subtitle')} width="md">
+        <DeskSection current={desk} />
         <h3 className="mb-3 text-base font-bold">{t('pos.layout.sectionTables')}</h3>
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-busy={pending || undefined}>
           {LAYOUTS.map((id) => {
@@ -145,7 +146,6 @@ export function LayoutPicker({ current, desk }: { current: LayoutId; desk: DeskI
             );
           })}
         </ul>
-        <DeskSection current={desk} />
       </Dialog>
     </>
   );

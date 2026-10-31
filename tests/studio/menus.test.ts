@@ -11,7 +11,7 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as menuQueries from '@/server/studio/queries/menus';
-import { checkSlugAvailable, menuSlugs } from '@/server/studio/services/menus';
+import { checkSlugAvailable } from '@/server/studio/services/menus';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
@@ -20,12 +20,6 @@ import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from 
 vi.mock('@/server/data/cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/data/cache')>();
   return { ...actual, expireMenu: vi.fn(actual.expireMenu) };
-});
-
-// `menuSlugs` is read between a delete's check and its delete: the race test restores the menu from inside it.
-vi.mock('@/server/studio/services/menus', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/server/studio/services/menus')>();
-  return { ...actual, menuSlugs: vi.fn(actual.menuSlugs) };
 });
 
 const globalForPrisma = globalThis as unknown as { __prisma?: unknown };
@@ -441,15 +435,12 @@ describe('duplicateMenu', () => {
 });
 
 describe('deleteMenu', () => {
-  it('deletes only an archived menu with the exact typed name and keeps its slugs as tombstones', async () => {
+  it('erases a menu in any status, with its addresses, history and revisions, as if it never existed', async () => {
     const { menu } = await publishedMenuIn(atelier.id, 'del-menu');
     await prisma().menuSlug.create({ data: { slug: 'del-old', menuId: menu.id } });
+    dataOf(await run(admin, menus.publish, { menuId: menu.id }));
+    expect(await prisma().auditLog.count({ where: { menuId: menu.id } })).toBeGreaterThan(0);
 
-    expect(failureOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName: menu.name }))).toMatchObject({
-      code: 'INVALID',
-      message: 'Archive the menu before deleting it',
-    });
-    dataOf(await run(admin, menus.changeMenuStatus, { menuId: menu.id, action: 'archive' }));
     for (const confirmName of ['', 'menu del-menu', 'Menu del', `${menu.name}!`]) {
       expect(failureOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName })), confirmName).toMatchObject({
         code: 'INVALID',
@@ -462,47 +453,53 @@ describe('deleteMenu', () => {
     expect(await prisma().menu.findUnique({ where: { id: menu.id } })).not.toBeNull();
 
     vi.mocked(expireMenu).mockClear();
+    // It is still published: no archiving first.
     expect(dataOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName: ` ${menu.name} ` }))).toEqual({ deleted: true });
     expect(await prisma().menu.findUnique({ where: { id: menu.id } })).toBeNull();
     expect(await prisma().menuRevision.count({ where: { menuId: menu.id } })).toBe(0);
-    const tombstones = await prisma().menuSlug.findMany({ where: { slug: { in: ['del-menu', 'del-old'] } } });
-    expect(tombstones.map((row) => [row.slug, row.menuId]).sort()).toEqual([
-      ['del-menu', null],
-      ['del-old', null],
-    ]);
+    expect(await prisma().menuSlug.count({ where: { slug: { in: ['del-menu', 'del-old'] } } })).toBe(0);
+    expect(await prisma().auditLog.count({ where: { menuId: menu.id } })).toBe(0);
     expect((await resolvePublicMenu('del-menu')).kind).toBe('missing');
     expect(vi.mocked(expireMenu).mock.calls.map(([slugs, id]) => [[...slugs].sort(), id])).toEqual([[['del-menu', 'del-old'], menu.id]]);
-    const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'menu.deleted' } });
-    expect(audit).toMatchObject({ actorId: admin.userId, restaurantId: atelier.id, menuId: menu.id, entityType: 'Menu', entityId: menu.id });
 
-    // Its addresses can never be taken again.
-    expect(failureOf(await run(admin, menus.createMenu, { restaurantId: bistro.id, name: 'Reuse', slug: 'del-menu', ...SETTINGS }))).toMatchObject({
-      fields: { slug: 'This address is taken' },
-    });
+    // Nothing is left to hold the address: it can be used again.
+    expect(dataOf(await run(admin, menus.createMenu, { restaurantId: bistro.id, name: 'Reuse', slug: 'del-menu', ...SETTINGS })).menuId).toBeTruthy();
+  });
+
+  it('refuses the menu a restaurant’s cashier uses as its product list', async () => {
+    const { menu } = await publishedMenuIn(atelier.id, 'del-till');
+    await prisma().posSettings.create({ data: { restaurantId: atelier.id, catalogMenuId: menu.id } });
+    expect(failureOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName: menu.name }))).toMatchObject({ code: 'INVALID' });
+    expect(await prisma().menu.findUnique({ where: { id: menu.id } })).not.toBeNull();
   });
 });
 
-describe('deleteMenu racing a restore', () => {
-  it('answers CONFLICT and deletes nothing when the menu is restored between the check and the delete', async () => {
-    const { menu } = await publishedMenuIn(atelier.id, 'race-menu');
-    dataOf(await run(admin, menus.changeMenuStatus, { menuId: menu.id, action: 'archive' }));
-    const actual = await vi.importActual<typeof import('@/server/studio/services/menus')>('@/server/studio/services/menus');
-    vi.mocked(menuSlugs).mockImplementationOnce(async (...args: Parameters<typeof actual.menuSlugs>) => {
-      // The delete has read the menu as archived; somebody restores it now, before the delete runs.
-      await prisma().menu.update({ where: { id: menu.id }, data: { status: 'PUBLISHED', statusBeforeArchive: null } });
-      return actual.menuSlugs(...args);
-    });
+describe('bulkDeleteMenus', () => {
+  it('erases each selected menu on its own and reports the ones it could not', async () => {
+    const first = await publishedMenuIn(atelier.id, 'bd-a');
+    const second = await publishedMenuIn(atelier.id, 'bd-b', { publish: false });
+    const till = await publishedMenuIn(atelier.id, 'bd-till');
+    await prisma().posSettings.create({ data: { restaurantId: atelier.id, catalogMenuId: till.menu.id } });
 
-    vi.mocked(expireMenu).mockClear();
-    expect(failureOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName: menu.name })).code).toBe('CONFLICT');
+    const { results } = dataOf(await run(admin, menus.bulkDeleteMenus, { menuIds: [first.menu.id, till.menu.id, 'no-such-menu', second.menu.id], confirm: 'DELETE' }));
+    expect(results.map((result) => [result.menuId, result.ok, result.code ?? null])).toEqual([
+      [first.menu.id, true, null],
+      [till.menu.id, false, 'INVALID'],
+      ['no-such-menu', false, 'NOT_FOUND'],
+      [second.menu.id, true, null],
+    ]);
+    expect(await prisma().menu.count({ where: { id: { in: [first.menu.id, second.menu.id] } } })).toBe(0);
+    expect(await prisma().menuSlug.count({ where: { slug: { in: ['bd-a', 'bd-b'] } } })).toBe(0);
+    expect(await prisma().menu.count({ where: { id: till.menu.id } })).toBe(1);
+  });
 
-    // The live menu is still there, with its revision and its address, and nothing says it was deleted.
-    expect(await prisma().menu.findUniqueOrThrow({ where: { id: menu.id } })).toMatchObject({ status: 'PUBLISHED', slug: 'race-menu' });
-    expect(await prisma().menuRevision.count({ where: { menuId: menu.id } })).toBeGreaterThan(0);
-    expect(await prisma().menuSlug.findUniqueOrThrow({ where: { slug: 'race-menu' } })).toMatchObject({ menuId: menu.id });
-    expect(await prisma().auditLog.count({ where: { action: 'menu.deleted' } })).toBe(0);
-    expect(vi.mocked(expireMenu)).not.toHaveBeenCalled();
-    expect((await resolvePublicMenu('race-menu')).kind).toBe('live');
+  it('needs the word DELETE, and a Super Admin', async () => {
+    const { menu } = await publishedMenuIn(atelier.id, 'bd-guard');
+    expect(codeOf(await run(admin, menus.bulkDeleteMenus, { menuIds: [menu.id], confirm: 'delete' }))).toBe('INVALID');
+    expect(codeOf(await run(admin, menus.bulkDeleteMenus, { menuIds: [], confirm: 'DELETE' }))).toBe('INVALID');
+    const asDesigner = dataOf(await run(designer, menus.bulkDeleteMenus, { menuIds: [menu.id], confirm: 'DELETE' }));
+    expect(asDesigner.results).toEqual([{ menuId: menu.id, ok: false, code: 'FORBIDDEN' }]);
+    expect(await prisma().menu.count({ where: { id: menu.id } })).toBe(1);
   });
 });
 
@@ -653,12 +650,12 @@ describe('listMenus', () => {
     await publishedMenuIn(bistro.id, 'scope-theirs');
     const page = await list(designer);
     expect(page.rows.map((row) => row.slug)).toEqual(['scope-mine']);
-    expect(page.rows[0]!.can).toEqual({ publish: true, status: true, duplicate: true });
+    expect(page.rows[0]!.can).toEqual({ publish: true, status: true, duplicate: true, delete: false });
     expect(page.cities).toEqual(['Erbil']);
     expect(page.restaurants.map((restaurant) => restaurant.name)).toEqual(['Atelier']);
     expect((await list(designer, { restaurantId: bistro.id })).total).toBe(0);
     expect((await list(designer, { q: 'scope-theirs' })).total).toBe(0);
-    expect((await list(owner)).rows[0]!.can).toEqual({ publish: true, status: false, duplicate: false });
+    expect((await list(owner)).rows[0]!.can).toEqual({ publish: true, status: false, duplicate: false, delete: false });
     expect(page.canCreate).toBe(true);
     expect((await list(owner)).canCreate).toBe(false);
   });

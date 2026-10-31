@@ -18,12 +18,12 @@ export interface TillStaffView {
   staffId: string;
   name: string;
   email: string;
-  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN';
+  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'CAPTAIN';
   active: boolean;
   since: string;
 }
 
-const ROLES = ['CASHIER', 'MANAGER', 'KITCHEN'] as const;
+const ROLES = ['CASHIER', 'MANAGER', 'KITCHEN', 'CAPTAIN'] as const;
 
 /** The till's people for one restaurant, and the form a Super Admin uses to add a cashier, a manager or a kitchen member. */
 export function TillStaffPanel({ restaurantId, staff }: { restaurantId: string; staff: TillStaffView[] }) {

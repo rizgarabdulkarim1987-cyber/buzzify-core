@@ -1,7 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolvePosActor } from '@/server/pos/actor';
 import { changePosStaffRole as changeRoleIn, deactivateIn } from '@/server/pos/staff';
-import { changePosStaffRole, createPosStaff, setPosStaffActive } from '@/server/studio/actions/pos';
+import * as posActions from '@/server/studio/actions/pos';
+import { changePosStaffRole, setPosStaffActive } from '@/server/studio/actions/pos';
+import { createTillStaff } from '@/server/studio/actions/people';
 import { posStaff } from '@/server/studio/queries/pos';
 import { StudioError } from '@/server/studio/framework/result';
 import { scopedClient } from '@/server/data/tenant-db';
@@ -17,8 +19,14 @@ let owner: Person; // OWNER member of A
 let manager: Person;
 let cashier: Person;
 let bManager: Person;
+let admin: Person; // Super Admin
 
-const NEW = (email: string, role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' = 'CASHIER') => ({ name: 'New Person', email, role, password: GOOD });
+const NEW = (email: string, role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' = 'CASHIER', restaurantId = a.id) => ({ restaurantId, name: 'New Person', email, role, password: GOOD });
+/** A till row made the way the fixture makes people: directly, since no till role may open an account. */
+const staffRow = async (label: string, role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN') => {
+  const who = await person(label, { staff: [a.id, role] });
+  return (await prisma().posStaff.findFirstOrThrow({ where: { restaurantId: a.id, userId: who.userId } })).id;
+};
 
 beforeAll(() => {
   useTestDatabase();
@@ -33,6 +41,7 @@ beforeEach(async () => {
   manager = await person('manager', { staff: [a.id, 'MANAGER'] });
   cashier = await person('cashier', { staff: [a.id, 'CASHIER'] });
   bManager = await person('bmanager', { staff: [b.id, 'MANAGER'] });
+  admin = await person('admin', { superAdmin: true });
 });
 
 afterEach(() => {
@@ -46,8 +55,22 @@ afterAll(async () => {
 });
 
 describe('creating and listing staff', () => {
-  it('creates a person who can then sign in as that role, and lists them with the owner who has no row', async () => {
-    const { staffId } = dataOf(await run(owner, createPosStaff, NEW('till1@pos-test.example')));
+  it('has no till action that opens an account: only the Super Admin makes till people', async () => {
+    expect(Object.keys(posActions)).not.toContain('createPosStaff');
+    expect(Object.keys(posActions).filter((name) => /create.*staff/i.test(name))).toEqual([]);
+  });
+
+  it('refuses an owner and a manager on the Super Admin path to open an account (a till-only person does not even reach the restaurant), and writes nothing', async () => {
+    for (const [who, role] of [[owner, 'CASHIER'], [manager, 'KITCHEN'], [manager, 'OWNER'], [cashier, 'CASHIER']] as const) {
+      expect(codeOf(await run(who, createTillStaff, NEW(`no-${role.toLowerCase()}@pos-test.example`, role))), `${who.email} ${role}`).toMatch(/^(FORBIDDEN|NOT_FOUND)$/);
+      if (who === owner) expect(codeOf(await run(who, createTillStaff, NEW('no-owner2@pos-test.example', role)))).toBe('FORBIDDEN');
+    }
+    expect(await prisma().user.count({ where: { email: { startsWith: 'no-' } } })).toBe(0);
+    expect(await prisma().posStaff.count({ where: { restaurantId: a.id } })).toBe(2);
+  });
+
+  it('lets a Super Admin make a till person, who can then sign in as that role; the list shows them and the owner who has no row', async () => {
+    const { staffId } = dataOf(await run(admin, createTillStaff, NEW('till1@pos-test.example')));
     const rows = dataOf(await ask(owner, posStaff, {}));
     expect(rows.map((row) => row.email).sort()).toEqual(
       ['cashier@pos-test.example', 'manager@pos-test.example', 'owner@pos-test.example', 'till1@pos-test.example'],
@@ -59,37 +82,23 @@ describe('creating and listing staff', () => {
   });
 
   it('writes an audit row that holds no password', async () => {
-    dataOf(await run(owner, createPosStaff, NEW('till2@pos-test.example')));
+    dataOf(await run(admin, createTillStaff, NEW('till2@pos-test.example')));
     const row = await prisma().auditLog.findFirst({ where: { action: 'pos.staff.create' } });
     expect(row).toMatchObject({ restaurantId: a.id, entityType: 'PosStaff' });
     expect(JSON.stringify(row?.changes)).not.toContain(GOOD);
   });
 
-  it('lets a manager create a cashier but not an owner or another manager', async () => {
-    expect(codeOf(await run(manager, createPosStaff, NEW('k1@pos-test.example', 'KITCHEN')))).toBe('OK');
-    expect(codeOf(await run(manager, createPosStaff, NEW('k2@pos-test.example', 'OWNER')))).toBe('FORBIDDEN');
-    expect(codeOf(await run(manager, createPosStaff, NEW('k3@pos-test.example', 'MANAGER')))).toBe('FORBIDDEN');
-    expect(codeOf(await run(cashier, createPosStaff, NEW('k4@pos-test.example')))).toBe('FORBIDDEN');
-  });
-
   it('refuses a weak password on the password field, and creates nothing', async () => {
-    const error = failureOf(await run(owner, createPosStaff, { ...NEW('weak@pos-test.example'), password: 'short' }));
+    const error = failureOf(await run(admin, createTillStaff, { ...NEW('weak@pos-test.example'), password: 'short' }));
     expect(error.code).toBe('INVALID');
     expect(error.fields).toHaveProperty('password');
     expect(await prisma().user.count({ where: { email: 'weak@pos-test.example' } })).toBe(0);
   });
 
-  it('refuses a person who already works here', async () => {
-    expect(codeOf(await run(owner, createPosStaff, NEW('cashier@pos-test.example')))).toBe('CONFLICT');
-  });
-
-  it('never attaches an existing account: no row is written and the answer matches an unknown email without a password', async () => {
-    const existing = failureOf(await run(owner, createPosStaff, { name: 'X', email: 'bmanager@pos-test.example', role: 'CASHIER' }));
-    const unknown = failureOf(await run(owner, createPosStaff, { name: 'X', email: 'nobody-here@pos-test.example', role: 'CASHIER' }));
-    expect(existing).toEqual(unknown);
+  it('refuses a person who already works here, and never attaches an existing account', async () => {
+    expect(codeOf(await run(admin, createTillStaff, NEW('cashier@pos-test.example')))).toBe('CONFLICT');
     const user = await prisma().user.findUnique({ where: { email: 'bmanager@pos-test.example' } });
-    expect(await prisma().posStaff.count({ where: { userId: user!.id, restaurantId: a.id } })).toBe(0);
-    expect(codeOf(await run(owner, createPosStaff, NEW('bmanager@pos-test.example')))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, createTillStaff, NEW('bmanager@pos-test.example')))).toBe('CONFLICT');
     expect(await prisma().posStaff.count({ where: { userId: user!.id, restaurantId: a.id } })).toBe(0);
   });
 
@@ -101,14 +110,14 @@ describe('creating and listing staff', () => {
 
 describe('changing a role and switching a person off', () => {
   it('lets the owner change a role and a manager change a cashier', async () => {
-    const { staffId } = dataOf(await run(owner, createPosStaff, NEW('c1@pos-test.example')));
+    const staffId = await staffRow('c1', 'CASHIER');
     expect(codeOf(await run(owner, changePosStaffRole, { staffId, role: 'KITCHEN' }))).toBe('OK');
     expect(codeOf(await run(manager, changePosStaffRole, { staffId, role: 'CASHIER' }))).toBe('OK');
     expect(await prisma().auditLog.count({ where: { action: 'pos.staff.role' } })).toBe(2);
   });
 
   it('keeps a manager from touching an owner or manager, or promoting anyone to them', async () => {
-    const { staffId } = dataOf(await run(owner, createPosStaff, NEW('m2@pos-test.example', 'MANAGER')));
+    const staffId = await staffRow('m2', 'MANAGER');
     const cashierRow = await prisma().posStaff.findFirstOrThrow({ where: { restaurantId: a.id, role: 'CASHIER' } });
     expect(codeOf(await run(manager, changePosStaffRole, { staffId, role: 'CASHIER' }))).toBe('FORBIDDEN');
     expect(codeOf(await run(manager, setPosStaffActive, { staffId, active: false }))).toBe('FORBIDDEN');
@@ -152,7 +161,7 @@ describe('changing a role and switching a person off', () => {
   });
 
   it('counts an OWNER membership as an owner, so a staff-row owner may be demoted beside it', async () => {
-    const extra = dataOf(await run(owner, createPosStaff, NEW('o2@pos-test.example', 'OWNER')));
+    const extra = { staffId: await staffRow('o2', 'OWNER') };
     expect(codeOf(await run(owner, changePosStaffRole, { staffId: extra.staffId, role: 'MANAGER' }))).toBe('OK');
   });
 });

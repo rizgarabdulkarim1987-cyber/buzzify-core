@@ -3,7 +3,7 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useTemplate } from '../../context';
-import { Price, ProductMedia, SaleChip } from '../../parts';
+import { DishCounts, Price, ProductMedia, SaleChip } from '../../parts';
 import './photo-card.css';
 
 export interface PhotoCardProps {
@@ -52,6 +52,7 @@ export function PhotoCard({ product, prefix, suffix, className, style, sizes, pr
         <Price product={product} className={`tpl-price-tight tpl-photo-price ${prefix}-price`} />
         {addOnBar && add}
       </div>
+      <DishCounts product={product} className="block px-2 pb-1.5" />
       {photoLast && photo}
     </li>
   );

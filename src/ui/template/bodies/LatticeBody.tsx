@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import './shared/photo-card.css';
@@ -102,6 +102,7 @@ function Card({ product, at, priority }: { product: MenuProductView; at: number;
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name sh-name">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <div className="sh-foot">
         <Price product={product} className="tpl-price-tight sh-price" />
         <QuickAction product={product} variant="icon" className="sh-add relative z-[2]" />

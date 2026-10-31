@@ -610,6 +610,27 @@ describe('pharmacy product import', () => {
     expect(await prisma().phProduct.count()).toBe(1_000);
     expect(await prisma().phBarcode.count()).toBe(1_000);
   }, 120_000);
+  it('a PREVIEWED import batch older than 7 days is cancelled when the next preview is stored', async () => {
+    const a = await pharmacy('A');
+    const b = await pharmacy('B');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const mk = (restaurantId: string, ageDays: number, status: 'PREVIEWED' | 'COMMITTED') =>
+      prisma().phImportBatch.create({
+        data: { restaurantId, status, fileSha256: `sha-${ageDays}-${status}`, createdById: owner.userId, createdAt: new Date(NOW.getTime() - ageDays * DAY) },
+        select: { id: true },
+      });
+    const stale = await mk(a.id, 8, 'PREVIEWED');
+    const fresh = await mk(a.id, 6, 'PREVIEWED');
+    const committed = await mk(a.id, 30, 'COMMITTED');
+    const foreign = await mk(b.id, 30, 'PREVIEWED');
+
+    dataOf(await preview(owner, { restaurantId: a.id }, csvFile([drug(1)])));
+    const status = async (id: string) => (await prisma().phImportBatch.findUniqueOrThrow({ where: { id } })).status;
+    expect(await status(stale.id)).toBe('CANCELLED');
+    expect(await status(fresh.id)).toBe('PREVIEWED');
+    expect(await status(committed.id)).toBe('COMMITTED');
+    expect(await status(foreign.id)).toBe('PREVIEWED');
+  });
 });
 
 describe('pharmacy product export', () => {

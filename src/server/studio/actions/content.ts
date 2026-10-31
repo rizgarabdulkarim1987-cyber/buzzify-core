@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import * as content from '@/server/studio/services/content';
-import { contentSlugField, idField, namesField, priceField, productSaveFields } from '@/server/studio/services/content';
+import { attachPhotos as attachPhotosService, attachPhotosFields } from '@/server/studio/services/photos';
+import { contentSlugField, idField, namesField, priceField, productSaveFields, sellingFields } from '@/server/studio/services/content';
 
 /**
  * The Content tab's changes to a menu's draft (spec 10.3): its categories and products, with their sizes, option
@@ -64,6 +65,15 @@ export const saveProduct = defineAction({
   run: (ctx, input) => content.saveProduct(ctx, input),
 });
 
+/** Only a dish's selling fields (Sales > Dishes); a cost that changes also needs `content.prices`, checked by the service. */
+export const setSelling = defineAction({
+  name: 'content.setSelling',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...sellingFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => content.setSelling(ctx, input),
+});
+
 export const deleteProduct = defineAction({
   name: 'content.deleteProduct',
   permission: 'content.edit',
@@ -78,4 +88,12 @@ export const moveProduct = defineAction({
   input: z.object({ menuId: idField, productId: idField, categoryId: idField, index: z.number().int().min(0).max(10_000) }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => content.moveProduct(ctx, input),
+});
+
+export const attachPhotos = defineAction({
+  name: 'content.attachPhotos',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...attachPhotosFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => attachPhotosService(ctx, input),
 });

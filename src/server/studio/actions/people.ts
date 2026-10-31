@@ -2,8 +2,9 @@ import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { parsePolicy } from '@/server/domain/permissions';
-import { sendAfterResponse } from '@/server/studio/auth/auth';
+import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { addPosStaff } from '@/server/pos/staff';
+import { sendAfterResponse } from '@/server/studio/auth/auth';
 import { emailField } from '@/server/studio/auth/fields';
 import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
@@ -16,8 +17,8 @@ import { assignDesigner as assign, changeEmail, deactivatePerson, deletePerson, 
 
 /**
  * People, invitations and per-client permissions. Platform-wide changes (staff, accounts, who is assigned where) are
- * `people.manage`, which only Super Admins hold; an owner invites other owners only where the client's policy grants
- * `people.invite`, and only into their own restaurant. The link of an invitation is mailed to the invited address, and the
+ * `people.manage`, which only Super Admins hold; an owner invites no one, whatever the client's policy says:
+ * accounts are made by the Super Admin alone. The link of an invitation is mailed to the invited address, and the
  * actions that make or renew one (inviteStaff, inviteOwner, resendInvitation) also return it to the person who just did,
  * to send another way. It is stored nowhere, so it is shown once, and it never appears in an audit row, a log or a
  * query. Nothing here writes a token, a hash, a link or a password to the audit log.
@@ -60,7 +61,7 @@ export const inviteStaff = defineAction({
 
 export const inviteOwner = defineAction({
   name: 'people.inviteOwner',
-  permission: 'people.invite',
+  permission: 'people.manage',
   input: z.object({ restaurantId: idField, email: emailField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
   run: async (ctx, { email, space }) => {
@@ -79,6 +80,52 @@ export const inviteOwner = defineAction({
       });
       return { invitationId, url };
     });
+  },
+});
+
+/**
+ * Makes a till account (a cashier, kitchen, manager or owner login) for a restaurant, with the password the Super Admin
+ * chose. This is the only way a till person is made: the till's own staff page can list people, change their role and
+ * switch them off, but never opens an account. An existing account is never attached here (it would bind a stranger to
+ * the till without their consent and tell the caller which emails have accounts).
+ */
+export const createTillStaff = defineAction({
+  name: 'people.createTillStaff',
+  permission: 'people.manage',
+  input: z.object({
+    restaurantId: idField,
+    name: z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters'),
+    email: emailField,
+    role: z.enum(POS_ROLES),
+    password: z.string().min(1, 'Choose a password').max(1024, 'Use at most 128 characters'),
+  }),
+  target: (i) => atRestaurant(i.restaurantId),
+  run: async (ctx, input) => {
+    const restaurantId = restaurantOf(ctx);
+    let userId: string;
+    try {
+      ({ userId } = await createPasswordUser(ctx.db, { email: input.email, name: input.name, password: input.password, locale: ctx.actor.locale }));
+    } catch (error) {
+      if (error instanceof PasswordPolicyError) throw new StudioError('INVALID', undefined, { password: passwordProblemMessage(error.reason) });
+      if (error instanceof EmailTakenError) throw new StudioError('CONFLICT', 'An account with this email already exists');
+      throw error;
+    }
+    try {
+      return await ctx.transaction(async (tx) => {
+        const { id } = await addPosStaff(tx, { restaurantId, userId, role: input.role });
+        ctx.audit({
+          action: 'pos.staff.create',
+          entityType: 'PosStaff',
+          entityId: id,
+          changes: { role: { before: null, after: input.role }, email: { before: null, after: input.email } },
+        });
+        return { staffId: id };
+      });
+    } catch (error) {
+      // The account was made a moment ago for this staff row; without the row it would be an orphan nobody recorded.
+      await ctx.db.user.delete({ where: { id: userId } }).catch(() => undefined);
+      throw error;
+    }
   },
 });
 
@@ -102,7 +149,7 @@ const invitationTargetOf = (i: { restaurantId?: string | undefined }) => (i.rest
 
 export const revokeInvitation = defineAction({
   name: 'people.revokeInvitation',
-  permission: 'people.invite',
+  permission: 'people.manage',
   input: invitationTarget,
   target: invitationTargetOf,
   run: (ctx, { invitationId }) =>
@@ -122,7 +169,7 @@ export const revokeInvitation = defineAction({
 
 export const resendInvitation = defineAction({
   name: 'people.resendInvitation',
-  permission: 'people.invite',
+  permission: 'people.manage',
   input: invitationTarget,
   target: invitationTargetOf,
   run: (ctx, { invitationId }) =>
@@ -162,7 +209,7 @@ export const assignDesigner = defineAction({
 });
 
 /** The roles a Super Admin hands out here: the till's, not the owner's (an owner is invited, and holds a Studio membership). */
-const TILL_ROLES = ['MANAGER', 'CASHIER', 'KITCHEN'] as const;
+const TILL_ROLES = ['MANAGER', 'CASHIER', 'KITCHEN', 'CAPTAIN'] as const;
 
 /**
  * Makes a till account for a restaurant: a new person with a password and a role at the till, who is not a Studio

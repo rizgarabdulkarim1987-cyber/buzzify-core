@@ -2,6 +2,7 @@ import { MapPin } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
+import { canPh } from '@/server/domain/pharmacy/permissions';
 import type { PhActor } from '@/server/pharmacy/actor';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
 import { SupportBanner } from './SupportBanner';
@@ -39,7 +40,7 @@ export function Shell({
         {t('common.skipToContent')}
       </a>
       <SupportBanner support={actor.support} locale={actor.locale} />
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-2 sm:px-8">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-2 sm:px-8 print:hidden">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <p className="flex min-w-0 flex-col">
             <span className="text-xs font-medium text-muted">{t('pharmacy.shell.label')}</span>
@@ -68,15 +69,105 @@ export function Shell({
           <SignOutButton />
         </div>
       </header>
-      <nav aria-label={t('pharmacy.nav.label')} className="flex flex-wrap items-center gap-x-2 border-b border-line px-2 sm:px-6">
+      <nav aria-label={t('pharmacy.nav.label')} className="flex flex-wrap items-center gap-x-2 border-b border-line px-2 sm:px-6 print:hidden">
         <Link href="/pharmacy/home" className={LINK}>
           {t('pharmacy.nav.home')}
         </Link>
         <Link href="/pharmacy/catalog" className={LINK}>
           {t('pharmacy.nav.catalog')}
         </Link>
+        {actor.role !== null && canPh(actor.role, 'shift.use') && (
+          <Link href="/pharmacy/sell" className={LINK}>
+            {t('pharmacy.nav.sell')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'shift.use') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/shifts" className={LINK}>
+            {t('pharmacy.nav.shifts')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'shift.use') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/sales" className={LINK}>
+            {t('pharmacy.nav.sales')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'return.approve') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/returns" className={LINK}>
+            {t('pharmacy.nav.returns')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'rx.dispense') && (
+          <Link href="/pharmacy/prescriptions" className={LINK}>
+            {t('pharmacy.nav.prescriptions')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'customer.manage') || canPh(actor.role, 'credit.sell')) && (
+          <Link href="/pharmacy/customers" className={LINK}>
+            {t('pharmacy.nav.customers')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/stock" className={LINK}>
+            {t('pharmacy.nav.stock')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/stock/expiry" className={LINK}>
+            {t('pharmacy.nav.expiry')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'stock.count') && (
+          <Link href="/pharmacy/stock/counts" className={LINK}>
+            {t('pharmacy.nav.counts')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'purchase.manage') && (
+          <Link href="/pharmacy/stock/receive" className={LINK}>
+            {t('pharmacy.nav.receiving')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'transfer.manage') && (
+          <Link href="/pharmacy/stock/transfers" className={LINK}>
+            {t('pharmacy.nav.transfers')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'purchase.manage') && (
+          <Link href="/pharmacy/purchasing" className={LINK}>
+            {t('pharmacy.nav.purchasing')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && (
+          <Link href="/pharmacy/stock/movements" className={LINK}>
+            {t('pharmacy.nav.movements')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && (
+          <Link href="/pharmacy/reports" className={LINK}>
+            {t('pharmacy.nav.reports')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/assistant" className={LINK}>
+            {t('pharmacy.nav.assistant')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/print/labels" className={LINK}>
+            {t('pharmacy.print.labels.title')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && actor.branchIds.length > 1 && (
+          <Link href="/pharmacy/chain" className={LINK}>
+            {t('pharmacy.nav.chain')}
+          </Link>
+        )}
+        {actor.role === 'OWNER' || actor.role === 'BRANCH_MANAGER' ? (
+          <Link href="/pharmacy/settings" className={LINK}>
+            {t('pharmacy.nav.settings')}
+          </Link>
+        ) : null}
       </nav>
-      {notice}
+      {notice ? <div className="print:hidden">{notice}</div> : null}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
         {children}
       </main>

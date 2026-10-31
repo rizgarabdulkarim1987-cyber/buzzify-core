@@ -5,7 +5,7 @@ import { effectivePermissions, parsePolicy, PERMISSIONS, type Permission } from 
 import { canPh, PH_PERMISSIONS, type PhPermission } from '@/server/domain/pharmacy/permissions';
 import { supportReadScope } from '@/server/domain/pharmacy/support-grant';
 import { canPos, POS_PERMISSIONS, type PosPermission } from '@/server/domain/pos/permissions';
-import { phGate, resolvePhActor, type PhActor } from '@/server/pharmacy/actor';
+import { phGate, resolvePhActor, type PhActor, type PhGate } from '@/server/pharmacy/actor';
 import { posGate, resolvePosActor, type PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import { entitlementsOf, readPlans } from '@/server/data/plans';
@@ -324,6 +324,15 @@ export async function resolvePosAccess(
 }
 
 /**
+ * Who works in a pharmacy and whether it is open, as already resolved for this person earlier in the same request
+ * (`getPhAccess`). Passed by server code only (`invokePh`, `invokePhQuery`), never read from an input.
+ */
+export interface KnownPhAccess {
+  actor: PhActor;
+  gate: PhGate;
+}
+
+/**
  * The pharmacy check, for a `ph` target. The person's role and branches in the target's pharmacy come from the database
  * (`resolvePhActor` for that `restaurantId` only), and that pharmacy must not be closed (`phGate`); while it is read-only (a lapsed subscription
  * inside its retention window) only work that `allowReadOnly` passes runs. Staff need the permission in their role. A
@@ -338,6 +347,7 @@ export async function resolvePhAccess(
   target: PhTarget,
   allowReadOnly: boolean,
   kind: 'action' | 'query' = 'action',
+  known?: KnownPhAccess,
 ): Promise<Access | { ok: false; error: StudioFailure }> {
   if ((target as { kind?: unknown } | null)?.kind !== 'ph') throw new Error('resolvePhAccess: the target is not ph');
   // One clock for the actor (whose grant may expire this instant) and the gate.
@@ -345,9 +355,12 @@ export async function resolvePhAccess(
   // Always the named pharmacy: never a fallback to another one the person works in.
   const restaurantId: unknown = (target as { restaurantId?: unknown }).restaurantId;
   if (typeof restaurantId !== 'string' || restaurantId === '') return failure('FORBIDDEN');
-  const phActor = await resolvePhActor(prisma, actor.userId, { restaurantId, now });
+  // A resolution made earlier in this request is used only for this person in this pharmacy; any other is ignored and
+  // the answer comes from the database as before. Every check below runs on it all the same.
+  const reuse = known !== undefined && known.actor.userId === actor.userId && known.actor.restaurantId === restaurantId ? known : null;
+  const phActor = reuse ? reuse.actor : await resolvePhActor(prisma, actor.userId, { restaurantId, now });
   if (!phActor) return failure('FORBIDDEN');
-  const gate = await phGate(prisma, phActor.restaurantId, now);
+  const gate = reuse ? reuse.gate : await phGate(prisma, phActor.restaurantId, now);
   if (gate.state === 'closed') return failure('FORBIDDEN');
   if (gate.state === 'readOnly' && !allowReadOnly) return failure('FORBIDDEN');
 
@@ -388,6 +401,7 @@ export async function admit<I>(
   actor: Actor | null,
   def: Guarded<I>,
   raw: unknown,
+  known?: KnownPhAccess,
 ): Promise<{ ok: true; actor: Actor; input: I; access: Access } | { ok: false; error: StudioFailure }> {
   if (!actor) return failure('UNAUTHENTICATED');
   if (actor.isSuperAdmin && !actor.twoFactorEnabled && !def.allowWithoutTwoFactor) return failure('TWO_FACTOR_REQUIRED');
@@ -406,6 +420,7 @@ export async function admit<I>(
           // Reading is always allowed while the pharmacy is read-only; an action only when it says so.
           isQuery || def.allowReadOnly === true,
           isQuery ? 'query' : 'action',
+          known,
         )
       : def.pos !== undefined
         ? await resolvePosAccess(prisma, actor, def.pos, def.target(parsed.data) as PosTarget, def.allowLapsed === true)

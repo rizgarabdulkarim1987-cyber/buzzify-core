@@ -21,7 +21,7 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
@@ -30,7 +30,6 @@ describe('NAV_ITEMS', () => {
       '/studio/pharmacies',
       '/studio/menus',
       '/studio/media',
-      '/studio/motion',
       '/studio/people',
       '/studio/announcements',
       '/studio/platform/intro',
@@ -49,12 +48,12 @@ describe('the Menu Styles area', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin the Pharmacy area right after the Cashier, with its own pill icon', () => {
@@ -71,11 +70,11 @@ describe('visibleNav', () => {
 
   it('gives a designer the working areas but not Billing, People, Activity or Settings', () => {
     const designer = actor({ memberships: [{ restaurantId: 'r1', role: 'DESIGNER' }] });
-    expect(keys(visibleNav(designer))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion']);
+    expect(keys(visibleNav(designer))).toEqual(['overview', 'restaurants', 'menus', 'media']);
   });
 
   it('treats staff who are not assigned to a restaurant yet as designers', () => {
-    expect(keys(visibleNav(actor({})))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion']);
+    expect(keys(visibleNav(actor({})))).toEqual(['overview', 'restaurants', 'menus', 'media']);
   });
 
   it('treats someone who designs for one client and owns another as a designer', () => {
@@ -85,7 +84,7 @@ describe('visibleNav', () => {
         { restaurantId: 'r2', role: 'DESIGNER' },
       ],
     });
-    expect(keys(visibleNav(both))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion']);
+    expect(keys(visibleNav(both))).toEqual(['overview', 'restaurants', 'menus', 'media']);
   });
 
   it('gives an owner two items: their restaurant and their menu settings', () => {

@@ -60,7 +60,7 @@ describe('creating a pharmacy', () => {
       ['Ankawa', '', 1],
     ]);
     const settings = await prisma().phSettings.findUniqueOrThrow({ where: { restaurantId } });
-    expect(settings).toMatchObject({ enabledCurrencies: ['IQD', 'USD'], defaultCurrency: 'IQD', rxRetentionDays: null });
+    expect(settings).toMatchObject({ enabledCurrencies: ['IQD', 'USD'], defaultCurrency: 'IQD', rxRetentionDays: 3650 });
 
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'restaurant.created' } });
     expect(audit).toMatchObject({ actorId: admin.userId, restaurantId, entityType: 'Restaurant', entityId: restaurantId });

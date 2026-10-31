@@ -5,14 +5,21 @@ import { expiryCutoff } from '@/server/domain/pos/customer-order-rules';
 import { DEFAULT_QR_STYLE } from '@/server/domain/qr';
 import { previewQr } from '@/server/qr/render';
 
-/** What the till's frame needs on every page: whether QR ordering is on and how many guest orders wait. */
-export async function readQrFlags(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<{ qrOrdering: boolean; delivery: boolean; pendingRequests: number }> {
+/** What the till's frame needs on every page: whether QR ordering is on and how many guest orders and unseen bill calls wait. */
+export async function readQrFlags(
+  prisma: PrismaClient,
+  restaurantId: string,
+  now: Date = new Date(),
+): Promise<{ qrOrdering: boolean; delivery: boolean; pendingRequests: number; billCalls: number; captainApproval: boolean }> {
   const till = scopedClient(prisma, { restaurantId });
-  const settings = await till.posSettings.findFirst({ where: { restaurantId }, select: { qrOrderingEnabled: true, deliveryEnabled: true } });
+  const settings = await till.posSettings.findFirst({ where: { restaurantId }, select: { qrOrderingEnabled: true, deliveryEnabled: true, captainApproval: true } });
   const delivery = settings?.deliveryEnabled === true;
-  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, delivery, pendingRequests: 0 };
+  const captainApproval = settings?.captainApproval === true;
+  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, delivery, pendingRequests: 0, billCalls: 0, captainApproval };
   const pendingRequests = await till.posCustomerOrder.count({ where: { restaurantId, status: 'PENDING', createdAt: { gt: expiryCutoff(now) } } });
-  return { qrOrdering: true, delivery, pendingRequests };
+  // A call left unseen for longer than a request waits stops counting, like the list of calls.
+  const billCalls = await till.posBillCall.count({ where: { restaurantId, seenAt: null, createdAt: { gt: expiryCutoff(now) } } });
+  return { qrOrdering: true, delivery, pendingRequests, billCalls, captainApproval };
 }
 
 export interface QrSheetView {

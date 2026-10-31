@@ -4,7 +4,6 @@ import type { Locale } from '@/lib/locale';
 import type { RailStyle } from '@/lib/rail';
 import type { MenuDesign } from '@/lib/templates/types';
 import type { EngineConfig } from '@/server/domain/config';
-import type { SnapshotMotion } from '@/server/domain/menu-motions';
 import type { GuestFeatures } from '@/server/domain/plan-choices';
 
 export type { Palette };
@@ -79,7 +78,7 @@ export interface TenantInfo {
    * Which extras this menu offers guests: its own switch (read live, like `feedbackEnabled`) and the plan both have to be on.
    * `aboutTitle` is the title the restaurant gave its own page, per language ('' when it left it empty).
    */
-  extras: { intro: boolean; about: boolean; wheel: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
+  extras: { intro: boolean; about: boolean; wheel: boolean; dishCounts: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
   /** The live revision everything else here, and the catalog, is read from. */
   revisionId: string;
   /** The menu's current slug. */
@@ -98,8 +97,6 @@ export interface TenantInfo {
   seo: SeoText;
   /** What the restaurant's plan lets the guest pages show. Read live, never part of a snapshot. */
   features: GuestFeatures;
-  /** The motions placed on the menu, from its revision; none when the restaurant's plan leaves them out. */
-  motions: SnapshotMotion[];
 }
 
 export { getTenant } from './public-menu';

@@ -19,7 +19,7 @@ import { Select } from '@/studio/ui/Select';
 import { Switch } from '@/studio/ui/Switch';
 import { formatMoney, newKey, PRICE_PROBLEM_KEYS, type Names } from '../content/shared';
 import { TranslationFields } from '../content/TranslationFields';
-import { daypartsText, DaypartToggles, dishOptions, DishSelect, Locked, PageIntro, RuleList, RuleRow, useNamer, useSave, type RulesView } from './shared';
+import { daypartsText, DaypartToggles, dishOptions, DishSelect, latinDigits, Locked, PageIntro, RuleList, RuleRow, useNamer, useSave, type RulesView } from './shared';
 
 type SetView = RulesView['sets'][number];
 
@@ -38,6 +38,8 @@ interface SetDraft {
   descriptions: Names;
   price: string;
   items: ItemDraft[];
+  /** Digits as typed; empty is an ordinary set. */
+  people: string;
   dayparts: Daypart[];
   isActive: boolean;
 }
@@ -85,8 +87,10 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
     }
     const items = draft.items.filter((item) => item.productId !== '').map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
     const { bundleId, version, slug, names, descriptions, dayparts, isActive } = draft;
+    const typedPeople = latinDigits(draft.people.trim());
+    const people = typedPeople === '' ? null : Number(typedPeople);
     void save(
-      () => saveSet({ menuId, ...(bundleId ? { bundleId, version } : {}), ...(slug ? { slug } : {}), names, descriptions, price: price.minor, items, dayparts, isActive }),
+      () => saveSet({ menuId, ...(bundleId ? { bundleId, version } : {}), ...(slug ? { slug } : {}), names, descriptions, price: price.minor, items, people, dayparts, isActive }),
       () => setDraft(null),
     );
   };
@@ -103,7 +107,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
               variant="primary"
               icon={<Plus aria-hidden />}
               disabled={rules.products.length < 2}
-              onClick={() => open({ names: {}, descriptions: {}, price: '', items: [newItem(), newItem()], dayparts: [], isActive: true })}
+              onClick={() => open({ names: {}, descriptions: {}, price: '', items: [newItem(), newItem()], people: '', dayparts: [], isActive: true })}
             >
               {t('sales.sets.add')}
             </Button>
@@ -130,7 +134,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
                 }
                 details={
                   <>
-                    {[contents, daypartsText(t, set.dayparts)].join(' · ')}
+                    {[set.people ? t('sales.sets.forPeople', { n: set.people }) : '', contents, daypartsText(t, set.dayparts)].filter(Boolean).join(' · ')}
                     <span className={cx('block', deal ? 'text-success' : 'text-danger')}>
                       {deal ? t('sales.sets.saves', { amount: money(set.itemsTotal - set.price), total: money(set.itemsTotal) }) : t('sales.sets.noSaving', { total: money(set.itemsTotal) })}
                     </span>
@@ -148,6 +152,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
                     descriptions: set.descriptions,
                     price: formatPriceInput(set.price, rules.currency),
                     items: set.items.map((item) => ({ key: newKey(), ...item })),
+                    people: set.people ? String(set.people) : '',
                     dayparts: set.dayparts,
                     isActive: set.isActive,
                   })
@@ -241,6 +246,9 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
                 {saving !== null && saving <= 0 && itemsTotal > 0 && <span className="font-medium text-danger">{t('sales.sets.priceTooHigh')}</span>}
               </div>
             </div>
+            <Field label={t('sales.sets.people')} hint={t('sales.sets.peopleHint')} error={errors.people}>
+              <Input value={draft.people} inputMode="numeric" dir="ltr" onChange={(event) => change({ people: event.target.value })} className="tabular-nums sm:w-32" />
+            </Field>
             <label className="flex items-center justify-between gap-4">
               <span className="text-sm text-text">{t('sales.active')}</span>
               <Switch aria-label={t('sales.active')} checked={draft.isActive} onCheckedChange={(isActive) => change({ isActive })} />
@@ -254,7 +262,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
         open={deleting !== null}
         onOpenChange={(next) => !next && setDeleting(null)}
         title={t('sales.sets.deleteTitle')}
-        body={deleting ? t('sales.sets.deleteBody', { name: name(deleting.names) }) : undefined}
+        body={deleting ? `${t('sales.sets.deleteBody', { name: name(deleting.names) })} ${t('sales.deleteRemovesCards')}` : undefined}
         confirmLabel={t('sales.delete')}
         onConfirm={async () => {
           if (!deleting) return true;

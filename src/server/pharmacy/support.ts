@@ -42,6 +42,8 @@ export async function createGrant(
   request: GrantRequest,
   approval: { approvedByUserId: string; consentRef: null } | { approvedByUserId: null; consentRef: string },
   now: Date,
+  /** The person recording an owner's consent: they may not be the grantee (by user id, the canonical guard). */
+  recorderUserId?: string,
 ): Promise<{ id: string; granteeUserId: string; expiresAt: Date }> {
   const expiresAt = new Date(now.getTime() + request.hours * HOUR_MS);
   const verdict = validateGrantRequest({ ...request, startsAt: now, expiresAt, now });
@@ -55,6 +57,10 @@ export async function createGrant(
   });
   if (!grantee || !grantee.isSuperAdmin || grantee.deactivatedAt) {
     const message = 'Name a member of Buzzify support';
+    throw new StudioError('INVALID', message, { granteeEmail: message });
+  }
+  if (recorderUserId !== undefined && grantee.id === recorderUserId) {
+    const message = 'CONSENT_SELF: name another member of Buzzify support, not yourself';
     throw new StudioError('INVALID', message, { granteeEmail: message });
   }
   return tx.supportAccessGrant.create({

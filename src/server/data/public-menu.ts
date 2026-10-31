@@ -69,7 +69,7 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
  * snapshot itself is not changed, so a plan never touches a revision or its hash.
  */
 export function tenantInfo(
-  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; about?: { titles: unknown } | null },
+  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; dishCountsEnabled?: boolean; about?: { titles: unknown } | null },
   revisionId: string,
   snapshot: MenuSnapshot,
   entitlements: Entitlements,
@@ -84,6 +84,7 @@ export function tenantInfo(
       intro: (menu.introEnabled ?? false) && features.intro,
       about: (menu.aboutEnabled ?? false) && features.about,
       wheel: (menu.wheelEnabled ?? false) && features.wheel,
+      dishCounts: (menu.dishCountsEnabled ?? false) && features.dishCounts,
       aboutTitle: aboutTitleOf(menu.about?.titles),
     },
     revisionId,
@@ -98,7 +99,6 @@ export function tenantInfo(
     brand: clampBrandView(snapshot.brand, entitlements),
     seo: settings.seo,
     features,
-    motions: allows(entitlements, 'design.menuMotions') ? (snapshot.motions ?? []) : [],
   };
 }
 
@@ -128,6 +128,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           introEnabled: true,
           aboutEnabled: true,
           wheelEnabled: true,
+          dishCountsEnabled: true,
           about: { select: { titles: true } },
           liveRevisionId: true,
           restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true } },

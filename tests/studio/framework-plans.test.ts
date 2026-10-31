@@ -43,7 +43,7 @@ const chooses = defineAction({
 const gatedQuery = defineQuery({
   name: 'test.gatedQuery',
   permission: 'view',
-  feature: 'immersive.explore',
+  feature: 'immersive.stage',
   input: z.object({ restaurantId: z.string() }),
   target: atRestaurant,
   run: async (ctx) => ({ features: [...(ctx.plan?.entitlements.features ?? [])].length }),

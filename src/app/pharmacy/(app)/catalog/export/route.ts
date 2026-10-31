@@ -12,6 +12,11 @@ export const runtime = 'nodejs';
 const STATUS: Record<string, number> = { UNAUTHENTICATED: 401, FORBIDDEN: 403, NOT_FOUND: 404, INVALID: 400, CONFLICT: 409 };
 
 export async function GET(request: Request): Promise<Response> {
+  // A file made by a click on this site's own screens: a request another site started, with our cookie, makes no file and no audit row.
+  const site = request.headers.get('sec-fetch-site');
+  if (site !== null && site !== 'same-origin' && site !== 'none') {
+    return new Response('Cross-site requests are refused', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+  }
   const search = new URL(request.url).searchParams;
   const result = await invokePhQuery(products, { format: search.get('format') ?? 'csv', active: search.get('active') ?? 'active' });
   if (!result.ok) {
