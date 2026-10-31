@@ -208,11 +208,12 @@ describe('products and prices', () => {
   it('lists the products with each plan’s prices', async () => {
     const overview = dataOf(await readAt(new Date(), billingOverview, {}));
     expect(overview.canEdit).toBe(true);
+    // Menu and Cashier sell the menu and the cashier; the Pharmacy space sells the pharmacy and nothing else.
     expect(overview.applications.map((app) => [app.id, app.status])).toEqual([
       ['menu', 'ACTIVE'],
       ['cashier', 'DISABLED'],
-      ['pharmacy', 'DISABLED'],
     ]);
+    expect(dataOf(await readAt(new Date(), billingOverview, { space: 'pharmacy' })).applications.map((app) => [app.id, app.status])).toEqual([['pharmacy', 'DISABLED']]);
     const menu = overview.applications[0]!;
     expect(menu.plans.map((plan) => [plan.code, plan.prices.map((p) => `${p.currency}/${p.period}/${p.amountMinor}`)])).toEqual([
       ['BASIC', []],
@@ -221,7 +222,7 @@ describe('products and prices', () => {
     ]);
     expect(overview.applications[1]!.plans.map((plan) => [plan.code, plan.prices])).toEqual([['BASIC', []], ['PRO', []], ['PREMIUM', []]]);
     // Pharmacy plans are app plans (AppPlan), not FOOD plan codes, so the FOOD price list has none for it.
-    expect(overview.applications[2]!.plans).toEqual([]);
+    expect(dataOf(await readAt(new Date(), billingOverview, { space: 'pharmacy' })).applications[0]!.plans).toEqual([]);
   });
 });
 
@@ -830,7 +831,7 @@ describe('billing.restaurants', () => {
     const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb, never swept
     const list = dataOf(await readAt(at('2027-03-02T12:00:00+03:00'), billingRestaurants, {}));
 
-    expect(list.applications.map((app) => app.id)).toEqual(['menu', 'cashier', 'pharmacy']);
+    expect(list.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
     expect(list.total).toBe(2);
     expect(list.rows.map((row) => row.name)).toEqual(['Restaurant billing-a', 'Restaurant billing-b']);
 
@@ -848,10 +849,9 @@ describe('billing.restaurants', () => {
         },
       },
       { applicationId: 'cashier', subscription: null },
-      { applicationId: 'pharmacy', subscription: null },
     ]);
     expect(none).toMatchObject({ id: other.restaurant.id, lastPayment: null });
-    expect(none!.products.map((product) => product.subscription)).toEqual([null, null, null]);
+    expect(none!.products.map((product) => product.subscription)).toEqual([null, null]);
   });
 
   it('shows a trial as a trial that ends with its period, and a cancelled one when there is no live one', async () => {
@@ -898,7 +898,7 @@ describe('who may use billing', () => {
     const now = at('2027-02-01T09:00:00+03:00');
     const overview = dataOf(await readAt(now, billingOverview, {}, otherAdmin));
     expect(overview.canEdit).toBe(false);
-    expect(overview.applications.map((app) => app.id)).toEqual(['menu', 'cashier', 'pharmacy']);
+    expect(overview.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
     expect(dataOf(await readAt(now, restaurantBilling, { restaurantId }, otherAdmin)).canEdit).toBe(false);
     const audits = await prisma.auditLog.count();
     for (const [def, input] of list) expect(codeOf(await actAt(now, def, input, otherAdmin)), def.name).toBe('FORBIDDEN');

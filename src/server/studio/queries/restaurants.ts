@@ -7,6 +7,7 @@ import { BUSINESS_SECTORS, formatClientId, parseClientId, readWorkingHours, REST
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { restaurantActivityRows } from '@/server/studio/services/activity';
+import { businessSpace, restaurantsInSpace } from '@/server/studio/services/space-scope';
 import { profileOf, seesAgencyNotes } from '@/server/studio/services/restaurants';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
 import type { AssetVariants } from '@/server/media/process';
@@ -42,6 +43,7 @@ export const listRestaurants = defineQuery({
     city: z.string().trim().max(200).optional(),
     type: z.enum(RESTAURANT_TYPES).optional(),
     sector: z.enum(BUSINESS_SECTORS).optional(),
+    space: businessSpace,
     status: z.enum(RESTAURANT_STATUSES).optional(),
     plan: z.enum(PLAN_TIERS).optional(),
     createdFrom: dateField.optional(),
@@ -53,7 +55,10 @@ export const listRestaurants = defineQuery({
   }),
   target: () => PLATFORM,
   run: async (ctx, input) => {
-    const scope: Prisma.RestaurantWhereInput = ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } };
+    // Everything the reader sees is cut to their reach, and for a Super Admin to the sector of the space they are in.
+    const scope: Prisma.RestaurantWhereInput = {
+      AND: [ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } }, restaurantsInSpace(ctx.scope, input.space)],
+    };
 
     const search = input.q ?? '';
     const clientNumber = parseClientId(search);

@@ -127,12 +127,12 @@ describe('creating a pharmacy', () => {
   it('the restaurants list says each business sector and filters by it', async () => {
     dataOf(await run(admin, restaurants.createRestaurant, PHARMACY));
     dataOf(await run(admin, restaurants.createRestaurant, { ...PROFILE, name: 'A cafe' }));
-    const all = dataOf(await runQuery(prisma(), admin, listRestaurants, {}));
-    expect(all.rows.map((r) => [r.name, r.sector]).sort()).toEqual([
-      ['A cafe', 'FOOD'],
-      ['Rizgar Pharmacy', 'PHARMACY'],
-    ]);
-    const only = dataOf(await runQuery(prisma(), admin, listRestaurants, { sector: 'PHARMACY' }));
+    // Each space lists the businesses of its own sector, and each row says which that is.
+    const food = dataOf(await runQuery(prisma(), admin, listRestaurants, {}));
+    expect(food.rows.map((r) => [r.name, r.sector])).toEqual([['A cafe', 'FOOD']]);
+    const pharmacies = dataOf(await runQuery(prisma(), admin, listRestaurants, { space: 'pharmacy' }));
+    expect(pharmacies.rows.map((r) => [r.name, r.sector])).toEqual([['Rizgar Pharmacy', 'PHARMACY']]);
+    const only = dataOf(await runQuery(prisma(), admin, listRestaurants, { sector: 'PHARMACY', space: 'pharmacy' }));
     expect(only.rows.map((r) => r.name)).toEqual(['Rizgar Pharmacy']);
   });
 
