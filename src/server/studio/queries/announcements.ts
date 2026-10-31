@@ -4,6 +4,7 @@ import { defineQuery } from '@/server/studio/framework/query';
 import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
+ * (Pharmacy announcements are kept for the pharmacy app; no till or Studio reader shows them.)
  * The announcements a signed-in person sees now, in their own language: started, not ended, not archived. Everyone who can
  * act (owner, manager, cashier, kitchen, designer, Super Admin) may read them; nothing here is specific to a restaurant.
  */
@@ -15,7 +16,7 @@ export const activeAnnouncements = defineQuery({
   run: async ({ actor, db }): Promise<ActiveAnnouncement[]> => {
     const now = new Date();
     const rows = await db.announcement.findMany({
-      where: { archivedAt: null, startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+      where: { archivedAt: null, space: 'food', startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
       orderBy: { startsAt: 'desc' },
       take: 20,
     });

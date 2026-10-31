@@ -128,6 +128,17 @@ describe('activity, overview and search by space', () => {
     expect(pharmacy.recentActivity?.map((row) => row.entityId)).toEqual([clinic.id]);
   });
 
+  it('puts the pharmacy plans and pharmacy announcements in the Pharmacy activity, not Menu and Cashier', async () => {
+    const note = await prisma().announcement.create({ data: { titles: {}, bodies: {}, space: 'pharmacy' } });
+    await prisma().auditLog.create({ data: { action: 'app_plan.updated', entityType: 'AppPlan', entityId: 'standard' } });
+    await prisma().auditLog.create({ data: { action: 'announcement.created', entityType: 'Announcement', entityId: note.id } });
+    const food = dataOf(await ask(admin, activityQueries.listActivity, { space: 'food' }));
+    const pharmacy = dataOf(await ask(admin, activityQueries.listActivity, { space: 'pharmacy' }));
+    expect(food.rows.map((row) => row.action)).not.toContain('app_plan.updated');
+    expect(food.rows.map((row) => row.action)).not.toContain('announcement.created');
+    expect(pharmacy.rows.map((row) => row.action).sort()).toEqual(['announcement.created', 'app_plan.updated', 'restaurant.rename']);
+  });
+
   it('keeps Jump to and the pickers inside the space', async () => {
     const jump = dataOf(await ask(admin, searchQueries.jump, { q: 'a', space: 'food' }));
     expect(jump.restaurants.map((row) => row.name)).toEqual(['Cafe Alpha']);

@@ -36,7 +36,7 @@ export const menusInSpace = (scope: ActorScope, space: BusinessSpace): Prisma.Me
 
 /**
  * The ids of a space's businesses, for the tables that keep a plain restaurant id without a relation (the audit log).
- * A business that has since been deleted is in no space, so its rows show in none.
+ * A business that has since been deleted is in no sector, so its audit rows are Menu and Cashier's (see auditSpaceWhere).
  */
 export async function sectorRestaurantIds(db: PrismaClient, space: BusinessSpace): Promise<string[]> {
   const rows = await db.restaurant.findMany({ where: sectorWhere(space), select: { id: true } });
@@ -49,8 +49,21 @@ export async function sectorRestaurantIds(db: PrismaClient, space: BusinessSpace
  * business, and a business since deleted. Every row is in exactly one space, so nothing in the log is hidden.
  */
 export async function auditSpaceWhere(db: PrismaClient, space: BusinessSpace): Promise<Prisma.AuditLogWhereInput> {
-  if (space === 'pharmacy') return { restaurantId: { in: await sectorRestaurantIds(db, 'pharmacy') } };
-  return { OR: [{ restaurantId: null }, { restaurantId: { notIn: await sectorRestaurantIds(db, 'pharmacy') } }] };
+  const pharmacyIds = await sectorRestaurantIds(db, 'pharmacy');
+  // Platform events that belong to the Pharmacy: its plans, and the announcements written in its space.
+  const notes = (await db.announcement.findMany({ where: { space: 'pharmacy' }, select: { id: true } })).map((row) => row.id);
+  const pharmacyOwn: Prisma.AuditLogWhereInput = {
+    OR: [{ restaurantId: { in: pharmacyIds } }, { entityType: 'AppPlan' }, { entityType: 'Announcement', entityId: { in: notes } }],
+  };
+  if (space === 'pharmacy') return pharmacyOwn;
+  // Everything else. Each exclusion is spelled out because `NOT (x IN ...)` is unknown, not true, for the null restaurant of a platform event.
+  return {
+    AND: [
+      { OR: [{ restaurantId: null }, { restaurantId: { notIn: pharmacyIds } }] },
+      { entityType: { not: 'AppPlan' } },
+      { OR: [{ entityType: { not: 'Announcement' } }, { entityId: { notIn: notes } }] },
+    ],
+  };
 }
 
 /** Refuses a business of the other sector as if it did not exist, so a write through one space never touches the other. */

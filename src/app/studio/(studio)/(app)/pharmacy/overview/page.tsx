@@ -56,7 +56,7 @@ export default async function PharmacyOverviewPage() {
                 }))}
               />
             </div>
-            {data.recentActivity && <RecentActivity rows={data.recentActivity} t={t} locale={locale} />}
+            {data.recentActivity && <RecentActivity rows={data.recentActivity} t={t} locale={locale} activityHref="/studio/pharmacy/activity" />}
           </div>
         )}
       </div>

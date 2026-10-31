@@ -43,14 +43,25 @@ export function Tally({
 /** A restaurant or menu a log row names: its name, or that it has been deleted since. */
 const nameOf = (t: Translate, named: Named | null): string | null => (named === null ? null : (named.name ?? t('activity.deleted')));
 
-export function RecentActivity({ rows, t, locale }: { rows: AuditRow[]; t: Translate; locale: 'en' | 'ar' | 'ckb' }) {
+export function RecentActivity({
+  rows,
+  t,
+  locale,
+  activityHref = '/studio/activity',
+}: {
+  rows: AuditRow[];
+  t: Translate;
+  locale: 'en' | 'ar' | 'ckb';
+  /** Where the whole log is: the activity page of the space the overview is in. */
+  activityHref?: string;
+}) {
   return (
     <section aria-labelledby="recent-title" className="flex min-w-0 flex-col gap-3">
       <div className="flex items-baseline justify-between gap-4">
         <h2 id="recent-title" className="text-md font-semibold text-text">
           {t('overview.recent.title')}
         </h2>
-        <Link href="/studio/activity" className="text-sm text-muted underline-offset-2 transition-colors hover:text-text hover:underline">
+        <Link href={activityHref} className="text-sm text-muted underline-offset-2 transition-colors hover:text-text hover:underline">
           {t('overview.recent.all')}
         </Link>
       </div>

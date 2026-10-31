@@ -45,6 +45,17 @@ describe('the Pharmacy space routes', () => {
   });
 });
 
+describe('the screens of the Pharmacy space stay in it', () => {
+  it('links the overview all-activity link to the Pharmacy activity', () => {
+    expect(read('overview/OverviewParts.tsx')).toContain('activityHref');
+    expect(read('pharmacy/overview/page.tsx')).toContain('/studio/pharmacy/activity');
+  });
+
+  it('offers the Super Admin invitation only where it is listed, the Platform space', () => {
+    expect(read('people/PeopleManager.tsx')).toMatch(/space === 'platform' &&/);
+  });
+});
+
 describe('the restaurant pickers of a space', () => {
   beforeEach(() => {
     searchRestaurants.mockReset();

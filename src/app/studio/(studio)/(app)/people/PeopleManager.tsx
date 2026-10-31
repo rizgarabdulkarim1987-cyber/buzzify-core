@@ -208,9 +208,11 @@ export function PeopleManager({
             <Button variant="secondary" icon={<KeyRound aria-hidden />} onClick={() => setInviting('owner')}>
               {t('people.inviteOwner')}
             </Button>
-            <Button variant="primary" icon={<UserPlus aria-hidden />} onClick={() => setInviting('staff')}>
-              {t('people.inviteStaff')}
-            </Button>
+            {space === 'platform' && (
+              <Button variant="primary" icon={<UserPlus aria-hidden />} onClick={() => setInviting('staff')}>
+                {t('people.inviteStaff')}
+              </Button>
+            )}
           </>
         }
       />

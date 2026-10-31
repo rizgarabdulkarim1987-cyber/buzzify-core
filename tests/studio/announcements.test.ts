@@ -131,8 +131,10 @@ describe('announcements per space', () => {
     expect((await prisma().announcement.findUniqueOrThrow({ where: { id: plain.id } })).space).toBe('food');
   });
 
-  it('still shows everyone else every live announcement', async () => {
+  it('shows tills and Studio readers the Menu and Cashier ones only, never a pharmacy one', async () => {
     dataOf(await run(admin, createAnnouncement, { ...both, space: 'pharmacy' }));
+    expect(dataOf(await ask(cashier, activeAnnouncements, {}))).toHaveLength(0);
+    dataOf(await run(admin, createAnnouncement, both));
     expect(dataOf(await ask(cashier, activeAnnouncements, {}))).toHaveLength(1);
   });
 });
