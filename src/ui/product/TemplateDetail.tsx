@@ -16,6 +16,7 @@ import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
 import { DishModel } from './DishModel';
+import { ShareDish } from './ShareDish';
 import { DrinkMatch } from './DrinkMatch';
 import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
@@ -260,6 +261,7 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
           <Choices product={product} choice={choice} style={optionStyle} />
           {canOrder && choice.orderable && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
           <DishModel product={product} />
+          <ShareDish slug={product.slug} name={product.name} />
           <DrinkMatch product={product} onOpen={onSwitch} />
           <Facts product={product} />
         </div>

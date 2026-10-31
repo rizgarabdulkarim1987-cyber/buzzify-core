@@ -79,6 +79,8 @@ export interface TenantInfo {
    * `aboutTitle` is the title the restaurant gave its own page, per language ('' when it left it empty).
    */
   extras: { intro: boolean; about: boolean; wheel: boolean; dishCounts: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
+  /** The digits of the restaurant's WhatsApp number when the plan shows the link and the number is usable. Read live, never part of a snapshot. */
+  whatsapp?: string;
   /** The live revision everything else here, and the catalog, is read from. */
   revisionId: string;
   /** The menu's current slug. */

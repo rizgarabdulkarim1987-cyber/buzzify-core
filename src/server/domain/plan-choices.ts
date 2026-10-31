@@ -291,6 +291,12 @@ export interface GuestFeatures {
   tableBasket: boolean;
   /** A guest at a table can call a waiter (`table.callWaiter`). */
   callWaiter: boolean;
+  /** The menu shows a link to chat with the restaurant on WhatsApp (`contact.whatsapp`). */
+  whatsapp: boolean;
+  /** A guest can share a dish as a card (`share.dishCards`). */
+  shareCards: boolean;
+  /** A guest can keep a stamp card with the restaurant (`loyalty.stampCard`). */
+  stampCard: boolean;
   rails: RailStyle[];
 }
 
@@ -314,6 +320,9 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     ar: allows(entitlements, 'immersive.ar'),
     tableBasket: allows(entitlements, 'ordering.tableBasket'),
     callWaiter: allows(entitlements, 'table.callWaiter'),
+    whatsapp: allows(entitlements, 'contact.whatsapp'),
+    shareCards: allows(entitlements, 'share.dishCards'),
+    stampCard: allows(entitlements, 'loyalty.stampCard'),
     rails: allowedRails(entitlements),
   };
 }
