@@ -77,20 +77,25 @@ function Panel({ canSend }: { canSend: boolean }) {
   return (
     <>
       <OrderPanel canSend={canSend} available={available} scanned={scanned} />
-      {available && scanned && !preview && table !== null ? <BillButton table={table} /> : null}
+      {available && scanned && !preview && table !== null ? (
+        <>
+          {tenant.features.callWaiter === true ? <CallButton table={table} kind="WAITER" /> : null}
+          <CallButton table={table} kind="BILL" />
+        </>
+      ) : null}
     </>
   );
 }
 
-/** One button: the waiter brings the bill. Shown only where ordering from the table is open. */
-function BillButton({ table }: { table: number }) {
+/** One button: the waiter brings the bill, or comes to the table. Shown only where ordering from the table is open. */
+function CallButton({ table, kind }: { table: number; kind: 'BILL' | 'WAITER' }) {
   const { t, tenant } = useApp();
   const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'tooMany' | 'failed'>('idle');
   const call = async () => {
     if (state === 'busy') return;
     setState('busy');
     try {
-      const response = await fetch(`/api/${tenant.slug}/bill-call`, {
+      const response = await fetch(`/api/${tenant.slug}/${kind === 'BILL' ? 'bill-call' : 'waiter-call'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table }),
@@ -101,9 +106,9 @@ function BillButton({ table }: { table: number }) {
     }
   };
   return (
-    <section className="mt-6" aria-live="polite" data-testid="bill-call">
+    <section className="mt-6" aria-live="polite" data-testid={kind === 'BILL' ? 'bill-call' : 'waiter-call'}>
       {state === 'sent' ? (
-        <p className="rounded-2xl border border-line p-4">{t('qr.billSent')}</p>
+        <p className="rounded-2xl border border-line p-4">{t(kind === 'BILL' ? 'qr.billSent' : 'qr.waiterSent')}</p>
       ) : (
         <>
           {state === 'tooMany' || state === 'failed' ? (
@@ -111,8 +116,8 @@ function BillButton({ table }: { table: number }) {
               {t(state === 'tooMany' ? 'qr.billTooMany' : 'qr.billFailed')}
             </p>
           ) : null}
-          <button type="button" onClick={() => void call()} disabled={state === 'busy'} className="min-h-12 w-full rounded-full border border-line px-6 disabled:opacity-60" data-testid="bill-call-button">
-            {t('qr.bill')}
+          <button type="button" onClick={() => void call()} disabled={state === 'busy'} className="min-h-12 w-full rounded-full border border-line px-6 disabled:opacity-60" data-testid={kind === 'BILL' ? 'bill-call-button' : 'waiter-call-button'}>
+            {t(kind === 'BILL' ? 'qr.bill' : 'qr.waiter')}
           </button>
         </>
       )}

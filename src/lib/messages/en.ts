@@ -123,6 +123,8 @@ const en: Messages = {
   'qr.tooMany': 'Too many orders from this table. Wait a minute and try again.',
   'qr.dismiss': 'Done',
   'qr.bill': 'Ask for the bill',
+  'qr.waiter': 'Call a waiter',
+  'qr.waiterSent': 'A waiter is on the way to your table.',
   'qr.billSent': 'A waiter is on the way with your bill.',
   'qr.billTooMany': 'Too many requests from this table. Wait a few minutes.',
   'qr.billFailed': 'We could not send your request. Try again.',
