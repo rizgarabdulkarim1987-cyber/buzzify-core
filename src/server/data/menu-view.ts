@@ -30,6 +30,7 @@ import { drinkMatchFor } from '@/server/domain/drink-match';
 import { liveOccasionMood, type LiveOccasionMood } from '@/server/domain/occasion-mood';
 import { showsCounts } from '@/server/domain/dish-counts';
 import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
+import type { StoryView } from './stories';
 import type { TenantInfo } from './tenant';
 
 export interface MenuOptionView {
@@ -174,6 +175,8 @@ export interface MenuView {
   showcase: MenuShowcaseView;
   /** The occasion tinting the menu now (Ramadan, Newroz, Eid), when the plan has occasion moods (`guest.occasionMoods`). */
   occasion?: LiveOccasionMood;
+  /** The restaurant's running stories, newest first, when the plan has them (`guest.stories`); read live, not from the snapshot. */
+  stories?: StoryView[];
 }
 
 const DAY_MS = 86_400_000;
@@ -275,7 +278,7 @@ export function buildMenuView(
   tenant: TenantInfo,
   locale: Locale,
   now: Date,
-  extras: { mostOrdered?: readonly string[]; dishCounts?: ReadonlyMap<string, { orders: number; views: number }> } = {},
+  extras: { mostOrdered?: readonly string[]; dishCounts?: ReadonlyMap<string, { orders: number; views: number }>; stories?: readonly StoryView[] } = {},
 ): MenuView {
   const fallback = catalog.defaultLocale;
   const current = daypartNow(catalog, now);
@@ -403,6 +406,7 @@ export function buildMenuView(
     })),
     showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
     ...(tenant.features.occasionMoods ? occasionOf(catalog, locale, now) : {}),
+    ...(tenant.features.stories && extras.stories && extras.stories.length > 0 ? { stories: [...extras.stories] } : {}),
   };
 }
 

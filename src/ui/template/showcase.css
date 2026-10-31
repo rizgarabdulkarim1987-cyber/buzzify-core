@@ -176,3 +176,134 @@
 .tpl-occasion[data-mood='EID'] {
   --mood: #2f9e7c;
 }
+
+/*
+ * Stories (plan feature `guest.stories`): a row of round pictures under the header and a full-screen viewer. Nothing
+ * animates and nothing plays by itself; the row is native scroll, the viewer is a plain fixed layer.
+ */
+.tpl-stories {
+  margin-block: 0.5rem;
+}
+.tpl-stories-strip {
+  display: flex;
+  gap: 0.9rem;
+  overflow-x: auto;
+  padding-inline: var(--gutter);
+  padding-block: 0.25rem;
+  scroll-snap-type: x proximity;
+  list-style: none;
+  margin: 0;
+}
+.tpl-story {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 4.75rem;
+  scroll-snap-align: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+.tpl-story-ring {
+  display: block;
+  padding: 3px;
+  border-radius: 9999px;
+  border: 2px solid var(--accent);
+}
+.tpl-story-pic {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.tpl-story-caption {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.tpl-story-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+.tpl-story-bars {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: max(env(safe-area-inset-top), 0.75rem) 0.75rem 0.5rem;
+  list-style: none;
+}
+.tpl-story-bars li {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.3);
+}
+.tpl-story-bars li[data-done] {
+  background: #fff;
+}
+.tpl-story-close {
+  position: absolute;
+  inset-block-start: max(env(safe-area-inset-top), 0.75rem);
+  inset-inline-end: 0.5rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-block-start: 0.9rem;
+  color: #fff;
+  background: none;
+  border: 0;
+}
+.tpl-story-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.tpl-story-full {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.tpl-story-hit {
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  background: none;
+  border: 0;
+}
+.tpl-story-hit-prev {
+  inset-inline-start: 0;
+}
+.tpl-story-hit-next {
+  inset-inline-end: 0;
+  width: 60%;
+}
+.tpl-story-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1rem max(env(safe-area-inset-bottom), 1.25rem);
+  text-align: center;
+}
+.tpl-story-dish {
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: 9999px;
+  background: #fff;
+  color: #000;
+  font-weight: 500;
+}

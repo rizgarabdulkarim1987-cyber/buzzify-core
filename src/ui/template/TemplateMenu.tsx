@@ -29,6 +29,7 @@ import { Nav } from './navs';
 import { SectionHeading } from './sections';
 import { OccasionBanner } from './OccasionBanner';
 import { ShowcaseCarousel } from './ShowcaseCarousel';
+import { StoriesRail } from './Stories';
 import { useFavorites } from './favorites';
 import './skins.css';
 
@@ -254,6 +255,7 @@ export function TemplateMenu({
           </a>
           <TemplateHeader />
           {view.occasion && query.trim() === '' && <OccasionBanner occasion={view.occasion} />}
+          {view.stories && query.trim() === '' && <StoriesRail stories={view.stories} />}
           {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
           {query.trim() === '' && showsSignatureStrip(heroKind, body, signature !== undefined) && <SignatureStrip />}
           {query.trim() === '' && showsFeaturedStrip(heroKind, body, picks.length) && <FeaturedStrip items={picks} />}

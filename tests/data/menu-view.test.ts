@@ -62,6 +62,15 @@ describe('buildMenuView', () => {
     expect(buildMenuView(makeCatalog({ occasions: [{ ...occasions[0]!, mood: undefined }] }), tenant, 'en', at(12)).occasion).toBeUndefined();
   });
 
+  it('carries the running stories only on a plan that has them, and leaves the key out when there are none', () => {
+    const stories = [{ id: 's1', image: { kind: 'image', url: '/x.webp', alt: '', width: 1, height: 1 } as never, caption: 'Fresh baklava', productSlug: null }];
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12), { stories }).stories).toEqual(stories);
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12), { stories: [] }).stories).toBeUndefined();
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12)).stories).toBeUndefined();
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, stories: false } };
+    expect(buildMenuView(makeCatalog(), off, 'en', at(12), { stories }).stories).toBeUndefined();
+  });
+
   it('leaves the match out on a plan without drink match', () => {
     const off: TenantInfo = { ...tenant, features: { ...tenant.features, drinkMatch: false } };
     const view = buildMenuView(makeCatalog(), off, 'en', at(12));

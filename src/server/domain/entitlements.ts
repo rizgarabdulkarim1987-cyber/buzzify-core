@@ -56,7 +56,7 @@ export const FEATURES = [
   { key: 'guest.moodPicker', area: 'selling', status: 'live', project: 3, startsIn: 'PRO' },
   { key: 'guest.livingPhotos', area: 'immersive', status: 'live', project: 3, startsIn: 'PREMIUM' },
   { key: 'guest.occasionMoods', area: 'design', status: 'live', project: 3, startsIn: 'PRO' },
-  { key: 'guest.stories', area: 'selling', status: 'reserved', project: 3, startsIn: 'PRO' },
+  { key: 'guest.stories', area: 'selling', status: 'live', project: 3, startsIn: 'PRO' },
   { key: 'immersive.ar', area: 'immersive', status: 'reserved', project: 4, startsIn: 'PREMIUM' },
   { key: 'ordering.tableBasket', area: 'selling', status: 'reserved', project: 5, startsIn: 'PREMIUM' },
   { key: 'table.callWaiter', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
