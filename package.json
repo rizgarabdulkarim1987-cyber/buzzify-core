@@ -35,7 +35,7 @@
     "db:seed": "prisma db seed",
     "db:seed:load": "tsx prisma/seed-load.ts",
     "vercel-build": "tsx scripts/check-env.ts && prisma generate && prisma migrate deploy && next build",
-    "build:host": "tsx scripts/check-env.ts && prisma migrate deploy && BUILD_TARGET=standalone next build --webpack",
+    "build:host": "tsx scripts/check-env.ts && prisma migrate deploy && NODE_OPTIONS=--max-old-space-size=8192 BUILD_TARGET=standalone next build --webpack",
     "postinstall": "prisma generate"
   },
   "dependencies": {
