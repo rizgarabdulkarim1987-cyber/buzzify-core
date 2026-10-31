@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bumpRetailForPlan, bumpRetailForUser, bumpRetailState } from '@/server/retail/outbox';
+import { bumpRetailForPlan, bumpRetailForUser, bumpRetailState, ensureRetailVersion } from '@/server/retail/outbox';
 import { person, pharmacy, prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
 import { linkOf, outboxOf, retailShop } from './world';
 
@@ -98,5 +98,26 @@ describe('bumpRetailForUser and bumpRetailForPlan', () => {
     expect((await linkOf(b.id)).stateVersion).toBe(1);
     expect((await linkOf(c.id)).stateVersion).toBe(0);
     expect(await prisma().retailOutbox.count()).toBe(2);
+  });
+});
+
+describe('ensureRetailVersion', () => {
+  const ensure = (restaurantId: string) => prisma().$transaction((tx) => ensureRetailVersion(tx, restaurantId));
+
+  it('gives a ready shop still at version 0 its first version, once', async () => {
+    const shop = await retailShop('Unbumped');
+    expect(await ensure(shop.id)).toBe(1);
+    expect(await outboxOf(shop.id)).toMatchObject({ dueVersion: 1 });
+    expect(await ensure(shop.id)).toBe(1);
+    expect((await linkOf(shop.id)).stateVersion).toBe(1);
+  });
+
+  it('leaves a shop that is not ready at 0, and a food restaurant alone', async () => {
+    const waiting = await retailShop('Waiting', { subscription: 'none' });
+    expect(await ensure(waiting.id)).toBe(0);
+    expect(await outboxOf(waiting.id)).toBeNull();
+    const food = await pharmacy('Food', { sector: 'FOOD', subscription: 'none' });
+    expect(await ensure(food.id)).toBeNull();
+    expect(await prisma().retailOutbox.count()).toBe(0);
   });
 });

@@ -3216,6 +3216,8 @@ const ckb: Messages = {
   'error.text.retailBranchesInRetails': 'لقەکانی دوکانی تاکە فرۆشی لە Retails بەڕێوە دەبرێن',
   'error.text.menusFoodOnly': 'مینیو تەنها بۆ کارە خواردنییەکانە',
   'error.text.retailBranchesMax': 'دوکانی تاکە فرۆشی بە زۆرترین ٢٠ لق دەست پێدەکات',
+  'error.text.retailLastOwner': 'دوکانی تاکە فرۆشی دەبێت خاوەنێکی هەبێت. سەرەتا خاوەنێکی تر زیاد بکە.',
+  'error.text.reasonMin3': 'هۆکارەکە بنووسە، بە لانیکەم ٣ پیت',
   'error.text.branchNamesUnique': 'ناوی لقەکان دەبێت جیاواز بن',
   'error.text.ownerEmailRequired': 'ئیمەیڵی خاوەن بنووسە',
   'restaurants.filter.sector': 'کەرت',

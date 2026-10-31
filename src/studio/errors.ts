@@ -334,6 +334,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Branches of a retail shop are managed in Retails': 'error.text.retailBranchesInRetails',
   'Menus are only for food businesses': 'error.text.menusFoodOnly',
   'A retail shop starts with at most 20 branches': 'error.text.retailBranchesMax',
+  'A retail shop must keep an owner. Add another owner first.': 'error.text.retailLastOwner',
+  'Say why, in at least 3 characters': 'error.text.reasonMin3',
   'Branch names must be different': 'error.text.branchNamesUnique',
   'Enter the owner’s email address': 'error.text.ownerEmailRequired',
   'Use 2 to 40 lower-case letters, digits, dashes or underscores, starting with a letter': 'error.text.appPlanCode',

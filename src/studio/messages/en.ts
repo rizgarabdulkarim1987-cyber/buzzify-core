@@ -3211,6 +3211,8 @@ const en: Messages = {
   'error.text.retailBranchesInRetails': 'Branches of a retail shop are managed in Retails',
   'error.text.menusFoodOnly': 'Menus are only for food businesses',
   'error.text.retailBranchesMax': 'A retail shop starts with at most 20 branches',
+  'error.text.retailLastOwner': 'A retail shop must keep an owner. Add another owner first.',
+  'error.text.reasonMin3': 'Say why, in at least 3 characters',
   'error.text.branchNamesUnique': 'Branch names must be different',
   'error.text.ownerEmailRequired': 'Enter the owner’s email address',
   'restaurants.filter.sector': 'Sector',

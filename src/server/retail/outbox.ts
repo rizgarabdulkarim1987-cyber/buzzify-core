@@ -1,4 +1,6 @@
 import type { AnyDb } from '@/server/data/tenant-db';
+import { retailShopsOwnedBy } from '@/server/retail/owners';
+import { buildRetailState } from '@/server/retail/snapshot';
 
 /**
  * Queues a linked retail business's snapshot for delivery. Every change that alters what the snapshot carries calls one
@@ -50,13 +52,7 @@ async function bumpEach(tx: AnyDb, restaurantIds: readonly string[]): Promise<vo
 
 /** Every RETAIL business the user OWNs: a change to the person (name, email, deactivation) may change its snapshot's owner. */
 export async function bumpRetailForUser(tx: AnyDb, userId: string): Promise<void> {
-  // eslint-disable-next-line no-restricted-properties -- the user's own memberships, keyed by the id the caller trusts
-  const owned = await tx.$queryRaw<{ restaurantId: string }[]>`
-    SELECT m."restaurantId" FROM "Membership" m
-    JOIN "RetailLink" l ON l."restaurantId" = m."restaurantId"
-    WHERE m."userId" = ${userId} AND m."role" = 'OWNER'
-    ORDER BY m."restaurantId"`;
-  await bumpEach(tx, owned.map((row) => row.restaurantId));
+  await bumpEach(tx, await retailShopsOwnedBy(tx, userId));
 }
 
 /** Every RETAIL business with a retail subscription on the code: a change to the plan changes their snapshots' plan. */
@@ -68,6 +64,19 @@ export async function bumpRetailForPlan(tx: AnyDb, planCode: string): Promise<vo
     WHERE s."applicationId" = 'retail' AND s."planCode" = ${planCode}
     ORDER BY s."restaurantId"`;
   await bumpEach(tx, on.map((row) => row.restaurantId));
+}
+
+/**
+ * The shop's current version, first bumping it from 0 when the shop is ready to send (owner and subscription in place):
+ * a snapshot is never sent at version 0, which Retails refuses. 0 while it is not ready; null when it is not retail.
+ * For the reconcile, which may meet a shop whose readiness came from a change without a hook.
+ */
+export async function ensureRetailVersion(tx: AnyDb, restaurantId: string): Promise<number | null> {
+  const link = await tx.retailLink.findUnique({ where: { restaurantId }, select: { stateVersion: true } });
+  if (!link) return null;
+  if (link.stateVersion > 0) return link.stateVersion;
+  if (!(await buildRetailState(tx, restaurantId)).ready) return 0;
+  return bumpRetailState(tx, restaurantId);
 }
 
 /** Registers the immediate first attempt after commit (Task 5 fills the sender in; until then a no-op). */

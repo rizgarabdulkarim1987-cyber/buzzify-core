@@ -3242,6 +3242,8 @@ const ar: Messages = {
   'error.text.retailBranchesInRetails': 'تُدار فروع محل التجزئة في Retails',
   'error.text.menusFoodOnly': 'القوائم مخصصة لأعمال الطعام فقط',
   'error.text.retailBranchesMax': 'يبدأ محل التجزئة بـ 20 فرعًا كحد أقصى',
+  'error.text.retailLastOwner': 'يجب أن يبقى لمحل التجزئة مالك. أضف مالكًا آخر أولًا.',
+  'error.text.reasonMin3': 'اذكر السبب في 3 أحرف على الأقل',
   'error.text.branchNamesUnique': 'يجب أن تكون أسماء الفروع مختلفة',
   'error.text.ownerEmailRequired': 'أدخل البريد الإلكتروني للمالك',
   'restaurants.filter.sector': 'القطاع',

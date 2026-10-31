@@ -168,6 +168,8 @@ describe('what enqueues a retail snapshot', () => {
   it('deactivating, reactivating and unassigning the owner enqueue', async () => {
     const shop = await retailShop('Owner Life');
     const userId = shop.owner!.userId;
+    // A co-owner, so the shop keeps an owner while the first one is off or gone (owners.test.ts covers the refusal).
+    await person('co-owner', { membership: [shop.id, 'OWNER'] });
     dataOf(await run(admin, people.deactivateUser, { userId }));
     expect(await versionOf(shop.id)).toBe(1);
     dataOf(await run(admin, people.reactivateUser, { userId }));
