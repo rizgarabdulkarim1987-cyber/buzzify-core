@@ -831,6 +831,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
   ],
   'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'availability.setDrop': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, startsAt: null, endsAt: null })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, startsAt: null, endsAt: null })),
+  ],
   'availability.setStock': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, stockCount: 1 })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, stockCount: 1 })),

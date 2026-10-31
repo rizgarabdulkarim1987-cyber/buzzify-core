@@ -63,6 +63,7 @@ const ar: Messages = {
   'menu.fewLeft_one': 'بقي واحد فقط',
   'menu.fewLeft_two': 'بقي اثنان فقط',
   'menu.fewLeft_other': 'بقي {n} فقط',
+  'menu.drop': 'إصدار محدود · ينتهي {when}',
   'menu.serves_two': 'لشخصين · {price} للشخص',
   'menu.serves_few': 'لـ {n} أشخاص · {price} للشخص',
   'menu.serves_many': 'لـ {n} شخصًا · {price} للشخص',

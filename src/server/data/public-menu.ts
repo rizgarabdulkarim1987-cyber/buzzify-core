@@ -7,6 +7,7 @@ import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/pl
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
 import { cachedLiveOverlay, cachedPlans, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
+import { applyDrops } from '@/server/domain/drops';
 import { loadOverlay } from './live';
 import { entitlementsOf, readPlansSetting } from './plans';
 import { getPrisma } from './prisma';
@@ -205,5 +206,6 @@ export async function getCatalog(tenant: TenantInfo): Promise<Catalog> {
     cachedRevisionSnapshot(menuId, revisionId, () => loadRevisionSnapshot(getPrisma(), menuId, revisionId)),
     cachedLiveOverlay(menuId, () => loadOverlay(menuDb(getPrisma(), menuId), menuId)),
   ]);
-  return servedCatalog(toCatalog(menuId, snapshot, overlay), tenant.features);
+  // A limited drop is laid over the overlay for this very moment, so its edges are exact whatever the cache holds.
+  return servedCatalog(toCatalog(menuId, snapshot, applyDrops(overlay, new Date(), tenant.features.limitedDrops)), tenant.features);
 }

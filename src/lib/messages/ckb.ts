@@ -61,6 +61,7 @@ const ckb: Messages = {
   'pairing.dismiss': 'ئێستا نا',
   'menu.mostOrdered': 'زۆرترین داواکراو',
   'menu.fewLeft_other': 'تەنها {n} ماوە',
+  'menu.drop': 'سنووردار · کۆتایی دێت {when}',
   'menu.serves_other': 'بۆ {n} کەس · هەر کەسێک {price}',
   'menu.orderCount_other': '{n} داواکاری',
   'menu.viewCount_other': '{n} بینین',

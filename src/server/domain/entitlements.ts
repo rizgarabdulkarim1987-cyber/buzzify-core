@@ -64,7 +64,7 @@ export const FEATURES = [
   { key: 'share.dishCards', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
   { key: 'loyalty.stampCard', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
   { key: 'display.tvBoard', area: 'immersive', status: 'live', project: 6, startsIn: 'PREMIUM' },
-  { key: 'selling.limitedDrops', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
+  { key: 'selling.limitedDrops', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
   { key: 'design.seasonalParticles', area: 'design', status: 'reserved', project: 6, startsIn: 'PRO' },
 ] as const satisfies readonly FeatureDef[];
 
