@@ -10,6 +10,7 @@ import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
 import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
+import { SeasonalParticles } from '@/ui/menu/SeasonalParticles';
 import { brandCss, themeLogo } from '@/ui/brand';
 
 export async function generateMetadata({
@@ -112,6 +113,7 @@ export default async function RootLayout({
           }}
         >
           {children}
+          {tenant.extras?.season && <SeasonalParticles effect={tenant.extras.season} />}
         </AppProviders>
       </body>
     </html>

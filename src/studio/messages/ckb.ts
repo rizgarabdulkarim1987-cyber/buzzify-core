@@ -2401,6 +2401,7 @@ const ckb: Messages = {
   'activity.action.menu.about_offer_changed': 'پێشکەشکراوێکی پەڕەی دەربارەی گۆڕی',
   'activity.action.menu.story_changed': 'چیرۆکێکی لە مەنیوەکە گۆڕی',
   'activity.action.menu.wheel_changed': 'گەڕۆکی بەختی مینیوەکەی گۆڕی',
+  'activity.action.menu.season_changed': 'کاریگەری وەرزی مینیوەکەی گۆڕی',
   'activity.action.menu.dish_counts_changed': 'نیشاندانی ژمارەی داواکاری و بینینی مینیوەکەی گۆڕی',
   'activity.action.menu.feedback_changed': 'سندوقی سکاڵای مینیوێکی کرد بە کراوە یان داخراو',
   'activity.action.menu.slug_changed': 'ناونیشانی مینیوێکی گۆڕی',
@@ -3209,6 +3210,15 @@ const ckb: Messages = {
   'design.poweredBy': '«بە پاڵپشتی Buzzify» پیشان بدە',
   'design.poweredByHint': 'یەکسەر لەسەر هەموو مینیوە قاڵبدارەکانی ئەم ڕێستۆرانە جێبەجێ دەبێت.',
   'design.poweredByLocked': 'تەنها بەڕێوەبەری باڵا ئەمە دەگۆڕێت.',
+  'design.season.title': 'کاریگەری وەرزی',
+  'design.season.intro': 'کاریگەرییەکی سووک بەسەر مینیوی میوانان دەخولێتەوە: بەفر بۆ زستان و گەڵا بۆ پاییز. یەکسەر بۆ میوانان دەگۆڕێت بێ بڵاوکردنەوە، و بۆ ئەو کەسانەی ئامێرەکەیان جووڵەی کەمتر دەخوازێت ناوەستێت.',
+  'design.season.none': 'هیچ',
+  'design.season.snow': 'بەفر',
+  'design.season.leaves': 'گەڵای پایز',
+  'design.season.petals': 'گەڵاگوڵ',
+  'design.season.sparks': 'پشکۆ',
+  'design.season.confetti': 'کۆنفێتی',
+  'design.season.saved': 'پاشەکەوت کرا. میوانان ئێستا دەیبینن.',
   'design.poweredBySaved': 'بۆ هەموو مینیوەکانی ئەم ڕێستۆرانە پاشەکەوت کرا. هەر یەکێکیان بڵاو بکەرەوە بۆ ئەوەی میوانان بیبینن.',
 
   // پاکێجەکان (وەرگێڕانی ماشێنی)

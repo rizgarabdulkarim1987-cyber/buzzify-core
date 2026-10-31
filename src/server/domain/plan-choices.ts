@@ -301,6 +301,8 @@ export interface GuestFeatures {
   tvBoard: boolean;
   /** A dish can be put on the menu for a limited time (`selling.limitedDrops`). */
   limitedDrops: boolean;
+  /** A seasonal particle effect can float over the menu (`design.seasonalParticles`; also needs the menu's choice). */
+  seasonalParticles: boolean;
   rails: RailStyle[];
 }
 
@@ -329,6 +331,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     stampCard: allows(entitlements, 'loyalty.stampCard'),
     tvBoard: allows(entitlements, 'display.tvBoard'),
     limitedDrops: allows(entitlements, 'selling.limitedDrops'),
+    seasonalParticles: allows(entitlements, 'design.seasonalParticles'),
     rails: allowedRails(entitlements),
   };
 }

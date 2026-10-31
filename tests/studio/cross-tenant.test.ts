@@ -624,6 +624,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's saved design, in B", (w) => ({ menuId: w.b.menuId, id: w.b.designTemplateId })),
     c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, id: w.b.designTemplateId })),
   ],
+  'menus.setSeasonEffect': [
+    c("B's menu, in B", (w) => ({ menuId: w.b.menuId, effect: null })),
+    c("B's menu, through A", (w) => ({ menuId: w.b.menuId, effect: 'snow' })),
+  ],
   'design.poweredBy': [c('B', (w) => ({ restaurantId: w.b.restaurantId, show: false }))],
   'brand.suggestFromLogo': [
     c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),

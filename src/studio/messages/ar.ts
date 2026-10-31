@@ -2428,6 +2428,7 @@ const ar: Messages = {
   'activity.action.menu.about_offer_changed': 'غيّر عرضًا في صفحة «عنّا»',
   'activity.action.menu.story_changed': 'غيّر قصة في القائمة',
   'activity.action.menu.wheel_changed': 'غيّر عجلة الحظ في القائمة',
+  'activity.action.menu.season_changed': 'غيّر المؤثر الموسمي لقائمة',
   'activity.action.menu.dish_counts_changed': 'غيّر عرض عدد الطلبات والمشاهدات في القائمة',
   'activity.action.menu.feedback_changed': 'شغّل أو أطفأ صندوق الشكاوى في قائمة',
   'activity.action.menu.slug_changed': 'غيّر عنوان قائمة',
@@ -3235,6 +3236,15 @@ const ar: Messages = {
   'design.poweredBy': 'اعرض «بدعم من Buzzify»',
   'design.poweredByHint': 'ينطبق على كل قوائم القوالب لهذا المطعم فورًا.',
   'design.poweredByLocked': 'لا يغيّر هذا إلا المدير العام.',
+  'design.season.title': 'مؤثر موسمي',
+  'design.season.intro': 'مؤثر خفيف يطفو فوق قائمة الضيوف: ثلج للشتاء وأوراق للخريف. يتغير عند الضيوف فورًا دون نشر، ويبقى مطفأً لمن طلب جهازه حركة أقل.',
+  'design.season.none': 'بدون',
+  'design.season.snow': 'ثلج',
+  'design.season.leaves': 'أوراق الخريف',
+  'design.season.petals': 'بتلات',
+  'design.season.sparks': 'شرارات',
+  'design.season.confetti': 'قصاصات احتفال',
+  'design.season.saved': 'تم الحفظ. يراه الضيوف الآن.',
   'design.poweredBySaved': 'حُفظ لكل قوائم هذا المطعم. انشر كل قائمة لتعرضه على الضيوف.',
 
   // الباقات

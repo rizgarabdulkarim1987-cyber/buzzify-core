@@ -2398,6 +2398,7 @@ const en: Messages = {
   'activity.action.menu.story_changed': 'Changed a story on a menu',
   'activity.action.menu.wheel_changed': 'Changed a menu’s wheel of fortune',
   'activity.action.menu.dish_counts_changed': 'Changed whether a menu shows order and view counts',
+  'activity.action.menu.season_changed': 'Changed the seasonal effect of a menu',
   'activity.action.menu.feedback_changed': 'Turned a menu’s feedback box on or off',
   'activity.action.menu.slug_changed': 'Changed a menu’s address',
   'activity.action.menu.settings_changed': 'Changed a menu’s settings',
@@ -3204,6 +3205,15 @@ const en: Messages = {
   'design.poweredBy': 'Show “Powered by Buzzify”',
   'design.poweredByHint': 'Applies to every template menu of this restaurant at once.',
   'design.poweredByLocked': 'Only a Super Admin changes this.',
+  'design.season.title': 'Seasonal effect',
+  'design.season.intro': 'A light effect floats over the guest menu: snow for winter, leaves for autumn. It changes at once for guests, with no publish, and stays off for guests who ask their device for less motion.',
+  'design.season.none': 'None',
+  'design.season.snow': 'Snow',
+  'design.season.leaves': 'Autumn leaves',
+  'design.season.petals': 'Petals',
+  'design.season.sparks': 'Sparks',
+  'design.season.confetti': 'Confetti',
+  'design.season.saved': 'Saved. Guests see it now.',
   'design.poweredBySaved': 'Saved for every menu of this restaurant. Publish each to show it to guests.',
 
   // Plans
