@@ -103,6 +103,8 @@ export interface MenuProductView {
   counts?: { orders: number; views: number };
   /** Portions left today, when at or below the dish's threshold. */
   fewLeft?: number;
+  /** When a limited drop ends (an ISO instant), while the dish is inside its window; the label counts down to it. */
+  dropEndsAt?: string;
   /** How many people the dish is for. */
   serves?: number;
   /** Drinks that go with the dish, when the plan has drink match (`guest.drinkMatch`). */
@@ -335,6 +337,7 @@ export function buildMenuView(
         ...(mostOrdered.has(product.id) ? { mostOrdered: true as const } : {}),
         ...(dishCounts(product.id) ? { counts: dishCounts(product.id) } : {}),
         ...(left !== null ? { fewLeft: left } : {}),
+        ...(product.dropEndsAt ? { dropEndsAt: product.dropEndsAt } : {}),
         ...(product.serves !== null ? { serves: product.serves } : {}),
         needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),
         orderState: orderability(product, current),

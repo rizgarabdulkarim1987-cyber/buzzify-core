@@ -282,6 +282,8 @@ model Menu {
   wheelEnabled        Boolean       @default(false)
   /// Whether each dish card shows its order and view counts; read live like the switches above, and shown only when the plan holds menu.dishCounts.
   dishCountsEnabled   Boolean       @default(false)
+  /// The seasonal particle effect drawn over the guest menu (src/server/domain/seasons.ts); null for none. Read live; shown only when the plan holds design.seasonalParticles.
+  seasonEffect        String?
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -440,6 +442,9 @@ model Product {
   isHidden           Boolean   @default(false)
   stockCount         Int?
   lowStockThreshold  Int?
+  /// A limited drop (plan feature `selling.limitedDrops`): the dish is on the menu only from `dropStartsAt` to `dropEndsAt`. Both or neither. Live, not in the snapshot.
+  dropStartsAt       DateTime?
+  dropEndsAt         DateTime?
   dayparts           Daypart[]
   hideOutsideDaypart Boolean   @default(false)
   slot               String?

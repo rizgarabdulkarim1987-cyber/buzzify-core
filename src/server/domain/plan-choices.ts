@@ -297,6 +297,12 @@ export interface GuestFeatures {
   shareCards: boolean;
   /** A guest can keep a stamp card with the restaurant (`loyalty.stampCard`). */
   stampCard: boolean;
+  /** The restaurant can put its menu on a TV as a board (`display.tvBoard`). */
+  tvBoard: boolean;
+  /** A dish can be put on the menu for a limited time (`selling.limitedDrops`). */
+  limitedDrops: boolean;
+  /** A seasonal particle effect can float over the menu (`design.seasonalParticles`; also needs the menu's choice). */
+  seasonalParticles: boolean;
   rails: RailStyle[];
 }
 
@@ -323,6 +329,9 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     whatsapp: allows(entitlements, 'contact.whatsapp'),
     shareCards: allows(entitlements, 'share.dishCards'),
     stampCard: allows(entitlements, 'loyalty.stampCard'),
+    tvBoard: allows(entitlements, 'display.tvBoard'),
+    limitedDrops: allows(entitlements, 'selling.limitedDrops'),
+    seasonalParticles: allows(entitlements, 'design.seasonalParticles'),
     rails: allowedRails(entitlements),
   };
 }
