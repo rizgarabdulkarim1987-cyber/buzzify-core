@@ -293,6 +293,8 @@ export interface GuestFeatures {
   callWaiter: boolean;
   /** The menu shows a link to chat with the restaurant on WhatsApp (`contact.whatsapp`). */
   whatsapp: boolean;
+  /** A guest can share a dish as a card (`share.dishCards`). */
+  shareCards: boolean;
   rails: RailStyle[];
 }
 
@@ -317,6 +319,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     tableBasket: allows(entitlements, 'ordering.tableBasket'),
     callWaiter: allows(entitlements, 'table.callWaiter'),
     whatsapp: allows(entitlements, 'contact.whatsapp'),
+    shareCards: allows(entitlements, 'share.dishCards'),
     rails: allowedRails(entitlements),
   };
 }

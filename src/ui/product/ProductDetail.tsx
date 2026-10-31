@@ -15,6 +15,7 @@ import { ProductStage } from '@/ui/stage/ProductStage';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
 import { DishModel } from './DishModel';
+import { ShareDish } from './ShareDish';
 import { DrinkMatch } from './DrinkMatch';
 import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
@@ -201,6 +202,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         {orderable && <UpgradeOffers productId={product.id} offers={data?.upgrades ?? []} onAccept={accept} />}
 
         <DishModel product={product} />
+        <ShareDish slug={product.slug} name={product.name} />
         <DrinkMatch product={product} onOpen={onSwitch} />
 
         {orderable && (

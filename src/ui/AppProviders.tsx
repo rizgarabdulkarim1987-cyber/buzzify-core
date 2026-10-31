@@ -36,7 +36,7 @@ export interface TenantClientInfo {
   locales: Locale[];
   defaultLocale: Locale;
   /** What the restaurant's plan lets these pages show: Explore, the 3D dish, and the rails `?rail=` may preview. */
-  features: { explore: boolean; stage: boolean; rails: RailStyle[]; /** Living photos (`guest.livingPhotos`); absent on a cached resolution that predates them. */ livingPhotos?: boolean; /** The table basket (`ordering.tableBasket`). */ tableBasket?: boolean; /** Calling a waiter from the table (`table.callWaiter`). */ callWaiter?: boolean };
+  features: { explore: boolean; stage: boolean; rails: RailStyle[]; /** Living photos (`guest.livingPhotos`); absent on a cached resolution that predates them. */ livingPhotos?: boolean; /** The table basket (`ordering.tableBasket`). */ tableBasket?: boolean; /** Calling a waiter from the table (`table.callWaiter`). */ callWaiter?: boolean; /** Sharing a dish as a card (`share.dishCards`). */ shareCards?: boolean };
   /** Whether the menu carries the complaints and suggestions box. */
   feedback: boolean;
   /** The menu's own page and the wheel: on when the menu switched them on and its plan holds them. */
