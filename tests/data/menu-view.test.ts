@@ -42,6 +42,15 @@ describe('buildMenuView', () => {
     expect(view.products.find((p) => p.id === IDS.cheesecake)!.match).toBeUndefined();
   });
 
+  it('stamps each dish with the moods it suits when the plan has the mood picker, and nothing when it does not', () => {
+    const catalog = withProduct(makeCatalog(), IDS.burger, { calories: 900, serves: 2 });
+    const on = buildMenuView(catalog, tenant, 'en', at(12));
+    expect(on.products.find((p) => p.id === IDS.burger)!.moods).toEqual(['hearty', 'share']);
+    expect(on.products.find((p) => p.id === IDS.cheesecake)!.moods).toEqual(['sweet']);
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, moodPicker: false } };
+    expect(buildMenuView(catalog, off, 'en', at(12)).products.some((p) => p.moods !== undefined)).toBe(false);
+  });
+
   it('leaves the match out on a plan without drink match', () => {
     const off: TenantInfo = { ...tenant, features: { ...tenant.features, drinkMatch: false } };
     const view = buildMenuView(makeCatalog(), off, 'en', at(12));

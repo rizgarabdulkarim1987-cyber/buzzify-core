@@ -1,3 +1,4 @@
+import { moodsOf, type Mood } from '@/lib/moods';
 import { normalizeSearch } from '@/lib/search';
 import { LOCALES, type Locale } from '@/lib/locale';
 import { parseMedia, type MediaItem } from '@/lib/media';
@@ -104,6 +105,8 @@ export interface MenuProductView {
   serves?: number;
   /** Drinks that go with the dish, when the plan has drink match (`guest.drinkMatch`). */
   match?: MenuMatchView[];
+  /** What mood the dish suits, when the plan has the mood picker (`guest.moodPicker`); left out when none. */
+  moods?: Mood[];
   allergens: string[];
   ingredients: string[];
   searchKey: string;
@@ -324,6 +327,7 @@ export function buildMenuView(
         ...(product.isFeatured ? { featured: true as const } : {}),
         media: localizeMedia(parseMedia(product.media), locale),
         ...productTags(product),
+        ...(tenant.features.moodPicker && moodsOf(product).length > 0 ? { moods: moodsOf(product) } : {}),
         allergens: product.allergens,
         ingredients,
         searchKey: pageSearchKey(product.slug, name, description, ingredients),

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { HEX } from '@/lib/brand';
+import { moodsAvailable, putMoodFirst, type Mood } from '@/lib/moods';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
 import { bodyOf, SHAPE_SETS, type MenuDesign } from '@/lib/templates/types';
@@ -18,7 +19,7 @@ import { isInteractiveTarget } from '@/ui/scenes/signal';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { BODIES } from './bodies';
 import { ProductList } from './cards';
-import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
+import { FilterBar, InfoSection, MoodPicker, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
 import { diagFlags, withDiag } from './diag';
@@ -68,6 +69,7 @@ export function TemplateMenu({
   const [query, setQuery] = useState('');
   const [dietary, setDietary] = useState<ReadonlySet<DietaryTag>>(new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [mood, setMood] = useState<Mood | null>(null);
   const [variantId, setVariantId] = useState<string | null>(null);
   const [motionPaused, setMotionPaused] = useState(false);
   const { keys: searchKeys, load: loadSearchIndex } = useSearchIndex(tenant.slug, !preview);
@@ -96,11 +98,14 @@ export function TemplateMenu({
       ),
     [view.products, searchKeys, query, dietary, favoritesOnly, favorites],
   );
+  const moodsShown = useMemo(() => moodsAvailable(view.products.map((product) => product.moods ?? [])), [view.products]);
   const byCategory = useMemo(() => {
     const groups = new Map<string, MenuProductView[]>();
     for (const product of visible) groups.set(product.categoryId, [...(groups.get(product.categoryId) ?? []), product]);
+    // A chosen mood puts its dishes first inside each section; nothing is hidden and the sections keep their order.
+    if (mood !== null) for (const [id, group] of groups) groups.set(id, [...putMoodFirst(group, mood, (product) => product.moods ?? [])]);
     return groups;
-  }, [visible]);
+  }, [visible, mood]);
   const categories = useMemo(() => view.categories.filter((category) => byCategory.has(category.id)), [view.categories, byCategory]);
   const [activeId, setActiveId] = useState<string | null>(view.categories[0]?.id ?? null);
 
@@ -268,6 +273,7 @@ export function TemplateMenu({
                 setFavoritesOnly(false);
               }}
             />
+            <MoodPicker available={moodsShown} chosen={mood} onChoose={setMood} />
           </div>
           {query.trim() === '' && <ShowcaseCarousel slot="belowSearch" />}
           {body === 'scroll' ? (
