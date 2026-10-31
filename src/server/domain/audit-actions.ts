@@ -61,6 +61,7 @@ export const AUDIT_ACTIONS = [
   'price.changed',
   'prices.bulk_changed',
   'product.stock_changed',
+  'product.drop_changed',
   'upgrade.created',
   'upgrade.updated',
   'upgrade.deleted',

@@ -299,6 +299,8 @@ export interface GuestFeatures {
   stampCard: boolean;
   /** The restaurant can put its menu on a TV as a board (`display.tvBoard`). */
   tvBoard: boolean;
+  /** A dish can be put on the menu for a limited time (`selling.limitedDrops`). */
+  limitedDrops: boolean;
   rails: RailStyle[];
 }
 
@@ -326,6 +328,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     shareCards: allows(entitlements, 'share.dishCards'),
     stampCard: allows(entitlements, 'loyalty.stampCard'),
     tvBoard: allows(entitlements, 'display.tvBoard'),
+    limitedDrops: allows(entitlements, 'selling.limitedDrops'),
     rails: allowedRails(entitlements),
   };
 }

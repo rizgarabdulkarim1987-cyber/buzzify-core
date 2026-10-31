@@ -65,6 +65,8 @@ export interface CatalogProduct {
   /** Pulled from the menu without a publish. `isAvailable` is the separate "sold out" state. */
   isHidden: boolean;
   stockCount: number | null;
+  /** The instant a limited drop ends, while the dish is inside its window (`selling.limitedDrops`); read live, never in a snapshot. */
+  dropEndsAt?: string;
   lowStockThreshold: number | null;
   dayparts: Daypart[];
   hideOutsideDaypart: boolean;

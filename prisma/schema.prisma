@@ -440,6 +440,9 @@ model Product {
   isHidden           Boolean   @default(false)
   stockCount         Int?
   lowStockThreshold  Int?
+  /// A limited drop (plan feature `selling.limitedDrops`): the dish is on the menu only from `dropStartsAt` to `dropEndsAt`. Both or neither. Live, not in the snapshot.
+  dropStartsAt       DateTime?
+  dropEndsAt         DateTime?
   dayparts           Daypart[]
   hideOutsideDaypart Boolean   @default(false)
   slot               String?

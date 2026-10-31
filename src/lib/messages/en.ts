@@ -61,6 +61,7 @@ const en: Messages = {
   'pairing.dismiss': 'Not now',
   'menu.mostOrdered': 'Most ordered',
   'menu.fewLeft_other': 'Only {n} left',
+  'menu.drop': 'Limited · ends {when}',
   'menu.serves_other': 'For {n} · {price} each',
   'menu.orderCount_one': '{n} order',
   'menu.orderCount_other': '{n} orders',
