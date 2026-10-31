@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import type { BusinessSector } from '@/server/domain/restaurant-profile';
+import type { ScopedTx } from '@/server/data/tenant-db';
+import type { ActionContext } from '@/server/studio/framework/action';
 import type { ActorScope } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -42,7 +44,21 @@ export async function sectorRestaurantIds(db: PrismaClient, space: BusinessSpace
 }
 
 /** Refuses a business of the other sector as if it did not exist, so a write through one space never touches the other. */
-export async function assertSameSector(db: Pick<PrismaClient, 'restaurant'>, restaurantId: string, space: BusinessSpace): Promise<void> {
-  const found = await db.restaurant.findFirst({ where: { id: restaurantId, ...sectorWhere(space) }, select: { id: true } });
-  if (!found) throw new StudioError('NOT_FOUND');
+export async function assertSameSector(db: PrismaClient | ScopedTx, restaurantId: string, space: BusinessSpace): Promise<void> {
+  // A scoped transaction exposes the same `restaurant.findUnique`; the union of two generic signatures is not callable as is.
+  const found = await (db as PrismaClient).restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } });
+  if (found?.sector !== SECTORS[space]) throw new StudioError('NOT_FOUND');
+}
+
+/** The `space` an action may carry: the page's space, optional so owners and designers are never cut by it. */
+export const optionalSpace = z.enum(['food', 'pharmacy']).optional();
+
+/**
+ * The first step of an action that works on one business from inside a space: when the page named its space, a business of
+ * the other sector is refused as not found and nothing is written. Without `space` it does nothing.
+ */
+export async function requireSpace(ctx: Pick<ActionContext, 'transaction' | 'restaurantId'>, space: BusinessSpace | undefined): Promise<void> {
+  const restaurantId = ctx.restaurantId;
+  if (!space || restaurantId === null) return;
+  await ctx.transaction((tx) => assertSameSector(tx, restaurantId, space));
 }

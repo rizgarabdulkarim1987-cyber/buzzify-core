@@ -10,6 +10,7 @@ import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/serv
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
+import { optionalSpace, requireSpace } from '@/server/studio/services/space-scope';
 import { createInvitation, reissueInvitation, revokeInvitation as revoke } from '@/server/studio/services/invitations';
 import { assignDesigner as assign, changeEmail, deactivatePerson, deletePerson, reactivatePerson, unassignMember as unassign } from '@/server/studio/services/people';
 
@@ -60,10 +61,11 @@ export const inviteStaff = defineAction({
 export const inviteOwner = defineAction({
   name: 'people.inviteOwner',
   permission: 'people.invite',
-  input: z.object({ restaurantId: idField, email: emailField }),
+  input: z.object({ restaurantId: idField, email: emailField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { email }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { email, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const { invitationId, url } = await createInvitation(
         tx,
         { email, restaurantId: restaurantOf(ctx), role: 'OWNER', asSuperAdmin: false, invitedById: ctx.actor.userId, now: new Date() },
@@ -76,7 +78,8 @@ export const inviteOwner = defineAction({
         changes: { email: { before: null, after: email }, role: { before: null, after: 'OWNER' } },
       });
       return { invitationId, url };
-    }),
+    });
+  },
 });
 
 /**
@@ -141,10 +144,11 @@ export const resendInvitation = defineAction({
 export const assignDesigner = defineAction({
   name: 'people.assignDesigner',
   permission: 'people.manage',
-  input: z.object({ userId: idField, restaurantId: idField }),
+  input: z.object({ userId: idField, restaurantId: idField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { userId }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { userId, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       await assign(tx, { restaurantId: restaurantOf(ctx), userId });
       ctx.audit({
         action: 'membership.assigned',
@@ -153,7 +157,8 @@ export const assignDesigner = defineAction({
         changes: { role: { before: null, after: 'DESIGNER' } },
       });
       return { assigned: true as const };
-    }),
+    });
+  },
 });
 
 /** The roles a Super Admin hands out here: the till's, not the owner's (an owner is invited, and holds a Studio membership). */
@@ -172,9 +177,11 @@ export const addTillStaff = defineAction({
     email: emailField,
     role: z.enum(TILL_ROLES),
     password: z.string().min(1, 'Choose a password').max(1024, 'Use at most 128 characters'),
+    space: optionalSpace,
   }),
   target: (i) => atRestaurant(i.restaurantId),
   run: async (ctx, input) => {
+    await requireSpace(ctx, input.space);
     const restaurantId = restaurantOf(ctx);
     let userId: string;
     try {
@@ -206,10 +213,11 @@ export const addTillStaff = defineAction({
 export const unassignMember = defineAction({
   name: 'people.unassignMember',
   permission: 'people.manage',
-  input: z.object({ userId: idField, restaurantId: idField }),
+  input: z.object({ userId: idField, restaurantId: idField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { userId }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { userId, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const { role, revokedInvitations } = await unassign(tx, { restaurantId: restaurantOf(ctx), userId, now: new Date() });
       ctx.audit({
         action: 'membership.removed',
@@ -221,7 +229,8 @@ export const unassignMember = defineAction({
         },
       });
       return { unassigned: true as const };
-    }),
+    });
+  },
 });
 
 // Accounts ------------------------------------------------------------------------------------------------------------
@@ -309,10 +318,12 @@ export const setPermissionPolicy = defineAction({
     // What the client's designers and owners may do beyond (grant) or short of (revoke) the role's defaults. Anything
     // that is not a known key, or is never grantable, is dropped by `parsePolicy` when it is saved.
     policy: z.object({ DESIGNER: roleEntry.optional(), OWNER: roleEntry.optional() }),
+    space: optionalSpace,
   }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { version, policy }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { version, policy, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       const current = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { permissionPolicy: true } });
       if (!current) throw new StudioError('NOT_FOUND');
@@ -329,5 +340,6 @@ export const setPermissionPolicy = defineAction({
         changes: { permissionPolicy: { before: parsePolicy(current.permissionPolicy), after: next } },
       });
       return { policy: next, version: version + 1 };
-    }),
+    });
+  },
 });
