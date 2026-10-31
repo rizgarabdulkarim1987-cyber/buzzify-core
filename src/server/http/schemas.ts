@@ -86,6 +86,35 @@ export const qrOrderSchema = z.strictObject({
   note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
 });
 
+/** The secret a guest's phone keeps for a table's basket; only its hash is stored. */
+export const basketToken = z.string().min(16).max(64).regex(/^[A-Za-z0-9_-]+$/);
+
+/** A guest replacing their own part of the table basket. Strict, like the QR order: no price, no total. */
+export const basketPartSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  token: basketToken,
+  name: z.string().trim().max(24).default(''),
+  lines: z
+    .array(
+      z.strictObject({
+        productId: id,
+        variantId: id.nullable().default(null),
+        optionIds: z.array(id).max(20).default([]),
+        quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity),
+        note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+      }),
+    )
+    .max(QR_LIMITS.maxLines),
+});
+
+/** A guest sending the whole table's basket. */
+export const basketSendSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  token: basketToken,
+  locale,
+  note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+});
+
 /** A guest's complaint. Strict; `website` is the honeypot, a field no person sees and so one that stays empty. */
 export const complaintSchema = z.strictObject({
   table: z.number().int().min(1).max(999).optional(),

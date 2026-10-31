@@ -170,7 +170,7 @@ describe('plans lock what a restaurant may choose', () => {
       await setPlan(a.restaurant.id, 'BASIC');
       const { tenant } = dataOf(await runQuery(prisma(), designer, previewQueries.draft, { menuId: a.menu.id, locale: 'en' }));
       expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
-      expect(tenant.features).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, drinkMatch: false, moodPicker: false, livingPhotos: false, occasionMoods: false, stories: false, models3d: false, ar: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
+      expect(tenant.features).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, drinkMatch: false, moodPicker: false, livingPhotos: false, occasionMoods: false, stories: false, models3d: false, ar: false, tableBasket: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
     });
 
     it('leaves the offers out of the preview and names them in the note on a plan without them', async () => {

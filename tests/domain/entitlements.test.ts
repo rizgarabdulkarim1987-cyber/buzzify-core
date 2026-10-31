@@ -21,7 +21,7 @@ const live = (tier: PlanTier) =>
 
 describe('the feature catalog', () => {
   it('lists the live features first, in the specs’ order', () => {
-    expect(FEATURE_KEYS.slice(0, 27)).toEqual([
+    expect(FEATURE_KEYS.slice(0, 28)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
@@ -49,9 +49,10 @@ describe('the feature catalog', () => {
       'guest.occasionMoods',
       'guest.stories',
       'immersive.ar',
+      'ordering.tableBasket',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(27);
-    expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(8);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(28);
+    expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(7);
   });
 
   it('knows its own keys and nothing else', () => {
@@ -86,7 +87,7 @@ describe('the feature catalog', () => {
       'guest.occasionMoods',
       'guest.stories',
     ]);
-    expect(live('PREMIUM')).toHaveLength(27);
+    expect(live('PREMIUM')).toHaveLength(28);
   });
 
   it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
@@ -188,7 +189,7 @@ describe('a restaurant’s entitlements', () => {
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 27).filter((key) => key !== 'immersive.explore' && key !== 'menu.intro'));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 28).filter((key) => key !== 'immersive.explore' && key !== 'menu.intro'));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });

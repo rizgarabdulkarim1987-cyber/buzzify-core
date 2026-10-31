@@ -7,6 +7,7 @@ export const MENU_SCOPED_MODELS = [
   'MenuAbout',
   'AboutOffer',
   'MenuStory',
+  'TableBasketPart',
   'MenuWheel',
   'WheelSlice',
   'WheelSpin',

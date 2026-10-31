@@ -287,6 +287,8 @@ export interface GuestFeatures {
   /** Project 4: a model per dish, and putting it on the table in AR. */
   models3d: boolean;
   ar: boolean;
+  /** Project 5: the guests of a table share one basket. */
+  tableBasket: boolean;
   rails: RailStyle[];
 }
 
@@ -308,6 +310,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     stories: allows(entitlements, 'guest.stories'),
     models3d: allows(entitlements, 'immersive.models3d'),
     ar: allows(entitlements, 'immersive.ar'),
+    tableBasket: allows(entitlements, 'ordering.tableBasket'),
     rails: allowedRails(entitlements),
   };
 }
