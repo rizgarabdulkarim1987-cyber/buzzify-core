@@ -1570,6 +1570,8 @@ model PosBillCall {
   restaurantId   String
   tableId        String
   tableNumber    Int
+  /// What the guest asked for: `BILL` (the bill) or `WAITER` (a waiter at the table).
+  kind           String     @default("BILL")
   createdAt      DateTime   @default(now())
   seenAt         DateTime?
   /// Plain id (no relation): the person who marked it seen.

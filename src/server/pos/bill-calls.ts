@@ -15,6 +15,21 @@ const WINDOW_MS = 10 * 60_000;
  * than three times in ten minutes. A call left unseen for longer than a request waits (an hour) no longer counts.
  */
 export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, input: { table: number }, now: Date = new Date()): Promise<{ ok: true }> {
+  return callTheFloor(prisma, tenant, input.table, 'BILL', now);
+}
+
+/**
+ * A guest at a table asks for a waiter (plan feature `table.callWaiter`). The same notice, limits and seen-by-one rule as the
+ * bill's, counted apart from it; no order is touched.
+ */
+export async function callForWaiter(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, input: { table: number }, now: Date = new Date()): Promise<{ ok: true }> {
+  return callTheFloor(prisma, tenant, input.table, 'WAITER', now);
+}
+
+export type CallKind = 'BILL' | 'WAITER';
+
+async function callTheFloor(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, table: number, kind: CallKind, now: Date): Promise<{ ok: true }> {
+  const input = { table };
   const gate = await qrOrderGate(prisma, tenant, input.table, now);
   if (!gate.open) throw new QrGateClosed();
   const till = scopedClient(prisma, { restaurantId: gate.restaurantId });
@@ -24,14 +39,14 @@ export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo,
     if (locked.count === 0) throw new QrGateClosed();
 
     const [unseen, recent] = await Promise.all([
-      tx.posBillCall.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, seenAt: null, createdAt: { gt: expiryCutoff(now) } }, select: { id: true } }),
-      tx.posBillCall.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, createdAt: { gt: new Date(now.getTime() - WINDOW_MS) } } }),
+      tx.posBillCall.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, kind, seenAt: null, createdAt: { gt: expiryCutoff(now) } }, select: { id: true } }),
+      tx.posBillCall.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, kind, createdAt: { gt: new Date(now.getTime() - WINDOW_MS) } } }),
     ]);
     if (!unseen && recent >= MAX_CALLS) throw new QrOrderRefusal('TOO_MANY_REQUESTS');
 
     // Best effort: the call below is the notice. The move is one conditional update on the version just read, so staff
     // changing or paying the order at the same moment match nothing here (no throw, which would abort the transaction).
-    const live = await tx.posOrder.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: { in: ['OPEN', 'READY'] } } });
+    const live = kind === 'BILL' ? await tx.posOrder.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: { in: ['OPEN', 'READY'] } } }) : null;
     let moved: { id: string; from: string } | null = null;
     if (live) {
       const { count } = await tx.posOrder.updateMany({
@@ -42,7 +57,7 @@ export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo,
     }
     // The floor already has this table's call: no second one, and an audit row only when the order moved.
     if (unseen && !moved) return { ok: true } as const;
-    const call = unseen ?? (await tx.posBillCall.create({ data: { restaurantId: gate.restaurantId, tableId: gate.tableId, tableNumber: input.table, createdAt: now }, select: { id: true } }));
+    const call = unseen ?? (await tx.posBillCall.create({ data: { restaurantId: gate.restaurantId, tableId: gate.tableId, tableNumber: input.table, kind, createdAt: now }, select: { id: true } }));
     await tx.auditLog.create({
       data: {
         actorId: null,
@@ -52,7 +67,7 @@ export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo,
         entityType: 'PosBillCall',
         entityId: call.id,
         changes: {
-          ...(unseen ? {} : { tableNumber: { before: null, after: input.table } }),
+          ...(unseen ? {} : { tableNumber: { before: null, after: input.table }, ...(kind === 'WAITER' ? { kind: { before: null, after: kind } } : {}) }),
           ...(moved ? { orderId: moved.id, orderStatus: { before: moved.from, after: 'BILL_REQUESTED' } } : {}),
         },
       },
@@ -62,11 +77,11 @@ export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo,
 }
 
 /** The calls nobody has seen yet and that are under an hour old, oldest first. */
-export async function listOpenBillCalls(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<{ id: string; tableNumber: number; createdAt: Date }[]> {
+export async function listOpenBillCalls(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<{ id: string; tableNumber: number; kind: string; createdAt: Date }[]> {
   return db.posBillCall.findMany({
     where: { restaurantId, seenAt: null, createdAt: { gt: expiryCutoff(now) } },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, tableNumber: true, createdAt: true },
+    select: { id: true, tableNumber: true, kind: true, createdAt: true },
   });
 }
 

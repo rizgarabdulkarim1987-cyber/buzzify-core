@@ -101,9 +101,9 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, drinkMatch: false, moodPicker: false, livingPhotos: false, occasionMoods: false, stories: false, models3d: false, ar: false, tableBasket: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: false, occasionMoods: true, stories: true, models3d: false, ar: false, tableBasket: false, smartSelling: true, offers: true, socialProof: true, rails: ['drum', 'flap', 'deck', 'plain'] });
-    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, tableBasket: true, smartSelling: true, offers: true, socialProof: true, rails: [...RAIL_STYLES] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, dishCounts: false, drinkMatch: false, moodPicker: false, livingPhotos: false, occasionMoods: false, stories: false, models3d: false, ar: false, tableBasket: false, callWaiter: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: false, occasionMoods: true, stories: true, models3d: false, ar: false, tableBasket: false, callWaiter: true, smartSelling: true, offers: true, socialProof: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, tableBasket: true, callWaiter: true, smartSelling: true, offers: true, socialProof: true, rails: [...RAIL_STYLES] });
   });
 });
 

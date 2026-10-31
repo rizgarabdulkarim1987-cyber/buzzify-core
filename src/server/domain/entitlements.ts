@@ -59,7 +59,7 @@ export const FEATURES = [
   { key: 'guest.stories', area: 'selling', status: 'live', project: 3, startsIn: 'PRO' },
   { key: 'immersive.ar', area: 'immersive', status: 'live', project: 4, startsIn: 'PREMIUM' },
   { key: 'ordering.tableBasket', area: 'selling', status: 'live', project: 5, startsIn: 'PREMIUM' },
-  { key: 'table.callWaiter', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
+  { key: 'table.callWaiter', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
   { key: 'loyalty.stampCard', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
   { key: 'share.dishCards', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
   { key: 'display.tvBoard', area: 'immersive', status: 'reserved', project: 6, startsIn: 'PREMIUM' },

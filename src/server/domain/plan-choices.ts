@@ -289,6 +289,8 @@ export interface GuestFeatures {
   ar: boolean;
   /** Project 5: the guests of a table share one basket. */
   tableBasket: boolean;
+  /** A guest at a table can call a waiter (`table.callWaiter`). */
+  callWaiter: boolean;
   rails: RailStyle[];
 }
 
@@ -311,6 +313,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     models3d: allows(entitlements, 'immersive.models3d'),
     ar: allows(entitlements, 'immersive.ar'),
     tableBasket: allows(entitlements, 'ordering.tableBasket'),
+    callWaiter: allows(entitlements, 'table.callWaiter'),
     rails: allowedRails(entitlements),
   };
 }
