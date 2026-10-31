@@ -128,6 +128,8 @@ const en: Messages = {
   'share.failed': 'We could not make the card. Try again.',
   'whatsapp.label': 'Chat with us on WhatsApp',
   'qr.waiter': 'Call a waiter',
+  'tv.page': 'Page {page} of {pages}',
+  'tv.empty': 'The menu is being updated',
   'card.title': 'Your stamp card',
   'card.progress': '{stamps} of {required} stamps',
   'card.reward': 'Reward: {reward}',
