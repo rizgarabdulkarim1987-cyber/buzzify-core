@@ -19,7 +19,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   brand: {
     logoText: 'TEST',
@@ -34,6 +34,20 @@ const tenant: TenantInfo = {
 };
 
 describe('buildMenuView', () => {
+  it('gives food the drinks that go with it, the paired one first, when the plan has drink match', () => {
+    const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
+    const burger = view.products.find((p) => p.id === IDS.burger)!;
+    expect(burger.match?.[0]).toEqual({ id: IDS.sparkling, name: IDS.sparkling, price: 300, paired: true });
+    expect(view.products.find((p) => p.id === IDS.espresso)!.match).toBeUndefined();
+    expect(view.products.find((p) => p.id === IDS.cheesecake)!.match).toBeUndefined();
+  });
+
+  it('leaves the match out on a plan without drink match', () => {
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, drinkMatch: false } };
+    const view = buildMenuView(makeCatalog(), off, 'en', at(12));
+    expect(view.products.some((p) => p.match !== undefined)).toBe(false);
+  });
+
   it('groups products under ordered categories with localized text', () => {
     const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
     expect(view.categories.map((c) => c.slug)).toEqual(['coffee', 'breakfast', 'plates', 'patisserie', 'cold']);

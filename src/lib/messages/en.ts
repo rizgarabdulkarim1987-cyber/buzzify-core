@@ -38,6 +38,8 @@ const en: Messages = {
   'upgrade.switch': 'Switch',
   'upgrade.becomes': 'Total becomes {amount}',
   'pairing.title': 'Perfect pairing',
+  'match.title': 'Goes well with',
+  'match.open': 'Open {name}',
   'pairing.add': 'Add {name}',
   'pairing.choose': 'Choose options for {name}',
   'pairing.dismiss': 'Not now',

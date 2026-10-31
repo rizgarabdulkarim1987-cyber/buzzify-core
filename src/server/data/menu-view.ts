@@ -25,6 +25,7 @@ import {
   type PromotionKind,
   type VisualKey,
 } from '@/server/domain';
+import { drinkMatchFor } from '@/server/domain/drink-match';
 import { showsCounts } from '@/server/domain/dish-counts';
 import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
 import type { TenantInfo } from './tenant';
@@ -52,6 +53,15 @@ export interface MenuVariantView {
   name: string;
   priceDelta: number;
   isDefault: boolean;
+}
+
+/** A drink under a dish's "goes well with": enough to show a chip and open the drink. */
+export interface MenuMatchView {
+  id: string;
+  name: string;
+  price: number;
+  /** The owner paired it to this dish by hand. */
+  paired?: true;
 }
 
 export interface MenuProductView {
@@ -92,6 +102,8 @@ export interface MenuProductView {
   fewLeft?: number;
   /** How many people the dish is for. */
   serves?: number;
+  /** Drinks that go with the dish, when the plan has drink match (`guest.drinkMatch`). */
+  match?: MenuMatchView[];
   allergens: string[];
   ingredients: string[];
   searchKey: string;
@@ -330,6 +342,17 @@ export function buildMenuView(
         (sortOrder.get(a.id) ?? 0) - (sortOrder.get(b.id) ?? 0) ||
         a.slug.localeCompare(b.slug),
     );
+
+  if (tenant.features.drinkMatch) {
+    const byId = new Map(products.map((view) => [view.id, view]));
+    for (const view of products) {
+      const match = drinkMatchFor(catalog, view.id, now).flatMap<MenuMatchView>((entry) => {
+        const drink = byId.get(entry.productId);
+        return drink ? [{ id: drink.id, name: drink.name, price: drink.displayPrice, ...(entry.paired ? { paired: true as const } : {}) }] : [];
+      });
+      if (match.length > 0) view.match = match;
+    }
+  }
 
   const productNames = new Map(catalog.products.map((product) => [product.id, resolveText(product.translations, 'name', locale, fallback)]));
   const categoryNames = new Map(catalog.categories.map((category) => [category.id, resolveText(category.translations, 'name', locale, fallback)]));

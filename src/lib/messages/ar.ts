@@ -38,6 +38,8 @@ const ar: Messages = {
   'upgrade.switch': 'بدّل',
   'upgrade.becomes': 'يصبح المجموع {amount}',
   'pairing.title': 'الثنائي المثالي',
+  'match.title': 'يناسبه مع',
+  'match.open': 'افتح {name}',
   'pairing.add': 'أضف {name}',
   'pairing.choose': 'اختر خيارات {name}',
   'pairing.dismiss': 'ليس الآن',

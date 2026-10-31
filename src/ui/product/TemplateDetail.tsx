@@ -15,6 +15,7 @@ import { ProductStage } from '@/ui/stage/ProductStage';
 import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
+import { DrinkMatch } from './DrinkMatch';
 import { PairingList } from './PairingList';
 import { Surface } from './Surface';
 import { UpgradeOffers } from './UpgradeOffers';
@@ -145,6 +146,7 @@ function Suggestions({ product, choice, onSwitch }: { product: MenuProductView; 
           if (other) onSwitch(other);
         }}
       />
+      <DrinkMatch product={product} onOpen={onSwitch} />
       <PairingList
         offers={data?.pairings ?? []}
         formatPrice={price}

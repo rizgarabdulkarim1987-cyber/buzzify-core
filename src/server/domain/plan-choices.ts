@@ -278,6 +278,12 @@ export interface GuestFeatures {
   wheel: boolean;
   /** The plan holds the order and view counts on dish cards (also needs the menu's switch). */
   dishCounts: boolean;
+  /** Project 3: drinks that go with a dish, the mood picker, living photos, occasion moods and stories. */
+  drinkMatch: boolean;
+  moodPicker: boolean;
+  livingPhotos: boolean;
+  occasionMoods: boolean;
+  stories: boolean;
   rails: RailStyle[];
 }
 
@@ -292,6 +298,11 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     about: allows(entitlements, 'menu.about'),
     wheel: allows(entitlements, 'menu.wheel'),
     dishCounts: allows(entitlements, 'menu.dishCounts'),
+    drinkMatch: allows(entitlements, 'guest.drinkMatch'),
+    moodPicker: allows(entitlements, 'guest.moodPicker'),
+    livingPhotos: allows(entitlements, 'guest.livingPhotos'),
+    occasionMoods: allows(entitlements, 'guest.occasionMoods'),
+    stories: allows(entitlements, 'guest.stories'),
     rails: allowedRails(entitlements),
   };
 }

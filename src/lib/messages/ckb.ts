@@ -38,6 +38,8 @@ const ckb: Messages = {
   'upgrade.switch': 'بیگۆڕە',
   'upgrade.becomes': 'کۆی گشتی دەبێتە {amount}',
   'pairing.title': 'هاوبەشی تەواو',
+  'match.title': 'لەگەڵی دەگونجێت',
+  'match.open': 'بکەرەوە {name}',
   'pairing.add': 'زیادکردنی {name}',
   'pairing.choose': 'هەڵبژاردنەکانی {name} دیاری بکە',
   'pairing.dismiss': 'ئێستا نا',

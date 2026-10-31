@@ -14,6 +14,7 @@ import { CloseIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { ProductStage } from '@/ui/stage/ProductStage';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
+import { DrinkMatch } from './DrinkMatch';
 import { PairingList } from './PairingList';
 import { UpgradeOffers } from './UpgradeOffers';
 import { hasSalesPills, SalePrice, SalesFacts, SalesPills } from '@/ui/menu/SalesLabels';
@@ -194,6 +195,8 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         ))}
 
         {orderable && <UpgradeOffers productId={product.id} offers={data?.upgrades ?? []} onAccept={accept} />}
+
+        <DrinkMatch product={product} onOpen={onSwitch} />
 
         {orderable && (
           <PairingList
