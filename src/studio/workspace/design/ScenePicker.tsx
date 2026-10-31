@@ -39,6 +39,7 @@ export function ScenePicker({
   stored,
   allowed,
   upgrade,
+  only,
   onPick,
 }: {
   open: boolean;
@@ -51,6 +52,8 @@ export function ScenePicker({
   /** The kinds the plan lets the business choose. */
   allowed: readonly SceneFileKind[];
   upgrade: UpgradeInfo;
+  /** A field that takes one kind of file (a dish's model): only that kind is listed, with no kind filter. */
+  only?: SceneFileKind;
   onPick: (media: SceneMedia) => void;
 }) {
   const t = useT();
@@ -92,9 +95,9 @@ export function ScenePicker({
 
   const locked = (row: MediaRow) => row.scene !== null && !allowed.includes(row.scene.kind) && row.id !== stored;
   const selectedId = chosen ?? current;
-  const shown = rows.filter((row) => filter === 'all' || row.kind === filter);
+  const shown = rows.filter((row) => (only ? row.scene?.kind === only : filter === 'all' || row.kind === filter));
   const picked = rows.find((row) => row.id === selectedId && row.scene && !locked(row));
-  const lockedKinds = HINT_ORDER.filter((kind) => !allowed.includes(kind));
+  const lockedKinds = HINT_ORDER.filter((kind) => (only ? kind === only : true) && !allowed.includes(kind));
   const close = (next: boolean) => {
     if (!next) setChosen(null);
     onOpenChange(next);
@@ -127,7 +130,7 @@ export function ScenePicker({
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div role="group" aria-label={t('design.scenePicker.title')} className="flex flex-wrap gap-1">
-              {FILTERS.map((value) => (
+              {(only ? [] : FILTERS).map((value) => (
                 <button
                   key={value}
                   type="button"

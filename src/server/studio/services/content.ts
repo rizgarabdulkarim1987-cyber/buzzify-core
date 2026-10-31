@@ -14,6 +14,7 @@ import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/
 import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { editDraft } from './draft-edit';
+import type { UpgradeInfo } from './plans';
 import { isUniqueViolation } from './menus';
 
 /**
@@ -170,6 +171,8 @@ export interface ProductEditing {
   /** "Only a few left" shows at or below this many portions left. */
   lowStockThreshold: number | null;
   media: Array<{ value: DraftMediaItem; thumbUrl: string | null }>;
+  /** Whether the plan lets the restaurant choose a 3D model for a dish (`immersive.models3d`), and how to get it when not. */
+  models: { allowed: boolean; upgrade: UpgradeInfo };
   variants: Array<{ id: string; version: number; names: Names; priceDelta: number; isDefault: boolean }>;
   groups: Array<{
     id: string;

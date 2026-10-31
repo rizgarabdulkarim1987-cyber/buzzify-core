@@ -23,6 +23,7 @@ const PRODUCT: ProductEditing = {
   serves: null,
   lowStockThreshold: null,
   media: [],
+  models: { allowed: true, upgrade: { restaurantId: 'r1', restaurantName: 'R', lowest: {}, planNames: { BASIC: 'Basic', PRO: 'Pro', PREMIUM: 'Premium' }, whatsapp: null } as unknown as ProductEditing['models']['upgrade'] },
   variants: [{ id: 'v1', version: 2, names: { en: 'Large' }, priceDelta: 100, isDefault: true }],
   groups: [
     {
