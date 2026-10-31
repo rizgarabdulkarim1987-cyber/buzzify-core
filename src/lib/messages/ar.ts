@@ -145,6 +145,8 @@ const ar: Messages = {
   'share.failed': 'تعذّر إعداد البطاقة. حاول مرة أخرى.',
   'whatsapp.label': 'راسلنا على واتساب',
   'qr.waiter': 'نادِ النادل',
+  'tv.page': 'صفحة {page} من {pages}',
+  'tv.empty': 'يجري تحديث المنيو',
   'card.title': 'بطاقة أختامك',
   'card.progress': '{stamps} من {required} أختام',
   'card.reward': 'المكافأة: {reward}',

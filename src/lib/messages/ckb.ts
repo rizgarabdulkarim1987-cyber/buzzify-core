@@ -125,6 +125,8 @@ const ckb: Messages = {
   'share.failed': 'نەتوانرا کارتەکە دروست بکرێت. دووبارە هەوڵبدەرەوە.',
   'whatsapp.label': 'لە واتسئاپ پەیوەندیمان پێوە بکە',
   'qr.waiter': 'گارسۆن بانگ بکە',
+  'tv.page': 'لاپەڕە {page} لە {pages}',
+  'tv.empty': 'مینیوکە نوێ دەکرێتەوە',
   'card.title': 'کارتی مۆرەکانت',
   'card.progress': '{stamps} لە {required} مۆر',
   'card.reward': 'خەڵات: {reward}',
