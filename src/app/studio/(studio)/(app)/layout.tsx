@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         >
           {t('common.skipToContent')}
         </a>
-        <Sidebar items={items} user={user} space={{ name: t(space.nameKey) }} />
+        <Sidebar items={items} user={user} space={{ name: t(space.nameKey), ...(space.id === 'platform' ? {} : { business: space.id }) }} />
         <div className="flex min-w-0 flex-1 flex-col">
           <AnnouncementBar userId={actor.userId} initial={await query(activeAnnouncements, {})} />
           <main id="main" className="min-w-0 flex-1">

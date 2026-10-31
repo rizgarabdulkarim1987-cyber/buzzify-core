@@ -68,7 +68,7 @@ function initials(name: string): string {
  * The Studio's frame on the reading direction's start side: the product's name, Jump to (the button and Ctrl+K), the areas
  * the person may use (the current one marked with the amber edge), the language switch, and the person's own menu.
  */
-export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string } }) {
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: 'food' | 'pharmacy' } }) {
   const t = useT();
   const pathname = usePathname();
 
@@ -94,7 +94,7 @@ export function Sidebar({ items, user, space }: { items: readonly SidebarItem[];
       )}
 
       <div className="px-3 pb-2">
-        <JumpTo />
+        <JumpTo {...(space?.business ? { space: space.business } : {})} />
       </div>
 
       <nav aria-label={t('nav.label')} className="flex-1 overflow-y-auto px-3 py-2">

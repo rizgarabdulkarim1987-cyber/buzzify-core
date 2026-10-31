@@ -10,7 +10,16 @@ import { Select } from '@/studio/ui/Select';
 import { LIST_PARAMS } from './list-params';
 
 /** The list's filters. Each one is a parameter of the address, which the page reads, so a filtered list can be bookmarked and shared. */
-export function RestaurantFilters({ cities, planNames }: { cities: readonly string[]; planNames: Record<PlanTier, string> }) {
+export function RestaurantFilters({
+  cities,
+  planNames,
+  showSector = true,
+}: {
+  cities: readonly string[];
+  planNames: Record<PlanTier, string>;
+  /** A Super Admin works in one project at a time, so for them the sector is the space, not a filter. */
+  showSector?: boolean;
+}) {
   const t = useT();
   const { params, set } = useFilterParams();
   const city = params.get('city') ?? '';
@@ -40,6 +49,7 @@ export function RestaurantFilters({ cities, planNames }: { cities: readonly stri
           ]}
         />
       </Field>
+      {showSector && (
       <Field label={t('restaurants.filter.sector')} hideLabel className="w-36">
         <Select
           value={params.get('sector') ?? ''}
@@ -50,6 +60,7 @@ export function RestaurantFilters({ cities, planNames }: { cities: readonly stri
           ]}
         />
       </Field>
+      )}
       <Field label={t('restaurants.filter.status')} hideLabel className="w-36">
         <Select
           value={params.get('status') ?? ''}

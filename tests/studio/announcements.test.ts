@@ -113,3 +113,26 @@ describe('reading announcements', () => {
     expect(codeOf(await ask(cashier, listAnnouncements, {}))).toBe('FORBIDDEN');
   });
 });
+
+describe('announcements per space', () => {
+  it('lists the Menu and Cashier ones by default, and each space only its own', async () => {
+    dataOf(await run(admin, createAnnouncement, both));
+    dataOf(await run(admin, createAnnouncement, { ...both, titles: { en: 'Pharmacy stock' }, space: 'pharmacy' }));
+    const food = dataOf(await ask(admin, listAnnouncements, {}));
+    const pharmacy = dataOf(await ask(admin, listAnnouncements, { space: 'pharmacy' }));
+    expect(food.map((row) => row.titles.en)).toEqual(['Maintenance']);
+    expect(pharmacy.map((row) => row.titles.en)).toEqual(['Pharmacy stock']);
+  });
+
+  it('keeps the space an announcement was made in', async () => {
+    const { id } = dataOf(await run(admin, createAnnouncement, { ...both, space: 'pharmacy' }));
+    expect((await prisma().announcement.findUniqueOrThrow({ where: { id } })).space).toBe('pharmacy');
+    const plain = dataOf(await run(admin, createAnnouncement, both));
+    expect((await prisma().announcement.findUniqueOrThrow({ where: { id: plain.id } })).space).toBe('food');
+  });
+
+  it('still shows everyone else every live announcement', async () => {
+    dataOf(await run(admin, createAnnouncement, { ...both, space: 'pharmacy' }));
+    expect(dataOf(await ask(cashier, activeAnnouncements, {}))).toHaveLength(1);
+  });
+});

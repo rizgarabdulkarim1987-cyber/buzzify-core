@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { pickAnnouncement, type ActiveAnnouncement, type AnnouncementRow } from '@/lib/announcements';
 import { defineQuery } from '@/server/studio/framework/query';
+import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * The announcements a signed-in person sees now, in their own language: started, not ended, not archived. Everyone who can
@@ -27,15 +28,15 @@ export const activeAnnouncements = defineQuery({
   },
 });
 
-/** Every announcement that is not archived, for the Super Admin's page. */
+/** Every announcement of a space that is not archived, for the Super Admin's page of that space. */
 export const listAnnouncements = defineQuery({
   name: 'announcements.list',
   permission: 'platform.settings',
-  input: z.unknown(),
+  input: z.object({ space: businessSpace }),
   target: () => ({ kind: 'platform' }),
-  run: async ({ db }): Promise<AnnouncementRow[]> => {
+  run: async ({ db }, { space }): Promise<AnnouncementRow[]> => {
     const now = Date.now();
-    const rows = await db.announcement.findMany({ where: { archivedAt: null }, orderBy: { startsAt: 'desc' }, take: 200 });
+    const rows = await db.announcement.findMany({ where: { archivedAt: null, space }, orderBy: { startsAt: 'desc' }, take: 200 });
     return rows.map((row) => ({
       id: row.id,
       titles: row.titles as Record<string, string>,

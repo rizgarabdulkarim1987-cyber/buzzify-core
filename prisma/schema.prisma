@@ -889,6 +889,8 @@ model Announcement {
   startsAt    DateTime  @default(now())
   endsAt      DateTime?
   archivedAt  DateTime?
+  /// The project it was written in (a Super Admin's space): "food" for Menu and Cashier, "pharmacy".
+  space       String    @default("food")
   /// A plain id, not a relation, so removing the person never removes the announcement.
   createdById String?
   createdAt   DateTime  @default(now())
