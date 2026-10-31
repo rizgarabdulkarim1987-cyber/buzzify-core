@@ -15,6 +15,7 @@ import { ProductStage } from '@/ui/stage/ProductStage';
 import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
+import { DishModel } from './DishModel';
 import { DrinkMatch } from './DrinkMatch';
 import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
@@ -258,6 +259,7 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
           <Header product={product} titleId={titleId} favorite={favorite} onFavorite={onFavorite} />
           <Choices product={product} choice={choice} style={optionStyle} />
           {canOrder && choice.orderable && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
+          <DishModel product={product} />
           <DrinkMatch product={product} onOpen={onSwitch} />
           <Facts product={product} />
         </div>
