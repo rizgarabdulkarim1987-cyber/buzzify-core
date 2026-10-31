@@ -137,11 +137,13 @@ export const restaurantBilling = defineQuery({
   input: z.object({ restaurantId: z.string().min(1).max(100) }),
   target: () => PLATFORM,
   run: async (ctx, input) => {
-    const restaurant = await ctx.db.restaurant.findUnique({ where: { id: input.restaurantId }, select: { id: true, name: true, status: true, plan: true } });
+    const restaurant = await ctx.db.restaurant.findUnique({ where: { id: input.restaurantId }, select: { id: true, name: true, status: true, plan: true, sector: true } });
     if (!restaurant) throw new StudioError('NOT_FOUND');
+    // Only the products of this business's own project: a pharmacy is never offered Menu or Cashier, nor a restaurant Pharmacy.
+    const products = APPLICATIONS_OF[restaurant.sector === 'PHARMACY' ? 'pharmacy' : 'food'];
     const now = new Date();
     const [applications, subscriptions, payments] = await Promise.all([
-      ctx.db.application.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, name: true, status: true } }),
+      ctx.db.application.findMany({ where: { id: { in: [...products] } }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, name: true, status: true } }),
       ctx.db.subscription.findMany({
         where: { restaurantId: restaurant.id },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

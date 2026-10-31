@@ -93,6 +93,15 @@ describe('restaurants and billing by space', () => {
   });
 });
 
+describe('one business billing', () => {
+  it('offers a pharmacy only the pharmacy product and a restaurant only Menu and Cashier', async () => {
+    const pharmacy = dataOf(await ask(admin, billingQueries.restaurantBilling, { restaurantId: clinic.id }));
+    const food = dataOf(await ask(admin, billingQueries.restaurantBilling, { restaurantId: cafe.id }));
+    expect(pharmacy.applications.map((app) => app.id)).toEqual(['pharmacy']);
+    expect(food.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
+  });
+});
+
 describe('people by space', () => {
   it('shows a person with businesses in both sectors in both lists, each with only that space\'s businesses', async () => {
     const food = dataOf(await ask(admin, peopleQueries.listPeople, { space: 'food' }));
