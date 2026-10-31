@@ -42,7 +42,7 @@ const toIso = (local: string): string | undefined => (local ? new Date(local).to
  * The Buzzify team's announcements: the live and scheduled ones, a form to write one in up to three languages, and
  * archiving. A new announcement appears on every till within a minute.
  */
-export function AnnouncementsAdmin({ rows }: { rows: AnnouncementRow[] }) {
+export function AnnouncementsAdmin({ rows, space = 'food' }: { rows: AnnouncementRow[]; space?: 'food' | 'pharmacy' }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -64,7 +64,7 @@ export function AnnouncementsAdmin({ rows }: { rows: AnnouncementRow[] }) {
     if (!draft) return;
     const input = { titles: draft.titles, bodies: draft.bodies, startsAt: toIso(draft.startsAt), endsAt: toIso(draft.endsAt) ?? null };
     start(async () => {
-      const result = draft.id ? await updateAnnouncement({ id: draft.id, ...input }) : await createAnnouncement(input);
+      const result = draft.id ? await updateAnnouncement({ id: draft.id, ...input }) : await createAnnouncement({ ...input, space });
       if (result.ok) {
         toast.success(t('announcements.saved'));
         setDraft(null);

@@ -781,10 +781,12 @@ describe('the people queries', () => {
 
   it('shows a Super Admin everyone, with their restaurants', async () => {
     await prisma().user.update({ where: { id: bea.userId }, data: { deactivatedAt: new Date() } });
+    // Menu and Cashier lists the people who work in its businesses; the Super Admin belongs to the platform space.
     const { rows, total, page } = dataOf(await ask(admin, peopleQueries.listPeople, { page: 1 }));
-    expect([total, page]).toEqual([4, 1]);
-    expect(rows.map((r) => r.email).sort()).toEqual([admin.email, bea.email, dee.email, olive.email].sort());
-    expect(rows.find((r) => r.email === admin.email)).toMatchObject({ isSuperAdmin: true, deactivated: false, memberships: [] });
+    expect([total, page]).toEqual([3, 1]);
+    expect(rows.map((r) => r.email).sort()).toEqual([bea.email, dee.email, olive.email].sort());
+    const team = dataOf(await ask(admin, peopleQueries.listPeople, { page: 1, space: 'platform' }));
+    expect(team.rows.find((r) => r.email === admin.email)).toMatchObject({ isSuperAdmin: true, deactivated: false, memberships: [] });
     expect(rows.find((r) => r.email === bea.email)).toMatchObject({ deactivated: true, memberships: [{ restaurantId: bistro.id, restaurantName: 'Bistro', role: 'OWNER' }] });
   });
 
@@ -793,16 +795,17 @@ describe('the people queries', () => {
     const atAtelier = dataOf(await ask(admin, peopleQueries.listPeople, { restaurantId: atelier.id, page: 1 }));
     expect(atAtelier.rows.map((r) => r.email).sort()).toEqual([dee.email, olive.email].sort());
 
-    const found = dataOf(await ask(admin, peopleQueries.listPeople, { q: 'BULK 1', page: 1 }));
+    // The bulk people belong to no business, so they are the platform space's.
+    const found = dataOf(await ask(admin, peopleQueries.listPeople, { q: 'BULK 1', page: 1, space: 'platform' }));
     expect(found.rows.map((r) => r.name)).toEqual(Array.from({ length: 10 }, (_, i) => `Bulk ${10 + i}`));
     expect(dataOf(await ask(admin, peopleQueries.listPeople, { q: olive.email.toUpperCase(), page: 1 })).rows).toHaveLength(1);
 
-    const first = dataOf(await ask(admin, peopleQueries.listPeople, { page: 1 }));
-    const second = dataOf(await ask(admin, peopleQueries.listPeople, { page: 2 }));
-    expect([first.total, first.rows.length, first.pageSize]).toEqual([34, 25, 25]);
-    expect([second.rows.length, second.page]).toEqual([9, 2]);
-    expect(new Set([...first.rows, ...second.rows].map((r) => r.userId)).size).toBe(34);
-    expect(dataOf(await ask(admin, peopleQueries.listPeople, { page: 3 })).rows).toEqual([]);
+    const first = dataOf(await ask(admin, peopleQueries.listPeople, { page: 1, space: 'platform' }));
+    const second = dataOf(await ask(admin, peopleQueries.listPeople, { page: 2, space: 'platform' }));
+    expect([first.total, first.rows.length, first.pageSize]).toEqual([31, 25, 25]);
+    expect([second.rows.length, second.page]).toEqual([6, 2]);
+    expect(new Set([...first.rows, ...second.rows].map((r) => r.userId)).size).toBe(31);
+    expect(dataOf(await ask(admin, peopleQueries.listPeople, { page: 3, space: 'platform' })).rows).toEqual([]);
     expect(codeOf(await ask(admin, peopleQueries.listPeople, { page: 0 }))).toBe('INVALID');
     expect(dataOf(await ask(admin, peopleQueries.listPeople, {})).page).toBe(1);
   });
@@ -810,10 +813,10 @@ describe('the people queries', () => {
   it('searches for a typed % or _ as itself, as every other search does', async () => {
     await person('percent', { name: 'Fifty % Off' });
     for (const q of ['%', '_']) {
-      const found = dataOf(await ask(admin, peopleQueries.listPeople, { q, page: 1 })).rows.map((r) => r.name);
+      const found = dataOf(await ask(admin, peopleQueries.listPeople, { q, page: 1, space: 'platform' })).rows.map((r) => r.name);
       expect(found, q).toEqual(q === '%' ? ['Fifty % Off'] : []);
     }
-    expect(dataOf(await ask(admin, peopleQueries.listPeople, { q: 'fifty _ off', page: 1 })).rows).toEqual([]);
+    expect(dataOf(await ask(admin, peopleQueries.listPeople, { q: 'fifty _ off', page: 1, space: 'platform' })).rows).toEqual([]);
   });
 
   it('shows the members of a restaurant to a Super Admin only, not to an owner even with a stored people.invite grant', async () => {
@@ -844,17 +847,23 @@ describe('the people queries', () => {
     await prisma().invitation.update({ where: { id: revoked }, data: { revokedAt: new Date() } });
     await prisma().invitation.update({ where: { id: accepted }, data: { acceptedAt: new Date() } });
 
-    const idsOf = async (status: string, who = admin, restaurantId?: string) =>
-      dataOf(await ask(who, peopleQueries.listInvitations, { status, page: 1, ...(restaurantId ? { restaurantId } : {}) })).rows.map((r) => r.id).sort();
-    expect(await idsOf('pending')).toEqual([pending, staff].sort());
+    const idsOf = async (status: string, who = admin, restaurantId?: string, space = 'food') =>
+      dataOf(await ask(who, peopleQueries.listInvitations, { status, page: 1, space, ...(restaurantId ? { restaurantId } : {}) })).rows.map((r) => r.id).sort();
+    // The staff invitation belongs to no business, so it is in the platform space and in neither of the others.
+    expect(await idsOf('pending')).toEqual([pending]);
+    expect(await idsOf('pending', admin, undefined, 'platform')).toEqual([staff]);
+    expect(await idsOf('pending', admin, undefined, 'pharmacy')).toEqual([]);
     expect(await idsOf('expired')).toEqual([expired]);
     expect(await idsOf('revoked')).toEqual([revoked]);
     expect(await idsOf('accepted')).toEqual([accepted]);
-    expect(await idsOf('all')).toEqual([pending, expired, revoked, accepted, staff].sort());
+    expect(await idsOf('all')).toEqual([pending, expired, revoked, accepted].sort());
     expect(await idsOf('all', admin, atelier.id)).toEqual([pending, expired, revoked, accepted].sort());
     expect(await idsOf('all', admin, bistro.id)).toEqual([]);
 
-    const { rows } = dataOf(await ask(admin, peopleQueries.listInvitations, { status: 'all', page: 1 }));
+    const rows = [
+      ...dataOf(await ask(admin, peopleQueries.listInvitations, { status: 'all', page: 1 })).rows,
+      ...dataOf(await ask(admin, peopleQueries.listInvitations, { status: 'all', page: 1, space: 'platform' })).rows,
+    ];
     const staffRow = rows.find((r) => r.id === staff);
     expect(staffRow).toMatchObject({ restaurantId: null, restaurantName: null, role: null, asSuperAdmin: true, status: 'pending', invitedBy: 'admin person' });
     expect(rows.find((r) => r.id === pending)).toMatchObject({ restaurantId: atelier.id, restaurantName: 'Atelier', role: 'OWNER', status: 'pending' });

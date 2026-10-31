@@ -1,9 +1,10 @@
 import type { Actor } from '@/server/studio/auth/actor';
+import type { SpaceId } from '@/studio/spaces';
 
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies' | 'pharmacyOverview' | 'pharmacyBilling' | 'pharmacyPeople' | 'pharmacyAnnouncements' | 'pharmacyActivity' | 'pharmacySettings' | 'team' | 'teamSettings';
 
 export interface NavItem {
   key: NavKey;
@@ -44,6 +45,38 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'activity', href: '/studio/activity', labelKey: 'nav.activity', icon: 'activity' },
   { key: 'settings', href: '/studio/settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
+
+const entry = (key: NavKey, href: string, labelKey: string, icon: NavIcon, extra: Partial<NavItem> = {}): NavItem => ({ key, href, labelKey, icon, ...extra });
+
+/**
+ * The navigation of one closed space of a Super Admin (docs/superpowers/specs/2026-10-31-super-admin-project-hub-design.md):
+ * only that project's pages, so nothing of another project shows beside them. Menu and Cashier keeps the Studio's own
+ * paths; the Pharmacy and the Platform have their own prefixes (`src/studio/spaces.ts`).
+ */
+export function spaceNav(space: SpaceId): NavItem[] {
+  switch (space) {
+    case 'food':
+      return [
+        entry('overview', '/studio/overview', 'nav.overview', 'overview', { exact: true }),
+        ...NAV_ITEMS.filter((item) => item.key !== 'overview' && item.key !== 'pharmacies').map((item) => ({ ...item })),
+      ];
+    case 'pharmacy':
+      return [
+        entry('pharmacyOverview', '/studio/pharmacy/overview', 'nav.overview', 'overview', { exact: true }),
+        entry('pharmacies', '/studio/pharmacy', 'nav.pharmacies', 'pharmacy', {
+          // Its own pages are everything under the prefix that the neighbouring items do not claim: new, and one pharmacy's tabs.
+          exclude: ['overview', 'billing', 'people', 'announcements', 'activity', 'settings'].map((page) => `/studio/pharmacy/${page}`),
+        }),
+        entry('pharmacyBilling', '/studio/pharmacy/billing', 'nav.billing', 'billing'),
+        entry('pharmacyPeople', '/studio/pharmacy/people', 'nav.people', 'people'),
+        entry('pharmacyAnnouncements', '/studio/pharmacy/announcements', 'nav.announcements', 'announcements'),
+        entry('pharmacyActivity', '/studio/pharmacy/activity', 'nav.activity', 'activity'),
+        entry('pharmacySettings', '/studio/pharmacy/settings', 'nav.settings', 'settings'),
+      ];
+    case 'platform':
+      return [entry('team', '/studio/team', 'nav.team', 'people', { exact: true }), entry('teamSettings', '/studio/team/settings', 'nav.teamSettings', 'settings')];
+  }
+}
 
 /**
  * Areas only Super Admins have. The People page reads every account on the platform, which only they may; an owner

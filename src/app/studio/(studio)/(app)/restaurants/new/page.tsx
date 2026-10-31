@@ -55,7 +55,7 @@ export default async function NewRestaurantPage({ searchParams }: Params) {
         description={t(pharmacy ? 'pharmacies.newDescription' : 'restaurants.newDescription')}
       />
       <div className="px-8 pb-2">
-        <CreateRestaurantForm planNames={planNames} initialSector={sector} />
+        <CreateRestaurantForm planNames={planNames} initialSector={sector} {...(actor.isSuperAdmin ? { space: pharmacy ? ('pharmacy' as const) : ('food' as const) } : {})} />
       </div>
     </>
   );

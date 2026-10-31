@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineQuery } from '@/server/studio/framework/query';
 import { loadOverview } from '@/server/studio/services/overview';
+import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * The Overview: counts and lists within the reader's restaurants (every one for a Super Admin). The newest activity is
@@ -10,7 +11,7 @@ import { loadOverview } from '@/server/studio/services/overview';
 export const overview = defineQuery({
   name: 'overview.get',
   permission: 'view',
-  input: z.object({}),
+  input: z.object({ space: businessSpace }),
   target: () => ({ kind: 'platform' }),
-  run: (ctx) => loadOverview(ctx.db, ctx.scope, { activity: ctx.permissions.has('audit.view') }),
+  run: (ctx, { space }) => loadOverview(ctx.db, ctx.scope, { activity: ctx.permissions.has('audit.view'), space }),
 });

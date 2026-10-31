@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { formatClientId, parseClientId } from '@/server/domain/restaurant-profile';
 import type { ActorScope } from '@/server/studio/framework/query';
 import { literal } from './list-filters';
+import { menusInSpace, restaurantsInSpace, type BusinessSpace } from './space-scope';
 
 /**
  * Finding restaurants and menus by what a person types: Jump to, and the pickers that choose a restaurant, a menu or a
@@ -57,9 +58,9 @@ export interface MenuHit {
 }
 
 /** The restaurants matching `q` (all of them, name order, when `q` is empty), at most `limit`. */
-export async function findRestaurants(db: PrismaClient, scope: ActorScope, q: string, limit: number): Promise<RestaurantHit[]> {
+export async function findRestaurants(db: PrismaClient, scope: ActorScope, q: string, limit: number, space: BusinessSpace = 'food'): Promise<RestaurantHit[]> {
   const rows = await db.restaurant.findMany({
-    where: { AND: [restaurantScope(scope), q === '' ? {} : restaurantMatch(q)] },
+    where: { AND: [restaurantScope(scope), restaurantsInSpace(scope, space), q === '' ? {} : restaurantMatch(q)] },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
     take: limit,
     select: { id: true, name: true, clientNumber: true, city: true },
@@ -68,9 +69,9 @@ export async function findRestaurants(db: PrismaClient, scope: ActorScope, q: st
 }
 
 /** The menus matching `q` (all of them, name order, when `q` is empty), at most `limit`. */
-export async function findMenus(db: PrismaClient, scope: ActorScope, q: string, limit: number): Promise<MenuHit[]> {
+export async function findMenus(db: PrismaClient, scope: ActorScope, q: string, limit: number, space: BusinessSpace = 'food'): Promise<MenuHit[]> {
   const rows = await db.menu.findMany({
-    where: { AND: [menuScope(scope), q === '' ? {} : menuMatch(q)] },
+    where: { AND: [menuScope(scope), menusInSpace(scope, space), q === '' ? {} : menuMatch(q)] },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
     take: limit,
     select: { id: true, name: true, slug: true, status: true, restaurant: { select: { name: true } } },

@@ -3368,7 +3368,7 @@ const ar: Messages = {
   'cashierOverview.emptyBody': 'فعّله لمطعم من تبويب الفوترة الخاص به.',
   'nav.pharmacies': 'الصيدليات',
   'pharmacies.title': 'الصيدليات',
-  'pharmacies.description': 'كل صيدلية على المنصة: فروعها وحالتها واشتراكها في الصيدلية. تبقى الصيدليات أيضًا في قائمة المطاعم.',
+  'pharmacies.description': 'كل صيدلية على المنصة: فروعها وحالتها واشتراكها في الصيدلية.',
   'pharmacies.new': 'صيدلية جديدة',
   'pharmacies.newDescription': 'ابدأ بالاسم والفروع. الموظفون والمنتجات تأتي بعد ذلك.',
   'pharmacies.caption': 'الصيدليات',
@@ -3378,7 +3378,7 @@ const ar: Messages = {
   'pharmacies.subscription': 'الاشتراك',
   'pharmacies.created': 'تاريخ الإنشاء',
   'pharmacies.emptyTitle': 'لا توجد صيدليات بعد',
-  'pharmacies.emptyBody': 'تظهر الصيدلية هنا بعد إضافتها. تُنشأ بنفس نموذج المطعم، مع اختيار قطاع الصيدلية.',
+  'pharmacies.emptyBody': 'تظهر الصيدلية هنا بعد إضافتها. أنشئها من «صيدلية جديدة».',
   'billingList.description': 'اشتراك كل مطعم في كل منتج، وآخر دفعة مسجّلة.',
   'billingList.restaurant': 'المطعم',
   'billingList.lastPayment': 'آخر دفعة',
@@ -3577,6 +3577,13 @@ const ar: Messages = {
   'introPage.fileChosen': 'تم اختيار الملف (يظهر الفيديو بعد معالجته)',
   'introPage.statusOn': 'الواجهة مفعّلة: يراها الزائر قبل القائمة.',
   'introPage.statusOff': 'الواجهة متوقفة: يدخل الزائر القائمة مباشرة. فعّلها من الأسفل.',
+  'hub.title': 'اختر المشروع',
+  'hub.food': 'المنيو والكاشير',
+  'hub.pharmacy': 'الصيدلية',
+  'hub.platform': 'المنصة',
+  'hub.allProjects': 'كل المشاريع',
+  'nav.team': 'الفريق',
+  'nav.teamSettings': 'الإعدادات',
 };
 
 export default ar;

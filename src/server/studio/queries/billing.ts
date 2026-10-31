@@ -5,6 +5,7 @@ import { effectiveStatus, isLive } from '@/server/domain/billing/subscriptions';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { sellablePlanCodes } from '@/server/studio/services/billing';
+import { APPLICATIONS_OF, businessSpace, sectorWhere } from '@/server/studio/services/space-scope';
 
 /**
  * Billing reads (Task 3 of docs/superpowers/plans/2026-10-22-business-core-in-menu.md): `platform.settings`, which every
@@ -27,10 +28,11 @@ async function planCodesByApplication(db: PrismaClient, ids: string[]) {
 export const billingOverview = defineQuery({
   name: 'billing.overview',
   permission: 'platform.settings',
-  input: z.object({}),
+  input: z.object({ space: businessSpace }),
   target: () => PLATFORM,
-  run: async (ctx) => {
+  run: async (ctx, { space }) => {
     const applications = await ctx.db.application.findMany({
+      where: { id: { in: [...APPLICATIONS_OF[space]] } },
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       include: { prices: { orderBy: [...priceOrder] } },
     });
@@ -63,14 +65,20 @@ export const billingRestaurants = defineQuery({
   input: z.object({
     page: z.number().int().min(1).max(10_000).default(1),
     pageSize: z.number().int().min(1).max(100).default(50),
+    space: businessSpace,
   }),
   target: () => PLATFORM,
   run: async (ctx, input) => {
     const now = new Date();
     const [applications, total, restaurants] = await Promise.all([
-      ctx.db.application.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, name: true, status: true } }),
-      ctx.db.restaurant.count(),
+      ctx.db.application.findMany({
+        where: { id: { in: [...APPLICATIONS_OF[input.space]] } },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true, status: true },
+      }),
+      ctx.db.restaurant.count({ where: sectorWhere(input.space) }),
       ctx.db.restaurant.findMany({
+        where: sectorWhere(input.space),
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,

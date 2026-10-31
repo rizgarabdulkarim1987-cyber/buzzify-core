@@ -7,15 +7,29 @@ import type { PickerOption } from '@/studio/ui/Picker';
  * refusal throws, which the picker shows as "not available".
  */
 
-export async function findRestaurantOptions(q: string): Promise<PickerOption[]> {
-  const result = await searchRestaurants({ q });
-  if (!result.ok) throw new Error(result.error.code);
-  return result.data.rows.map((restaurant) => ({
-    value: restaurant.id,
-    label: restaurant.name,
-    detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
-  }));
-}
+type PickerSpace = 'food' | 'pharmacy' | 'platform';
+
+const restaurantFinder =
+  (space?: 'food' | 'pharmacy') =>
+  async (q: string): Promise<PickerOption[]> => {
+    const result = await searchRestaurants({ q, ...(space ? { space } : {}) });
+    if (!result.ok) throw new Error(result.error.code);
+    return result.data.rows.map((restaurant) => ({
+      value: restaurant.id,
+      label: restaurant.name,
+      detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
+    }));
+  };
+
+export const findRestaurantOptions = restaurantFinder();
+
+/** The same search kept to one space, so a Super Admin working in one project never picks a business of the other. */
+export const findRestaurantOptionsIn: Record<PickerSpace, (q: string) => Promise<PickerOption[]>> = {
+  food: restaurantFinder('food'),
+  pharmacy: restaurantFinder('pharmacy'),
+  // The Platform space works on people of both projects, so it finds the businesses of both.
+  platform: async (q) => (await Promise.all([restaurantFinder('food')(q), restaurantFinder('pharmacy')(q)])).flat(),
+};
 
 export async function findMenuOptions(q: string): Promise<PickerOption[]> {
   const result = await searchMenus({ q });

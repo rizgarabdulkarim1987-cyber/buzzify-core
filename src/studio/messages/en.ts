@@ -3337,7 +3337,7 @@ const en: Messages = {
   'cashierOverview.emptyBody': 'Turn it on for a restaurant from its Billing tab.',
   'nav.pharmacies': 'Pharmacy',
   'pharmacies.title': 'Pharmacy',
-  'pharmacies.description': 'Every pharmacy on the platform: its branches, status and Pharmacy subscription. Pharmacies also stay in Restaurants.',
+  'pharmacies.description': 'Every pharmacy on the platform: its branches, status and Pharmacy subscription.',
   'pharmacies.new': 'New pharmacy',
   'pharmacies.newDescription': 'Start with the name and the branches. Staff and products come after.',
   'pharmacies.caption': 'Pharmacies',
@@ -3347,7 +3347,7 @@ const en: Messages = {
   'pharmacies.subscription': 'Subscription',
   'pharmacies.created': 'Created',
   'pharmacies.emptyTitle': 'No pharmacies yet',
-  'pharmacies.emptyBody': 'A pharmacy appears here once it is added. It is created with the same form as a restaurant, on the Pharmacy sector.',
+  'pharmacies.emptyBody': 'A pharmacy appears here once it is added. Create it with New pharmacy.',
   'billingList.description': 'Every restaurant’s subscription to each product, and the last payment recorded.',
   'billingList.restaurant': 'Restaurant',
   'billingList.lastPayment': 'Last payment',
@@ -3546,6 +3546,13 @@ const en: Messages = {
   'introPage.fileChosen': 'File chosen (a video shows after it is processed)',
   'introPage.statusOn': 'The intro is ON: guests see it before the menu.',
   'introPage.statusOff': 'The intro is OFF: guests go straight to the menu. Turn it on below.',
+  'hub.title': 'Choose a project',
+  'hub.food': 'Menu and Cashier',
+  'hub.pharmacy': 'Pharmacy',
+  'hub.platform': 'Platform',
+  'hub.allProjects': 'All projects',
+  'nav.team': 'Team',
+  'nav.teamSettings': 'Settings',
 };
 
 export default en;

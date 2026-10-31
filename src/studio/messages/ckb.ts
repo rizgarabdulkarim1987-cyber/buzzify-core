@@ -3342,7 +3342,7 @@ const ckb: Messages = {
   'cashierOverview.emptyBody': 'لە تابی فەرمانی پارەدانی ڕێستۆرانەکەوە چالاکی بکە.',
   'nav.pharmacies': 'دەرمانخانەکان',
   'pharmacies.title': 'دەرمانخانەکان',
-  'pharmacies.description': 'هەموو دەرمانخانەیەکی سەر پلاتفۆرمەکە: لقەکانی، دۆخەکەی و بەشداریکردنی دەرمانخانە. دەرمانخانەکان لە لیستی ڕێستۆرانەکانیشدا دەمێننەوە.',
+  'pharmacies.description': 'هەموو دەرمانخانەیەکی سەر پلاتفۆرمەکە: لقەکانی، دۆخەکەی و بەشداریکردنی دەرمانخانە.',
   'pharmacies.new': 'دەرمانخانەی نوێ',
   'pharmacies.newDescription': 'بە ناو و لقەکان دەست پێبکە. کارمەندان و بەرهەمەکان دواتر دێن.',
   'pharmacies.caption': 'دەرمانخانەکان',
@@ -3352,7 +3352,7 @@ const ckb: Messages = {
   'pharmacies.subscription': 'بەشداریکردن',
   'pharmacies.created': 'دروستکراوە',
   'pharmacies.emptyTitle': 'هێشتا هیچ دەرمانخانەیەک نییە',
-  'pharmacies.emptyBody': 'دەرمانخانە دوای زیادکردنی لێرە دەردەکەوێت. بە هەمان فۆڕمی ڕێستۆران دروست دەکرێت، لەسەر کەرتی دەرمانخانە.',
+  'pharmacies.emptyBody': 'دەرمانخانە دوای زیادکردنی لێرە دەردەکەوێت. لە «دەرمانخانەی نوێ» دروستی بکە.',
   'billingList.description': 'بەشداریکردنی هەر ڕێستۆرانێک لە هەر بەرهەمێک، و دوایین پارەدانی تۆمارکراو.',
   'billingList.restaurant': 'ڕێستۆران',
   'billingList.lastPayment': 'دوایین پارەدان',
@@ -3551,6 +3551,13 @@ const ckb: Messages = {
   'introPage.fileChosen': 'فایل هەڵبژێردرا (ڤیدیۆ دوای پرۆسەکردن دەردەکەوێت)',
   'introPage.statusOn': 'دەروازە چالاکە: میوان پێش مینیو دەیبینێت.',
   'introPage.statusOff': 'دەروازە ڕاگیراوە: میوان یەکسەر دەچێتە مینیو. لە خوارەوە چالاکی بکە.',
+  'hub.title': 'پڕۆژەیەک هەڵبژێرە',
+  'hub.food': 'مینیو و کاشێر',
+  'hub.pharmacy': 'دەرمانخانە',
+  'hub.platform': 'پلاتفۆرم',
+  'hub.allProjects': 'هەموو پڕۆژەکان',
+  'nav.team': 'تیم',
+  'nav.teamSettings': 'ڕێکخستنەکان',
 };
 
 export default ckb;

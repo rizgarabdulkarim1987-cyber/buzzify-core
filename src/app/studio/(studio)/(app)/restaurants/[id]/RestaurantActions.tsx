@@ -24,6 +24,10 @@ export interface RestaurantActionsProps {
   menuCount: number;
   canChangeStatus: boolean;
   canDelete: boolean;
+  /** Where the list of this kind of business is: the page to land on after a delete. */
+  listHref?: string;
+  /** The space of the page, which the actions name so they never touch the other project's businesses. */
+  space?: 'food' | 'pharmacy';
 }
 
 const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPENDED: 'suspend', ARCHIVED: 'archive' };
@@ -32,7 +36,7 @@ const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPE
  * Suspend, archive, restore and delete, each behind a question: suspending and archiving take every menu of the
  * restaurant off the public pages at once, and deleting cannot be undone. Offers only what the person may do now.
  */
-export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete }: RestaurantActionsProps) {
+export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete, listHref = '/studio/restaurants', space }: RestaurantActionsProps) {
   const t = useT();
   const router = useRouter();
   const refuse = useRefuse();
@@ -86,7 +90,7 @@ export function RestaurantActions({ restaurantId, name, status, menuCount, canCh
         tone={target === 'ACTIVE' ? 'primary' : 'danger'}
         onConfirm={async () => {
           if (!target) return true;
-          const result = await setRestaurantStatus({ restaurantId, status: target });
+          const result = await setRestaurantStatus({ restaurantId, status: target, ...(space ? { space } : {}) });
           if (!result.ok) return refuse(result);
           toast.success(t(`restaurants.statusDone.${target}`));
           router.refresh();
@@ -103,10 +107,10 @@ export function RestaurantActions({ restaurantId, name, status, menuCount, canCh
         body={menuCount > 0 ? t('restaurants.delete.hasMenus') : t('restaurants.delete.body')}
         confirmLabel={t('restaurants.delete.confirm')}
         onConfirm={async (form) => {
-          const result = await deleteRestaurant({ restaurantId, confirmName: String(form.get('confirmName') ?? '') });
+          const result = await deleteRestaurant({ restaurantId, confirmName: String(form.get('confirmName') ?? ''), ...(space ? { space } : {}) });
           if (!result.ok) return refuse(result, ['confirmName']);
           toast.success(t('restaurants.delete.done'));
-          router.push('/studio/restaurants');
+          router.push(listHref);
           return true;
         }}
       >

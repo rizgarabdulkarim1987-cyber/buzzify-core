@@ -8,6 +8,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { PLANS_SETTING, readPlans, readUpgradeWhatsApp, UPGRADE_WHATSAPP_SETTING } from '@/server/data/plans';
 import { followRestaurantPlan } from '@/server/studio/services/billing';
 import { expireMenusAfterCommit } from '@/server/studio/services/restaurants';
+import { optionalSpace, requireSpace } from '@/server/studio/services/space-scope';
 
 /**
  * Plans (spec: plans and entitlements, sections 2.1 and 8): only the platform owner holds `plans.manage`, so only they set
@@ -29,10 +30,12 @@ export const setRestaurantPlan = defineAction({
     plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered'),
     extras: switches.default({}),
     note: z.string().trim().max(2000, 'Use at most 2,000 characters').default(''),
+    space: optionalSpace,
   }),
   target: (i) => ({ kind: 'restaurant', restaurantId: i.restaurantId }),
-  run: (ctx, input) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, input) => {
+    await requireSpace(ctx, input.space);
+    return ctx.transaction(async (tx) => {
       const restaurantId = ctx.restaurantId;
       if (restaurantId === null) throw new Error('plans.setRestaurantPlan ran without a restaurant');
       const before = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { plan: true, planExtras: true, planNote: true } });
@@ -57,7 +60,8 @@ export const setRestaurantPlan = defineAction({
       // What guests see depends on the plan and is cached per address: every address of every menu is expired.
       await expireMenusAfterCommit(tx, ctx.afterCommit);
       return { plan: input.plan, extras, note: input.note };
-    }),
+    });
+  },
 });
 
 const planName = z.string().trim().min(1, 'Enter the plan’s name').max(PLAN_NAME_MAX, `Use at most ${PLAN_NAME_MAX} characters`);

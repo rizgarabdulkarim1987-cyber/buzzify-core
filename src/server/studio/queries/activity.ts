@@ -1,5 +1,6 @@
 import { defineQuery } from '@/server/studio/framework/query';
 import { ACTIVITY_PAGE_SIZE, activityFilters, listActivityRows, type Named } from '@/server/studio/services/activity';
+import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * The audit log, for the people who may read it (`audit.view`: Super Admins; no client policy can grant it). Rows show
@@ -9,11 +10,11 @@ import { ACTIVITY_PAGE_SIZE, activityFilters, listActivityRows, type Named } fro
 export const listActivity = defineQuery({
   name: 'activity.list',
   permission: 'audit.view',
-  input: activityFilters,
+  input: activityFilters.extend({ space: businessSpace }),
   target: () => ({ kind: 'platform' }),
   run: async (ctx, input) => {
     const [{ total, rows }, actor, restaurant, menu] = await Promise.all([
-      listActivityRows(ctx.db, input),
+      listActivityRows(ctx.db, input, input.space),
       input.actorId ? ctx.db.user.findUnique({ where: { id: input.actorId }, select: { id: true, name: true } }) : null,
       input.restaurantId ? ctx.db.restaurant.findUnique({ where: { id: input.restaurantId }, select: { id: true, name: true } }) : null,
       input.menuId ? ctx.db.menu.findUnique({ where: { id: input.menuId }, select: { id: true, name: true } }) : null,

@@ -24,10 +24,13 @@ export function BillingTable({
   rows,
   applications,
   planNames,
+  base = '/studio/restaurants',
 }: {
   rows: Row[];
   applications: BillingRestaurants['applications'];
   planNames: Record<string, Names>;
+  /** Where the businesses' own pages are: a name links to `<base>/<id>/billing`. */
+  base?: string;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -40,7 +43,7 @@ export function BillingTable({
         header: t('billingList.restaurant'),
         enableSorting: false,
         cell: ({ row }) => (
-          <Link href={`/studio/restaurants/${row.original.id}/billing`} className="font-medium text-text underline-offset-2 hover:underline">
+          <Link href={`${base}/${row.original.id}/billing`} className="font-medium text-text underline-offset-2 hover:underline">
             {row.original.name}
           </Link>
         ),
@@ -85,7 +88,7 @@ export function BillingTable({
         },
       },
     ],
-    [t, locale, applications, planNames],
+    [t, locale, applications, planNames, base],
   );
 
   return <DataTable columns={columns} data={rows} getRowId={(row) => row.id} caption={t('billingList.description')} />;
