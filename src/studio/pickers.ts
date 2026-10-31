@@ -7,10 +7,10 @@ import type { PickerOption } from '@/studio/ui/Picker';
  * refusal throws, which the picker shows as "not available".
  */
 
-type PickerSpace = 'food' | 'pharmacy';
+type PickerSpace = 'food' | 'pharmacy' | 'platform';
 
 const restaurantFinder =
-  (space?: PickerSpace) =>
+  (space?: 'food' | 'pharmacy') =>
   async (q: string): Promise<PickerOption[]> => {
     const result = await searchRestaurants({ q, ...(space ? { space } : {}) });
     if (!result.ok) throw new Error(result.error.code);
@@ -27,6 +27,8 @@ export const findRestaurantOptions = restaurantFinder();
 export const findRestaurantOptionsIn: Record<PickerSpace, (q: string) => Promise<PickerOption[]>> = {
   food: restaurantFinder('food'),
   pharmacy: restaurantFinder('pharmacy'),
+  // The Platform space works on people of both projects, so it finds the businesses of both.
+  platform: async (q) => (await Promise.all([restaurantFinder('food')(q), restaurantFinder('pharmacy')(q)])).flat(),
 };
 
 export async function findMenuOptions(q: string): Promise<PickerOption[]> {

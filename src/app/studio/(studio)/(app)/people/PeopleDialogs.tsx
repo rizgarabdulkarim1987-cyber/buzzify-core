@@ -87,7 +87,7 @@ export function InviteOwnerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onIssued: (issued: IssuedInvitation) => void;
-  space: 'food' | 'pharmacy';
+  space: 'food' | 'pharmacy' | 'platform';
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -110,7 +110,7 @@ export function InviteOwnerDialog({
         if (restaurantId === '') missing.restaurantId = t('error.text.restaurantChoose');
         if (email === '') missing.email = t('error.text.emailInvalid');
         if (Object.keys(missing).length > 0) return { fields: missing };
-        const result = await inviteOwner({ restaurantId, email, space });
+        const result = await inviteOwner({ restaurantId, email, ...(space === 'platform' ? {} : { space }) });
         if (!result.ok) return refuse(result, ['restaurantId', 'email']);
         onIssued({ email: email.toLowerCase(), url: result.data.url });
         setRestaurant(null);
@@ -145,7 +145,7 @@ export function PersonDialogs({
   action: PersonAction | null;
   onClose: () => void;
   onDone: () => void;
-  space: 'food' | 'pharmacy';
+  space: 'food' | 'pharmacy' | 'platform';
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -176,7 +176,7 @@ export function PersonDialogs({
         onConfirm={async (form) => {
           const restaurantId = typed(form, 'restaurantId');
           if (restaurantId === '') return { fields: { restaurantId: t('error.text.restaurantChoose') } };
-          const result = await assignDesigner({ userId: person?.userId ?? '', restaurantId, space });
+          const result = await assignDesigner({ userId: person?.userId ?? '', restaurantId, ...(space === 'platform' ? {} : { space }) });
           if (!result.ok) return refuse(result, ['restaurantId', 'userId']);
           return done(t('people.assign.done'));
         }}
