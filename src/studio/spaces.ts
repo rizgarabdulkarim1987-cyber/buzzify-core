@@ -54,3 +54,14 @@ export function businessPath(sector: BusinessSector, id: string, tab?: string): 
 export function sectorOfSpace(space: SpaceId): BusinessSector | null {
   return SPACES.find((entry) => entry.id === space)?.sectors[0] ?? null;
 }
+
+/**
+ * Where the old Menu and Cashier address of a pharmacy now lives: the same tab under /studio/pharmacy. Null when the
+ * path is not that business's own (another id, another prefix).
+ */
+export function pharmacyAddressOf(pathname: string, id: string): string | null {
+  const old = `/studio/restaurants/${id}`;
+  if (!within(pathname, old)) return null;
+  const rest = pathname.slice(old.length).replace(/\/+$/, '');
+  return `/studio/pharmacy/${id}${rest}`;
+}
