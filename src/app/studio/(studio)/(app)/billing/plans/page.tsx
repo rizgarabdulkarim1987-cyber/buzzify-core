@@ -15,14 +15,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The pharmacy plans and the limits each sets. Super Admins read it; the platform owner changes it. Anyone else gets the
+ * The pharmacy and Retail plans (`?app=retail`) and the limits each sets. Super Admins read it; the platform owner changes it. Anyone else gets the
  * not-found page.
  */
-export default async function AppPlansPage() {
+export default async function AppPlansPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   const t = getStudioTranslator(actor.locale);
-  const { plans, canEdit } = await query(appPlansList, {});
+  const { app } = await searchParams;
+  const applicationId = app === 'retail' ? 'retail' : 'pharmacy';
+  const { plans, canEdit } = await query(appPlansList, { applicationId });
 
   return (
     <>
@@ -37,7 +39,19 @@ export default async function AppPlansPage() {
         description={t('appPlans.description')}
       />
       <div className="px-8 pb-10">
-        <AppPlansEditor plans={plans} canEdit={canEdit} />
+        <nav aria-label={t('appPlans.title')} className="mb-8 flex gap-2">
+          {(['pharmacy', 'retail'] as const).map((id) => (
+            <Link
+              key={id}
+              href={id === 'retail' ? '/studio/billing/plans?app=retail' : '/studio/billing/plans'}
+              aria-current={id === applicationId ? 'page' : undefined}
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:text-text aria-[current=page]:border-text aria-[current=page]:text-text"
+            >
+              {t(`appPlans.app.${id}`)}
+            </Link>
+          ))}
+        </nav>
+        <AppPlansEditor key={applicationId} applicationId={applicationId} plans={plans} canEdit={canEdit} />
       </div>
     </>
   );

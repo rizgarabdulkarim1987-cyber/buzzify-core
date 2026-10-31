@@ -1,35 +1,49 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { pharmacyLimitsSchema } from '@/server/domain/pharmacy/limits';
+import { retailLimitsSchema } from '@/server/domain/retail/limits';
 import { defineAction } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 
 /**
- * The pharmacy plans (`AppPlan`): what each one is called and the limits it sets. Only the platform owner holds
+ * The pharmacy and Retail plans (`AppPlan`): what each one is called and the limits it sets. Only the platform owner holds
  * `plans.manage`, so only they make or change a plan; the target is the platform, so anyone else is refused before any
  * row is read. A plan is changed with the version the person opened it at and refused, naming who changed it, if it has
  * moved on. No prices are written here: they are the billing screens' (`billing.setPrices`).
  */
 
 const PLATFORM = { kind: 'platform' } as const;
-const APPLICATION = 'pharmacy';
 
 const nameText = z.string().trim().min(1, 'Enter a name').max(80, 'Use at most 80 characters');
 const version = z.number().int().positive();
 
-const appPlanInput = z.object({
+const planFields = {
   code: z
     .string()
     .trim()
     .regex(/^[a-z][a-z0-9_-]{1,39}$/, 'Use 2 to 40 lower-case letters, digits, dashes or underscores, starting with a letter'),
   name: z.object({ en: nameText, ar: nameText, ckb: nameText }),
-  limits: pharmacyLimitsSchema,
   sortOrder: z.number('Enter a whole number').int('Enter a whole number').min(0, 'Use 0 or more').max(1000, 'Use at most 1,000').default(0),
   active: z.boolean().default(true),
   /** Absent to make a new plan; the version the person opened an existing one at to change it. */
   version: version.optional(),
-});
+};
+
+/** The products that sell `AppPlan`s. Absent means the pharmacy, which keeps the calls from before Retail working. */
+const withDefaultApplication = (value: unknown) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && (value as { applicationId?: unknown }).applicationId === undefined
+    ? { ...value, applicationId: 'pharmacy' }
+    : value;
+
+/** Each product's own limits: a pharmacy-shaped object is not a Retail plan's and the reverse. */
+const appPlanInput = z.preprocess(
+  withDefaultApplication,
+  z.discriminatedUnion('applicationId', [
+    z.object({ applicationId: z.literal('pharmacy'), limits: pharmacyLimitsSchema, ...planFields }),
+    z.object({ applicationId: z.literal('retail'), limits: retailLimitsSchema, ...planFields }),
+  ]),
+);
 
 type Changes = Record<string, { before: unknown; after: unknown }>;
 
@@ -48,6 +62,7 @@ export const upsert = defineAction({
   target: () => PLATFORM,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
+      const APPLICATION = input.applicationId;
       if (!(await tx.application.findUnique({ where: { id: APPLICATION }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
       const existing = await tx.appPlan.findUnique({
         where: { applicationId_code: { applicationId: APPLICATION, code: input.code } },
@@ -85,7 +100,7 @@ export const upsert = defineAction({
       const was = (existing.name ?? {}) as Record<string, unknown>;
       // Compared per language: the stored JSON keeps its keys in its own order.
       if (NAME_LOCALES.some((locale) => was[locale] !== input.name[locale])) changes.name = { before: existing.name, after: input.name };
-      const wasLimits = pharmacyLimitsSchema.safeParse(existing.limits);
+      const wasLimits = (input.applicationId === 'retail' ? retailLimitsSchema : pharmacyLimitsSchema).safeParse(existing.limits);
       if (!wasLimits.success || JSON.stringify(wasLimits.data) !== JSON.stringify(input.limits)) {
         changes.limits = { before: existing.limits, after: input.limits };
       }
@@ -94,6 +109,7 @@ export const upsert = defineAction({
       // Nothing to write, and nothing moved since: no new version. A stale version still goes through the check below.
       if (Object.keys(changes).length === 0 && existing.version === input.version) return { id: existing.id, version: existing.version };
 
+      // Seam for Retail's snapshot (Task 4): a retail plan's limit or name change is queued for the linked shops here.
       await updateWithVersion(
         tx.appPlan,
         { id: existing.id, version: input.version, data: data as Prisma.AppPlanUpdateInput, entityType: 'AppPlan' },
@@ -109,11 +125,14 @@ export const upsert = defineAction({
 export const deactivate = defineAction({
   name: 'appPlans.deactivate',
   permission: 'plans.manage',
-  input: z.object({ code: z.string().trim().min(1).max(40), version }),
+  input: z.preprocess(
+    withDefaultApplication,
+    z.object({ applicationId: z.enum(['pharmacy', 'retail']), code: z.string().trim().min(1).max(40), version }),
+  ),
   target: () => PLATFORM,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
-      const existing = await tx.appPlan.findUnique({ where: { applicationId_code: { applicationId: APPLICATION, code: input.code } } });
+      const existing = await tx.appPlan.findUnique({ where: { applicationId_code: { applicationId: input.applicationId, code: input.code } } });
       if (!existing) throw new StudioError('NOT_FOUND');
       if (!existing.active && existing.version === input.version) return { id: existing.id, version: existing.version };
       // Taken off sale only: subscriptions already on the plan keep it and its limits.

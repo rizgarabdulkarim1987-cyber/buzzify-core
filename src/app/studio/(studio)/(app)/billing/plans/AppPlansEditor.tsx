@@ -6,7 +6,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deactivateAppPlan, upsertAppPlan } from '@/app/studio/_actions/app-plans';
 import { direction, LOCALE_NAMES, LOCALES, type Locale } from '@/lib/locale';
-import type { AppPlanRow } from '@/server/domain/pharmacy/limits';
+import type { AppPlanRow, PharmacyLimits, RetailAppPlanRow } from '@/server/domain/pharmacy/limits';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
@@ -21,36 +21,37 @@ import { Switch } from '@/studio/ui/Switch';
 
 type Names = Record<Locale, string>;
 
-const LIMIT_KEYS = ['branches', 'users', 'storageMb', 'aiMonthlyBudgetMinor'] as const;
-type LimitKey = (typeof LIMIT_KEYS)[number];
+type ApplicationId = 'pharmacy' | 'retail';
+type PlanRow = AppPlanRow<PharmacyLimits> | RetailAppPlanRow;
+
+/** The limits each product's plans set, in the order the form lists them. */
+const LIMIT_KEYS: Record<ApplicationId, readonly string[]> = {
+  pharmacy: ['branches', 'users', 'storageMb', 'aiMonthlyBudgetMinor'],
+  retail: ['branches', 'users', 'terminals', 'storageMb', 'aiMonthly'],
+};
 
 interface Draft {
   code: string;
   names: Names;
-  limits: Record<LimitKey, string>;
+  limits: Record<string, string>;
   sortOrder: string;
   active: boolean;
 }
 
-const EMPTY_DRAFT: Draft = {
+const emptyDraft = (applicationId: ApplicationId): Draft => ({
   code: '',
   names: { en: '', ar: '', ckb: '' },
-  limits: { branches: '0', users: '0', storageMb: '0', aiMonthlyBudgetMinor: '0' },
+  limits: Object.fromEntries(LIMIT_KEYS[applicationId].map((key) => [key, '0'])),
   sortOrder: '0',
   active: true,
-};
+});
 
-function draftOf(plan: AppPlanRow): Draft {
-  const limits = plan.limits;
+function draftOf(applicationId: ApplicationId, plan: PlanRow): Draft {
+  const limits = plan.limits as Record<string, number> | null;
   return {
     code: plan.code,
     names: plan.name,
-    limits: {
-      branches: String(limits?.branches ?? 0),
-      users: String(limits?.users ?? 0),
-      storageMb: String(limits?.storageMb ?? 0),
-      aiMonthlyBudgetMinor: String(limits?.aiMonthlyBudgetMinor ?? 0),
-    },
+    limits: Object.fromEntries(LIMIT_KEYS[applicationId].map((key) => [key, String(limits?.[key] ?? 0)])),
     sortOrder: String(plan.sortOrder),
     active: plan.active,
   };
@@ -60,11 +61,11 @@ function draftOf(plan: AppPlanRow): Draft {
 const asNumber = (text: string): number | string => (/^\d{1,10}$/.test(text.trim()) ? Number(text.trim()) : text);
 
 /**
- * Billing → Pharmacy plans: each plan's names in the Studio's three languages, the limits it sets and whether it is on
+ * Billing → Plans (Pharmacy or Retail): each plan's names in the Studio's three languages, the limits it sets and whether it is on
  * sale, and a form for a new one. Prices are set in Settings → Billing, never here. Read-only for every Super Admin but
  * the platform owner.
  */
-export function AppPlansEditor({ plans, canEdit }: { plans: AppPlanRow[]; canEdit: boolean }) {
+export function AppPlansEditor({ applicationId, plans, canEdit }: { applicationId: ApplicationId; plans: PlanRow[]; canEdit: boolean }) {
   const t = useT();
   return (
     <div className="flex max-w-4xl flex-col gap-10">
@@ -72,18 +73,18 @@ export function AppPlansEditor({ plans, canEdit }: { plans: AppPlanRow[]; canEdi
       {plans.length === 0 && !canEdit && <EmptyState icon={<Pill aria-hidden />} title={t('appPlans.emptyTitle')} body={t('appPlans.emptyBody')} />}
       {plans.length === 0 && canEdit && <p className="max-w-[72ch] text-sm text-muted">{t('appPlans.emptyBody')}</p>}
       {plans.map((plan) => (
-        <PlanForm key={`${plan.code}:${plan.version}`} plan={plan} canEdit={canEdit} />
+        <PlanForm key={`${plan.code}:${plan.version}`} applicationId={applicationId} plan={plan} canEdit={canEdit} />
       ))}
-      {canEdit && <PlanForm key="new" plan={null} canEdit />}
+      {canEdit && <PlanForm key="new" applicationId={applicationId} plan={null} canEdit />}
     </div>
   );
 }
 
-function PlanForm({ plan, canEdit }: { plan: AppPlanRow | null; canEdit: boolean }) {
+function PlanForm({ applicationId, plan, canEdit }: { applicationId: ApplicationId; plan: PlanRow | null; canEdit: boolean }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
-  const stored = plan ? draftOf(plan) : EMPTY_DRAFT;
+  const stored = plan ? draftOf(applicationId, plan) : emptyDraft(applicationId);
   const [draft, setDraft] = useState<Draft>(stored);
   const [saving, startSaving] = useTransition();
   const [failure, setFailure] = useState<DescribedFailure | null>(null);
@@ -103,9 +104,10 @@ function PlanForm({ plan, canEdit }: { plan: AppPlanRow | null; canEdit: boolean
       setAttempt((count) => count + 1);
       const result = await settle(() =>
         upsertAppPlan({
+          applicationId,
           code: draft.code,
           name: draft.names,
-          limits: Object.fromEntries(LIMIT_KEYS.map((key) => [key, asNumber(draft.limits[key])])),
+          limits: Object.fromEntries(LIMIT_KEYS[applicationId].map((key) => [key, asNumber(draft.limits[key])])),
           sortOrder: asNumber(draft.sortOrder),
           active: draft.active,
           ...(plan ? { version: plan.version } : {}),
@@ -115,7 +117,7 @@ function PlanForm({ plan, canEdit }: { plan: AppPlanRow | null; canEdit: boolean
       setFailure(null);
       toast.success(t('appPlans.saved', { plan: draft.names[locale] || draft.code }));
       // A new plan's form starts empty again; a saved plan is remounted on its new version.
-      if (!plan) setDraft(EMPTY_DRAFT);
+      if (!plan) setDraft(emptyDraft(applicationId));
       router.refresh();
     });
 
@@ -173,7 +175,7 @@ function PlanForm({ plan, canEdit }: { plan: AppPlanRow | null; canEdit: boolean
       <div className="flex flex-col gap-3">
         <p className="max-w-[72ch] text-sm text-muted">{t('appPlans.limitsHint')}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {LIMIT_KEYS.map((key) => (
+          {LIMIT_KEYS[applicationId].map((key) => (
             <Field key={key} label={t(`appPlans.limit.${key}`)} error={fieldError(`limits.${key}`)}>
               <Input
                 value={draft.limits[key]}
@@ -214,7 +216,7 @@ function PlanForm({ plan, canEdit }: { plan: AppPlanRow | null; canEdit: boolean
           body={t('appPlans.deactivateBody')}
           confirmLabel={t('appPlans.deactivate')}
           onConfirm={async () => {
-            const result = await settle(() => deactivateAppPlan({ code: plan.code, version: plan.version }));
+            const result = await settle(() => deactivateAppPlan({ applicationId, code: plan.code, version: plan.version }));
             if (!result.ok) return { message: describeFailure(t, locale, result.error).message };
             toast.success(t('appPlans.deactivated', { plan: title }));
             router.refresh();

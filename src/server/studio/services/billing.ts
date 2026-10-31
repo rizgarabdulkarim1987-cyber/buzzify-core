@@ -36,9 +36,15 @@ const REACTIVATE_PRODUCT_DISABLED = 'This product is turned off. Turn it on befo
 
 const WRONG_SECTOR = 'This product is not offered to this kind of business';
 
-/** The products a business of each sector can subscribe to: the pharmacy alone, or the menu and the cashier. */
+/** The products a business of each sector can subscribe to. A positive list: a new sector or product is offered to nobody until it is added here. */
+const OFFERED: Record<string, readonly ApplicationId[]> = {
+  FOOD: ['menu', 'cashier'],
+  PHARMACY: ['pharmacy'],
+  RETAIL: ['retail'],
+};
+
 function offeredTo(sector: string, applicationId: string): boolean {
-  return sector === 'PHARMACY' ? applicationId === 'pharmacy' : applicationId !== 'pharmacy';
+  return (OFFERED[sector] ?? []).includes(applicationId as ApplicationId);
 }
 
 /** What the billing functions need of the action: who acts, and where its audit rows and callbacks go. */
@@ -112,11 +118,11 @@ export const paymentInput = z.object({
 });
 
 /**
- * The plan codes an application sells now: the tiers for the Menu and the Cashier, and for the Pharmacy the `AppPlan`
- * rows that are on sale (a plan taken off sale cannot be subscribed to or priced, but stays on the subscriptions it has).
+ * The plan codes an application sells now: the tiers for the Menu and the Cashier, and for the Pharmacy and Retail the
+ * `AppPlan` rows that are on sale (a plan taken off sale cannot be subscribed to or priced, but stays on the subscriptions it has).
  */
 export async function sellablePlanCodes(db: AnyDb, application: ApplicationId): Promise<string[]> {
-  if (application !== 'pharmacy') return [...planCodesFor(application)];
+  if (application !== 'pharmacy' && application !== 'retail') return [...planCodesFor(application)];
   const plans = await db.appPlan.findMany({
     where: { applicationId: application, active: true },
     orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],

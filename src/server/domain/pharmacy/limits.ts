@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AnyDb } from '@/server/data/tenant-db';
+import type { RetailLimits } from '@/server/domain/retail/limits';
 import { effectiveStatus, isLive } from '@/server/domain/billing/subscriptions';
 
 /**
@@ -27,18 +28,21 @@ export const pharmacyLimitsSchema = z.object({
 
 export type PharmacyLimits = z.infer<typeof pharmacyLimitsSchema>;
 
-/** A pharmacy plan as the billing screens show it. */
-export interface AppPlanRow {
+/** A plan as the billing screens show it; `limits` is the product's own set (Retail's for a `retail` plan). */
+export interface AppPlanRow<L = PharmacyLimits> {
   code: string;
   name: { en: string; ar: string; ckb: string };
   /** Null when the stored limits are not a valid set: the plan then allows nothing until the owner saves it again. */
-  limits: PharmacyLimits | null;
+  limits: L | null;
   active: boolean;
   sortOrder: number;
   version: number;
   /** Subscriptions to the plan, live or not. */
   subscriptions: number;
 }
+
+/** A Retail plan as the billing screens show it. */
+export type RetailAppPlanRow = AppPlanRow<RetailLimits>;
 
 export type LimitKind = 'branches' | 'users';
 

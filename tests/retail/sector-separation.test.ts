@@ -1,14 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { posGate, resolvePosActor } from '@/server/pos/actor';
 import { phGate, resolvePhActor } from '@/server/pharmacy/actor';
+import * as billing from '@/server/studio/actions/billing';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
+import { createPasswordUser } from '@/server/studio/auth/users';
+import { runAction } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { listMenus } from '@/server/studio/queries/menus';
 import { listPharmacies } from '@/server/studio/queries/pharmacies';
 import { posOverview } from '@/server/studio/queries/pos';
 import { initialSectorOf } from '@/studio/sector-param';
-import { person, pharmacy, prisma, resetWorld, useTestDatabase, NOW } from '../pharmacy/fixture';
+import { GOOD, person, pharmacy, prisma, resetWorld, useTestDatabase, NOW } from '../pharmacy/fixture';
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
 
@@ -102,7 +105,26 @@ describe('a RETAIL business is neither a menu business nor a pharmacy', () => {
     expect(initialSectorOf({})).toBe('FOOD');
   });
 
-  // Passes once billing offers each sector its own product (Task 3): menu, cashier and pharmacy are refused for a
-  // RETAIL business, and the pharmacy product is refused for it the other way round.
-  it.todo('billing refuses menu, cashier and pharmacy for it and pharmacy refuses retail');
+  it('billing refuses menu, cashier and pharmacy for it and pharmacy refuses retail', async () => {
+    const { userId } = await createPasswordUser(prisma(), { email: 'owner@sep-test.example', name: 'owner', password: GOOD, isSuperAdmin: true, isPlatformOwner: true });
+    await prisma().user.update({ where: { id: userId }, data: { twoFactorEnabled: true } });
+    const platformOwner = (await loadActor(prisma(), userId)) as Actor;
+    const shop = await retail('Shop Two');
+    const chemist = await pharmacy('Chemist', { sector: 'PHARMACY', subscription: 'none' });
+    await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'starter', name: { en: 'S', ar: 'S', ckb: 'S' }, limits: {} } });
+    await prisma().appPlan.create({ data: { applicationId: 'retail', code: 'shop', name: { en: 'S', ar: 'S', ckb: 'S' }, limits: {} } });
+    const trial = (restaurantId: string, applicationId: string, planCode: string) => ({ restaurantId, applicationId, planCode, trialDays: 14, period: 'MONTHLY', currency: 'IQD' });
+    const WRONG_SECTOR = 'This product is not offered to this kind of business';
+
+    for (const [restaurantId, applicationId, planCode] of [
+      [shop.id, 'menu', 'PRO'],
+      [shop.id, 'cashier', 'PRO'],
+      [shop.id, 'pharmacy', 'starter'],
+      [chemist.id, 'retail', 'shop'],
+    ] as const) {
+      const result = await runAction(prisma(), platformOwner, billing.startTrial, trial(restaurantId, applicationId, planCode), { ip: '203.0.113.7', userAgent: 'vitest' });
+      expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: WRONG_SECTOR } });
+    }
+    expect(await prisma().subscription.count()).toBe(0);
+  });
 });
