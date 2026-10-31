@@ -112,10 +112,10 @@ describe('people by space', () => {
 });
 
 describe('activity, overview and search by space', () => {
-  it('shows each space its own audit rows and never a row with no business', async () => {
+  it('shows each space its own audit rows; the rows with no business belong to Menu and Cashier, so none is hidden', async () => {
     const food = dataOf(await ask(admin, activityQueries.listActivity, { space: 'food' }));
     const pharmacy = dataOf(await ask(admin, activityQueries.listActivity, { space: 'pharmacy' }));
-    expect(food.rows.map((row) => row.entityId)).toEqual([cafe.id]);
+    expect(food.rows.map((row) => row.entityId).sort()).toEqual(['admin', cafe.id].sort());
     expect(pharmacy.rows.map((row) => row.entityId)).toEqual([clinic.id]);
   });
 
@@ -124,7 +124,7 @@ describe('activity, overview and search by space', () => {
     const pharmacy = dataOf(await ask(admin, overviewQueries.overview, { space: 'pharmacy' }));
     expect(food.restaurants.ACTIVE).toBe(1);
     expect(pharmacy.restaurants.ACTIVE).toBe(1);
-    expect(food.recentActivity?.map((row) => row.entityId)).toEqual([cafe.id]);
+    expect(food.recentActivity?.map((row) => row.entityId).sort()).toEqual(['admin', cafe.id].sort());
     expect(pharmacy.recentActivity?.map((row) => row.entityId)).toEqual([clinic.id]);
   });
 

@@ -120,18 +120,18 @@ describe('listActivity', () => {
       { actorId: designer.userId, restaurantId: atelier.id, action: 'membership.assigned', entityType: 'User', entityId: owner.userId, at: new Date('2026-05-03T10:00:00Z') },
       { actorId: null, restaurantId: null, action: 'settings.updated', entityType: 'PlatformSetting', entityId: 'platform', at: new Date('2026-05-04T10:00:00Z') },
     ]);
-    // An event with no business (a platform setting) belongs to no space, so Menu and Cashier does not list it.
+    // An event with no business (a platform setting) is Menu and Cashier's, the platform's home, so nothing in the log is hidden.
     const page = await list(admin);
-    expect(page).toMatchObject({ total: 2, page: 1, pageSize: 50 });
-    expect(page.rows.map((row) => row.action)).toEqual(['membership.assigned', 'menu.published']);
-    expect(page.rows[0]).toMatchObject({
+    expect(page).toMatchObject({ total: 3, page: 1, pageSize: 50 });
+    expect(page.rows.map((row) => row.action)).toEqual(['settings.updated', 'membership.assigned', 'menu.published']);
+    expect(page.rows[1]).toMatchObject({
       actor: { id: designer.userId, name: 'Dee Designer' },
       restaurant: { id: atelier.id, name: 'Atelier' },
       menu: null,
       entityType: 'User',
       entityName: 'Olive Owner',
     });
-    expect(page.rows[1]).toMatchObject({
+    expect(page.rows[2]).toMatchObject({
       actor: { id: admin.userId, name: 'Sam Admin' },
       restaurant: { id: atelier.id, name: 'Atelier' },
       menu: { id: atelierMenu.id, name: atelierMenu.name },

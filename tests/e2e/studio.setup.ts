@@ -89,7 +89,10 @@ setup('a new Super Admin enrols in two-factor on first sign-in and reaches the S
   await page.getByLabel('I have saved my recovery codes').check();
   await finish.click();
 
+  // A Super Admin lands on the project hub; Menu and Cashier opens the Studio's sidebar.
   await expect(page).toHaveURL(/\/studio$/);
+  await page.locator('[data-project="large"]').first().click();
+  await expect(page).toHaveURL(/\/studio\/overview$/);
   const nav = page.getByRole('navigation', { name: 'Studio' });
   await expect(nav.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible();

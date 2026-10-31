@@ -43,6 +43,16 @@ export async function sectorRestaurantIds(db: PrismaClient, space: BusinessSpace
   return rows.map((row) => row.id);
 }
 
+/**
+ * The audit rows of a space. The log keeps plain restaurant ids, so the Pharmacy has the rows of its businesses and Menu
+ * and Cashier has all the rest: its own businesses, the platform's own events (a setting, an announcement) that name no
+ * business, and a business since deleted. Every row is in exactly one space, so nothing in the log is hidden.
+ */
+export async function auditSpaceWhere(db: PrismaClient, space: BusinessSpace): Promise<Prisma.AuditLogWhereInput> {
+  if (space === 'pharmacy') return { restaurantId: { in: await sectorRestaurantIds(db, 'pharmacy') } };
+  return { OR: [{ restaurantId: null }, { restaurantId: { notIn: await sectorRestaurantIds(db, 'pharmacy') } }] };
+}
+
 /** Refuses a business of the other sector as if it did not exist, so a write through one space never touches the other. */
 export async function assertSameSector(db: PrismaClient | ScopedTx, restaurantId: string, space: BusinessSpace): Promise<void> {
   // A scoped transaction exposes the same `restaurant.findUnique`; the union of two generic signatures is not callable as is.
