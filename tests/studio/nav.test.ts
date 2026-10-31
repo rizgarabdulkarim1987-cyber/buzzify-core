@@ -183,14 +183,14 @@ describe('isNavItemActive', () => {
 describe('spaceNav', () => {
   it('keeps Menu and Cashier free of pharmacy and platform items', () => {
     const food = keys(spaceNav('food'));
-    expect(food).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
+    expect(food).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
     expect(food.filter((key) => key.startsWith('pharmacy') || key === 'pharmacies' || key.startsWith('team'))).toEqual([]);
   });
 
   it('keeps Pharmacy free of the cashier, menus and restaurants', () => {
     const pharmacy = keys(spaceNav('pharmacy'));
     expect(pharmacy).toEqual(['pharmacyOverview', 'pharmacies', 'pharmacyBilling', 'pharmacyPeople', 'pharmacyAnnouncements', 'pharmacyActivity', 'pharmacySettings']);
-    for (const absent of ['cashierOverview', 'menus', 'restaurants', 'media', 'motion', 'platformIntro']) expect(pharmacy).not.toContain(absent);
+    for (const absent of ['cashierOverview', 'menus', 'restaurants', 'media', 'platformIntro']) expect(pharmacy).not.toContain(absent);
   });
 
   it('gives the Platform entry only the team and its settings', () => {
@@ -206,6 +206,6 @@ describe('spaceNav', () => {
   it('leaves the navigation of an owner and a designer as it was', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
     expect(keys(visibleNav(owner))).toEqual(['myRestaurant', 'myMenu']);
-    expect(keys(visibleNav(actor({ memberships: [{ restaurantId: 'r1', role: 'DESIGNER' }] })))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion']);
+    expect(keys(visibleNav(actor({ memberships: [{ restaurantId: 'r1', role: 'DESIGNER' }] })))).toEqual(['overview', 'restaurants', 'menus', 'media']);
   });
 });
