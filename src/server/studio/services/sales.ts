@@ -582,7 +582,10 @@ export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{
     const problems = occasionProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
     if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
 
-    const mood = input.mood ?? null;
+    const creating = input.occasionId === undefined || input.version === undefined;
+    const existing = creating ? null : await tx.occasion.findFirst({ where: { id: input.occasionId } });
+    // An omitted mood keeps the stored one; only an explicit null clears it.
+    const mood = input.mood === undefined ? (existing?.mood ?? null) : input.mood;
     const fields = { startsOn: input.startsOn, endsOn: input.endsOn, isActive: input.isActive, mood };
     if (input.occasionId === undefined || input.version === undefined) {
       if (mood !== null) requireFeature(ctx.plan, 'guest.occasionMoods');
@@ -593,7 +596,7 @@ export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{
       return { id: row.id, version: 1 };
     }
 
-    const row = await tx.occasion.findFirst({ where: { id: input.occasionId } });
+    const row = existing;
     if (!row) throw new StudioError('NOT_FOUND');
     // A mood already on the occasion may stay (a downgrade never rewrites it); only a new one is the plan's to give.
     if (mood !== null && mood !== row.mood) requireFeature(ctx.plan, 'guest.occasionMoods');

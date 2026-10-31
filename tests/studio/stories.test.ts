@@ -141,6 +141,16 @@ describe('saving a story (plan feature guest.stories)', () => {
     dataOf(await run(stories.saveStory, story({ isActive: false })));
   });
 
+  it('holds the cap on an edit too: a story cannot be switched back on or restarted past it', async () => {
+    const off = dataOf(await run(stories.saveStory, story({ isActive: false }))).storyId;
+    for (let i = 0; i < MAX_LIVE_STORIES; i += 1) dataOf(await run(stories.saveStory, story({ captions: { en: `s${i}` } })));
+    expect(failureOf(await run(stories.saveStory, story({ storyId: off, isActive: true }))).code).toBe('INVALID');
+    // Editing a running story that is already counted is fine, and so is leaving the other one off.
+    const { id: running } = await prisma().menuStory.findFirstOrThrow({ where: { isActive: true }, select: { id: true } });
+    dataOf(await run(stories.saveStory, story({ storyId: running, captions: { en: 'Edited' }, hours: 48 })));
+    dataOf(await run(stories.saveStory, story({ storyId: off, isActive: false, hours: 6 })));
+  });
+
   it('will not touch another menu’s story', async () => {
     const other = await prisma().menuStory.create({ data: { menuId: b.menu.id, assetId: picture, expiresAt: new Date(Date.now() + 3600_000) } });
     expect(failureOf(await run(stories.saveStory, story({ storyId: other.id }))).code).toBe('NOT_FOUND');

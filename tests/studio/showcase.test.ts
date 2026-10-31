@@ -129,6 +129,16 @@ describe('occasion moods (plan feature guest.occasionMoods)', () => {
     expect((await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).mood).toBeNull();
   });
 
+  it('keeps the stored mood when an edit does not send one, and clears it only for an explicit null', async () => {
+    await onPlan('PRO');
+    const saved = dataOf(await run(sales.saveOccasion, occasion({ mood: 'EID' })));
+    const { mood: _omitted, ...withoutMood } = occasion({ occasionId: saved.id, version: 1, names: { en: 'Eid' } });
+    const kept = dataOf(await run(sales.saveOccasion, withoutMood));
+    expect((await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).mood).toBe('EID');
+    dataOf(await run(sales.saveOccasion, { ...withoutMood, version: kept.version, mood: null }));
+    expect((await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).mood).toBeNull();
+  });
+
   it('shows the mood in the rules the Studio reads', async () => {
     await onPlan('PRO');
     dataOf(await run(sales.saveOccasion, occasion({ mood: 'NEWROZ' })));

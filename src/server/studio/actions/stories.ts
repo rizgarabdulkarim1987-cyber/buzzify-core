@@ -47,17 +47,25 @@ export const saveStory = defineAction({
       const captions = Object.fromEntries(Object.entries(input.captions).filter(([, value]) => typeof value === 'string' && value !== ''));
       const data = { assetId: input.assetId, productId: input.productId, captions, isActive: input.isActive };
 
+      const now = new Date();
+      // Other stories already running count toward the cap; the one being saved is judged by what it becomes.
+      const othersRunning = () => tx.menuStory.count({ where: { menuId: input.menuId, isActive: true, expiresAt: { gt: now }, ...(input.storyId ? { id: { not: input.storyId } } : {}) } });
+      const overCap = new StudioError('INVALID', undefined, { assetId: `A menu shows at most ${MAX_LIVE_STORIES} stories at a time` });
+
       let storyId = input.storyId;
+      let before: boolean | null = null;
       if (storyId) {
-        const own = await tx.menuStory.findFirst({ where: { id: storyId, menuId: input.menuId }, select: { id: true } });
+        const own = await tx.menuStory.findFirst({ where: { id: storyId, menuId: input.menuId }, select: { id: true, isActive: true, expiresAt: true } });
         if (!own) throw new StudioError('NOT_FOUND');
-        await tx.menuStory.update({ where: { id: storyId }, data: { ...data, ...(input.hours ? { expiresAt: storyExpiry(new Date(), input.hours) } : {}) } });
+        before = own.isActive;
+        const expiresAt = input.hours ? storyExpiry(now, input.hours) : own.expiresAt;
+        if (input.isActive && expiresAt.getTime() > now.getTime() && (await othersRunning()) >= MAX_LIVE_STORIES) throw overCap;
+        await tx.menuStory.update({ where: { id: storyId }, data: { ...data, expiresAt } });
       } else {
-        const running = await tx.menuStory.count({ where: { menuId: input.menuId, isActive: true, expiresAt: { gt: new Date() } } });
-        if (input.isActive && running >= MAX_LIVE_STORIES) throw new StudioError('INVALID', undefined, { assetId: `A menu shows at most ${MAX_LIVE_STORIES} stories at a time` });
+        if (input.isActive && (await othersRunning()) >= MAX_LIVE_STORIES) throw overCap;
         storyId = (await tx.menuStory.create({ data: { menuId: input.menuId, ...data, expiresAt: storyExpiry(new Date(), input.hours ?? DEFAULT_STORY_HOURS) }, select: { id: true } })).id;
       }
-      ctx.audit({ action: 'menu.story_changed', entityType: 'MenuStory', entityId: storyId, changes: { isActive: { before: null, after: input.isActive } } });
+      ctx.audit({ action: 'menu.story_changed', entityType: 'MenuStory', entityId: storyId, changes: { isActive: { before, after: input.isActive } } });
       ctx.afterCommit(() => expireLive(input.menuId));
       return { storyId };
     }),

@@ -151,7 +151,6 @@ function Suggestions({ product, choice, onSwitch }: { product: MenuProductView; 
           if (other) onSwitch(other);
         }}
       />
-      <DrinkMatch product={product} onOpen={onSwitch} />
       <PairingList
         offers={data?.pairings ?? []}
         formatPrice={price}
@@ -259,6 +258,7 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
           <Header product={product} titleId={titleId} favorite={favorite} onFavorite={onFavorite} />
           <Choices product={product} choice={choice} style={optionStyle} />
           {canOrder && choice.orderable && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
+          <DrinkMatch product={product} onOpen={onSwitch} />
           <Facts product={product} />
         </div>
       </div>
@@ -325,6 +325,7 @@ function Steps({ props, close }: { props: TemplateDetailProps; close: () => void
             </>
           )}
           {canOrder && choice.orderable && onSummary && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
+          {(onSummary || total === 0) && <DrinkMatch product={product} onOpen={onSwitch} />}
           <Facts product={product} />
         </div>
       </div>
