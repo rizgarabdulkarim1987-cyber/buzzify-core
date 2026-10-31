@@ -271,6 +271,8 @@ export async function refreshDraftHashes(prisma: PrismaClient, menuIds: readonly
 
 export const PHARMACY_NOT_DELETED = 'A pharmacy is never deleted: its catalog and history are kept. Suspend it instead.';
 export const PHARMACY_BRANCH_NOT_DELETED = 'A pharmacy branch is never deleted: its staff, prices and settings depend on it.';
+export const RETAIL_NOT_DELETED = 'A retail shop is never deleted: its catalog and history are kept in Retails. Suspend it instead.';
+export const RETAIL_BRANCHES_IN_RETAILS = 'Branches of a retail shop are managed in Retails';
 
 /**
  * Deletes a restaurant that has no menus, with its branches, members and invitations. Refused while it has any menu
@@ -286,6 +288,8 @@ export async function removeRestaurant(
   // A pharmacy keeps its catalog, prices and history (spec 4.7: archived, never deleted); deleting would cascade into
   // them or stop on a restricted price row.
   if (restaurant.sector === 'PHARMACY') throw new StudioError('CONFLICT', PHARMACY_NOT_DELETED);
+  // A retail shop also lives in Retails; deleting it here would orphan the link, so it is suspended instead.
+  if (restaurant.sector === 'RETAIL') throw new StudioError('CONFLICT', RETAIL_NOT_DELETED);
   // Payment history is never deleted, and payments name their subscription: such a restaurant is suspended instead.
   // Checked before the menus, so the owner learns this before deleting any of them.
   if ((await tx.subscription.count()) > 0 || (await tx.payment.count()) > 0) {

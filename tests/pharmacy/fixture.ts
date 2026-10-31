@@ -39,7 +39,7 @@ export async function resetWorld(): Promise<void> {
 }
 
 export interface PharmacyOpts {
-  sector?: 'PHARMACY' | 'FOOD';
+  sector?: 'PHARMACY' | 'FOOD' | 'RETAIL';
   /** The `pharmacy` subscription; `none` for no row. The period ends `periodEndsInDays` from NOW. */
   subscription?: 'TRIAL' | 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELLED' | 'none';
   periodEndsInDays?: number;

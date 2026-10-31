@@ -5,6 +5,7 @@ import { defineAction, type ActionContext } from '@/server/studio/framework/acti
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
 import { provisionPharmacy } from '@/server/pharmacy/provision';
+import { provisionRetail } from '@/server/retail/provision';
 import { checkCreation } from '@/server/domain/pharmacy/limits';
 import { BUSINESS_SECTORS, PH_CURRENCIES } from '@/server/domain/restaurant-profile';
 import { PICTURE_KINDS } from '@/server/media/kinds';
@@ -27,6 +28,7 @@ import {
   removeRestaurant,
   restaurantInput,
   restaurantStatus,
+  RETAIL_BRANCHES_IN_RETAILS,
   seesAgencyNotes,
 } from '@/server/studio/services/restaurants';
 
@@ -59,20 +61,44 @@ const pharmacyBranch = z.object({
   city: z.string().trim().max(200, 'This is too long').optional(),
 });
 
-/** The profile, plus what a new pharmacy adds: its branches, the currencies it prices in and, optionally, who owns it. */
+/** Retails' own cap on a branch name; a RETAIL business's branches are created there too. */
+const RETAIL_BRANCH_NAME_MAX = 80;
+
+/**
+ * The profile, plus what a new pharmacy or retail business adds: its branches, the currencies it prices in and who
+ * owns it (optional for a pharmacy; a retail shop is useless without an owner, so it is required there).
+ */
 const createInput = restaurantInput
   .extend({
     // The plan is the platform owner's to choose; from anyone else it is ignored and the restaurant starts on Basic.
     plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered').optional(),
     sector: z.enum(BUSINESS_SECTORS,'Choose one of the sectors offered').default('FOOD'),
-    // Read only for a pharmacy; a food restaurant has no branches here and ignores them.
-    branches: z.array(pharmacyBranch).max(20, 'A pharmacy starts with at most 20 branches').optional(),
+    // Read only for a pharmacy or a retail business; a food restaurant has no branches here and ignores them.
+    branches: z.array(pharmacyBranch).optional(),
     currencies: z.array(z.enum(PH_CURRENCIES, 'Choose IQD, USD or both')).min(1, 'Choose at least one currency').default(['IQD']),
     ownerEmail: z.string().trim().email('Enter a valid email address').max(254).optional(),
   })
   .superRefine((input, ctx) => {
-    if (input.sector === 'PHARMACY' && (input.branches?.length ?? 0) === 0) {
+    const retail = input.sector === 'RETAIL';
+    const branches = input.branches ?? [];
+    if ((input.sector === 'PHARMACY' || retail) && branches.length === 0) {
       ctx.addIssue({ code: 'custom', path: ['branches'], message: 'Add at least one branch' });
+    }
+    if (branches.length > 20) {
+      const message = retail ? 'A retail shop starts with at most 20 branches' : 'A pharmacy starts with at most 20 branches';
+      ctx.addIssue({ code: 'custom', path: ['branches'], message });
+    }
+    if (retail) {
+      branches.forEach((branch, index) => {
+        if (branch.name.length > RETAIL_BRANCH_NAME_MAX) {
+          ctx.addIssue({ code: 'custom', path: ['branches', index, 'name'], message: 'Use at most 80 characters' });
+        }
+      });
+      const names = branches.map((branch) => branch.name.toLowerCase());
+      if (new Set(names).size !== names.length) {
+        ctx.addIssue({ code: 'custom', path: ['branches'], message: 'Branch names must be different' });
+      }
+      if (!input.ownerEmail) ctx.addIssue({ code: 'custom', path: ['ownerEmail'], message: 'Enter the owner’s email address' });
     }
   });
 
@@ -85,20 +111,19 @@ export const createRestaurant = defineAction({
     ctx.transaction(async (tx) => {
       const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
       const created = await tx.restaurant.create({
-        data: { ...profileData(input), plan, ...(sector === 'PHARMACY' ? { sector } : {}) },
+        data: { ...profileData(input), plan, ...(sector !== 'FOOD' ? { sector } : {}) },
         select: { id: true },
       });
+      const provisioning = {
+        restaurantId: created.id,
+        branches: branches ?? [],
+        currencies,
+        ownerEmail,
+        invitedById: ctx.actor.userId,
+        afterCommit: ctx.afterCommit,
+      };
       const pharmacy =
-        sector === 'PHARMACY'
-          ? await provisionPharmacy(tx, {
-              restaurantId: created.id,
-              branches: branches ?? [],
-              currencies,
-              ownerEmail,
-              invitedById: ctx.actor.userId,
-              afterCommit: ctx.afterCommit,
-            })
-          : null;
+        sector === 'PHARMACY' ? await provisionPharmacy(tx, provisioning) : sector === 'RETAIL' ? await provisionRetail(tx, provisioning) : null;
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
         action: 'restaurant.created',
@@ -254,8 +279,10 @@ export const createBranch = defineAction({
       const input = pickBranch(fields);
       const restaurantId = restaurantOf(ctx);
       // A pharmacy adds branches only up to what its live plan allows (provisioning, which runs before any plan exists,
-      // does not come through here). A menu or cashier business has no such limit.
+      // does not come through here). A menu or cashier business has no such limit. A retail shop's branches are made in
+      // Retails: the link has no branch sync, so one added here would never reach it.
       const business = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } });
+      if (business?.sector === 'RETAIL') throw new StudioError('CONFLICT', RETAIL_BRANCHES_IN_RETAILS);
       if (business?.sector === 'PHARMACY') {
         const outcome = await checkCreation(delegates(tx), restaurantId, 'branches');
         if (!outcome.ok) throw limitRefusal('branches', outcome);
@@ -302,6 +329,8 @@ export const deleteBranch = defineAction({
       // A pharmacy branch carries staff access, prices and stock settings: deleting it would cascade into them silently.
       const business = await tx.restaurant.findUnique({ where: { id: restaurantOf(ctx) }, select: { sector: true } });
       if (business?.sector === 'PHARMACY') throw new StudioError('CONFLICT', PHARMACY_BRANCH_NOT_DELETED);
+      // A retail shop's branches are managed in Retails (no branch sync over the link), so they are not deleted here.
+      if (business?.sector === 'RETAIL') throw new StudioError('CONFLICT', RETAIL_BRANCHES_IN_RETAILS);
       await tx.branch.deleteMany({ where: { id: row.id } });
       ctx.audit({ action: 'branch.deleted', entityType: 'Branch', entityId: row.id, changes: { name: { before: row.name, after: null } } });
       return { deleted: true as const };

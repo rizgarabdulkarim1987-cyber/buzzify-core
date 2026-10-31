@@ -27,7 +27,7 @@ export default async function RestaurantLayout({ children, params }: { children:
   const restaurant = await loadRestaurant(id);
 
   const base = `/studio/restaurants/${restaurant.id}`;
-  // A pharmacy has no menus, menu plan or menu media library: those tabs are for food businesses only.
+  // A pharmacy or retail shop has no menus, menu plan or menu media library: those tabs are for food businesses only.
   const food = restaurant.sector === 'FOOD';
   const tabs: RouteTab[] = [
     { href: base, label: t('restaurants.tabs.profile'), exact: true },

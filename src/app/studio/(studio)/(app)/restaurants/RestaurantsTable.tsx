@@ -90,7 +90,7 @@ export function RestaurantsTable({
         accessorKey: 'type',
         header: t('restaurants.list.type'),
         enableSorting: false,
-        cell: ({ row }) => (row.original.sector === 'PHARMACY' ? <span className="text-muted">–</span> : t(`restaurants.type.${row.original.type}`)),
+        cell: ({ row }) => (row.original.sector !== 'FOOD' ? <span className="text-muted">–</span> : t(`restaurants.type.${row.original.type}`)),
       },
       {
         id: 'sector',
@@ -126,7 +126,7 @@ export function RestaurantsTable({
         enableSorting: false,
         meta: { align: 'end', width: '80px' },
         cell: ({ row }) =>
-          row.original.sector === 'PHARMACY' ? <span className="text-muted">–</span> : <span className="tabular-nums">{number.format(row.original.menuCount)}</span>,
+          row.original.sector !== 'FOOD' ? <span className="text-muted">–</span> : <span className="tabular-nums">{number.format(row.original.menuCount)}</span>,
       },
       {
         id: 'createdAt',
