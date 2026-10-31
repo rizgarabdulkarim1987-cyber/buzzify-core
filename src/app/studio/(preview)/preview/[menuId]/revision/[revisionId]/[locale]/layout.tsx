@@ -44,7 +44,7 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
-            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
             feedback: false,
             extras: { about: false, wheel: false, aboutTitle: { en: '', ar: '', ckb: '' } },

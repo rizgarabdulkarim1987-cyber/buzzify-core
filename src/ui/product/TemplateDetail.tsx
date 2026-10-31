@@ -16,6 +16,7 @@ import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
 import { DrinkMatch } from './DrinkMatch';
+import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
 import { Surface } from './Surface';
 import { UpgradeOffers } from './UpgradeOffers';
@@ -47,7 +48,11 @@ function Media({ product, kind, selectedIds }: { product: MenuProductView; kind:
   if (staged) {
     return <ProductStage product={product} selectedIds={selectedIds} variant="sheet" testId="sheet-stage" posterSlug={`${product.slug}-detail`} className={`${ratio} w-full`} />;
   }
-  return <ProductVisual media={product.media} name={product.name} slug={`${product.slug}-detail`} priority placeholder sizes="(min-width: 768px) 640px, 100vw" className={`${ratio} w-full`} />;
+  return (
+    <LivingPhoto>
+      <ProductVisual media={product.media} name={product.name} slug={`${product.slug}-detail`} priority placeholder sizes="(min-width: 768px) 640px, 100vw" className={`${ratio} w-full`} />
+    </LivingPhoto>
+  );
 }
 
 function Facts({ product }: { product: MenuProductView }) {

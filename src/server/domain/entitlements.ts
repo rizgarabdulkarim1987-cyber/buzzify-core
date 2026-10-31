@@ -54,7 +54,7 @@ export const FEATURES = [
   { key: 'design.motionPresets', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
   { key: 'guest.drinkMatch', area: 'selling', status: 'live', project: 3, startsIn: 'PRO' },
   { key: 'guest.moodPicker', area: 'selling', status: 'live', project: 3, startsIn: 'PRO' },
-  { key: 'guest.livingPhotos', area: 'immersive', status: 'reserved', project: 3, startsIn: 'PREMIUM' },
+  { key: 'guest.livingPhotos', area: 'immersive', status: 'live', project: 3, startsIn: 'PREMIUM' },
   { key: 'guest.stories', area: 'selling', status: 'reserved', project: 3, startsIn: 'PRO' },
   { key: 'guest.occasionMoods', area: 'design', status: 'reserved', project: 3, startsIn: 'PRO' },
   { key: 'immersive.ar', area: 'immersive', status: 'reserved', project: 4, startsIn: 'PREMIUM' },
