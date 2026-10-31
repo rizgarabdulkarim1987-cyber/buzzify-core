@@ -2,7 +2,10 @@ import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, type FontPairId } from '@/lib/font-pa
 import { parseMedia } from '@/lib/media';
 import { RAIL_STYLES, type RailStyle } from '@/lib/rail';
 import { stageTone } from '@/lib/stage';
-import type { SceneMedia } from '@/lib/templates/types';
+import { motionPresetFeature, type MotionPresetId } from '@/lib/templates/motion-presets';
+import { isPremiumTemplate } from '@/lib/templates/premium';
+import { TEMPLATES } from '@/lib/templates';
+import type { SceneMedia, TemplateId } from '@/lib/templates/types';
 import type { BrandView } from '@/server/data/tenant';
 import { allows, type Entitlements, type FeatureKey } from './entitlements';
 import { DEFAULT_QR_STYLE, type QrStyle } from './qr';
@@ -86,6 +89,7 @@ const SCENE_FEATURES: Readonly<Record<SceneFileKind, FeatureKey>> = {
   model: 'immersive.models3d',
   video: 'design.backgroundVideo',
   lottie: 'design.backgroundAnimation',
+  image: 'design.backgroundImage',
 };
 
 /** The feature a background file of this kind needs. */
@@ -95,7 +99,7 @@ export function sceneFeature(kind: SceneFileKind): FeatureKey {
 
 /** The kinds of background file the plan allows: model, video, Lottie. */
 export function allowedSceneKinds(entitlements: Entitlements): SceneFileKind[] {
-  return (['model', 'video', 'lottie'] as const).filter((kind) => allows(entitlements, sceneFeature(kind)));
+  return (['model', 'video', 'lottie', 'image'] as const).filter((kind) => allows(entitlements, sceneFeature(kind)));
 }
 
 /**
@@ -109,6 +113,27 @@ export function sceneChoiceLock(
 ): FeatureKey | null {
   if (next === null || next.assetId === storedAssetId) return null;
   return allows(entitlements, sceneFeature(next.kind)) ? null : sceneFeature(next.kind);
+}
+
+/**
+ * `design.premiumTemplates` when a save would newly choose a premium template the plan lacks, or null. The template a
+ * menu already has is kept, whatever the plan (spec 2026-10-31, 3.3).
+ */
+export function premiumTemplateLock(next: TemplateId | null, stored: TemplateId | null, entitlements: Entitlements): FeatureKey | null {
+  if (next === null || next === stored || !isPremiumTemplate(next)) return null;
+  return allows(entitlements, 'design.premiumTemplates') ? null : 'design.premiumTemplates';
+}
+
+/** The feature a save needs for newly choosing a motion preset the plan lacks, or null. A stored preset is kept. */
+export function motionPresetLock(next: MotionPresetId | undefined, stored: MotionPresetId | undefined, entitlements: Entitlements): FeatureKey | null {
+  if (next === undefined || next === stored) return null;
+  const feature = motionPresetFeature(next);
+  return feature === null || allows(entitlements, feature) ? null : feature;
+}
+
+/** Whether a stored preset is one guests on this plan do not get. */
+function presetHidden(preset: MotionPresetId | undefined, entitlements: Entitlements): boolean {
+  return preset !== undefined && motionPresetLock(preset, undefined, entitlements) !== null;
 }
 
 /** The style a code is drawn in: as chosen, or black on white without the logo on a plan without branded codes. */
@@ -133,6 +158,12 @@ export function clampBrandView(view: BrandView, entitlements: Entitlements): Bra
   if (view.design && media && !allows(entitlements, sceneFeature(media.kind))) {
     clamped.design = { ...view.design };
     delete clamped.design.media;
+  }
+  // A motion preset the plan lacks: the template's own motion plays, under the business's hand-set sliders.
+  const stored = view.design?.source.overrides;
+  const template = view.design ? TEMPLATES[view.design.templateId] : undefined;
+  if (view.design && template && presetHidden(stored?.motionPreset, entitlements)) {
+    clamped.design = { ...(clamped.design ?? view.design), scene: { ...template.scene, ...stored?.scene } };
   }
   return clamped;
 }
@@ -203,6 +234,7 @@ export function hiddenFromGuests(
   const hidden = hiddenChoices(stored, entitlements);
   const media = brand.design?.media;
   if (media && !allows(entitlements, sceneFeature(media.kind))) hidden.push(sceneFeature(media.kind));
+  if (presetHidden(brand.design?.source.overrides.motionPreset, entitlements)) hidden.push('design.motionPresets');
   if (!allows(entitlements, 'immersive.explore')) hidden.push('immersive.explore');
   if (!allows(entitlements, 'immersive.stage') && catalog.products.some((product) => stageTone(parseMedia(product.media)) !== null)) {
     hidden.push('immersive.stage');
@@ -246,6 +278,17 @@ export interface GuestFeatures {
   wheel: boolean;
   /** The plan holds the order and view counts on dish cards (also needs the menu's switch). */
   dishCounts: boolean;
+  /** Project 3: drinks that go with a dish, the mood picker, living photos, occasion moods and stories. */
+  drinkMatch: boolean;
+  moodPicker: boolean;
+  livingPhotos: boolean;
+  occasionMoods: boolean;
+  stories: boolean;
+  /** Project 4: a model per dish, and putting it on the table in AR. */
+  models3d: boolean;
+  ar: boolean;
+  /** Project 5: the guests of a table share one basket. */
+  tableBasket: boolean;
   rails: RailStyle[];
 }
 
@@ -260,6 +303,14 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     about: allows(entitlements, 'menu.about'),
     wheel: allows(entitlements, 'menu.wheel'),
     dishCounts: allows(entitlements, 'menu.dishCounts'),
+    drinkMatch: allows(entitlements, 'guest.drinkMatch'),
+    moodPicker: allows(entitlements, 'guest.moodPicker'),
+    livingPhotos: allows(entitlements, 'guest.livingPhotos'),
+    occasionMoods: allows(entitlements, 'guest.occasionMoods'),
+    stories: allows(entitlements, 'guest.stories'),
+    models3d: allows(entitlements, 'immersive.models3d'),
+    ar: allows(entitlements, 'immersive.ar'),
+    tableBasket: allows(entitlements, 'ordering.tableBasket'),
     rails: allowedRails(entitlements),
   };
 }

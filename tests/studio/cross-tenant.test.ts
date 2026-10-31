@@ -675,6 +675,13 @@ const SWEPT: Record<string, Case[]> = {
   'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
   'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
   'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
+  // Stories: B's menu and B's picture through A's session.
+  'menus.saveStory': [
+    c("a story on B's menu", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, productId: null, captions: {}, isActive: true })),
+    c("B's picture on A's story", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, productId: null, captions: {}, isActive: true })),
+  ],
+  'menus.deleteStory': [c("B's story, in B", (w) => ({ menuId: w.b.menuId, storyId: 'nope' }))],
+  'menus.stories': [c("B's stories", (w) => ({ menuId: w.b.menuId }))],
   // The wheel: B's menu through A's session.
   'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
   // The dish counts switch: B's menu through A's session.

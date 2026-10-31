@@ -19,7 +19,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, tableBasket: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   brand: {
     logoText: 'TEST',
@@ -34,6 +34,59 @@ const tenant: TenantInfo = {
 };
 
 describe('buildMenuView', () => {
+  it("shows a dish's 3D model only on a plan with models, and offers AR only on a plan with AR", () => {
+    const model = { kind: 'model3d', url: 'https://cdn.test/burger.glb', assetId: 'm1' };
+    const catalog = withProduct(makeCatalog(), IDS.burger, { media: [model] });
+    const mediaOf = (info: TenantInfo) => buildMenuView(catalog, info, 'en', at(12)).products.find((p) => p.id === IDS.burger)!.media;
+    expect(mediaOf(tenant)).toEqual([{ ...model, ar: true }]);
+    expect(mediaOf({ ...tenant, features: { ...tenant.features, ar: false } })).toEqual([model]);
+    // Without the plan the choice is kept in the draft and the snapshot, and simply not shown.
+    expect(mediaOf({ ...tenant, features: { ...tenant.features, models3d: false, ar: false } })).toEqual([]);
+  });
+
+  it('gives food the drinks that go with it, the paired one first, when the plan has drink match', () => {
+    const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
+    const burger = view.products.find((p) => p.id === IDS.burger)!;
+    expect(burger.match?.[0]).toEqual({ id: IDS.sparkling, name: IDS.sparkling, price: 300, paired: true });
+    expect(view.products.find((p) => p.id === IDS.espresso)!.match).toBeUndefined();
+    expect(view.products.find((p) => p.id === IDS.cheesecake)!.match).toBeUndefined();
+  });
+
+  it('stamps each dish with the moods it suits when the plan has the mood picker, and nothing when it does not', () => {
+    const catalog = withProduct(makeCatalog(), IDS.burger, { calories: 900, serves: 2 });
+    const on = buildMenuView(catalog, tenant, 'en', at(12));
+    expect(on.products.find((p) => p.id === IDS.burger)!.moods).toEqual(['hearty', 'share']);
+    expect(on.products.find((p) => p.id === IDS.cheesecake)!.moods).toEqual(['sweet']);
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, moodPicker: false } };
+    expect(buildMenuView(catalog, off, 'en', at(12)).products.some((p) => p.moods !== undefined)).toBe(false);
+  });
+
+  it('names the live occasion that has a mood, with the days left, when the plan has occasion moods', () => {
+    const occasions = [{ id: 'o-ramadan', startsOn: '2026-01-01', endsOn: '2099-01-01', isActive: true, mood: 'RAMADAN' as const, translations: { en: { name: 'Ramadan' } } }];
+    const catalog = makeCatalog({ occasions });
+    const view = buildMenuView(catalog, tenant, 'en', at(12));
+    expect(view.occasion).toMatchObject({ mood: 'RAMADAN', name: 'Ramadan' });
+    expect(view.occasion!.daysLeft).toBeGreaterThan(0);
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, occasionMoods: false } };
+    expect(buildMenuView(catalog, off, 'en', at(12)).occasion).toBeUndefined();
+    expect(buildMenuView(makeCatalog({ occasions: [{ ...occasions[0]!, mood: undefined }] }), tenant, 'en', at(12)).occasion).toBeUndefined();
+  });
+
+  it('carries the running stories only on a plan that has them, and leaves the key out when there are none', () => {
+    const stories = [{ id: 's1', image: { kind: 'image', url: '/x.webp', alt: '', width: 1, height: 1 } as never, caption: 'Fresh baklava', productSlug: null }];
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12), { stories }).stories).toEqual(stories);
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12), { stories: [] }).stories).toBeUndefined();
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12)).stories).toBeUndefined();
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, stories: false } };
+    expect(buildMenuView(makeCatalog(), off, 'en', at(12), { stories }).stories).toBeUndefined();
+  });
+
+  it('leaves the match out on a plan without drink match', () => {
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, drinkMatch: false } };
+    const view = buildMenuView(makeCatalog(), off, 'en', at(12));
+    expect(view.products.some((p) => p.match !== undefined)).toBe(false);
+  });
+
   it('groups products under ordered categories with localized text', () => {
     const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
     expect(view.categories.map((c) => c.slug)).toEqual(['coffee', 'breakfast', 'plates', 'patisserie', 'cold']);

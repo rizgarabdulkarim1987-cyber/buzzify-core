@@ -31,6 +31,7 @@ import {
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { DEFAULT_FRAMING, FRAMING_RANGES, MAX_FEATURED, overriddenPalette, SCALE_RANGE, SCENE_RANGES, TEXT_LIMITS, TRACKING_RANGE } from '@/lib/templates/resolve';
 import type { ModelFraming, SceneMedia } from '@/lib/templates/types';
+import { MOTION_PRESET_IDS, withMotionPreset } from '@/lib/templates/motion-presets';
 import { sceneFeature } from '@/server/domain/plan-choices';
 import type { DesignPlanView, DesignView } from '@/server/studio/services/design';
 import { useT } from '@/studio/i18n';
@@ -258,7 +259,7 @@ function SceneFile({
   };
   const pick = (next: SceneMedia) => {
     onPick(next);
-    const mode = next.kind === 'model' ? '3d' : scene.mode === 'static' ? 'motion' : scene.mode;
+    const mode = next.kind === 'model' ? '3d' : next.kind === 'image' || scene.mode !== 'static' ? scene.mode : 'motion';
     onChange({ ...overrides, sceneAsset: { assetId: next.assetId }, scene: { ...overrides.scene, mode } });
   };
   return (
@@ -336,7 +337,7 @@ function MotionPanel({
   onPickScene: (media: SceneMedia) => void;
 }) {
   const t = useT();
-  const scene = { ...preset.scene, ...overrides.scene };
+  const scene = { ...withMotionPreset(preset.scene, overrides.motionPreset), ...overrides.scene };
   const set = (patch: Partial<SceneSettings>) => onChange({ ...overrides, scene: { ...overrides.scene, ...patch } });
   const percent = (v: number) => `${Math.round(v * 100)}%`;
   return (
@@ -351,6 +352,25 @@ function MotionPanel({
         onChange={onChange}
         onPick={onPickScene}
       />
+      <div className="flex flex-col gap-2">
+        <Segmented
+          label={t('design.motion.presets')}
+          value={overrides.motionPreset ?? 'template'}
+          options={[
+            { value: 'template', label: t('design.motion.preset.template') },
+            ...MOTION_PRESET_IDS.map((id) => ({ value: id, label: `${t(`design.motion.preset.${id}`)}${state.plan.motionPresets.includes(id) ? '' : ` (${t('design.motion.presetLocked')})`}` })),
+          ]}
+          onChange={(value) => {
+            if (value === 'template') {
+              const rest = { ...overrides };
+              delete rest.motionPreset;
+              onChange(rest);
+            } else if (state.plan.motionPresets.includes(value)) onChange({ ...overrides, motionPreset: value });
+          }}
+        />
+        {state.plan.motionPresets.length < MOTION_PRESET_IDS.length && <UpgradeHint feature="design.motionPresets" info={state.plan.upgrade} />}
+        <p className="text-xs text-muted">{t('design.motion.presetHint')}</p>
+      </div>
       <Segmented
         label={t('design.motion.mode')}
         value={scene.mode}

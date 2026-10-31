@@ -8,11 +8,13 @@ import { ALLERGENS, BADGES, DIETARY_TAGS, type Allergen, type Badge, type Dietar
 import type { TranslationMap } from '@/server/domain/types';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { normalizeSlugInput, SLUG_MAX } from '@/server/domain/slug';
-import { loadAssets, mediaAssetIds } from '@/server/media/resolve';
+import { loadAssets, mediaAssetIds, modelAssetIds } from '@/server/media/resolve';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
+import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { editDraft } from './draft-edit';
+import type { UpgradeInfo } from './plans';
 import { isUniqueViolation } from './menus';
 
 /**
@@ -53,10 +55,15 @@ export const priceField = z
 const deltaField = z.number().int().min(-MAX_MINOR, 'This makes the price below zero').max(MAX_MINOR, 'This price is too high');
 
 const assetEntry = z.object({ kind: z.literal('asset'), assetId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) });
+/** A library model by id: the dish's 3D model (project 4). A model is only ever chosen from the library, never by address. */
+const modelEntry = z.object({ kind: z.literal('model'), assetId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/) });
 /** A library asset by id, or anything guests can be shown as it is (checked as the public menu reads it). */
 const mediaEntry = z.union([
   assetEntry,
-  z.custom<DraftMediaItem>((value) => parseMedia([value]).length === 1, 'This picture cannot be used').transform((value) => parseMedia([value])[0]!),
+  modelEntry,
+  z
+    .custom<DraftMediaItem>((value) => (value as { kind?: unknown } | null)?.kind !== 'model3d' && parseMedia([value]).length === 1, 'This picture cannot be used')
+    .transform((value) => parseMedia([value])[0]!),
 ]);
 
 /** A row the person had open: both its id and the version they read, or neither for a new row. */
@@ -164,6 +171,8 @@ export interface ProductEditing {
   /** "Only a few left" shows at or below this many portions left. */
   lowStockThreshold: number | null;
   media: Array<{ value: DraftMediaItem; thumbUrl: string | null }>;
+  /** Whether the plan lets the restaurant choose a 3D model for a dish (`immersive.models3d`), and how to get it when not. */
+  models: { allowed: boolean; upgrade: UpgradeInfo };
   variants: Array<{ id: string; version: number; names: Names; priceDelta: number; isDefault: boolean }>;
   groups: Array<{
     id: string;
@@ -486,6 +495,18 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
       if (restaurantId === null) throw new Error('A menu action ran without a restaurant');
       const found = await loadAssets(tx, restaurantId, assetIds);
       if (assetIds.some((id) => !found.has(id))) throw new StudioError('NOT_FOUND');
+    }
+
+    // The dish's 3D model: one, a library model of this restaurant. Choosing a new one needs the plan; a stored one stays.
+    const modelIds = modelAssetIds(input.media);
+    if (modelIds.length > 1) throw new StudioError('INVALID', undefined, { media: 'Use one 3D model per dish' });
+    if (modelIds.length > 0) {
+      const restaurantId = ctx.restaurantId;
+      if (restaurantId === null) throw new Error('A menu action ran without a restaurant');
+      const models = await loadAssets(tx, restaurantId, modelIds, ['MODEL']);
+      if (modelIds.some((id) => !models.has(id))) throw new StudioError('NOT_FOUND', undefined, { media: 'Choose a 3D model from the library' });
+      const stored = new Set(modelAssetIds(Array.isArray(product.media) ? product.media : []));
+      if (modelIds.some((id) => !stored.has(id))) requireFeature(ctx.plan, 'immersive.models3d');
     }
 
     const pricesChange =

@@ -102,7 +102,7 @@ export default async function RootLayout({
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
-            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true, tableBasket: tenant.features.tableBasket === true },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
             // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
             feedback: tenant.feedbackEnabled !== false,

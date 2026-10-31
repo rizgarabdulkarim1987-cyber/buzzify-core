@@ -1,3 +1,4 @@
+import { moodsOf, type Mood } from '@/lib/moods';
 import { normalizeSearch } from '@/lib/search';
 import { LOCALES, type Locale } from '@/lib/locale';
 import { parseMedia, type MediaItem } from '@/lib/media';
@@ -25,8 +26,11 @@ import {
   type PromotionKind,
   type VisualKey,
 } from '@/server/domain';
+import { drinkMatchFor } from '@/server/domain/drink-match';
+import { liveOccasionMood, type LiveOccasionMood } from '@/server/domain/occasion-mood';
 import { showsCounts } from '@/server/domain/dish-counts';
 import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
+import type { StoryView } from './stories';
 import type { TenantInfo } from './tenant';
 
 export interface MenuOptionView {
@@ -52,6 +56,15 @@ export interface MenuVariantView {
   name: string;
   priceDelta: number;
   isDefault: boolean;
+}
+
+/** A drink under a dish's "goes well with": enough to show a chip and open the drink. */
+export interface MenuMatchView {
+  id: string;
+  name: string;
+  price: number;
+  /** The owner paired it to this dish by hand. */
+  paired?: true;
 }
 
 export interface MenuProductView {
@@ -92,6 +105,10 @@ export interface MenuProductView {
   fewLeft?: number;
   /** How many people the dish is for. */
   serves?: number;
+  /** Drinks that go with the dish, when the plan has drink match (`guest.drinkMatch`). */
+  match?: MenuMatchView[];
+  /** What mood the dish suits, when the plan has the mood picker (`guest.moodPicker`); left out when none. */
+  moods?: Mood[];
   allergens: string[];
   ingredients: string[];
   searchKey: string;
@@ -156,6 +173,10 @@ export interface MenuView {
   offers: MenuOfferView[];
   /** The live showcase cards around the search box; a slot without any is empty. */
   showcase: MenuShowcaseView;
+  /** The occasion tinting the menu now (Ramadan, Newroz, Eid), when the plan has occasion moods (`guest.occasionMoods`). */
+  occasion?: LiveOccasionMood;
+  /** The restaurant's running stories, newest first, when the plan has them (`guest.stories`); read live, not from the snapshot. */
+  stories?: StoryView[];
 }
 
 const DAY_MS = 86_400_000;
@@ -235,6 +256,15 @@ function productTags(product: CatalogProduct): Pick<MenuProductView, 'badges' | 
 }
 
 /** A library photo's alt text in the page's language, falling back to the one it was published with. */
+/** A dish's media as guests see it: a 3D model only when the plan has them, with AR only when the plan has that too. */
+function guestMedia(media: MediaItem[], locale: Locale, features: { models3d: boolean; ar: boolean }): MediaItem[] {
+  const shown = media.flatMap<MediaItem>((item) => {
+    if (item.kind !== 'model3d') return [item];
+    return features.models3d ? [features.ar ? { ...item, ar: true as const } : item] : [];
+  });
+  return localizeMedia(shown, locale);
+}
+
 function localizeMedia(media: MediaItem[], locale: Locale): MediaItem[] {
   return media.map((item) => (item.kind === 'image' && item.alts?.[locale] ? { ...item, alt: item.alts[locale] } : item));
 }
@@ -257,7 +287,7 @@ export function buildMenuView(
   tenant: TenantInfo,
   locale: Locale,
   now: Date,
-  extras: { mostOrdered?: readonly string[]; dishCounts?: ReadonlyMap<string, { orders: number; views: number }> } = {},
+  extras: { mostOrdered?: readonly string[]; dishCounts?: ReadonlyMap<string, { orders: number; views: number }>; stories?: readonly StoryView[] } = {},
 ): MenuView {
   const fallback = catalog.defaultLocale;
   const current = daypartNow(catalog, now);
@@ -310,8 +340,9 @@ export function buildMenuView(
         orderState: orderability(product, current),
         isSignature: product.isSignature,
         ...(product.isFeatured ? { featured: true as const } : {}),
-        media: localizeMedia(parseMedia(product.media), locale),
+        media: guestMedia(parseMedia(product.media), locale, tenant.features),
         ...productTags(product),
+        ...(tenant.features.moodPicker && moodsOf(product).length > 0 ? { moods: moodsOf(product) } : {}),
         allergens: product.allergens,
         ingredients,
         searchKey: pageSearchKey(product.slug, name, description, ingredients),
@@ -330,6 +361,17 @@ export function buildMenuView(
         (sortOrder.get(a.id) ?? 0) - (sortOrder.get(b.id) ?? 0) ||
         a.slug.localeCompare(b.slug),
     );
+
+  if (tenant.features.drinkMatch) {
+    const byId = new Map(products.map((view) => [view.id, view]));
+    for (const view of products) {
+      const match = drinkMatchFor(catalog, view.id, now).flatMap<MenuMatchView>((entry) => {
+        const drink = byId.get(entry.productId);
+        return drink ? [{ id: drink.id, name: drink.name, price: drink.displayPrice, ...(entry.paired ? { paired: true as const } : {}) }] : [];
+      });
+      if (match.length > 0) view.match = match;
+    }
+  }
 
   const productNames = new Map(catalog.products.map((product) => [product.id, resolveText(product.translations, 'name', locale, fallback)]));
   const categoryNames = new Map(catalog.categories.map((category) => [category.id, resolveText(category.translations, 'name', locale, fallback)]));
@@ -372,6 +414,8 @@ export function buildMenuView(
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),
     showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
+    ...(tenant.features.occasionMoods ? occasionOf(catalog, locale, now) : {}),
+    ...(tenant.features.stories && extras.stories && extras.stories.length > 0 ? { stories: [...extras.stories] } : {}),
   };
 }
 
@@ -440,4 +484,10 @@ function menuShowcase(
     };
   };
   return { aboveSearch: slots.ABOVE_SEARCH.map(view), belowSearch: slots.BELOW_SEARCH.map(view) };
+}
+
+/** The live occasion that carries a mood, as the key the menu view spreads in; empty when none runs. */
+function occasionOf(catalog: Catalog, locale: Locale, now: Date): { occasion?: LiveOccasionMood } {
+  const live = liveOccasionMood(catalog.occasions, now, catalog.timeZone, locale, catalog.defaultLocale);
+  return live ? { occasion: live } : {};
 }

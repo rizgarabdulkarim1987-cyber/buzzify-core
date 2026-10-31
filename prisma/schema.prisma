@@ -299,6 +299,8 @@ model Menu {
   intro           MenuIntro?
   about           MenuAbout?
   aboutOffers     AboutOffer[]
+  stories         MenuStory[]
+  basketParts     TableBasketPart[]
   wheel           MenuWheel?
   wheelSlices     WheelSlice[]
   wheelSpins      WheelSpin[]
@@ -652,6 +654,8 @@ model Occasion {
   endsOn       String
   /// { en: { name }, ar: ..., ckb: ... }
   translations Json
+  /// RAMADAN, NEWROZ or EID tints the menu while the occasion is live (plan feature `guest.occasionMoods`); null is none.
+  mood         String?
   isActive     Boolean        @default(true)
   sortOrder    Int            @default(0)
   version      Int            @default(1)
@@ -4182,6 +4186,47 @@ model MenuAbout {
   updatedAt       DateTime @updatedAt
 
   menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// A restaurant story: one library picture with a caption, shown in a rail at the top of the menu until it ends
+/// (plan feature `guest.stories`). Read live by the guest pages, so no publish is needed.
+model MenuStory {
+  id        String   @id @default(cuid())
+  menuId    String
+  /// A library picture (MediaAsset of kind IMAGE); a plain id, so removing the file never blocks the row.
+  assetId   String
+  /// A dish of this menu the story opens; a plain id, dropped on read when the dish is gone.
+  productId String?
+  /// { en?, ar?, ckb? }
+  captions  Json     @default("{}")
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, createdAt])
+}
+/// One guest's part of a table's shared basket (project 5, plan feature `ordering.tableBasket`): the dishes they added from
+/// their own phone. The guests of a table each own one row; one of them sends every live row as a single order.
+model TableBasketPart {
+  id           String    @id @default(cuid())
+  menuId       String
+  tableNumber  Int
+  /// SHA-256 of a random token the guest's phone keeps, so the token itself is never stored.
+  ownerKey     String
+  name         String    @default("")
+  /// [{ productId, variantId, optionIds, quantity, note }]
+  lines        Json      @default("[]")
+  updatedAt    DateTime  @default(now())
+  /// The order these lines went into, once sent.
+  sentPublicId String?
+  sentAt       DateTime?
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, tableNumber, ownerKey])
+  @@index([menuId, tableNumber, updatedAt])
 }
 
 /// A unique offer or discount card on the About page. Information only: it moves no price.

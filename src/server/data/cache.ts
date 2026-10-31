@@ -84,15 +84,20 @@ export function cachedLiveOverlay<T>(menuId: string, load: () => Promise<T>): Pr
   return cached(load, ['live', menuId], { revalidate: 30, tags: [liveTag(menuId)] })();
 }
 
+/** A menu's live stories (the rows still running when read). At most a minute old, and expired by `expireLive`. */
+export function cachedStoryRows<T>(menuId: string, load: () => Promise<T>): Promise<T> {
+  return cached(load, ['stories', menuId], { revalidate: 60, tags: [liveTag(menuId)] })();
+}
+
 /**
  * What a slug opens: the menu, its status, its live revision and what its plan shows guests. At most 5 minutes old, and
  * expired by `expireMenu`, or by `expirePlans` with every other address.
  */
 export function cachedSlugResolution<T>(slug: string, load: () => Promise<T>): Promise<T> {
   // The data cache can outlive a deploy, so a change to what the answer carries moves the key (2: the guest features of
-  // the restaurant's plan; 3: the menu's motions; 4: offers and the labels drawn from guest data; 5: the menu's id on an unavailable answer), and an answer cached
+  // the restaurant's plan; 3: the menu's motions; 4: offers and the labels drawn from guest data; 5: the menu's id on an unavailable answer; 8: the guest features of project 3), and an answer cached
   // by the previous version is never read as the new one.
-  return cached(load, ['slug', '7', slug], { revalidate: 300, tags: [slugTag(slug), PLANS_TAG] })();
+  return cached(load, ['slug', '8', slug], { revalidate: 300, tags: [slugTag(slug), PLANS_TAG] })();
 }
 
 /** The plans the platform owner set. At most 5 minutes old, and expired by `expirePlans`. */

@@ -273,7 +273,7 @@ export function DesignStudio({
                 </Button>
               )}
             </div>
-            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} />
+            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} plan={state.plan} />
             <section aria-labelledby="design-saved" className="flex flex-col gap-3 border-t border-line pt-6">
               <h2 id="design-saved" className="text-md font-semibold text-text">
                 {t('design.custom.title')}

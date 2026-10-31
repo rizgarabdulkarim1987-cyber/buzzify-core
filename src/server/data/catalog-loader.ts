@@ -1,4 +1,5 @@
 import { isLocale, type Locale } from '@/lib/locale';
+import { isOccasionMood } from '@/lib/occasion-moods';
 import { menuPriceStep } from '@/server/domain/bulk-prices';
 import { toVisualKey } from '@/server/domain/types';
 import type {
@@ -181,6 +182,7 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       startsOn: o.startsOn,
       endsOn: o.endsOn,
       isActive: o.isActive,
+      ...(isOccasionMood(o.mood) ? { mood: o.mood } : {}),
       translations: translationMap(o.translations),
     })),
     showcaseCards: showcaseCards.map((c) => ({
