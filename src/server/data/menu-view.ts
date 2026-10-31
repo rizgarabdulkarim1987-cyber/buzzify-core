@@ -256,6 +256,15 @@ function productTags(product: CatalogProduct): Pick<MenuProductView, 'badges' | 
 }
 
 /** A library photo's alt text in the page's language, falling back to the one it was published with. */
+/** A dish's media as guests see it: a 3D model only when the plan has them, with AR only when the plan has that too. */
+function guestMedia(media: MediaItem[], locale: Locale, features: { models3d: boolean; ar: boolean }): MediaItem[] {
+  const shown = media.flatMap<MediaItem>((item) => {
+    if (item.kind !== 'model3d') return [item];
+    return features.models3d ? [features.ar ? { ...item, ar: true as const } : item] : [];
+  });
+  return localizeMedia(shown, locale);
+}
+
 function localizeMedia(media: MediaItem[], locale: Locale): MediaItem[] {
   return media.map((item) => (item.kind === 'image' && item.alts?.[locale] ? { ...item, alt: item.alts[locale] } : item));
 }
@@ -331,7 +340,7 @@ export function buildMenuView(
         orderState: orderability(product, current),
         isSignature: product.isSignature,
         ...(product.isFeatured ? { featured: true as const } : {}),
-        media: localizeMedia(parseMedia(product.media), locale),
+        media: guestMedia(parseMedia(product.media), locale, tenant.features),
         ...productTags(product),
         ...(tenant.features.moodPicker && moodsOf(product).length > 0 ? { moods: moodsOf(product) } : {}),
         allergens: product.allergens,

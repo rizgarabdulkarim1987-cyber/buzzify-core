@@ -284,6 +284,9 @@ export interface GuestFeatures {
   livingPhotos: boolean;
   occasionMoods: boolean;
   stories: boolean;
+  /** Project 4: a model per dish, and putting it on the table in AR. */
+  models3d: boolean;
+  ar: boolean;
   rails: RailStyle[];
 }
 
@@ -303,6 +306,8 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     livingPhotos: allows(entitlements, 'guest.livingPhotos'),
     occasionMoods: allows(entitlements, 'guest.occasionMoods'),
     stories: allows(entitlements, 'guest.stories'),
+    models3d: allows(entitlements, 'immersive.models3d'),
+    ar: allows(entitlements, 'immersive.ar'),
     rails: allowedRails(entitlements),
   };
 }

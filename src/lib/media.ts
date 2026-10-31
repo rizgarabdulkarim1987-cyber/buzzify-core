@@ -43,6 +43,8 @@ export interface ModelItem {
   poster?: string;
   /** The library model it came from, so restoring the revision to the draft links it again. */
   assetId?: string;
+  /** Set on the guest menu only, when the plan also allows putting the dish on the table in AR (`immersive.ar`). */
+  ar?: true;
 }
 
 /** What a product's draft row may hold: a library asset (photo) or model not yet resolved, or anything guests see. */

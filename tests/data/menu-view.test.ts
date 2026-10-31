@@ -19,7 +19,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   brand: {
     logoText: 'TEST',
@@ -34,6 +34,16 @@ const tenant: TenantInfo = {
 };
 
 describe('buildMenuView', () => {
+  it("shows a dish's 3D model only on a plan with models, and offers AR only on a plan with AR", () => {
+    const model = { kind: 'model3d', url: 'https://cdn.test/burger.glb', assetId: 'm1' };
+    const catalog = withProduct(makeCatalog(), IDS.burger, { media: [model] });
+    const mediaOf = (info: TenantInfo) => buildMenuView(catalog, info, 'en', at(12)).products.find((p) => p.id === IDS.burger)!.media;
+    expect(mediaOf(tenant)).toEqual([{ ...model, ar: true }]);
+    expect(mediaOf({ ...tenant, features: { ...tenant.features, ar: false } })).toEqual([model]);
+    // Without the plan the choice is kept in the draft and the snapshot, and simply not shown.
+    expect(mediaOf({ ...tenant, features: { ...tenant.features, models3d: false, ar: false } })).toEqual([]);
+  });
+
   it('gives food the drinks that go with it, the paired one first, when the plan has drink match', () => {
     const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
     const burger = view.products.find((p) => p.id === IDS.burger)!;
