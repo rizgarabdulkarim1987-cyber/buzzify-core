@@ -114,7 +114,18 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
  * address, switching an account off and on. The link of an invitation just made or renewed is shown once, with a Copy
  * button, because it is stored nowhere.
  */
-export function PeopleManager({ me, people, invitations }: { me: string; people: Page<PersonRow>; invitations: Page<InvitationRow> }) {
+export function PeopleManager({
+  me,
+  people,
+  invitations,
+  space = 'food',
+}: {
+  me: string;
+  people: Page<PersonRow>;
+  invitations: Page<InvitationRow>;
+  /** The project the screen is in: the businesses to pick from are its own. */
+  space?: 'food' | 'pharmacy';
+}) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -280,6 +291,7 @@ export function PeopleManager({ me, people, invitations }: { me: string; people:
         }}
       />
       <InviteOwnerDialog
+        space={space}
         open={inviting === 'owner'}
         onOpenChange={(open) => !open && setInviting(null)}
         onIssued={(link) => {
@@ -288,6 +300,7 @@ export function PeopleManager({ me, people, invitations }: { me: string; people:
         }}
       />
       <PersonDialogs
+        space={space}
         person={target?.person ?? null}
         action={target?.action ?? null}
         onClose={() => setTarget(null)}
