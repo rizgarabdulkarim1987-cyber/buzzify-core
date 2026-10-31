@@ -1925,6 +1925,8 @@ const en: Messages = {
   'content.media.kind.art': 'Drawing',
   'content.media.kind.video': 'Video',
   'content.media.kind.model': '3D model',
+  'content.model.pickerTitle': 'Choose a 3D model',
+  'content.model.pickerIntro': 'Your restaurant’s models and the shared ones: a GLB file up to 10 MB. Upload a new one here if it is not listed.',
   'content.model.title': '3D model',
   'content.model.intro': 'Guests can turn the dish around on their phone and, with AR, see it on their table.',
   'content.model.none': 'No 3D model yet',

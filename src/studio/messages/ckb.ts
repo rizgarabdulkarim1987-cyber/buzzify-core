@@ -1929,6 +1929,8 @@ const ckb: Messages = {
   'content.media.kind.art': 'وێنەکێشان',
   'content.media.kind.video': 'ڤیدیۆ',
   'content.media.kind.model': 'مۆدێلی سێ ڕەهەندی',
+  'content.model.pickerTitle': 'مۆدێلێکی سێ ڕەهەندی هەڵبژێرە',
+  'content.model.pickerIntro': 'مۆدێلەکانی چێشتخانەکەت و هاوبەشەکان: فایلی GLB تا ١٠ مێگابایت. ئەگەر لە لیستەکەدا نییە لێرە یەکێکی نوێ بار بکە.',
   'content.model.title': 'مۆدێلی سێ ڕەهەندی',
   'content.model.intro': 'میوانەکان دەتوانن خواردنەکە لە مۆبایلەکەیان بسوڕێنن و بە AR لەسەر مێزەکەیان ببینن.',
   'content.model.none': 'هێشتا مۆدێلی سێ ڕەهەندی نییە',

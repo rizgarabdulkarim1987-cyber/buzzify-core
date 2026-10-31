@@ -73,6 +73,7 @@ export function DishModel({ product }: { product: MenuProductView }) {
                   src: model.url,
                   alt: t('model.title', { name: product.name }),
                   'camera-controls': true,
+                  loading: 'eager',
                   'touch-action': 'pan-y',
                   'shadow-intensity': '1',
                   ...(model.ar ? { ar: true, 'ar-modes': 'webxr scene-viewer quick-look' } : {}),

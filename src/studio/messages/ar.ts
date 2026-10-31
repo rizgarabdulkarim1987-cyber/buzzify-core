@@ -1934,6 +1934,8 @@ const ar: Messages = {
   'content.media.kind.art': 'رسم',
   'content.media.kind.video': 'فيديو',
   'content.media.kind.model': 'نموذج ثلاثي الأبعاد',
+  'content.model.pickerTitle': 'اختر نموذجًا ثلاثي الأبعاد',
+  'content.model.pickerIntro': 'نماذج مطعمك والنماذج المشتركة: ملف GLB حتى 10 ميغابايت. ارفع نموذجًا جديدًا هنا إن لم يكن في القائمة.',
   'content.model.title': 'نموذج ثلاثي الأبعاد',
   'content.model.intro': 'يستطيع الضيوف تدوير الطبق على هواتفهم، ومع الواقع المعزز رؤيته على طاولتهم.',
   'content.model.none': 'لا يوجد نموذج ثلاثي الأبعاد بعد',

@@ -107,8 +107,8 @@ export function ScenePicker({
     <Dialog
       open={open}
       onOpenChange={close}
-      title={t('design.scenePicker.title')}
-      description={t('design.scenePicker.intro')}
+      title={only ? t('content.model.pickerTitle') : t('design.scenePicker.title')}
+      description={only ? t('content.model.pickerIntro') : t('design.scenePicker.intro')}
       width="md"
       footer={
         <>
