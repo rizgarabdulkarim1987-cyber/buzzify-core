@@ -51,6 +51,17 @@ describe('buildMenuView', () => {
     expect(buildMenuView(catalog, off, 'en', at(12)).products.some((p) => p.moods !== undefined)).toBe(false);
   });
 
+  it('names the live occasion that has a mood, with the days left, when the plan has occasion moods', () => {
+    const occasions = [{ id: 'o-ramadan', startsOn: '2026-01-01', endsOn: '2099-01-01', isActive: true, mood: 'RAMADAN' as const, translations: { en: { name: 'Ramadan' } } }];
+    const catalog = makeCatalog({ occasions });
+    const view = buildMenuView(catalog, tenant, 'en', at(12));
+    expect(view.occasion).toMatchObject({ mood: 'RAMADAN', name: 'Ramadan' });
+    expect(view.occasion!.daysLeft).toBeGreaterThan(0);
+    const off: TenantInfo = { ...tenant, features: { ...tenant.features, occasionMoods: false } };
+    expect(buildMenuView(catalog, off, 'en', at(12)).occasion).toBeUndefined();
+    expect(buildMenuView(makeCatalog({ occasions: [{ ...occasions[0]!, mood: undefined }] }), tenant, 'en', at(12)).occasion).toBeUndefined();
+  });
+
   it('leaves the match out on a plan without drink match', () => {
     const off: TenantInfo = { ...tenant, features: { ...tenant.features, drinkMatch: false } };
     const view = buildMenuView(makeCatalog(), off, 'en', at(12));

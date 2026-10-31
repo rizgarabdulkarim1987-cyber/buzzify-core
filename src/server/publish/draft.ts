@@ -596,7 +596,7 @@ function promotionRow(p: CatalogPromotion) {
 
 /** An occasion's own columns, as a snapshot holds them. */
 function occasionRow(o: CatalogOccasion) {
-  return { startsOn: o.startsOn, endsOn: o.endsOn, isActive: o.isActive, translations: json(o.translations) };
+  return { startsOn: o.startsOn, endsOn: o.endsOn, isActive: o.isActive, mood: o.mood ?? null, translations: json(o.translations) };
 }
 
 /** A showcase card's own columns, as a snapshot holds them (its menu, ids and references are the caller's). */

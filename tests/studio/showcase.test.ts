@@ -104,6 +104,38 @@ const set = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+describe('occasion moods (plan feature guest.occasionMoods)', () => {
+  const onPlan = (plan: 'BASIC' | 'PRO') => prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { plan } });
+
+  it('refuses a new mood on a plan without the feature, naming the plan that has it, and saves none', async () => {
+    await onPlan('BASIC');
+    expect(failureOf(await run(sales.saveOccasion, occasion({ mood: 'RAMADAN' })))).toMatchObject({ code: 'UPGRADE_REQUIRED', upgrade: { feature: 'guest.occasionMoods', plan: 'PRO' } });
+    expect(await prisma().occasion.count()).toBe(0);
+    // An occasion with no mood is content, open to every plan.
+    dataOf(await run(sales.saveOccasion, occasion()));
+  });
+
+  it('saves a mood on a plan that has it and keeps it through a downgrade, while a different one stays refused', async () => {
+    await onPlan('PRO');
+    const saved = dataOf(await run(sales.saveOccasion, occasion({ mood: 'RAMADAN' })));
+    expect(await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ mood: 'RAMADAN' });
+
+    await onPlan('BASIC');
+    const kept = dataOf(await run(sales.saveOccasion, occasion({ occasionId: saved.id, version: 1, mood: 'RAMADAN', names: { en: 'Ramadan' } })));
+    expect(await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ mood: 'RAMADAN', version: kept.version });
+    expect(failureOf(await run(sales.saveOccasion, occasion({ occasionId: saved.id, version: kept.version, mood: 'EID' }))).code).toBe('UPGRADE_REQUIRED');
+    // Clearing it is always allowed.
+    dataOf(await run(sales.saveOccasion, occasion({ occasionId: saved.id, version: kept.version, mood: null })));
+    expect((await prisma().occasion.findUniqueOrThrow({ where: { id: saved.id } })).mood).toBeNull();
+  });
+
+  it('shows the mood in the rules the Studio reads', async () => {
+    await onPlan('PRO');
+    dataOf(await run(sales.saveOccasion, occasion({ mood: 'NEWROZ' })));
+    expect(dataOf(await rules()).occasions[0]).toMatchObject({ mood: 'NEWROZ' });
+  });
+});
+
 describe('occasions', () => {
   it('creates, edits and deletes an occasion with its cards, and audits each', async () => {
     const saved = dataOf(await run(sales.saveOccasion, occasion()));

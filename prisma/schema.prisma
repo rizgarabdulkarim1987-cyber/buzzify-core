@@ -591,6 +591,8 @@ model Occasion {
   endsOn       String
   /// { en: { name }, ar: ..., ckb: ... }
   translations Json
+  /// RAMADAN, NEWROZ or EID tints the menu while the occasion is live (plan feature `guest.occasionMoods`); null is none.
+  mood         String?
   isActive     Boolean        @default(true)
   sortOrder    Int            @default(0)
   version      Int            @default(1)

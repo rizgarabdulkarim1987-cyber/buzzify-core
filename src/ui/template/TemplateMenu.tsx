@@ -27,6 +27,7 @@ import { openerForPhoto, type OpenerNode } from './photo-opener';
 import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
+import { OccasionBanner } from './OccasionBanner';
 import { ShowcaseCarousel } from './ShowcaseCarousel';
 import { useFavorites } from './favorites';
 import './skins.css';
@@ -252,6 +253,7 @@ export function TemplateMenu({
             {t('menu.skip')}
           </a>
           <TemplateHeader />
+          {view.occasion && query.trim() === '' && <OccasionBanner occasion={view.occasion} />}
           {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
           {query.trim() === '' && showsSignatureStrip(heroKind, body, signature !== undefined) && <SignatureStrip />}
           {query.trim() === '' && showsFeaturedStrip(heroKind, body, picks.length) && <FeaturedStrip items={picks} />}

@@ -27,6 +27,7 @@ import {
   type VisualKey,
 } from '@/server/domain';
 import { drinkMatchFor } from '@/server/domain/drink-match';
+import { liveOccasionMood, type LiveOccasionMood } from '@/server/domain/occasion-mood';
 import { showsCounts } from '@/server/domain/dish-counts';
 import { liveShowcase, type CatalogShowcaseCard, type ShowcaseKind } from '@/server/domain/showcase';
 import type { TenantInfo } from './tenant';
@@ -171,6 +172,8 @@ export interface MenuView {
   offers: MenuOfferView[];
   /** The live showcase cards around the search box; a slot without any is empty. */
   showcase: MenuShowcaseView;
+  /** The occasion tinting the menu now (Ramadan, Newroz, Eid), when the plan has occasion moods (`guest.occasionMoods`). */
+  occasion?: LiveOccasionMood;
 }
 
 const DAY_MS = 86_400_000;
@@ -399,6 +402,7 @@ export function buildMenuView(
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),
     showcase: menuShowcase(catalog, { shownOffers, products, current, offerSubjects }, locale, now),
+    ...(tenant.features.occasionMoods ? occasionOf(catalog, locale, now) : {}),
   };
 }
 
@@ -467,4 +471,10 @@ function menuShowcase(
     };
   };
   return { aboveSearch: slots.ABOVE_SEARCH.map(view), belowSearch: slots.BELOW_SEARCH.map(view) };
+}
+
+/** The live occasion that carries a mood, as the key the menu view spreads in; empty when none runs. */
+function occasionOf(catalog: Catalog, locale: Locale, now: Date): { occasion?: LiveOccasionMood } {
+  const live = liveOccasionMood(catalog.occasions, now, catalog.timeZone, locale, catalog.defaultLocale);
+  return live ? { occasion: live } : {};
 }

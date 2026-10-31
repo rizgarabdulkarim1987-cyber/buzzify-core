@@ -154,3 +154,25 @@
   font-weight: 500;
   white-space: nowrap;
 }
+
+/* The occasion strip (plan feature `guest.occasionMoods`): static, tinted by the mood, under the header. */
+.tpl-occasion {
+  --mood: var(--accent);
+  margin: 0.25rem var(--gutter);
+  padding: 0.6rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--mood) 45%, transparent);
+  border-radius: var(--radius-button);
+  background: color-mix(in oklab, var(--mood) 14%, transparent);
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+.tpl-occasion[data-mood='RAMADAN'] {
+  --mood: #c9a24a;
+}
+.tpl-occasion[data-mood='NEWROZ'] {
+  --mood: #e8751a;
+}
+.tpl-occasion[data-mood='EID'] {
+  --mood: #2f9e7c;
+}

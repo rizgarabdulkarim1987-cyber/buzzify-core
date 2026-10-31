@@ -20,6 +20,7 @@ import {
   type CatalogPromotion,
   type Locale,
 } from './types';
+import { OCCASION_MOODS } from '@/lib/occasion-moods';
 import { SHOWCASE_KINDS, SHOWCASE_SLOTS, type CatalogOccasion, type CatalogShowcaseCard } from './showcase';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
@@ -244,6 +245,7 @@ const snapshotOccasion = z.object({
   startsOn: z.string(),
   endsOn: z.string(),
   isActive: z.boolean(),
+  mood: z.enum(OCCASION_MOODS).optional(),
   translations,
 });
 

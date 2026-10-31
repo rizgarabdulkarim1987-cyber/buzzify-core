@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
+import { isOccasionMood, OCCASION_MOODS, type OccasionMood } from '@/lib/occasion-moods';
 import type { Badge } from '@/lib/product-tags';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig, salesSettings, type SalesSettings } from '@/server/domain/config';
@@ -10,6 +11,7 @@ import { DAYPARTS, PROMOTION_KINDS, type Daypart, type PromotionKind } from '@/s
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
 import type { QueryContext } from '@/server/studio/framework/query';
+import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import {
   changed,
@@ -135,6 +137,8 @@ export const occasionFields = {
   names: namesField,
   startsOn: z.string().refine(isDate, 'Use a date such as 2026-10-31'),
   endsOn: z.string().refine(isDate, 'Use a date such as 2026-10-31'),
+  /** Tints the menu while the occasion runs; a new choice needs the plan (`guest.occasionMoods`), a kept one does not. */
+  mood: z.enum(OCCASION_MOODS).nullable().optional(),
   isActive: z.boolean(),
 };
 export type OccasionSave = z.infer<z.ZodObject<typeof occasionFields>>;
@@ -578,8 +582,10 @@ export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{
     const problems = occasionProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
     if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
 
-    const fields = { startsOn: input.startsOn, endsOn: input.endsOn, isActive: input.isActive };
+    const mood = input.mood ?? null;
+    const fields = { startsOn: input.startsOn, endsOn: input.endsOn, isActive: input.isActive, mood };
     if (input.occasionId === undefined || input.version === undefined) {
+      if (mood !== null) requireFeature(ctx.plan, 'guest.occasionMoods');
       const last = await tx.occasion.aggregate({ _max: { sortOrder: true } });
       const sortOrder = last._max.sortOrder === null ? 0 : last._max.sortOrder + 1;
       const row = await tx.occasion.create({ data: { menuId, ...fields, sortOrder, translations: withTexts({}, { name: input.names }) }, select: { id: true } });
@@ -589,6 +595,8 @@ export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{
 
     const row = await tx.occasion.findFirst({ where: { id: input.occasionId } });
     if (!row) throw new StudioError('NOT_FOUND');
+    // A mood already on the occasion may stay (a downgrade never rewrites it); only a new one is the plan's to give.
+    if (mood !== null && mood !== row.mood) requireFeature(ctx.plan, 'guest.occasionMoods');
     const translations = withTexts(row.translations, { name: input.names });
     await updateWithVersion(tx.occasion, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'Occasion' }, tx);
     ctx.audit({
@@ -600,6 +608,7 @@ export function saveOccasion(ctx: ActionContext, input: OccasionSave): Promise<{
         startsOn: [row.startsOn, fields.startsOn],
         endsOn: [row.endsOn, fields.endsOn],
         isActive: [row.isActive, fields.isActive],
+        mood: [row.mood, fields.mood],
       }),
     });
     return { id: row.id, version: input.version + 1 };
@@ -900,6 +909,7 @@ export interface SalesRules {
     startsOn: string;
     endsOn: string;
     isActive: boolean;
+    mood: OccasionMood | null;
   }>;
   showcase: Array<{
     id: string;
@@ -1043,7 +1053,7 @@ export async function salesRules(
     if (occasion) {
       if (!occasion.isActive) return 'OCCASION_OFF';
       if (today > occasion.endsOn) return 'OCCASION_ENDED';
-      if (!isOccasionLive({ ...occasion, translations: {} }, now, menu.timezone)) return 'OCCASION_UPCOMING';
+      if (!isOccasionLive({ id: occasion.id, startsOn: occasion.startsOn, endsOn: occasion.endsOn, isActive: occasion.isActive, translations: {} }, now, menu.timezone)) return 'OCCASION_UPCOMING';
     }
     const offer = card.promotionId === null ? undefined : offerById.get(card.promotionId);
     if (card.kind === 'OFFER' && offer) {
@@ -1137,6 +1147,7 @@ export async function salesRules(
       startsOn: occasion.startsOn,
       endsOn: occasion.endsOn,
       isActive: occasion.isActive,
+      mood: isOccasionMood(occasion.mood) ? occasion.mood : null,
     })),
     showcase: cards.map((card) => ({
       id: card.id,
