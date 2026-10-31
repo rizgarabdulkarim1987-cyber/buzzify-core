@@ -265,6 +265,7 @@ const posTill: Messages = {
   'pos.requests.emptyHint': 'چەند چرکەیەک دوای ناردنی کڕیار لێرە دەردەکەون.',
   'pos.requests.table': 'مێزی {n}',
   'pos.requests.sentAt': 'نێردرا {time}',
+  'pos.requests.reward': 'کارتی مۆرەکانی میوان پڕە: ئەمەی پێ بدە {reward}',
   'pos.requests.guestNote': 'تێبینی کڕیار',
   'pos.requests.joinBanner': 'لەسەر ئەم مێزە داواکارییەکی کراوە هەیە. قبووڵکردن ئەم بڕگانەی دەخاتە سەر.',
   'pos.requests.openOrder': 'کردنەوەی داواکاری',
