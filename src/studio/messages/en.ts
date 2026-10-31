@@ -3205,6 +3205,7 @@ const en: Messages = {
   'restaurants.form.retailOwnerEmailHint': 'An invitation to own this shop is sent here. A retail shop needs an owner.',
   'error.text.retailNotDeleted': 'A retail shop is never deleted: its catalog and history are kept in Retails. Suspend it instead.',
   'error.text.retailBranchesInRetails': 'Branches of a retail shop are managed in Retails',
+  'error.text.menusFoodOnly': 'Menus are only for food businesses',
   'error.text.retailBranchesMax': 'A retail shop starts with at most 20 branches',
   'error.text.branchNamesUnique': 'Branch names must be different',
   'error.text.ownerEmailRequired': 'Enter the owner’s email address',

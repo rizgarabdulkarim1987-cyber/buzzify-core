@@ -3210,6 +3210,7 @@ const ckb: Messages = {
   'restaurants.form.retailOwnerEmailHint': 'بانگهێشتنامەی خاوەندارێتی ئەم دوکانە بۆ ئێرە دەنێردرێت. دوکانی تاکە فرۆشی پێویستی بە خاوەن هەیە.',
   'error.text.retailNotDeleted': 'دوکانی تاکە فرۆشی هەرگیز ناسڕدرێتەوە: لیستی بەرهەمەکان و مێژووەکەی لە Retails دەمێننەوە. لە جیاتی ئەوە ڕایبگرە.',
   'error.text.retailBranchesInRetails': 'لقەکانی دوکانی تاکە فرۆشی لە Retails بەڕێوە دەبرێن',
+  'error.text.menusFoodOnly': 'مینیو تەنها بۆ کارە خواردنییەکانە',
   'error.text.retailBranchesMax': 'دوکانی تاکە فرۆشی بە زۆرترین ٢٠ لق دەست پێدەکات',
   'error.text.branchNamesUnique': 'ناوی لقەکان دەبێت جیاواز بن',
   'error.text.ownerEmailRequired': 'ئیمەیڵی خاوەن بنووسە',

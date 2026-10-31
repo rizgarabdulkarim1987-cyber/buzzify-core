@@ -11,6 +11,7 @@ import {
   emptyWorkingHours,
   PH_CURRENCIES,
   type PhCurrency,
+  RETAIL_BRANCH_NAME_MAX,
   readWorkingHours,
   RESTAURANT_TYPES,
   SOCIAL_NETWORKS,
@@ -228,9 +229,6 @@ interface BranchRow {
   name: string;
   city: string;
 }
-
-/** Retails' own cap on a branch name. */
-const RETAIL_BRANCH_NAME_MAX = 80;
 
 /**
  * What only a pharmacy or a retail shop has to say when it is created: its branches, its currencies and who owns it. A

@@ -9,6 +9,9 @@ export type RestaurantType = (typeof RESTAURANT_TYPES)[number];
 
 /** What kind of business it is: a menu or cashier customer (food), or a pharmacy. */
 export const BUSINESS_SECTORS = ['FOOD', 'PHARMACY', 'RETAIL'] as const;
+
+/** Retails' own cap on a branch name; a RETAIL business's branches are created there too. */
+export const RETAIL_BRANCH_NAME_MAX = 80;
 export type BusinessSector = (typeof BUSINESS_SECTORS)[number];
 
 /** The currencies a pharmacy may price in (money is kept per currency, never converted). */

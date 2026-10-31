@@ -3236,6 +3236,7 @@ const ar: Messages = {
   'restaurants.form.retailOwnerEmailHint': 'تُرسل إلى هنا دعوة لامتلاك هذا المحل. يحتاج محل التجزئة إلى مالك.',
   'error.text.retailNotDeleted': 'محل التجزئة لا يُحذف أبدًا: يبقى دليله وسجله في Retails. علّقه بدلًا من ذلك.',
   'error.text.retailBranchesInRetails': 'تُدار فروع محل التجزئة في Retails',
+  'error.text.menusFoodOnly': 'القوائم مخصصة لأعمال الطعام فقط',
   'error.text.retailBranchesMax': 'يبدأ محل التجزئة بـ 20 فرعًا كحد أقصى',
   'error.text.branchNamesUnique': 'يجب أن تكون أسماء الفروع مختلفة',
   'error.text.ownerEmailRequired': 'أدخل البريد الإلكتروني للمالك',

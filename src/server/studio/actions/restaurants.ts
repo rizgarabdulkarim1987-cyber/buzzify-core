@@ -7,7 +7,7 @@ import { describeError, StudioError } from '@/server/studio/framework/result';
 import { provisionPharmacy } from '@/server/pharmacy/provision';
 import { provisionRetail } from '@/server/retail/provision';
 import { checkCreation } from '@/server/domain/pharmacy/limits';
-import { BUSINESS_SECTORS, PH_CURRENCIES } from '@/server/domain/restaurant-profile';
+import { BUSINESS_SECTORS, PH_CURRENCIES, RETAIL_BRANCH_NAME_MAX } from '@/server/domain/restaurant-profile';
 import { PICTURE_KINDS } from '@/server/media/kinds';
 import { limitRefusal } from '@/server/studio/services/billing';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
@@ -60,9 +60,6 @@ const pharmacyBranch = z.object({
   name: z.string().trim().min(1, 'Enter the branch name').max(120, 'Use at most 120 characters'),
   city: z.string().trim().max(200, 'This is too long').optional(),
 });
-
-/** Retails' own cap on a branch name; a RETAIL business's branches are created there too. */
-const RETAIL_BRANCH_NAME_MAX = 80;
 
 /**
  * The profile, plus what a new pharmacy or retail business adds: its branches, the currencies it prices in and who
@@ -122,7 +119,7 @@ export const createRestaurant = defineAction({
         invitedById: ctx.actor.userId,
         afterCommit: ctx.afterCommit,
       };
-      const pharmacy =
+      const provisioned =
         sector === 'PHARMACY' ? await provisionPharmacy(tx, provisioning) : sector === 'RETAIL' ? await provisionRetail(tx, provisioning) : null;
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
@@ -133,7 +130,7 @@ export const createRestaurant = defineAction({
         changes: {
           ...addedFields(input),
           plan: { before: null, after: plan },
-          ...(pharmacy
+          ...(provisioned
             ? {
                 sector: { before: null, after: sector },
                 branches: { before: null, after: (branches ?? []).map((branch) => branch.name) },
@@ -142,12 +139,12 @@ export const createRestaurant = defineAction({
             : {}),
         },
       });
-      if (pharmacy?.invitationId && ownerEmail) {
+      if (provisioned?.invitationId && ownerEmail) {
         // The same entry the Studio's own owner invitations leave: the address and the role, never the link.
         ctx.audit({
           action: 'invitation.created',
           entityType: 'Invitation',
-          entityId: pharmacy.invitationId,
+          entityId: provisioned.invitationId,
           restaurantId: created.id,
           changes: { email: { before: null, after: ownerEmail.toLowerCase() }, role: { before: null, after: 'OWNER' } },
         });
@@ -269,6 +266,12 @@ export const deleteRestaurant = defineAction({
 
 // Branches ------------------------------------------------------------------------------------------------------------
 
+/** A retail shop's branches are owned by Retails and the link has no branch sync: a rename or reorder here would drift. */
+async function refuseRetailBranches(tx: Parameters<Parameters<ActionContext['transaction']>[0]>[0], restaurantId: string): Promise<void> {
+  const business = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } });
+  if (business?.sector === 'RETAIL') throw new StudioError('CONFLICT', RETAIL_BRANCHES_IN_RETAILS);
+}
+
 export const createBranch = defineAction({
   name: 'restaurants.createBranch',
   permission: 'restaurant.edit',
@@ -306,6 +309,7 @@ export const updateBranch = defineAction({
   run: (ctx, { branchId, version, ...fields }) =>
     ctx.transaction(async (tx) => {
       const input = pickBranch(fields);
+      await refuseRetailBranches(tx, restaurantOf(ctx));
       const row = await tx.branch.findFirst({ where: { id: branchId } });
       if (!row) throw new StudioError('NOT_FOUND');
       const changes = changedFields(branchProfileOf(row), input);
@@ -352,6 +356,7 @@ export const reorderBranches = defineAction({
   run: (ctx, { order }) =>
     ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
+      await refuseRetailBranches(tx, restaurantId);
       const { before, after } = await arrangeBranches(tx, order);
       if (JSON.stringify(before) !== JSON.stringify(after)) {
         // The order of the restaurant's branches, filed apart from the profile and from each branch (a reorder moves no

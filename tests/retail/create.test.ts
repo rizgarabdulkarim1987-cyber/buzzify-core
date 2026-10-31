@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as menus from '@/server/studio/actions/menus';
 import * as restaurants from '@/server/studio/actions/restaurants';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -123,6 +124,28 @@ describe('creating a RETAIL business', () => {
     const removed = await run(admin, restaurants.deleteBranch, { restaurantId, branchId: main!.id });
     expect(removed).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: RETAIL_BRANCHES_IN_RETAILS } });
     expect(await prisma().branch.count({ where: { restaurantId } })).toBe(2);
+  });
+
+  it('branches of a RETAIL business are not renamed or reordered in Studio either', async () => {
+    const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, RETAIL));
+    const [main, ankawa] = await prisma().branch.findMany({ where: { restaurantId }, orderBy: { sortOrder: 'asc' } });
+    const renamed = await run(admin, restaurants.updateBranch, { restaurantId, branchId: main!.id, version: main!.version, name: 'Renamed' });
+    expect(renamed).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: RETAIL_BRANCHES_IN_RETAILS } });
+    const reordered = await run(admin, restaurants.reorderBranches, { restaurantId, order: [ankawa!.id, main!.id] });
+    expect(reordered).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: RETAIL_BRANCHES_IN_RETAILS } });
+    const after = await prisma().branch.findMany({ where: { restaurantId }, orderBy: { sortOrder: 'asc' } });
+    expect(after.map((b) => b.name)).toEqual(['Main', 'Ankawa']);
+  });
+
+  it('a menu is created only in a FOOD business', async () => {
+    const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, RETAIL));
+    const refused = await run(admin, menus.createMenu, { restaurantId, name: 'Menu', slug: 'retail-menu' });
+    expect(refused).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: menus.MENUS_FOOD_ONLY } });
+    const ph = await pharmacy('Some pharmacy');
+    expect(codeOf(await run(admin, menus.createMenu, { restaurantId: ph.id, name: 'Menu', slug: 'ph-menu' }))).toBe('CONFLICT');
+    const food = await pharmacy('Some cafe', { sector: 'FOOD' });
+    expect(codeOf(await run(admin, menus.createMenu, { restaurantId: food.id, name: 'Menu', slug: 'food-menu' }))).toBe('OK');
+    expect(await prisma().menu.count({ where: { restaurantId: { in: [restaurantId, ph.id] } } })).toBe(0);
   });
 
   it('a FOOD create is unchanged', async () => {
