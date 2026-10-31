@@ -1,6 +1,6 @@
 'use client';
 
-import { ImagePlus, Images, LoaderCircle, RotateCw, Trash2, Upload, X } from 'lucide-react';
+import { Box, ImagePlus, Images, LoaderCircle, RotateCw, Trash2, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Dialog as RadixDialog } from 'radix-ui';
@@ -13,6 +13,7 @@ import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker, type PickedMedia } from '@/studio/media/MediaPicker';
 import { uploadMedia } from '@/studio/media/upload';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Alert } from '@/studio/ui/Alert';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -21,6 +22,7 @@ import { Field } from '@/studio/ui/Field';
 import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
+import { ScenePicker } from '@/studio/workspace/design/ScenePicker';
 import { comparable, draftOf, toSave, type MediaDraft, type ProductDraft } from './draft';
 import { GroupsEditor } from './GroupsEditor';
 import { displayName, newKey, type Names } from './shared';
@@ -89,6 +91,7 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [pickingModel, setPickingModel] = useState(false);
   const [upload, setUpload] = useState<PendingUpload | null>(null);
   // What had focus when the drawer opened (the product's row): Radix gives focus back only to its own trigger, and the
   // drawer is opened from the list, so on close focus goes back here, where the person left off.
@@ -154,6 +157,13 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
     const invalid = body.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
     invalid?.focus();
   }, [failure]);
+
+  // The dish's 3D model is one entry of its media, kept apart from the photos in the editor.
+  const modelEntry = draft?.media.find((entry) => entry.value.kind === 'model');
+  const photoEntries = draft?.media.filter((entry) => entry.value.kind !== 'model') ?? [];
+  const modelsAllowed = product?.models.allowed === true;
+  const setModel = (assetId: string) =>
+    draft && change({ media: [...draft.media.filter((entry) => entry.value.kind !== 'model'), { key: newKey(), value: { kind: 'model', assetId }, thumbUrl: null }] });
 
   const addPicked = (items: PickedMedia[]) =>
     change({
@@ -296,9 +306,9 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                 </Section>
 
                 <Section title={t('content.media.title')} hint={t('content.media.intro')}>
-                  {draft.media.length > 0 && (
+                  {photoEntries.length > 0 && (
                     <ol aria-label={t('content.media.title')} className="flex flex-wrap gap-3">
-                      {draft.media.map((entry, index) => (
+                      {photoEntries.map((entry, index) => (
                         <li key={entry.key} className="flex flex-col items-center gap-1">
                           <div className="relative size-24 overflow-hidden rounded-md border border-line bg-surface">
                             {entry.thumbUrl ? (
@@ -315,7 +325,7 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                             label={t('content.media.remove', { n: index + 1 })}
                             icon={<Trash2 aria-hidden />}
                             size="sm"
-                            onClick={() => change({ media: draft.media.filter((_, at) => at !== index) })}
+                            onClick={() => change({ media: draft.media.filter((item) => item.key !== entry.key) })}
                           />
                         </li>
                       ))}
@@ -403,6 +413,29 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                   )}
                 </Section>
 
+                <Section title={t('content.model.title')} hint={t('content.model.intro')}>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex size-12 items-center justify-center rounded-md border border-line bg-surface text-muted">
+                      <Box aria-hidden className="size-5" strokeWidth={1.5} />
+                    </span>
+                    <p className="text-sm text-text">{modelEntry ? t('content.model.set') : t('content.model.none')}</p>
+                    {modelsAllowed && (
+                      <Button size="sm" onClick={() => setPickingModel(true)}>
+                        {modelEntry ? t('content.model.change') : t('content.model.choose')}
+                      </Button>
+                    )}
+                    {modelEntry && (
+                      <IconButton
+                        label={t('content.model.remove')}
+                        icon={<Trash2 aria-hidden />}
+                        size="sm"
+                        onClick={() => change({ media: draft.media.filter((entry) => entry.value.kind !== 'model') })}
+                      />
+                    )}
+                  </div>
+                  {product && !modelsAllowed && <UpgradeHint feature="immersive.models3d" info={product.models.upgrade} />}
+                </Section>
+
                 <Section title={t('content.tags.heading')} hint={t('content.tags.intro')}>
                   <TagFields
                     values={{ allergens: draft.allergens, dietary: draft.dietary, badges: draft.badges }}
@@ -447,6 +480,19 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
           </footer>
 
           <MediaPicker open={picking} onOpenChange={setPicking} restaurantId={restaurantId} onPick={addPicked} />
+          {product && (
+            <ScenePicker
+              open={pickingModel}
+              onOpenChange={setPickingModel}
+              restaurantId={restaurantId}
+              current={modelEntry?.value.kind === 'model' ? modelEntry.value.assetId : null}
+              stored={modelEntry?.value.kind === 'model' ? modelEntry.value.assetId : null}
+              allowed={modelsAllowed ? ['model'] : []}
+              upgrade={product.models.upgrade}
+              only="model"
+              onPick={(media) => media.kind === 'model' && setModel(media.assetId)}
+            />
+          )}
           <ConfirmDialog
             open={discarding}
             onOpenChange={setDiscarding}

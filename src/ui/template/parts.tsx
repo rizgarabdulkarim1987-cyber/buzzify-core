@@ -8,7 +8,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { HeartIcon, PlusIcon } from '@/ui/Icons';
-import { hasSalesPills, useCountsLabel } from '@/ui/menu/SalesLabels';
+import { hasSalesPills, useCountsLabel, useDropLabel } from '@/ui/menu/SalesLabels';
 import { useTemplate } from './context';
 
 /**
@@ -98,8 +98,10 @@ function SalesTags({ product }: { product: MenuProductView }) {
   const { t } = useApp();
   const sale = useSaleLabel(product);
   const counts = useCountsLabel(product);
+  const drop = useDropLabel(product.dropEndsAt);
   return (
     <>
+      {drop && <span className="tpl-badge tpl-badge-special">{drop}</span>}
       {product.special && <span className="tpl-badge tpl-badge-special">{product.special}</span>}
       {sale && <span className="tpl-badge tpl-badge-sale tabular-nums">{sale}</span>}
       {product.mostOrdered && <span className="tpl-badge tpl-badge-hot">{t('menu.mostOrdered')}</span>}

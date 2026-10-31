@@ -21,6 +21,7 @@ const SWITCHES = [
   ['takeawayEnabled', 'pos.settings.takeaway'],
   ['deliveryEnabled', 'pos.settings.delivery'],
   ['captainApproval', 'pos.settings.captainApproval'],
+  ['loyaltyEnabled', 'pos.settings.loyalty'],
 ] as const;
 
 /** The whole numbers a field holds; anything else goes to the server as it is, which refuses it. */
@@ -50,10 +51,12 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         ...Object.fromEntries(SWITCHES.map(([key]) => [key, values[key] === 'on'])),
         // Guests no longer read this one (a menu's own switch decides), so the screen keeps what is stored.
         complaintsEnabled: settings.complaintsEnabled,
+        loyaltyStampsRequired: whole(values.loyaltyStampsRequired),
+        loyaltyReward: values.loyaltyReward ?? '',
         version: settings.version,
       }),
     {
-      keep: ['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes', 'usdRate', 'invoiceName', 'invoiceAddress', 'invoicePhone', 'invoiceTaxNumber', 'invoiceFooter'],
+      keep: ['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes', 'usdRate', 'invoiceName', 'invoiceAddress', 'invoicePhone', 'invoiceTaxNumber', 'invoiceFooter', 'loyaltyStampsRequired', 'loyaltyReward'],
       onSuccess: () => {
         toast.success(t('pos.settings.saved'));
         router.refresh();
@@ -64,7 +67,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
 
   return (
     <form key={settings.version} {...form.props} className="flex max-w-2xl flex-col gap-6 rounded-[28px] border border-line bg-surface p-6">
-      <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes', 'roundingStep', 'usdRate', 'enabledPaymentMethods']} />
+      <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes', 'roundingStep', 'usdRate', 'enabledPaymentMethods', 'loyaltyStampsRequired', 'loyaltyReward']} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('pos.settings.service')} error={form.fieldError('serviceRatePercent')}>
           <Input name="serviceRatePercent" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('serviceRatePercent') ?? String(settings.serviceRatePercent)} />
@@ -148,6 +151,19 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         {SWITCHES.map(([key, label]) => (
           <Checkbox key={key} name={key} label={t(label)} defaultChecked={settings[key]} />
         ))}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-lg font-bold text-text">{t('pos.settings.loyaltyTitle')}</legend>
+        <p className="text-sm text-muted">{t('pos.settings.loyaltyHint')}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('pos.settings.loyaltyStamps')} error={form.fieldError('loyaltyStampsRequired')}>
+            <Input name="loyaltyStampsRequired" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('loyaltyStampsRequired') ?? String(settings.loyaltyStampsRequired)} />
+          </Field>
+          <Field label={t('pos.settings.loyaltyReward')} error={form.fieldError('loyaltyReward')}>
+            <Input name="loyaltyReward" maxLength={80} defaultValue={form.value('loyaltyReward') ?? settings.loyaltyReward} />
+          </Field>
+        </div>
       </fieldset>
 
       <Button type="submit" pending={form.pending} className="self-start">

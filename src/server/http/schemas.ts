@@ -64,6 +64,9 @@ export const eventsRequestSchema = z.object({
     .max(20),
 });
 
+/** The stamp card a guest's phone keeps for a restaurant, sent with an order; only its hash is stored. `redeem` asks for the reward of a full card. */
+export const orderCard = z.strictObject({ token: z.string().min(16).max(64).regex(/^[A-Za-z0-9_-]+$/), redeem: z.boolean().default(false) });
+
 /** A guest's QR order. Strict: a price, a total or any field not listed here is refused, never ignored. */
 export const qrOrderSchema = z.strictObject({
   table: z.number().int().min(1).max(999),
@@ -84,6 +87,37 @@ export const qrOrderSchema = z.strictObject({
     bundles: z.array(z.strictObject({ bundleId: id, quantity: z.number().int().min(1).max(MAX_QUANTITY) })).max(10).default([]),
   }),
   note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+  card: orderCard.optional(),
+});
+
+/** The secret a guest's phone keeps for a table's basket; only its hash is stored. */
+export const basketToken = z.string().min(16).max(64).regex(/^[A-Za-z0-9_-]+$/);
+
+/** A guest replacing their own part of the table basket. Strict, like the QR order: no price, no total. */
+export const basketPartSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  token: basketToken,
+  name: z.string().trim().max(24).default(''),
+  lines: z
+    .array(
+      z.strictObject({
+        productId: id,
+        variantId: id.nullable().default(null),
+        optionIds: z.array(id).max(20).default([]),
+        quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity),
+        note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+      }),
+    )
+    .max(QR_LIMITS.maxLines),
+});
+
+/** A guest sending the whole table's basket. */
+export const basketSendSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  token: basketToken,
+  locale,
+  note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+  card: orderCard.optional(),
 });
 
 /** A guest's complaint. Strict; `website` is the honeypot, a field no person sees and so one that stays empty. */

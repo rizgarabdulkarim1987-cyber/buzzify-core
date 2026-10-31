@@ -63,6 +63,7 @@ const sceneMedia: z.ZodType<SceneMedia> = z.discriminatedUnion('kind', [
     poster: z.object({ url: mediaUrl, srcset, placeholder }),
   }),
   z.object({ kind: z.literal('lottie'), assetId, url: mediaUrl, width: z.number().positive(), height: z.number().positive() }),
+  z.object({ kind: z.literal('image'), assetId, url: mediaUrl, width: z.number().positive(), height: z.number().positive(), srcset, placeholder }),
 ]);
 
 export const menuDesignSchema: z.ZodType<MenuDesign> = z.object({

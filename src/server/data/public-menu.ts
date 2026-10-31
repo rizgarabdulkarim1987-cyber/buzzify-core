@@ -1,11 +1,14 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
+import { whatsappDigits } from '@/server/domain/whatsapp';
 import { productRuns, type LifecycleView } from '@/server/domain/billing/subscriptions';
 import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
 import { cachedLiveOverlay, cachedPlans, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
+import { applyDrops } from '@/server/domain/drops';
+import { guestSeason } from '@/server/domain/seasons';
 import { loadOverlay } from './live';
 import { entitlementsOf, readPlansSetting } from './plans';
 import { getPrisma } from './prisma';
@@ -69,7 +72,7 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
  * snapshot itself is not changed, so a plan never touches a revision or its hash.
  */
 export function tenantInfo(
-  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; dishCountsEnabled?: boolean; about?: { titles: unknown } | null },
+  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; dishCountsEnabled?: boolean; seasonEffect?: string | null; whatsapp?: string; about?: { titles: unknown } | null },
   revisionId: string,
   snapshot: MenuSnapshot,
   entitlements: Entitlements,
@@ -86,7 +89,9 @@ export function tenantInfo(
       wheel: (menu.wheelEnabled ?? false) && features.wheel,
       dishCounts: (menu.dishCountsEnabled ?? false) && features.dishCounts,
       aboutTitle: aboutTitleOf(menu.about?.titles),
+      ...(guestSeason(menu.seasonEffect, features.seasonalParticles) ? { season: guestSeason(menu.seasonEffect, features.seasonalParticles)! } : {}),
     },
+    ...(features.whatsapp && whatsappDigits(menu.whatsapp) ? { whatsapp: whatsappDigits(menu.whatsapp)! } : {}),
     revisionId,
     slug: menu.slug,
     name: settings.displayName,
@@ -129,9 +134,10 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           aboutEnabled: true,
           wheelEnabled: true,
           dishCountsEnabled: true,
+          seasonEffect: true,
           about: { select: { titles: true } },
           liveRevisionId: true,
-          restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true } },
+          restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true, whatsapp: true } },
         },
       },
     },
@@ -148,7 +154,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
 
   // The plan is read live, like the statuses: a change of plan reaches guests without a publish.
   const plans = await livePlans(prisma);
-  const tenant = tenantInfo(menu, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
+  const tenant = tenantInfo({ ...menu, whatsapp: menu.restaurant.whatsapp }, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
   return menu.slug === slug ? { kind: 'live', tenant } : { kind: 'redirect', slug: menu.slug, tenant };
 }
 
@@ -203,5 +209,6 @@ export async function getCatalog(tenant: TenantInfo): Promise<Catalog> {
     cachedRevisionSnapshot(menuId, revisionId, () => loadRevisionSnapshot(getPrisma(), menuId, revisionId)),
     cachedLiveOverlay(menuId, () => loadOverlay(menuDb(getPrisma(), menuId), menuId)),
   ]);
-  return servedCatalog(toCatalog(menuId, snapshot, overlay), tenant.features);
+  // A limited drop is laid over the overlay for this very moment, so its edges are exact whatever the cache holds.
+  return servedCatalog(toCatalog(menuId, snapshot, applyDrops(overlay, new Date(), tenant.features.limitedDrops)), tenant.features);
 }

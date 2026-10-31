@@ -14,6 +14,10 @@ import { CloseIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { ProductStage } from '@/ui/stage/ProductStage';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
+import { DishModel } from './DishModel';
+import { ShareDish } from './ShareDish';
+import { DrinkMatch } from './DrinkMatch';
+import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
 import { UpgradeOffers } from './UpgradeOffers';
 import { hasSalesPills, SalePrice, SalesFacts, SalesPills } from '@/ui/menu/SalesLabels';
@@ -107,15 +111,17 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
             className="aspect-[16/10] w-full"
           />
         ) : (
-          <ProductVisual
-            media={product.media}
-            name={product.name}
-            slug={`${product.slug}-detail`}
-            priority
-            placeholder
-            sizes="(min-width: 640px) 576px, 100vw"
-            className="aspect-[16/10] w-full"
-          />
+          <LivingPhoto>
+            <ProductVisual
+              media={product.media}
+              name={product.name}
+              slug={`${product.slug}-detail`}
+              priority
+              placeholder
+              sizes="(min-width: 640px) 576px, 100vw"
+              className="aspect-[16/10] w-full"
+            />
+          </LivingPhoto>
         )}
         {mode === 'sheet' && (
           <button
@@ -194,6 +200,10 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         ))}
 
         {orderable && <UpgradeOffers productId={product.id} offers={data?.upgrades ?? []} onAccept={accept} />}
+
+        <DishModel product={product} />
+        <ShareDish slug={product.slug} name={product.name} />
+        <DrinkMatch product={product} onOpen={onSwitch} />
 
         {orderable && (
           <PairingList

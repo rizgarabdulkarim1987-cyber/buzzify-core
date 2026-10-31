@@ -6,6 +6,7 @@ import { qualifiesFor3D } from '@/lib/stage';
 import type { MenuDesign, VisualMode } from '@/lib/templates/types';
 import { probeEnvironment } from '@/ui/stage/device';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { ImageScene } from './media/ImageScene';
 import { VideoScene } from './media/VideoScene';
 import { ScenePoster } from './posters';
 import { createSceneSignal, isInteractiveTarget, scenePlan, sceneSource, scrollProgress, type SceneEnvironment, type ScenePlan } from './signal';
@@ -39,7 +40,7 @@ const readSaveData = () => Boolean((navigator as Navigator & { connection?: { sa
 const noSaveData = () => false;
 
 /** The visual mode a plan amounts to, for the layer's class and the motion poster's CSS. */
-const MODE_OF: Record<ScenePlan, VisualMode> = { poster: 'static', videoStill: 'static', motion: 'motion', video: 'motion', lottie: 'motion', '3d': '3d', model: '3d' };
+const MODE_OF: Record<ScenePlan, VisualMode> = { poster: 'static', videoStill: 'static', motion: 'motion', video: 'motion', lottie: 'motion', image: 'static', '3d': '3d', model: '3d' };
 
 /**
  * A template menu's background (spec 6): the preset's static poster, painted with the page; its motion version once the
@@ -240,6 +241,7 @@ export function SceneLayer({ design, paused, categoryIndex }: { design: MenuDesi
       {(plan === 'video' || plan === 'videoStill') && media?.kind === 'video' && (
         <VideoScene media={media} play={plan === 'video' && idle} paused={paused} ambient={scene.ambient} speed={scene.speed} onReady={markReady} onFail={fail} />
       )}
+      {plan === 'image' && media?.kind === 'image' && <ImageScene media={media} onReady={markReady} onFail={fail} />}
       {plan === 'lottie' && idle && media?.kind === 'lottie' && (
         <SceneBoundary key={source} onError={fail}>
           <LottieScene media={media} signal={signal} paused={paused} ambient={scene.ambient} scroll={scene.scroll} speed={scene.speed} onReady={markReady} onFail={fail} />

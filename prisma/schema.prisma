@@ -123,6 +123,8 @@ model Restaurant {
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
   posBillCalls          PosBillCall[]
+  posLoyaltyCards       PosLoyaltyCard[]
+  posLoyaltyStamps      PosLoyaltyStamp[]
   posDeliveryZones      PosDeliveryZone[]
   posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
@@ -280,6 +282,8 @@ model Menu {
   wheelEnabled        Boolean       @default(false)
   /// Whether each dish card shows its order and view counts; read live like the switches above, and shown only when the plan holds menu.dishCounts.
   dishCountsEnabled   Boolean       @default(false)
+  /// The seasonal particle effect drawn over the guest menu (src/server/domain/seasons.ts); null for none. Read live; shown only when the plan holds design.seasonalParticles.
+  seasonEffect        String?
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -299,6 +303,8 @@ model Menu {
   intro           MenuIntro?
   about           MenuAbout?
   aboutOffers     AboutOffer[]
+  stories         MenuStory[]
+  basketParts     TableBasketPart[]
   wheel           MenuWheel?
   wheelSlices     WheelSlice[]
   wheelSpins      WheelSpin[]
@@ -436,6 +442,9 @@ model Product {
   isHidden           Boolean   @default(false)
   stockCount         Int?
   lowStockThreshold  Int?
+  /// A limited drop (plan feature `selling.limitedDrops`): the dish is on the menu only from `dropStartsAt` to `dropEndsAt`. Both or neither. Live, not in the snapshot.
+  dropStartsAt       DateTime?
+  dropEndsAt         DateTime?
   dayparts           Daypart[]
   hideOutsideDaypart Boolean   @default(false)
   slot               String?
@@ -652,6 +661,8 @@ model Occasion {
   endsOn       String
   /// { en: { name }, ar: ..., ckb: ... }
   translations Json
+  /// RAMADAN, NEWROZ or EID tints the menu while the occasion is live (plan feature `guest.occasionMoods`); null is none.
+  mood         String?
   isActive     Boolean        @default(true)
   sortOrder    Int            @default(0)
   version      Int            @default(1)
@@ -1378,6 +1389,10 @@ model PosSettings {
   requireApproval       Boolean            @default(true)
   /// A guest order waits for a captain's approval before the cashier may take it.
   captainApproval       Boolean            @default(false)
+  /// The stamp card (plan feature `loyalty.stampCard`): on or off, stamps for a full card, and what the reward is.
+  loyaltyEnabled        Boolean            @default(false)
+  loyaltyStampsRequired Int                @default(8)
+  loyaltyReward         String             @default("")
   /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
   roundingStep          Int                @default(0)
   /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
@@ -1568,6 +1583,8 @@ model PosBillCall {
   restaurantId   String
   tableId        String
   tableNumber    Int
+  /// What the guest asked for: `BILL` (the bill) or `WAITER` (a waiter at the table).
+  kind           String     @default("BILL")
   createdAt      DateTime   @default(now())
   seenAt         DateTime?
   /// Plain id (no relation): the person who marked it seen.
@@ -1577,6 +1594,35 @@ model PosBillCall {
 
   @@index([restaurantId, seenAt])
   @@index([tableId, createdAt])
+}
+
+/// A guest's stamp card (plan feature `loyalty.stampCard`): one per restaurant and phone token, which is stored only as its hash.
+/// `stamps` is what the card holds now (earned minus spent).
+model PosLoyaltyCard {
+  id           String     @id @default(cuid())
+  restaurantId String
+  cardKey      String
+  stamps       Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, cardKey])
+}
+
+/// One stamp earned, or a reward spent, by one paid order on one card: the unique key makes each happen once per order.
+model PosLoyaltyStamp {
+  id           String     @id @default(cuid())
+  restaurantId String
+  cardKey      String
+  orderId      String
+  /// `EARN` or `SPEND`.
+  kind         String
+  amount       Int
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, orderId, cardKey, kind])
 }
 
 /// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
@@ -1878,6 +1924,10 @@ model PosCustomerOrder {
   decidedByUserId         String?
   /// True when placed while captain approval was on: the cashier may not accept it until a captain approves.
   requiresCaptain         Boolean                @default(false)
+  /// SHA-256 of the stamp-card token the guest's phone sent with the request; null when it sent none.
+  cardKey                 String?
+  /// The guest asked for the reward of a full card with this request.
+  redeemReward            Boolean                @default(false)
   captainApprovedAt       DateTime?
   /// Plain id (no relation): the captain, manager or owner who approved it.
   captainApprovedByUserId String?
@@ -4184,6 +4234,47 @@ model MenuAbout {
   updatedAt       DateTime @updatedAt
 
   menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// A restaurant story: one library picture with a caption, shown in a rail at the top of the menu until it ends
+/// (plan feature `guest.stories`). Read live by the guest pages, so no publish is needed.
+model MenuStory {
+  id        String   @id @default(cuid())
+  menuId    String
+  /// A library picture (MediaAsset of kind IMAGE); a plain id, so removing the file never blocks the row.
+  assetId   String
+  /// A dish of this menu the story opens; a plain id, dropped on read when the dish is gone.
+  productId String?
+  /// { en?, ar?, ckb? }
+  captions  Json     @default("{}")
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, createdAt])
+}
+/// One guest's part of a table's shared basket (project 5, plan feature `ordering.tableBasket`): the dishes they added from
+/// their own phone. The guests of a table each own one row; one of them sends every live row as a single order.
+model TableBasketPart {
+  id           String    @id @default(cuid())
+  menuId       String
+  tableNumber  Int
+  /// SHA-256 of a random token the guest's phone keeps, so the token itself is never stored.
+  ownerKey     String
+  name         String    @default("")
+  /// [{ productId, variantId, optionIds, quantity, note }]
+  lines        Json      @default("[]")
+  updatedAt    DateTime  @default(now())
+  /// The order these lines went into, once sent.
+  sentPublicId String?
+  sentAt       DateTime?
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, tableNumber, ownerKey])
+  @@index([menuId, tableNumber, updatedAt])
 }
 
 /// A unique offer or discount card on the About page. Information only: it moves no price.

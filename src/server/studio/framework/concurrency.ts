@@ -63,7 +63,7 @@ export async function deleteWithVersion(
 }
 
 /** Audit actions that write a row without moving its version (sold out, hidden): they never explain a conflict. */
-const KEEPS_VERSION = ['product.availability_changed', 'option.availability_changed', 'product.stock_changed'];
+const KEEPS_VERSION = ['product.availability_changed', 'option.availability_changed', 'product.stock_changed', 'product.drop_changed'];
 
 /** The catalog's rows. Restoring a revision moves every one of their versions and files one audit row, on the menu. */
 const CATALOG = new Set(['Category', 'Product', 'ProductVariant', 'ModifierGroup', 'ModifierOption']);

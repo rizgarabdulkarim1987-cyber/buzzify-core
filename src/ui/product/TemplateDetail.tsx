@@ -15,6 +15,10 @@ import { ProductStage } from '@/ui/stage/ProductStage';
 import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
+import { DishModel } from './DishModel';
+import { ShareDish } from './ShareDish';
+import { DrinkMatch } from './DrinkMatch';
+import { LivingPhoto } from './LivingPhoto';
 import { PairingList } from './PairingList';
 import { Surface } from './Surface';
 import { UpgradeOffers } from './UpgradeOffers';
@@ -46,7 +50,11 @@ function Media({ product, kind, selectedIds }: { product: MenuProductView; kind:
   if (staged) {
     return <ProductStage product={product} selectedIds={selectedIds} variant="sheet" testId="sheet-stage" posterSlug={`${product.slug}-detail`} className={`${ratio} w-full`} />;
   }
-  return <ProductVisual media={product.media} name={product.name} slug={`${product.slug}-detail`} priority placeholder sizes="(min-width: 768px) 640px, 100vw" className={`${ratio} w-full`} />;
+  return (
+    <LivingPhoto>
+      <ProductVisual media={product.media} name={product.name} slug={`${product.slug}-detail`} priority placeholder sizes="(min-width: 768px) 640px, 100vw" className={`${ratio} w-full`} />
+    </LivingPhoto>
+  );
 }
 
 function Facts({ product }: { product: MenuProductView }) {
@@ -252,6 +260,9 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
           <Header product={product} titleId={titleId} favorite={favorite} onFavorite={onFavorite} />
           <Choices product={product} choice={choice} style={optionStyle} />
           {canOrder && choice.orderable && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
+          <DishModel product={product} />
+          <ShareDish slug={product.slug} name={product.name} />
+          <DrinkMatch product={product} onOpen={onSwitch} />
           <Facts product={product} />
         </div>
       </div>
@@ -318,6 +329,7 @@ function Steps({ props, close }: { props: TemplateDetailProps; close: () => void
             </>
           )}
           {canOrder && choice.orderable && onSummary && <Suggestions product={product} choice={choice} onSwitch={onSwitch} />}
+          {(onSummary || total === 0) && <DrinkMatch product={product} onOpen={onSwitch} />}
           <Facts product={product} />
         </div>
       </div>

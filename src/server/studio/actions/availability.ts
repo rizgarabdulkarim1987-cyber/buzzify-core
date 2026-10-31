@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
-import { setOptionAvailability, setProductAvailability, setProductStock } from '@/server/studio/services/availability';
+import { setOptionAvailability, setProductAvailability, setProductDrop, setProductStock } from '@/server/studio/services/availability';
 import { idField } from '@/server/studio/services/content';
 
 /**
@@ -30,6 +30,20 @@ export const setStock = defineAction({
   }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => setProductStock(ctx, input),
+});
+
+const instant = z.iso.datetime({ offset: true }).transform((text) => new Date(text));
+
+/** A limited drop's window, or both null to take it away. Setting one needs the plan feature, checked in the service. */
+export const setDrop = defineAction({
+  name: 'availability.setDrop',
+  permission: 'content.availability',
+  input: z
+    .object({ menuId: idField, productId: idField, startsAt: instant.nullable(), endsAt: instant.nullable() })
+    .refine((input) => (input.startsAt === null) === (input.endsAt === null), { message: 'Choose when the drop starts and ends', path: ['endsAt'] })
+    .refine((input) => input.startsAt === null || input.endsAt === null || input.endsAt > input.startsAt, { message: 'The drop must end after it starts', path: ['endsAt'] }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => setProductDrop(ctx, input),
 });
 
 export const setOption = defineAction({

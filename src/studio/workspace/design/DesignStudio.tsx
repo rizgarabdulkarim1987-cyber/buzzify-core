@@ -4,7 +4,7 @@ import { ArrowLeft, Copy, ExternalLink, RotateCcw, Save, SlidersHorizontal, Tras
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { applyDesign, deleteDesign, resetDesign, saveDesign, setPoweredBy, updateDesign } from '@/app/studio/_actions/design';
+import { applyDesign, deleteDesign, resetDesign, saveDesign, setPoweredBy, setSeasonEffect, updateDesign } from '@/app/studio/_actions/design';
 import { LOCALE_NAMES, type Locale } from '@/lib/locale';
 import { TEMPLATES, type DesignOverrides, type TemplateId } from '@/lib/templates';
 import { DEFAULT_FRAMING } from '@/lib/templates/resolve';
@@ -21,7 +21,10 @@ import { Field } from '@/studio/ui/Field';
 import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Switch } from '@/studio/ui/Switch';
+import { SEASON_EFFECTS, type SeasonEffect } from '@/server/domain/seasons';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Customizer, paletteBlocked } from './Customizer';
+import { Segmented } from './controls';
 import { Gallery, isSoon, soonStyleOf, type GallerySelection } from './Gallery';
 
 const DEVICES = {
@@ -124,6 +127,8 @@ export function DesignStudio({
   const [saving, startSaving] = useTransition();
   const [poweredBy, setPoweredByState] = useState(state.showPoweredBy);
   const [poweredByPending, startPoweredBy] = useTransition();
+  const [season, setSeasonState] = useState<SeasonEffect | null>(state.season);
+  const [seasonPending, startSeason] = useTransition();
   const [naming, setNaming] = useState<null | 'menu' | TemplateId>(null);
   const [name, setName] = useState('');
   const [shared, setShared] = useState(false);
@@ -224,6 +229,16 @@ export function DesignStudio({
     return true;
   };
 
+  // The effect is read live by guests, so it saves on its own and needs no publish.
+  const chooseSeason = (next: SeasonEffect | null) =>
+    startSeason(async () => {
+      const result = await setSeasonEffect({ menuId, effect: next });
+      if (!result.ok) return fail(result.error);
+      setSeasonState(next);
+      toast.success(t('design.season.saved'));
+      router.refresh();
+    });
+
   const togglePoweredBy = (show: boolean) =>
     startPoweredBy(async () => {
       const result = await setPoweredBy({ restaurantId: state.restaurantId, show });
@@ -273,7 +288,24 @@ export function DesignStudio({
                 </Button>
               )}
             </div>
-            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} />
+            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} plan={state.plan} />
+            <section aria-labelledby="design-season" className="flex flex-col gap-3 border-t border-line pt-6">
+              <h2 id="design-season" className="text-md font-semibold text-text">
+                {t('design.season.title')}
+              </h2>
+              <p className="text-sm text-muted">{t('design.season.intro')}</p>
+              <div className={cx(seasonPending && 'pointer-events-none opacity-60')}>
+                <Segmented<SeasonEffect | 'none'>
+                  label={t('design.season.title')}
+                  value={season ?? 'none'}
+                  options={[{ value: 'none', label: t('design.season.none') }, ...SEASON_EFFECTS.map((effect) => ({ value: effect, label: t(`design.season.${effect}`) }))]}
+                  onChange={(next) => {
+                    if (next !== (season ?? 'none')) chooseSeason(next === 'none' ? null : next);
+                  }}
+                />
+              </div>
+              {!state.plan.seasonalParticles && <UpgradeHint feature="design.seasonalParticles" info={state.plan.upgrade} />}
+            </section>
             <section aria-labelledby="design-saved" className="flex flex-col gap-3 border-t border-line pt-6">
               <h2 id="design-saved" className="text-md font-semibold text-text">
                 {t('design.custom.title')}

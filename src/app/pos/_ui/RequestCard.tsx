@@ -48,6 +48,8 @@ export function useElapsedText(): ElapsedText {
 export interface BillCallView {
   id: string;
   tableNumber: number;
+  /** `BILL` or `WAITER`. */
+  kind: string;
   createdAt: Date;
 }
 
@@ -69,7 +71,7 @@ export function BillCalls({ calls, now, call, pending }: { calls: BillCallView[]
         {calls.map((bill) => (
           <li key={bill.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2">
             <p className="min-w-0">
-              <span className="block text-lg font-semibold text-text">{t('pos.billCalls.table', { n: formatNumber(bill.tableNumber) })}</span>
+              <span className="block text-lg font-semibold text-text">{t(bill.kind === 'WAITER' ? 'pos.billCalls.tableWaiter' : 'pos.billCalls.table', { n: formatNumber(bill.tableNumber) })}</span>
               <span className="text-sm text-muted">{elapsedLabel(elapsedMinutes(new Date(bill.createdAt).getTime(), now), text, locale)}</span>
             </p>
             <Button variant="primary" size="lg" className="min-h-12 min-w-28" disabled={pending} onClick={() => void call(() => markBillCallSeen({ id: bill.id }))}>
@@ -272,6 +274,12 @@ export function RequestCard({ request, role, catalog, now, call, busy, onReject,
         <Button variant="secondary" size="lg" className="min-h-12 w-full" disabled={busy || request.lines.length >= QR_LIMITS.maxLines} onClick={() => setPicking({ kind: 'add' })}>
           {t('pos.requests.add')}
         </Button>
+      ) : null}
+
+      {request.reward !== null ? (
+        <p className="rounded-md bg-info-wash px-3 py-2 text-sm font-medium text-text" dir="auto">
+          {t('pos.requests.reward', { reward: request.reward })}
+        </p>
       ) : null}
 
       {request.customerNote ? (
