@@ -123,6 +123,7 @@ const en: Messages = {
   'qr.tooMany': 'Too many orders from this table. Wait a minute and try again.',
   'qr.dismiss': 'Done',
   'qr.bill': 'Ask for the bill',
+  'whatsapp.label': 'Chat with us on WhatsApp',
   'qr.waiter': 'Call a waiter',
   'qr.waiterSent': 'A waiter is on the way to your table.',
   'qr.billSent': 'A waiter is on the way with your bill.',

@@ -41,6 +41,8 @@ export interface TenantClientInfo {
   feedback: boolean;
   /** The menu's own page and the wheel: on when the menu switched them on and its plan holds them. */
   extras: { about: boolean; wheel: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
+  /** The digits of the restaurant's WhatsApp number, when its plan shows the link. */
+  whatsapp?: string;
   /** `plain` shows the menu's prices without the currency symbol (the cart keeps it). */
   priceStyle: 'symbol' | 'plain';
 }

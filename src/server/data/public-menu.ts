@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
+import { whatsappDigits } from '@/server/domain/whatsapp';
 import { productRuns, type LifecycleView } from '@/server/domain/billing/subscriptions';
 import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
@@ -69,7 +70,7 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
  * snapshot itself is not changed, so a plan never touches a revision or its hash.
  */
 export function tenantInfo(
-  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; dishCountsEnabled?: boolean; about?: { titles: unknown } | null },
+  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; dishCountsEnabled?: boolean; whatsapp?: string; about?: { titles: unknown } | null },
   revisionId: string,
   snapshot: MenuSnapshot,
   entitlements: Entitlements,
@@ -87,6 +88,7 @@ export function tenantInfo(
       dishCounts: (menu.dishCountsEnabled ?? false) && features.dishCounts,
       aboutTitle: aboutTitleOf(menu.about?.titles),
     },
+    ...(features.whatsapp && whatsappDigits(menu.whatsapp) ? { whatsapp: whatsappDigits(menu.whatsapp)! } : {}),
     revisionId,
     slug: menu.slug,
     name: settings.displayName,
@@ -131,7 +133,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           dishCountsEnabled: true,
           about: { select: { titles: true } },
           liveRevisionId: true,
-          restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true } },
+          restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true, whatsapp: true } },
         },
       },
     },
@@ -148,7 +150,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
 
   // The plan is read live, like the statuses: a change of plan reaches guests without a publish.
   const plans = await livePlans(prisma);
-  const tenant = tenantInfo(menu, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
+  const tenant = tenantInfo({ ...menu, whatsapp: menu.restaurant.whatsapp }, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
   return menu.slug === slug ? { kind: 'live', tenant } : { kind: 'redirect', slug: menu.slug, tenant };
 }
 

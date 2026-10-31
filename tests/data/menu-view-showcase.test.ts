@@ -20,7 +20,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, tableBasket: true, callWaiter: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, intro: true, about: true, wheel: true, dishCounts: true, drinkMatch: true, moodPicker: true, livingPhotos: true, occasionMoods: true, stories: true, models3d: true, ar: true, tableBasket: true, callWaiter: true, whatsapp: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   brand: makeBrand(),
 };
