@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
-import type { ScopedTx } from '@/server/data/tenant-db';
+import { delegates, type ScopedTx } from '@/server/data/tenant-db';
 import { parsePolicy } from '@/server/domain/permissions';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { addPosStaff } from '@/server/pos/staff';
+import { bumpRetailForUser, bumpRetailState } from '@/server/retail/outbox';
 import { sendAfterResponse } from '@/server/studio/auth/auth';
 import { emailField } from '@/server/studio/auth/fields';
 import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
@@ -258,6 +259,8 @@ export const unassignMember = defineAction({
   run: (ctx, { userId }) =>
     ctx.transaction(async (tx) => {
       const { role, revokedInvitations } = await unassign(tx, { restaurantId: restaurantOf(ctx), userId, now: new Date() });
+      // An owner leaving a retail shop may change its snapshot's owner. The membership is gone, so the shop is named.
+      if (role === 'OWNER') await bumpRetailState(delegates(tx), restaurantOf(ctx));
       ctx.audit({
         action: 'membership.removed',
         entityType: 'User',
@@ -281,6 +284,8 @@ export const deactivateUser = defineAction({
   run: (ctx, { userId }) =>
     ctx.transaction(async (tx) => {
       const { revokedInvitations } = await deactivatePerson(tx, { actor: ctx.actor, userId, now: new Date() });
+      // A deactivated owner is no longer a retail shop's snapshot owner.
+      await bumpRetailForUser(delegates(tx), userId);
       ctx.audit({
         action: 'user.deactivated',
         entityType: 'User',
@@ -301,6 +306,9 @@ export const deleteUser = defineAction({
   target: () => PLATFORM,
   run: (ctx, { userId }) =>
     ctx.transaction(async (tx) => {
+      // Before the delete, while the memberships it cascades to still say which retail shops the person owns. Only a
+      // deactivated account is deleted, which no snapshot names any more, so this resends equal content at worst.
+      await bumpRetailForUser(delegates(tx), userId);
       const { email } = await deletePerson(tx, { actor: ctx.actor, userId });
       ctx.audit({ action: 'user.deleted', entityType: 'User', entityId: userId, changes: { email: { before: email, after: null } } });
       return { deleted: true as const };
@@ -315,6 +323,8 @@ export const reactivateUser = defineAction({
   run: (ctx, { userId }) =>
     ctx.transaction(async (tx) => {
       await reactivatePerson(tx, { userId });
+      // Back on, an earlier owner is a retail shop's snapshot owner again.
+      await bumpRetailForUser(delegates(tx), userId);
       ctx.audit({ action: 'user.reactivated', entityType: 'User', entityId: userId, changes: { active: { before: false, after: true } } });
       return { reactivated: true as const };
     }),
@@ -328,6 +338,7 @@ export const changeUserEmail = defineAction({
   run: (ctx, { userId, email }) =>
     ctx.transaction(async (tx) => {
       const change = await changeEmail(tx, { actor: ctx.actor, userId, email });
+      await bumpRetailForUser(delegates(tx), userId);
       ctx.audit({
         action: 'user.email_changed',
         entityType: 'User',

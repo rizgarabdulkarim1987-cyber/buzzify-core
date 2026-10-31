@@ -727,6 +727,9 @@ const SWEPT: Record<string, Case[]> = {
     c("B's logo, through A", (w) => ({ restaurantId: w.a.restaurantId, version: 1, name: 'Shared Alpha Kitchen', type: 'RESTAURANT', logoAssetId: w.b.assetId })),
   ],
   'restaurants.setStatus': [c('B', (w) => ({ restaurantId: w.b.restaurantId, status: 'SUSPENDED' }))],
+  // A linked retail shop's AI switch and resync, in B (B is no retail shop, so it would be not found even with the permission)
+  'retail.setAiIntake': [c("B's AI switch", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, reason: 'Planted' }))],
+  'retail.resync': [c("B's snapshot", (w) => ({ restaurantId: w.b.restaurantId }))],
   'restaurants.delete': [c('B', (w) => ({ restaurantId: w.b.restaurantId, confirmName: w.b.restaurantName }))],
   'restaurants.createBranch': [c('in B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted' }))],
   'restaurants.updateBranch': [

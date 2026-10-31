@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { delegates } from '@/server/data/tenant-db';
 import { pharmacyLimitsSchema } from '@/server/domain/pharmacy/limits';
 import { retailLimitsSchema } from '@/server/domain/retail/limits';
+import { bumpRetailForPlan } from '@/server/retail/outbox';
 import { defineAction } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -53,6 +55,9 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002';
 }
 
+/** What a Retail plan puts in its shops' snapshots for Retails: its English name and its limits (and whether it is on sale, see `deactivate`). */
+const SNAPSHOT_FIELDS = ['name', 'limits', 'active'];
+
 const taken = () => new StudioError('CONFLICT', 'A plan with this code already exists', { code: 'Use another code: this one is taken' });
 
 export const upsert = defineAction({
@@ -76,6 +81,8 @@ export const upsert = defineAction({
             data: { applicationId: APPLICATION, code: input.code, ...data },
             select: { id: true, version: true },
           });
+          // Nothing is subscribed to a new code as a rule; a subscription left on a code whose plan was missing gets its limits now.
+          if (APPLICATION === 'retail') await bumpRetailForPlan(delegates(tx), input.code);
           ctx.audit({
             action: 'app_plan.created',
             entityType: 'AppPlan',
@@ -109,12 +116,13 @@ export const upsert = defineAction({
       // Nothing to write, and nothing moved since: no new version. A stale version still goes through the check below.
       if (Object.keys(changes).length === 0 && existing.version === input.version) return { id: existing.id, version: existing.version };
 
-      // Seam for Retail's snapshot (Task 4): a retail plan's limit or name change is queued for the linked shops here.
       await updateWithVersion(
         tx.appPlan,
         { id: existing.id, version: input.version, data: data as Prisma.AppPlanUpdateInput, entityType: 'AppPlan' },
         tx,
       );
+      // Every linked shop on a Retail plan carries its name and limits: a change to them is queued for each, in this transaction.
+      if (APPLICATION === 'retail' && SNAPSHOT_FIELDS.some((field) => field in changes)) await bumpRetailForPlan(delegates(tx), input.code);
       if (Object.keys(changes).length > 0) {
         ctx.audit({ action: 'app_plan.updated', entityType: 'AppPlan', entityId: existing.id, changes });
       }
@@ -137,6 +145,8 @@ export const deactivate = defineAction({
       if (!existing.active && existing.version === input.version) return { id: existing.id, version: existing.version };
       // Taken off sale only: subscriptions already on the plan keep it and its limits.
       await updateWithVersion(tx.appPlan, { id: existing.id, version: input.version, data: { active: false }, entityType: 'AppPlan' }, tx);
+      // Taking a Retail plan off sale changes what its shops may buy: their snapshots are queued again (carry-over from B3).
+      if (input.applicationId === 'retail' && existing.active) await bumpRetailForPlan(delegates(tx), input.code);
       if (existing.active) {
         ctx.audit({ action: 'app_plan.deactivated', entityType: 'AppPlan', entityId: existing.id, changes: { active: { before: true, after: false } } });
       }

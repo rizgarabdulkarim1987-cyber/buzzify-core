@@ -5,6 +5,7 @@ import { defineAction, type ActionContext } from '@/server/studio/framework/acti
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
 import { provisionPharmacy } from '@/server/pharmacy/provision';
+import { bumpRetailState, kickAfterCommit } from '@/server/retail/outbox';
 import { provisionRetail } from '@/server/retail/provision';
 import { checkCreation } from '@/server/domain/pharmacy/limits';
 import { BUSINESS_SECTORS, PH_CURRENCIES, RETAIL_BRANCH_NAME_MAX } from '@/server/domain/restaurant-profile';
@@ -214,6 +215,8 @@ export const setRestaurantStatus = defineAction({
 
       // The status is not a field of the profile form, so it does not move the profile's version.
       await tx.restaurant.update({ where: { id: restaurantId }, data: { status } });
+      // A retail shop's status is in its snapshot for Retails (suspending it there too); a no-op for other businesses.
+      if ((await bumpRetailState(delegates(tx), restaurantId)) !== null) kickAfterCommit(ctx.afterCommit, restaurantId);
       // Filed apart from the profile, whose version this does not move, so a refused profile save names who last edited
       // the profile rather than who last changed the status.
       ctx.audit({

@@ -11,6 +11,7 @@ import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import { expireMenusAfterCommit } from '@/server/studio/services/restaurants';
+import { bumpRetailState, kickAfterCommit } from '@/server/retail/outbox';
 
 /**
  * Billing (docs/superpowers/plans/2026-10-22-business-core-in-menu.md, ported from Business Core's plans, subscriptions
@@ -197,6 +198,15 @@ export async function setPrices(tx: ScopedTx, work: BillingWork, input: z.infer<
 
 // Subscriptions -------------------------------------------------------------------------------------------------------
 
+/**
+ * A `retail` subscription is part of its business's snapshot for Retails: each change to one queues the snapshot on the
+ * same transaction (so a refused change queues nothing) and asks for a delivery once it commits. Other products' rows do nothing.
+ */
+async function queueRetail(tx: ScopedTx, work: BillingWork, sub: { applicationId: string; restaurantId: string }): Promise<void> {
+  if (sub.applicationId !== 'retail') return;
+  if ((await bumpRetailState(delegates(tx), sub.restaurantId)) !== null) kickAfterCommit(work.afterCommit, sub.restaurantId);
+}
+
 /** The plan price for a currency and period, or `INVALID` on `planCode`. */
 async function planPrice(tx: ScopedTx, application: string, code: string, currency: (typeof CURRENCIES)[number], period: (typeof PERIODS)[number]) {
   const price = await tx.planPrice.findUnique({
@@ -290,6 +300,7 @@ export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer
     if (isUniqueViolation(error)) throw new StudioError('CONFLICT', SECOND_LIVE);
     throw error;
   }
+  await queueRetail(tx, work, input);
 
   await tx.subscriptionEvent.create({
     data: {
@@ -335,6 +346,7 @@ export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer
   const priceMinor = input.keepPrice ? sub.priceMinor : await planPrice(tx, sub.applicationId, input.planCode, sub.currency, sub.period);
 
   await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { planCode: input.planCode, priceMinor }, entityType: 'Subscription' }, tx);
+  await queueRetail(tx, work, sub);
   await tx.subscriptionEvent.create({
     data: {
       subscriptionId: sub.id,
@@ -389,6 +401,7 @@ export async function cancel(tx: ScopedTx, work: BillingWork, input: z.infer<typ
   if (effectiveStatus(sub, now) === 'EXPIRED') throw new StudioError('CONFLICT', 'This subscription has already expired');
 
   await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { status: 'CANCELLED', cancelledAt: now }, entityType: 'Subscription' }, tx);
+  await queueRetail(tx, work, sub);
   await tx.subscriptionEvent.create({
     data: { subscriptionId: sub.id, type: 'CANCELLED', fromStatus: sub.status, toStatus: 'CANCELLED', data: { reason: input.reason }, actorId: work.actor.userId, occurredAt: now },
   });
@@ -429,6 +442,7 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
     if (isUniqueViolation(error)) throw new StudioError('CONFLICT', SECOND_LIVE);
     throw error;
   }
+  await queueRetail(tx, work, sub);
   await tx.subscriptionEvent.create({
     data: { subscriptionId: sub.id, type: 'REACTIVATED', fromStatus: 'CANCELLED', toStatus: to, data: {}, actorId: work.actor.userId, occurredAt: now },
   });
@@ -536,6 +550,7 @@ export async function recordPayment(tx: ScopedTx, work: BillingWork, input: z.in
     }
     throw error;
   }
+  await queueRetail(tx, work, sub);
 
   let paymentId: string;
   try {

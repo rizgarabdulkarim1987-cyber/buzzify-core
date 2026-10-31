@@ -5,6 +5,7 @@ import { delegates, type AnyDb, type ScopedDb } from '@/server/data/tenant-db';
 import type { MemberRole } from '@/server/domain/permissions';
 import type { InvitedRole } from '@/server/email/templates';
 import { authEnv } from '@/server/env';
+import { bumpRetailState, kickAfterCommit } from '@/server/retail/outbox';
 import { sendAfterResponse } from '@/server/studio/auth/auth';
 import { checkPasswordPolicy, PasswordPolicyError, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, normalizeEmail } from '@/server/studio/auth/users';
@@ -373,6 +374,8 @@ export async function acceptInvitation(
     createdAccount = true;
   }
 
+  /** The retail shop whose snapshot this acceptance queued (it now has its owner), to deliver once it has committed. */
+  let queuedRetail: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.invitation.updateMany({
@@ -393,10 +396,13 @@ export async function acceptInvitation(
         if (!held) {
           await tx.membership.create({ data: { userId, restaurantId, role: row.role } });
           changes.role = { before: null, after: row.role };
+          // A new owner of a retail shop is its snapshot's owner (or may be): a no-op for other businesses and roles.
+          if (row.role === 'OWNER' && (await bumpRetailState(tx, restaurantId)) !== null) queuedRetail = restaurantId;
         } else if (held.role !== 'OWNER' && row.role === 'OWNER') {
           // A designer becomes an owner. Nothing here ever takes a role away.
           await tx.membership.update({ where: { id: held.id }, data: { role: 'OWNER' } });
           changes.role = { before: held.role, after: 'OWNER' };
+          if ((await bumpRetailState(tx, restaurantId)) !== null) queuedRetail = restaurantId;
         }
       }
       if (row.asSuperAdmin) {
@@ -422,5 +428,7 @@ export async function acceptInvitation(
     if (createdAccount) await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     throw error;
   }
+  // The transaction has committed: the first delivery can go now.
+  if (queuedRetail !== null) kickAfterCommit((fn) => fn(), queuedRetail);
   return { userId, email: row.email, createdAccount };
 }
