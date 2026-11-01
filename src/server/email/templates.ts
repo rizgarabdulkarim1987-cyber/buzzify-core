@@ -3,7 +3,7 @@ import type { Translate } from '@/lib/i18n';
 import type { Email } from '@/server/email/send';
 import { getStudioTranslator } from '@/studio/messages';
 
-export type EmailTemplate = 'invite' | 'reset' | 'changeEmailConfirm' | 'verifyNewEmail' | 'emailChanged' | 'passwordChanged';
+export type EmailTemplate = 'invite' | 'reset' | 'retailIdentity' | 'changeEmailConfirm' | 'verifyNewEmail' | 'emailChanged' | 'passwordChanged';
 
 /** What accepting an invitation makes the person: a role in a restaurant, Super Admin, or staff with no restaurant yet. */
 export type InvitedRole = 'OWNER' | 'DESIGNER' | 'SUPER_ADMIN' | 'DESIGNER_STAFF';
@@ -24,7 +24,7 @@ function roleName(t: Translate, role: unknown): string | undefined {
 export interface EmailParams {
   /** The recipient's name. The greeting is plain without it. */
   name?: string;
-  /** The link the message is about: required by `invite`, `reset`, `changeEmailConfirm` and `verifyNewEmail`. */
+  /** The link the message is about: required by `invite`, `reset`, `retailIdentity`, `changeEmailConfirm` and `verifyNewEmail`. */
   url?: string;
   /** Who sent the invitation. */
   inviter?: string;
@@ -110,6 +110,14 @@ function build(template: EmailTemplate, t: Translate, p: BuildParams, isolate: (
         paragraphs: [greeting, t('email.reset.intro')],
         action: { label: t('email.reset.action'), url: webAddress(template, p.url) },
         notes: [t('email.reset.expiry'), t('email.reset.ignore')],
+      };
+    // The first password of an account Buzzify Retail asked for (src/server/retail/identities.ts): a reset link, worded as a start.
+    case 'retailIdentity':
+      return {
+        subject,
+        paragraphs: [greeting, t('email.retailIdentity.intro')],
+        action: { label: t('email.retailIdentity.action'), url: webAddress(template, p.url) },
+        notes: [t('email.retailIdentity.expiry'), t('email.retailIdentity.ignore')],
       };
     case 'changeEmailConfirm':
       return {

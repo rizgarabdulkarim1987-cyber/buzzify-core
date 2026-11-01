@@ -405,6 +405,10 @@ export async function acceptInvitation(
           if ((await bumpRetailState(tx, restaurantId)) !== null) queuedRetail = restaurantId;
         }
       }
+      // An account Buzzify Retail asked for becomes an ordinary Studio account once its person accepts a Studio role.
+      if (addressee && (await tx.user.updateMany({ where: { id: userId, identityOnly: true }, data: { identityOnly: false } })).count === 1) {
+        changes.identityOnly = { before: true, after: false };
+      }
       if (row.asSuperAdmin) {
         await tx.user.update({ where: { id: userId }, data: { isSuperAdmin: true } });
         changes.isSuperAdmin = { before: addressee?.isSuperAdmin ?? false, after: true };

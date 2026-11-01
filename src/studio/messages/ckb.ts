@@ -11,6 +11,10 @@ const ckb: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'بازدان بۆ ناوەڕۆک',
+  'retailOnly.title': 'ئەم هەژمارە بۆ Buzzify Retail ـە',
+  'retailOnly.body': 'فرۆشگایەکی Buzzify Retail تۆی زیادکرد بۆ کارمەندەکانی. کارەکەت لە Buzzify Retail ـە: لەوێ بەم هەژمارە بچۆ ژوورەوە. هیچ شتێک لەم ستۆدیۆیە بۆ تۆ دیاری نەکراوە.',
+  'retailOnly.open': 'Buzzify Retail بکەرەوە',
+  'retailOnly.role': 'کارمەندی Buzzify Retail',
   'common.save': 'پاشەکەوتکردن',
   'common.saving': 'پاشەکەوت دەکرێت…',
   'common.cancel': 'هەڵوەشاندنەوە',
@@ -2787,6 +2791,13 @@ const ckb: Messages = {
   'email.reset.action': 'وشەیەکی نهێنی نوێ هەڵبژێرە',
   'email.reset.expiry': 'ئەم بەستەرە تەنیا یەک جار بەکاردێت و دوای کاتژمێرێک بەسەر دەچێت.',
   'email.reset.ignore': 'ئەگەر تۆ ئەمەت نەویستووە، ئەم ئیمەیڵە فەرامۆش بکە؛ وشەی نهێنییەکەت وەک خۆی دەمێنێتەوە.',
+
+  // Email: the first password of an account Buzzify Retail asked for (machine-drafted, to review)
+  'email.retailIdentity.subject': 'وشەی نهێنییەکەت دابنێ بۆ چوونەژوورەوە بۆ Buzzify Retail',
+  'email.retailIdentity.intro': 'فرۆشگایەکی Buzzify Retail ئەم ناونیشانەی زیادکرد بۆ کارمەندەکانی. وشەیەکی نهێنی هەڵبژێرە بۆ چوونەژوورەوە بۆ Buzzify Retail بە هەژماری Buzzify ـەکەت.',
+  'email.retailIdentity.action': 'وشەی نهێنی دابنێ',
+  'email.retailIdentity.expiry': 'ئەم بەستەرە تەنیا یەک جار بەکاردێت و دوای کاتژمێرێک بەسەر دەچێت. دوای ئەوە «وشەی نهێنییەکەت لەبیر چووە؟» لە پەڕەی چوونەژوورەوە بەکاربهێنە.',
+  'email.retailIdentity.ignore': 'ئەگەر لەم فرۆشگایە کار ناکەیت، ئەم ئیمەیڵە فەرامۆش بکە. هیچ وشەیەکی نهێنی دانانرێت تا خۆت یەکێک هەڵنەبژێریت.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'ڕەزامەندی لەسەر گۆڕینی ئیمەیڵەکەت لە Buzzify Core بدە',

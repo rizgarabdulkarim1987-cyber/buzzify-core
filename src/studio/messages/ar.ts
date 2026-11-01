@@ -11,6 +11,10 @@ const ar: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'انتقل إلى المحتوى',
+  'retailOnly.title': 'هذا الحساب مخصّص لـ Buzzify للتجزئة',
+  'retailOnly.body': 'أضافك أحد متاجر Buzzify للتجزئة إلى موظفيه. عملك في Buzzify للتجزئة: سجّل الدخول هناك بهذا الحساب. لا شيء في هذا الاستوديو مُسند إليك.',
+  'retailOnly.open': 'فتح Buzzify للتجزئة',
+  'retailOnly.role': 'موظف في Buzzify للتجزئة',
   'common.save': 'حفظ',
   'common.saving': 'جارٍ الحفظ…',
   'common.cancel': 'إلغاء',
@@ -2814,6 +2818,13 @@ const ar: Messages = {
   'email.reset.action': 'اختيار كلمة مرور جديدة',
   'email.reset.expiry': 'يمكن استخدام هذا الرابط مرة واحدة فقط وتنتهي صلاحيته بعد ساعة واحدة.',
   'email.reset.ignore': 'إذا لم تطلب ذلك، تجاهل هذه الرسالة؛ ستبقى كلمة مرورك كما هي.',
+
+  // Email: the first password of an account Buzzify Retail asked for (machine-drafted, to review)
+  'email.retailIdentity.subject': 'عيّن كلمة المرور للدخول إلى Buzzify للتجزئة',
+  'email.retailIdentity.intro': 'أضاف أحد متاجر Buzzify للتجزئة هذا العنوان إلى موظفيه. اختر كلمة مرور للدخول إلى Buzzify للتجزئة بحسابك في Buzzify.',
+  'email.retailIdentity.action': 'تعيين كلمة المرور',
+  'email.retailIdentity.expiry': 'يمكن استخدام هذا الرابط مرة واحدة فقط وتنتهي صلاحيته بعد ساعة واحدة. بعد ذلك استخدم «نسيت كلمة المرور؟» في صفحة الدخول.',
+  'email.retailIdentity.ignore': 'إذا لم تكن تعمل في هذا المتجر، تجاهل هذه الرسالة. لا تُعيَّن أي كلمة مرور حتى تختارها بنفسك.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'وافق على تغيير بريدك الإلكتروني في Buzzify Core',

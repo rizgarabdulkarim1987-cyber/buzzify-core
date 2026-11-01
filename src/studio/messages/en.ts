@@ -10,6 +10,10 @@ const en: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'Skip to content',
+  'retailOnly.title': 'This account is for Buzzify Retail',
+  'retailOnly.body': 'A Buzzify Retail shop added you to its staff. Your work is in Buzzify Retail: sign in there with this account. Nothing in this Studio is assigned to you.',
+  'retailOnly.open': 'Open Buzzify Retail',
+  'retailOnly.role': 'Buzzify Retail staff',
   'common.save': 'Save',
   'common.saving': 'Saving…',
   'common.cancel': 'Cancel',
@@ -2783,6 +2787,13 @@ const en: Messages = {
   'email.reset.action': 'Choose a new password',
   'email.reset.expiry': 'This link can be used once and expires in 1 hour.',
   'email.reset.ignore': 'If you did not ask for this, ignore this email. Your password stays the same.',
+
+  // Email: the first password of an account Buzzify Retail asked for
+  'email.retailIdentity.subject': 'Set your password to sign in to Buzzify Retail',
+  'email.retailIdentity.intro': 'A Buzzify Retail shop added this address to its staff. Choose a password to sign in to Buzzify Retail with your Buzzify account.',
+  'email.retailIdentity.action': 'Set your password',
+  'email.retailIdentity.expiry': 'This link can be used once and expires in 1 hour. After that, use "Forgot your password?" on the sign-in page.',
+  'email.retailIdentity.ignore': 'If you do not work at this shop, ignore this email. No password is set until you choose one.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'Approve the change of your Buzzify Core email',

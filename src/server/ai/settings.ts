@@ -134,6 +134,25 @@ export async function writeAiSettings(db: AnyDb, input: AiSettingsInput, updated
   return change;
 }
 
+/**
+ * The Anthropic key and model Buzzify Retail should use (`GET /api/retail/v1/ai-config`): the saved Anthropic key,
+ * whatever provider the Studio itself runs, else ANTHROPIC_API_KEY; model = the saved Anthropic `askModel` or null. Never
+ * the OpenAI key. Never logs: a wrong or missing encryption key reads as no saved key, without a word about it.
+ */
+export async function readAnthropicConfig(db: AnyDb): Promise<{ apiKey: string | null; model: string | null }> {
+  const { anthropic } = (await readStored(db)).data;
+  let apiKey: string | null = null;
+  const secret = encryptionKey();
+  if (anthropic.key && secret) {
+    try {
+      apiKey = decryptSecret(anthropic.key.enc, secret) || null;
+    } catch {
+      apiKey = null;
+    }
+  }
+  return { apiKey: apiKey ?? envApiKey('anthropic'), model: anthropic.askModel || null };
+}
+
 // A resolved provider is kept for a short while, so a request does not decrypt and rebuild it; a save clears it here at once
 // (another server instance sees the change within the time below).
 const CACHE_MS = 30_000;

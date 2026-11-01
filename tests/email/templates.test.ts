@@ -3,8 +3,8 @@ import { LOCALES, direction } from '@/lib/locale';
 import { renderEmail, type EmailTemplate } from '@/server/email/templates';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 
-const TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'changeEmailConfirm', 'verifyNewEmail', 'emailChanged', 'passwordChanged'];
-const LINK_TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'changeEmailConfirm', 'verifyNewEmail'];
+const TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'retailIdentity', 'changeEmailConfirm', 'verifyNewEmail', 'emailChanged', 'passwordChanged'];
+const LINK_TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'retailIdentity', 'changeEmailConfirm', 'verifyNewEmail'];
 const URL_WITH_TOKEN = 'https://studio.example.test/studio/invite/abc_DEF-123';
 const PARAMS = {
   name: 'Lina',

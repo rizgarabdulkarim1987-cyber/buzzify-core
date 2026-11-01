@@ -816,6 +816,9 @@ model User {
   appearance          Json?
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt       DateTime?
+  /// Made because Buzzify Retail asked for a staff email (POST /api/retail/v1/identities), not by a Studio invitation:
+  /// with no membership the Studio shows only a page that points to Retail. Accepting a Studio invitation clears it.
+  identityOnly        Boolean              @default(false)
   sessions            Session[]
   accounts            Account[]
   twofactors          TwoFactor[]

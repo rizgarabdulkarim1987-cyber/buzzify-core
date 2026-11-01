@@ -14,8 +14,8 @@ export type HostDecision = { action: 'next' } | { action: 'redirect'; to: string
 const NEXT: HostDecision = { action: 'next' };
 const NOT_FOUND: HostDecision = { action: 'notFound' };
 
-/** Paths that exist only on the Studio host. */
-const STUDIO_ONLY = ['/studio', '/pos', '/pharmacy', '/api/auth', '/api/studio', '/api/pos', '/api/pharmacy', '/api/dev-intake'];
+/** Paths that exist only on the Studio host. `/api/retail` is what Buzzify Retail calls (signed, server to server). */
+const STUDIO_ONLY = ['/studio', '/pos', '/pharmacy', '/api/auth', '/api/studio', '/api/pos', '/api/pharmacy', '/api/dev-intake', '/api/retail'];
 /** What the Studio host serves besides `/`. */
 const STUDIO_SERVES = [...STUDIO_ONLY, '/_next'];
 

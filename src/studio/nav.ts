@@ -65,12 +65,21 @@ export function isOwnerOnly(actor: Actor): boolean {
 }
 
 /**
+ * Whether the person's account exists only for Buzzify Retail (made when a Retail shop added their email): no Studio
+ * role, no Super Admin. The Studio shows them one page that points to Retail, and no working areas.
+ */
+export function isRetailOnly(actor: Actor): boolean {
+  return actor.identityOnly === true && !actor.isSuperAdmin && actor.memberships.length === 0;
+}
+
+/**
  * The navigation a person sees: only what exists for them and what they may use. A Super Admin sees every area; a
- * designer (or staff not yet assigned to a client) sees the working areas, scoped to their restaurants by the pages;
- * an owner sees only their restaurant, or its menu when it has exactly one. `owned` tells the menus of an owner's
- * restaurants; without it an owner's item links to the restaurant.
+ * Retail-only account sees none; a designer (or staff not yet assigned to a client) sees the working areas, scoped to
+ * their restaurants by the pages; an owner sees only their restaurant, or its menu when it has exactly one. `owned`
+ * tells the menus of an owner's restaurants; without it an owner's item links to the restaurant.
  */
 export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = []): NavItem[] {
+  if (isRetailOnly(actor)) return [];
   if (!isOwnerOnly(actor)) {
     return NAV_ITEMS.filter((item) => actor.isSuperAdmin || !SUPER_ADMIN_AREAS.has(item.key)).map((item) => ({ ...item }));
   }

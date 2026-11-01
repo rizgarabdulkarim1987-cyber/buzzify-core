@@ -25,6 +25,11 @@ export const RATE_RULES = {
   'invite:ip': { max: 20, windowSec: 3600 },
   /** Attempts to accept one invitation, from any address: the invitation stands for the account it makes. */
   'invite:token': { max: 10, windowSec: 3600 },
+  /** Signed calls from Buzzify Retail (ai-config, identities), per calling address: Retails' own budget for Studio's calls. */
+  'retail:ip': { max: 120, windowSec: 60 },
+  /** Retails asking for an account for a staff email: it can make an account for any address, so it is held tighter. */
+  'retail-identity:ip': { max: 30, windowSec: 600 },
+  'retail-identity:email': { max: 5, windowSec: 3600 },
 } as const satisfies Record<string, RateRule>;
 
 /** Requests whose address is unknown share one bucket, rather than having no per-address limit at all. */
