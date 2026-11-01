@@ -30,6 +30,17 @@ export const SEND_LIMIT = 40;
 /** Calls at once in a run: 40 calls that each time out at 5 s still end inside the route's minute. */
 const CONCURRENCY = 4;
 
+/** After a CONFIG error (a Studio setting missing or invalid): looked at again this soon, no attempt spent. */
+export const CONFIG_RETRY_MS = 5 * 60_000;
+
+/**
+ * A row failed by Retails' refusal (400, 413, 422) rather than by running out of attempts: sending the same again cannot
+ * succeed, so only a change (a bump) or the admin's Resync tries it again; the reconcile does not.
+ */
+export function failedPermanently(row: { failedAt: Date | null; attempts: number }): boolean {
+  return row.failedAt !== null && row.attempts < MAX_ATTEMPTS;
+}
+
 const BASE_DELAY_MS = 60_000;
 const MAX_DELAY_MS = 3_600_000;
 const JITTER = 0.1;
@@ -86,11 +97,23 @@ async function prepare(prisma: PrismaClient, restaurantId: string, now: Date): P
       // A ready shop still at version 0 (its readiness came without a bump) is first given version 1: Retails refuses 0.
       if ((await ensureRetailVersion(tx, restaurantId)) === null) throw new NotRetailError(restaurantId);
       const built = await buildRetailState(tx, restaurantId);
+      // A link left on a business that is no longer a retail shop is never sent.
+      const business = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } });
+      if (business?.sector !== 'RETAIL') throw new NotRetailError(restaurantId);
       if (!built.ready || built.state.version < 1) {
-        await tx.retailOutbox.updateMany({
-          where: { restaurantId },
-          data: { waitingFor: built.ready ? null : built.waitingFor, leasedUntil: null, nextAttemptAt: new Date(now.getTime() + WAIT_MS) },
-        });
+        // The build holds the link's row lock (FOR SHARE), so a bump waits until this commits and then makes the row due
+        // again itself. The outbox row is locked after the link, in the bump's order, and the waiting write is made only
+        // while the row is still for the version this build read: a newer one stays due now.
+        const link = await tx.retailLink.findUniqueOrThrow({ where: { restaurantId }, select: { stateVersion: true } });
+        const row = await lockRow(tx, restaurantId);
+        if (row && row.dueVersion <= link.stateVersion) {
+          await tx.retailOutbox.update({
+            where: { restaurantId },
+            data: { waitingFor: built.ready ? null : built.waitingFor, leasedUntil: null, nextAttemptAt: new Date(now.getTime() + WAIT_MS) },
+          });
+        } else if (row) {
+          await tx.retailOutbox.update({ where: { restaurantId }, data: { leasedUntil: null } });
+        }
         return { kind: 'waiting' } as const;
       }
       const link = await tx.retailLink.findUniqueOrThrow({ where: { restaurantId }, select: { retailBusinessId: true } });
@@ -168,6 +191,14 @@ async function record(prisma: PrismaClient, restaurantId: string, prepared: Extr
     if (!row) return 'gone';
     if (row.dueVersion > sent) {
       await tx.retailOutbox.update({ where: { restaurantId }, data: { leasedUntil: null } });
+      return 'retry';
+    }
+    // A missing or invalid setting is Studio's, not Retails': it waits for the fix without spending attempts.
+    if (outcome.kind === 'retry' && outcome.code === 'CONFIG') {
+      await tx.retailOutbox.update({
+        where: { restaurantId },
+        data: { lastError: 'CONFIG', nextAttemptAt: new Date(now.getTime() + CONFIG_RETRY_MS), leasedUntil: null, waitingFor: null },
+      });
       return 'retry';
     }
     if (outcome.kind === 'permanent') {

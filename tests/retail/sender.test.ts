@@ -308,9 +308,16 @@ describe('the sender', () => {
     expect(await deliver(client, food.id)).toBe('gone');
     expect(client.calls).toEqual([]);
     expect(await outboxOf(food.id)).toBeNull();
+
+    // A link left on a business that is no longer a retail shop is not sent either.
+    const moved = await readyShop('Moved');
+    await prisma().restaurant.update({ where: { id: moved.id }, data: { sector: 'PHARMACY' } });
+    expect(await deliver(client, moved.id)).toBe('gone');
+    expect(client.calls).toEqual([]);
+    expect(await outboxOf(moved.id)).toBeNull();
   });
 
-  it('a missing setting is a retry with CONFIG', async () => {
+  it('a missing setting is a retry with CONFIG that spends no attempt', async () => {
     const shop = await readyShop('Unset');
     const client = fakeClient({
       provision: () => {
@@ -319,8 +326,44 @@ describe('the sender', () => {
     });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    expect(await deliver(client, shop.id)).toBe('retry');
-    expect(await outboxOf(shop.id)).toMatchObject({ attempts: 1, lastError: 'CONFIG', failedAt: null, leasedUntil: null });
+    const now = soon();
+    for (let i = 0; i < MAX_ATTEMPTS + 2; i += 1) {
+      const row = await outboxOf(shop.id);
+      const at = i === 0 ? now : row!.nextAttemptAt;
+      expect(await deliver(client, shop.id, at)).toBe('retry');
+      const after = (await outboxOf(shop.id))!;
+      expect(after).toMatchObject({ attempts: 0, lastError: 'CONFIG', failedAt: null, leasedUntil: null });
+      expect(after.nextAttemptAt.getTime()).toBeGreaterThan(at.getTime());
+    }
+  });
+
+  it('a bump that makes the shop ready while the waiting write is pending leaves the row due now', async () => {
+    const shop = await readyShop('Racing', { owner: false });
+    const snapshot = await import('@/server/retail/snapshot');
+    const original = snapshot.buildRetailState;
+    let racing: Promise<unknown> | null = null;
+    vi.spyOn(snapshot, 'buildRetailState').mockImplementationOnce(async (tx, id) => {
+      const built = await original(tx, id);
+      // Between the snapshot read and the waiting write: an owner arrives and the change bumps.
+      racing = (async () => {
+        const owner = await createPasswordUser(prisma(), { email: 'late-owner@buzzify.test', name: 'Late', password: GOOD });
+        await prisma().$transaction(async (t) => {
+          await t.membership.create({ data: { restaurantId: shop.id, userId: owner.userId, role: 'OWNER' } });
+          await bumpRetailState(t, shop.id);
+        });
+      })();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return built;
+    });
+    const now = soon();
+    expect(await deliver(fakeClient(), shop.id, now)).toBe('waiting');
+    await racing;
+    const row = (await outboxOf(shop.id))!;
+    expect(row).toMatchObject({ dueVersion: 2, waitingFor: null, attempts: 0, leasedUntil: null });
+    expect(row.nextAttemptAt.getTime()).toBeLessThanOrEqual(now.getTime());
+    const client = fakeClient();
+    expect(await deliver(client, shop.id, now)).toBe('sent');
+    expect(coreProvisionInput.safeParse(client.of('provision')[0]).success).toBe(true);
   });
 
   it('runSender delivers what is due and counts the outcomes', async () => {

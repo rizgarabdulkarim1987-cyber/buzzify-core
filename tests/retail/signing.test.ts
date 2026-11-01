@@ -90,8 +90,8 @@ describe('signing', () => {
     expect(config.callbackUrl).toBe('https://retail.example.com/api/core/v1/handoff/callback');
     expect(config.syncSecret).toBe(SECRET);
     expect(config.callerSecrets).toEqual([OLD]);
-    vi.stubEnv('RETAIL_CALLER_SECRET_PREVIOUS', SECRET);
-    expect(retailConfig().callerSecrets).toEqual([OLD, SECRET]);
+    vi.stubEnv('RETAIL_CALLER_SECRET_PREVIOUS', 'the-caller-secret-before-rotation');
+    expect(retailConfig().callerSecrets).toEqual([OLD, 'the-caller-secret-before-rotation']);
 
     const refusal = (read: () => unknown): RetailConfigError => {
       try {
@@ -109,8 +109,27 @@ describe('signing', () => {
     expect(http.variable).toBe('RETAIL_URL');
     expect(http.message).not.toContain('retail.example.com');
     expect(refusal(() => retailConfig().callbackUrl).variable).toBe('RETAIL_URL');
-    vi.stubEnv('RETAIL_URL', 'not a url');
-    expect(refusal(() => retailConfig().baseUrl).variable).toBe('RETAIL_URL');
+    for (const bad of ['not a url', 'https://retail.example.com/app', 'https://retail.example.com/?a=1', 'https://retail.example.com/#x', 'https://user:pw@retail.example.com', 'ftp://retail.example.com']) {
+      vi.stubEnv('RETAIL_URL', bad);
+      const error = refusal(() => retailConfig().baseUrl);
+      expect(error.variable).toBe('RETAIL_URL');
+      expect(error.message).not.toContain('retail.example.com');
+    }
+    vi.stubEnv('RETAIL_URL', 'https://retail.example.com');
+
+    // The three secrets must differ: each refusal names the variable, never the value.
+    vi.stubEnv('RETAIL_HANDOFF_SECRET', SECRET);
+    expect(refusal(() => retailConfig().handoffSecret).variable).toBe('RETAIL_HANDOFF_SECRET');
+    expect(refusal(() => retailConfig().syncSecret).variable).toBe('RETAIL_SYNC_SECRET');
+    expect(refusal(() => retailConfig().syncSecret).message).not.toContain(SECRET);
+    vi.stubEnv('RETAIL_HANDOFF_SECRET', 'a-handoff-secret-of-enough-length');
+    vi.stubEnv('RETAIL_CALLER_SECRET', SECRET);
+    expect(refusal(() => retailConfig().callerSecrets).variable).toBe('RETAIL_CALLER_SECRET');
+    vi.stubEnv('RETAIL_CALLER_SECRET', OLD);
+    vi.stubEnv('RETAIL_CALLER_SECRET_PREVIOUS', 'a-handoff-secret-of-enough-length');
+    expect(refusal(() => retailConfig().callerSecrets).variable).toBe('RETAIL_CALLER_SECRET_PREVIOUS');
+    vi.stubEnv('RETAIL_CALLER_SECRET_PREVIOUS', 'the-caller-secret-before-rotation');
+    expect(retailConfig().syncSecret).toBe(SECRET);
 
     const short = '123456789012345';
     for (const [variable, read] of [

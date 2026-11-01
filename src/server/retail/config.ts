@@ -33,13 +33,17 @@ const value = (name: string): string | undefined => {
   return v && !PLACEHOLDER.test(v) ? v : undefined;
 };
 
-function secret(name: string, required: boolean): string | undefined {
+const SECRET_NAMES = ['RETAIL_SYNC_SECRET', 'RETAIL_CALLER_SECRET', 'RETAIL_CALLER_SECRET_PREVIOUS', 'RETAIL_HANDOFF_SECRET'] as const;
+
+function secret(name: (typeof SECRET_NAMES)[number], required: boolean): string | undefined {
   const v = value(name);
   if (!v) {
     if (required) throw new RetailConfigError(name);
     return undefined;
   }
   if (v.length < MIN_SECRET_LENGTH) throw new RetailConfigError(name);
+  // One value for two jobs would let the holder of one (say, a leaked handoff key) forge the other: each must differ.
+  if (SECRET_NAMES.some((other) => other !== name && value(other) === v)) throw new RetailConfigError(name);
   return v;
 }
 
@@ -53,9 +57,13 @@ function baseUrl(): string {
     throw new RetailConfigError('RETAIL_URL');
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new RetailConfigError('RETAIL_URL');
+  // An origin only: the paths Studio calls and signs are appended to it, so a path, query, hash or credentials break both.
+  if (url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') {
+    throw new RetailConfigError('RETAIL_URL');
+  }
   // The signed calls carry the shop's owner and plan, and the handoff a sign-in token: never over plain http in production.
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new RetailConfigError('RETAIL_URL');
-  return raw.replace(/\/+$/, '');
+  return url.origin;
 }
 
 export interface RetailConfig {

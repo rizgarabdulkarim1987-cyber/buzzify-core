@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bumpRetailState } from '@/server/retail/outbox';
 import { reconcileOne, runReconcile } from '@/server/retail/reconcile';
-import { claimDue, deliverOne } from '@/server/retail/sender';
+import { claimDue, deliverOne, MAX_ATTEMPTS } from '@/server/retail/sender';
 import { prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
 import { coreProvisionInput, coreStateSchema } from './contract-oracle';
 import { fakeClient, type FakeClient } from './fake-client';
@@ -108,7 +108,7 @@ describe('the reconcile', () => {
     expect(link.reconciledAt?.getTime()).toBe(now.getTime());
   });
 
-  it('a failed or malformed read is an error and leaves the stored reading as it was', async () => {
+  it('a failed or malformed read is an error, keeps the stored reading and moves the shop to the back of the queue', async () => {
     const client = fakeClient({ readState: () => report(1) });
     const shop = await syncedShop('Flaky', client);
     const first = soon();
@@ -122,11 +122,61 @@ describe('the reconcile', () => {
       { kind: 'ok', body: null },
     ] as const) {
       client.answer('readState', () => answer);
-      expect(await reconcileOne(prisma(), client, shop.id, new Date(first.getTime() + 25 * HOUR))).toBe('error');
+      const later = new Date(first.getTime() + 25 * HOUR);
+      expect(await reconcileOne(prisma(), client, shop.id, later)).toBe('error');
       const link = await linkOf(shop.id);
       expect(link).toMatchObject({ remoteVersion: 1, aiUsageHalfUnits: 7, stateVersion: 1 });
-      expect(link.reconciledAt?.getTime()).toBe(first.getTime());
+      expect(link.reconciledAt?.getTime()).toBe(later.getTime());
     }
+  });
+
+  it('shops that keep failing do not keep a healthy one waiting', async () => {
+    const now = soon();
+    for (let i = 0; i < 50; i += 1) {
+      const shop = await prisma().restaurant.create({ data: { name: `Failing ${i}`, sector: 'RETAIL' }, select: { id: true } });
+      await prisma().retailLink.create({ data: { restaurantId: shop.id, retailBusinessId: `rt-${i}`, provisionedAt: new Date(now.getTime() - 48 * HOUR) } });
+    }
+    const healthy = await prisma().restaurant.create({ data: { name: 'Healthy', sector: 'RETAIL' }, select: { id: true } });
+    await prisma().retailLink.create({
+      data: { restaurantId: healthy.id, retailBusinessId: 'rt-healthy', provisionedAt: new Date(now.getTime() - 48 * HOUR), reconciledAt: new Date(now.getTime() - 25 * HOUR) },
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const client = fakeClient({ readState: (id) => (id === healthy.id ? report(0) : { kind: 'retry', code: 'HTTP_503' }) });
+    expect(await runReconcile(prisma(), client, now)).toEqual({ checked: 50, drifted: 0, errors: 50 });
+    expect(client.of('readState')).not.toContain(healthy.id);
+    const next = new Date(now.getTime() + HOUR);
+    expect(await runReconcile(prisma(), client, next)).toEqual({ checked: 1, drifted: 0, errors: 0 });
+    expect((await linkOf(healthy.id)).reconciledAt?.getTime()).toBe(next.getTime());
+  });
+
+  it('a link on a business that is no longer retail is gone: skipped, its queue cleared', async () => {
+    const client = fakeClient({ readState: () => report(1) });
+    const shop = await syncedShop('Moved', client);
+    await bump(shop.id);
+    await prisma().restaurant.update({ where: { id: shop.id }, data: { sector: 'PHARMACY' } });
+    const now = soon();
+    expect(await reconcileOne(prisma(), client, shop.id, now)).toBe('gone');
+    expect(client.calls).toEqual([]);
+    expect(await outboxOf(shop.id)).toBeNull();
+    expect((await linkOf(shop.id)).reconciledAt?.getTime()).toBe(now.getTime());
+  });
+
+  it('a permanent refusal is not re-sent daily; exhausted retries are', async () => {
+    const client = fakeClient({ readState: () => report(1) });
+    const shop = await syncedShop('Refused', client);
+    await prisma().user.update({ where: { id: shop.owner!.userId }, data: { name: 'Renamed' } });
+    await bump(shop.id);
+    await prisma().retailOutbox.update({ where: { restaurantId: shop.id }, data: { failedAt: new Date(), lastError: 'PLAN_LIMIT', attempts: 0 } });
+    expect(await reconcileOne(prisma(), client, shop.id, soon())).toBe('drift');
+    // Still failed, at the same version: only the admin's Resync tries it again.
+    expect(await outboxOf(shop.id)).toMatchObject({ dueVersion: 2, lastError: 'PLAN_LIMIT', attempts: 0 });
+    expect((await outboxOf(shop.id))!.failedAt).not.toBeNull();
+    expect((await linkOf(shop.id)).stateVersion).toBe(2);
+
+    // Twenty failed attempts (Retails was down) are tried again by the reconcile.
+    await prisma().retailOutbox.update({ where: { restaurantId: shop.id }, data: { lastError: 'HTTP_503', attempts: MAX_ATTEMPTS } });
+    expect(await reconcileOne(prisma(), client, shop.id, soon())).toBe('drift');
+    expect(await outboxOf(shop.id)).toMatchObject({ dueVersion: 3, attempts: 0, failedAt: null });
   });
 
   it('a ready shop still at version 0 is queued at version 1', async () => {
