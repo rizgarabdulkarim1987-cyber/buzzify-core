@@ -4,7 +4,7 @@ import { OWNER_FILE, removeRestaurantsNamed, SUPER_ADMIN_FILE, superAdminFile, u
 
 /**
  * A Super Admin's Studio is a hub of closed project spaces (docs/superpowers/specs/2026-10-31-super-admin-project-hub-design.md):
- * two large icons centred on the screen (Menu and Cashier, Pharmacy) and a small Platform entry; a pharmacy made in the
+ * three large icons centred on the screen (Menu and Cashier, Pharmacy, Retail) and a small Platform entry; a pharmacy made in the
  * Pharmacy space shows in no Menu and Cashier list. An owner keeps the Studio they always had, with no hub. Everything it
  * makes is removed afterwards.
  */
@@ -30,12 +30,12 @@ test.describe('Super Admin project hub @desktop', () => {
     { locale: 'ar', size: { width: 1280, height: 800 } },
     { locale: 'ar', size: { width: 375, height: 812 } },
   ] as const) {
-    test(`shows two large project icons in the middle of the screen and a small Platform entry (${locale}, ${size.width}px)`, async ({ browser }) => {
+    test(`shows three large project icons in the middle of the screen and a small Platform entry (${locale}, ${size.width}px)`, async ({ browser }) => {
       const page = await pageFor(browser, superAdminFile(locale));
       await page.setViewportSize(size);
       await page.goto('/studio');
       const large = page.locator('[data-project="large"]');
-      await expect(large).toHaveCount(2);
+      await expect(large).toHaveCount(3);
       await expect(page.locator('[data-project="small"]')).toHaveCount(1);
 
       const boxes = await large.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON() as Box));
