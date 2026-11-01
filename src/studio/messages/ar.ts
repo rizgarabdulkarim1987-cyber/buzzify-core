@@ -6,6 +6,7 @@ import posAi from './pos-ai/ar';
 import posStock from './pos-stock/ar';
 import posTill from './pos-till/ar';
 import pharmacy from './pharmacy/ar';
+import retail from './retail/ar';
 
 const ar: Messages = {
   // Shared words of the interface
@@ -3519,6 +3520,8 @@ const ar: Messages = {
   ...aiSettings,
   // The pharmacy (pharmacy/ar.ts)
   ...pharmacy,
+  // The link to Buzzify Retail (retail/ar.ts)
+  ...retail,
   'nav.platformIntro': 'إعلانات الواجهة',
   'workspace.tab.intro': 'الواجهة',
   'platformIntro.title': 'إعلانات الواجهة',

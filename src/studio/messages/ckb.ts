@@ -6,6 +6,7 @@ import posAi from './pos-ai/ckb';
 import posStock from './pos-stock/ckb';
 import posTill from './pos-till/ckb';
 import pharmacy from './pharmacy/ckb';
+import retail from './retail/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -3493,6 +3494,8 @@ const ckb: Messages = {
   ...aiSettings,
   // The pharmacy (pharmacy/ckb.ts)
   ...pharmacy,
+  // The link to Buzzify Retail (retail/ckb.ts)
+  ...retail,
   'nav.platformIntro': 'ڕیکلامەکانی دەروازە',
   'workspace.tab.intro': 'دەروازە',
   'platformIntro.title': 'ڕیکلامەکانی دەروازە',
