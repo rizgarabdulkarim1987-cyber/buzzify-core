@@ -18,7 +18,7 @@ export function syncLabel(sync: RetailSyncState, t: Translate, locale: Locale): 
     case 'failed':
       return { text: t('retail.sync.failed', { code: sync.code ?? t('retail.sync.noCode') }), tone: 'danger' };
     case 'queued':
-      return { text: t('retail.sync.queued'), tone: 'neutral' };
+      return { text: sync.code ? t('retail.sync.queuedCode', { code: sync.code }) : t('retail.sync.queued'), tone: 'neutral' };
     case 'notProvisioned':
       return { text: t('retail.preparing'), tone: 'neutral' };
   }

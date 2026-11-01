@@ -730,6 +730,8 @@ const SWEPT: Record<string, Case[]> = {
   // A linked retail shop's AI switch and resync, in B (B is no retail shop, so it would be not found even with the permission)
   'retail.setAiIntake': [c("B's AI switch", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, reason: 'Planted' }))],
   'retail.resync': [c("B's snapshot", (w) => ({ restaurantId: w.b.restaurantId }))],
+  // A retail shop's Retail tab, read for B (B is no retail shop; the sweep also checks it is refused to A's people)
+  'retail.detail': [c("B's retail tab", (w) => ({ restaurantId: w.b.restaurantId }))],
   'restaurants.delete': [c('B', (w) => ({ restaurantId: w.b.restaurantId, confirmName: w.b.restaurantName }))],
   'restaurants.createBranch': [c('in B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted' }))],
   'restaurants.updateBranch': [
@@ -1012,7 +1014,6 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
   // The retail list and a shop's Retail tab (`platform.settings`): refused outright to A's people, even naming B.
   'retail.list': [c('the retail list', () => ({}), ONLY_FORBIDDEN)],
-  'retail.detail': [c("B's retail tab", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'pos.setCaptainApproval': [c("switching B's captain approval", (w) => ({ restaurantId: w.b.restaurantId, enabled: true }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
@@ -1111,6 +1112,8 @@ const SELF: Record<string, Case[]> = {
   'account.endSession': [c("B's owner's session", (w) => ({ sessionId: w.b.ownerSessionId }), { kind: 'self', code: 'NOT_FOUND' })],
   'account.endOtherSessions': [c('the other sessions', () => ({}), { kind: 'self', code: 'OK' })],
   'account.myRestaurants': [c('my restaurants', () => ({}), { kind: 'self', code: 'OK' })],
+  // The shops the person owns, keyed by their own OWNER memberships (`self` target, no permission).
+  'retail.myShops': [c('my retail shops', () => ({}), { kind: 'self', code: 'OK' })],
   'account.listMySessions': [c('my sessions', () => ({}), { kind: 'self', code: 'OK' })],
 };
 

@@ -34,6 +34,7 @@ const retail: Messages = {
   'retail.sync.retrying': 'إعادة المحاولة: المحاولة {attempts}، التالية {time}',
   'retail.sync.failed': 'لم يصل: {code}',
   'retail.sync.queued': 'في طابور الإرسال',
+  'retail.sync.queuedCode': 'في الطابور ولم يُرسل: {code}',
   'retail.sync.noCode': 'خطأ غير معروف',
   'retail.preparing': 'قيد التجهيز',
   'restaurants.tabs.retail': 'التجزئة',

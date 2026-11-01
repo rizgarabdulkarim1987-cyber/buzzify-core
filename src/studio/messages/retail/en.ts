@@ -35,6 +35,7 @@ const retail: Messages = {
   'retail.sync.retrying': 'Retrying: attempt {attempts}, next {time}',
   'retail.sync.failed': 'Not delivered: {code}',
   'retail.sync.queued': 'Queued to send',
+  'retail.sync.queuedCode': 'Queued, not sent: {code}',
   'retail.sync.noCode': 'unknown error',
   'retail.preparing': 'Being prepared',
   'restaurants.tabs.retail': 'Retail',

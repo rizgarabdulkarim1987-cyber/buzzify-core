@@ -8,7 +8,8 @@ export type RetailSyncState =
   | { kind: 'retrying'; attempts: number; nextAttemptAt: Date; code: string | null }
   /** `permanent`: Retails refused the content, so only a change or Resync sends it again (the reconcile does not). */
   | { kind: 'failed'; code: string | null; permanent: boolean }
-  | { kind: 'queued'; nextAttemptAt: Date | null }
+  /** `code`: why a due row is not going out (CONFIG: a Studio setting is missing), else null. */
+  | { kind: 'queued'; nextAttemptAt: Date | null; code: string | null }
   | { kind: 'notProvisioned' };
 
 export interface SyncLink {
@@ -32,11 +33,11 @@ export function deriveSyncState(link: SyncLink, outbox: SyncOutbox | null): Reta
     if (outbox.waitingFor === 'SUBSCRIPTION') return { kind: 'waitingSubscription' };
     if (outbox.failedAt) return { kind: 'failed', code: outbox.lastError, permanent: failedPermanently(outbox) };
     if (outbox.attempts > 0) return { kind: 'retrying', attempts: outbox.attempts, nextAttemptAt: outbox.nextAttemptAt, code: outbox.lastError };
-    return { kind: 'queued', nextAttemptAt: outbox.nextAttemptAt };
+    return { kind: 'queued', nextAttemptAt: outbox.nextAttemptAt, code: outbox.lastError };
   }
   if (link.retailBusinessId === null && link.stateVersion === 0) return { kind: 'notProvisioned' };
   if (link.acceptedVersion === link.stateVersion && link.retailBusinessId !== null) return { kind: 'synced', version: link.acceptedVersion };
-  return link.retailBusinessId === null ? { kind: 'notProvisioned' } : { kind: 'queued', nextAttemptAt: null };
+  return link.retailBusinessId === null ? { kind: 'notProvisioned' } : { kind: 'queued', nextAttemptAt: null, code: null };
 }
 
 /** AI reads are counted in half units (a half read is 1); the screens show units. */

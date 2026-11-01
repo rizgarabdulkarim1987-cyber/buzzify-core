@@ -35,6 +35,7 @@ const retail: Messages = {
   'retail.sync.retrying': 'دووبارە هەوڵ دەدرێتەوە: هەوڵی {attempts}، داهاتوو {time}',
   'retail.sync.failed': 'نەگەیشت: {code}',
   'retail.sync.queued': 'لە ڕیزی ناردندایە',
+  'retail.sync.queuedCode': 'لە ڕیزدایە و نەنێردراوە: {code}',
   'retail.sync.noCode': 'هەڵەی نەزانراو',
   'retail.preparing': 'ئامادە دەکرێت',
   'restaurants.tabs.retail': 'تاکە فرۆشی',

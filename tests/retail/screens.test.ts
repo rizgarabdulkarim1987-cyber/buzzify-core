@@ -7,6 +7,8 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { retailDetail, retailList } from '@/server/studio/queries/retail';
+import { getStudioTranslator } from '@/studio/messages';
+import { syncLabel } from '@/studio/retail-sync';
 import { GOOD, pharmacy, prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
 import { retailShop } from './world';
 
@@ -61,13 +63,22 @@ describe('deriveSyncState', () => {
     expect(deriveSyncState(link, outbox({ attempts: 20, failedAt: NOW, lastError: 'TIMEOUT' }))).toEqual({ kind: 'failed', code: 'TIMEOUT', permanent: false });
   });
   it('is queued when a row is due and no attempt was made', () => {
-    expect(deriveSyncState(link, outbox())).toEqual({ kind: 'queued', nextAttemptAt: NOW });
+    expect(deriveSyncState(link, outbox())).toEqual({ kind: 'queued', nextAttemptAt: NOW, code: null });
+    expect(deriveSyncState(link, outbox({ lastError: 'CONFIG' }))).toEqual({ kind: 'queued', nextAttemptAt: NOW, code: 'CONFIG' });
   });
   it('is not yet provisioned when Retails never answered and nothing is queued', () => {
     expect(deriveSyncState({ retailBusinessId: null, stateVersion: 0, acceptedVersion: 0 }, null)).toEqual({ kind: 'notProvisioned' });
   });
   it('is queued when a newer version exists and no row is left', () => {
-    expect(deriveSyncState({ ...link, stateVersion: 4 }, null)).toEqual({ kind: 'queued', nextAttemptAt: null });
+    expect(deriveSyncState({ ...link, stateVersion: 4 }, null)).toEqual({ kind: 'queued', nextAttemptAt: null, code: null });
+  });
+});
+
+describe('syncLabel', () => {
+  const t = getStudioTranslator('en');
+  it('names the code of a queued row that cannot go out', () => {
+    expect(syncLabel({ kind: 'queued', nextAttemptAt: NOW, code: 'CONFIG' }, t, 'en').text).toBe('Queued, not sent: CONFIG');
+    expect(syncLabel({ kind: 'queued', nextAttemptAt: NOW, code: null }, t, 'en').text).toBe('Queued to send');
   });
 });
 
