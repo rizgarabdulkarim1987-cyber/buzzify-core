@@ -6,6 +6,7 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { billingRestaurants } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
 import { getStudioTranslator } from '@/studio/messages';
+import { businessBase } from '@/studio/spaces';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -21,7 +22,7 @@ export async function BillingList({
   space,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-  space: 'food' | 'pharmacy';
+  space: 'food' | 'pharmacy' | 'retail';
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
@@ -41,11 +42,12 @@ export async function BillingList({
         title={t('billing.title')}
         description={t('billingList.description')}
         actions={
-          space === 'pharmacy' ? (
-            <Link href="/studio/pharmacy/settings" className={buttonClasses('secondary')}>
-              {t('billingList.pharmacyPlans')}
+          // The pharmacy and Retail plans live in their space's own settings.
+          space === 'food' ? undefined : (
+            <Link href={`${businessBase(space)}/settings`} className={buttonClasses('secondary')}>
+              {t(`appPlans.${space}.title`)}
             </Link>
-          ) : undefined
+          )
         }
       />
       <div className="flex flex-col gap-4 px-8 pb-10">
@@ -53,7 +55,7 @@ export async function BillingList({
           <EmptyState icon={<CreditCard aria-hidden />} title={t('billingList.emptyTitle')} body={t('billingList.emptyBody')} />
         ) : (
           <>
-            <BillingTable rows={list.rows} applications={list.applications} planNames={planNames} base={space === 'pharmacy' ? '/studio/pharmacy' : '/studio/restaurants'} />
+            <BillingTable rows={list.rows} applications={list.applications} planNames={planNames} base={businessBase(space)} />
             <Pagination page={list.page} pageSize={list.pageSize} total={list.total} />
           </>
         )}

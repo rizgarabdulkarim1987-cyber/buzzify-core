@@ -5,7 +5,9 @@ import { globalDb } from '@/server/data/tenant-db';
 import { effectivePermissions, parsePolicy } from '@/server/domain/permissions';
 import * as accountActions from '@/server/studio/actions/account';
 import * as people from '@/server/studio/actions/people';
+import { ensureIdentity } from '@/server/retail/identities';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
+import { authFor } from '@/server/studio/auth/auth';
 import { createPasswordUser } from '@/server/studio/auth/users';
 import { defineAction, runAction, type ActionDef } from '@/server/studio/framework/action';
 import { invoke, invokePublic } from '@/server/studio/framework/invoke';
@@ -18,7 +20,7 @@ import { acceptInvitation, createInvitation, inspectInvitation } from '@/server/
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { Browser } from '../helpers/browser';
 import { requireTestDb, resetTestData } from '../helpers/db';
-import { devMail, linkIn } from '../helpers/mail';
+import { devMail, linkIn, linkParam } from '../helpers/mail';
 
 // Server Actions read the request through `headers()` and write cookies through `cookies()`, which only exist inside
 // Next. `Browser` stands in for both, with a cookie jar.
@@ -662,6 +664,27 @@ describe('changing a user email', () => {
     new Browser('198.51.100.43', 'fresh').activate();
     expect(await invokePublic(session.signIn, { email: next, password: GOOD })).toMatchObject({ ok: true });
     expect(codeOf(await invokePublic(session.signIn, { email: dee.email, password: GOOD }))).toBe('INVALID');
+  });
+
+  it('the new address is not verified until its owner proves it, and links sent to the old one stop working', async () => {
+    // A reset link already on its way to the old address must not reset the account once it is someone else's address.
+    await authFor(prisma()).api.requestPasswordReset({ body: { email: dee.email } });
+    const token = linkParam((await mailTo(dee.email))[0]?.text ?? '', 'token');
+    const next = address('dee-moved');
+    dataOf(await run(admin, people.changeUserEmail, { userId: dee.userId, email: next }));
+
+    const user = await prisma().user.findUniqueOrThrow({ where: { id: dee.userId } });
+    expect(user.emailVerified).toBe(false);
+    expect(await prisma().verification.count({ where: { value: dee.userId, identifier: { startsWith: 'reset-password:' } } })).toBe(0);
+    await expect(authFor(prisma()).api.resetPassword({ body: { token, newPassword: 'another long passphrase 2027' } })).rejects.toThrow();
+    // Buzzify Retail is told the new address is not proven, so it does not link a Retail account on it.
+    expect(await ensureIdentity(prisma(), { email: next }, new Date())).toEqual({ coreUserId: dee.userId, created: false, emailVerified: false });
+
+    // A reset sent to the new address proves it.
+    await authFor(prisma()).api.requestPasswordReset({ body: { email: next } });
+    const fresh = linkParam((await mailTo(next))[0]?.text ?? '', 'token');
+    await authFor(prisma()).api.resetPassword({ body: { token: fresh, newPassword: 'another long passphrase 2027' } });
+    expect((await prisma().user.findUniqueOrThrow({ where: { id: dee.userId } })).emailVerified).toBe(true);
   });
 
   it('refuses an address another account has, the same address, your own account, and a missing user', async () => {

@@ -1,8 +1,9 @@
 import type { PrismaClient } from '@/generated/prisma/client';
-import { globalDb } from '@/server/data/tenant-db';
+import { delegates, globalDb } from '@/server/data/tenant-db';
 import { lifecycleSteps, type LifecycleView, type SubscriptionStatus } from '@/server/domain/billing/subscriptions';
+import { bumpRetailState } from '@/server/retail/outbox';
 
-type SweepRow = LifecycleView & { id: string; version: number };
+type SweepRow = LifecycleView & { id: string; version: number; restaurantId: string; applicationId: string };
 
 /**
  * Applies the lifecycle to one subscription in its own transaction and returns where it ended, or null when nothing
@@ -15,6 +16,8 @@ export async function sweepOne(prisma: PrismaClient, sub: SweepRow, now: Date): 
   return globalDb(prisma).$transaction(async (tx) => {
     const { count } = await tx.subscription.updateMany({ where: { id: sub.id, version: sub.version }, data: { status: to, version: { increment: 1 } } });
     if (count === 0) return null;
+    // A retail subscription's status is in its business's snapshot for Retails: queued with the move, sent by the next sync run.
+    if (sub.applicationId === 'retail') await bumpRetailState(delegates(tx), sub.restaurantId);
     await tx.subscriptionEvent.createMany({
       data: steps.map((step) => ({ subscriptionId: sub.id, type: step.type, fromStatus: step.from, toStatus: step.to, actorId: null, occurredAt: now })),
     });
@@ -35,7 +38,7 @@ export async function sweepSubscriptions(prisma: PrismaClient, now: Date): Promi
         { status: { in: ['ACTIVE', 'GRACE'] }, currentPeriodEnd: { lte: now } },
       ],
     },
-    select: { id: true, version: true, status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
+    select: { id: true, version: true, restaurantId: true, applicationId: true, status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
     orderBy: { currentPeriodEnd: 'asc' },
   });
   let graced = 0;

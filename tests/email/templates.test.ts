@@ -3,8 +3,8 @@ import { LOCALES, direction } from '@/lib/locale';
 import { renderEmail, type EmailTemplate } from '@/server/email/templates';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 
-const TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'changeEmailConfirm', 'verifyNewEmail', 'emailChanged', 'passwordChanged'];
-const LINK_TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'changeEmailConfirm', 'verifyNewEmail'];
+const TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'retailIdentity', 'changeEmailConfirm', 'verifyNewEmail', 'emailChanged', 'passwordChanged'];
+const LINK_TEMPLATES: EmailTemplate[] = ['invite', 'reset', 'retailIdentity', 'changeEmailConfirm', 'verifyNewEmail'];
 const URL_WITH_TOKEN = 'https://studio.example.test/studio/invite/abc_DEF-123';
 const PARAMS = {
   name: 'Lina',
@@ -132,6 +132,13 @@ describe('renderEmail', () => {
         expect(mail.html, `${template} ${locale}`).not.toMatch(/<(script|img|b|i)[\s>/]/i);
         expect(mail.html, `${template} ${locale}`).not.toContain('x=1&y=');
       }
+    }
+    // The Retail set-password mail greets a name Retails sent (a staff name a shop typed): escaped like the rest.
+    for (const locale of LOCALES) {
+      const retail = renderEmail('retailIdentity', locale, hostile);
+      expect(retail.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+      expect(retail.html).not.toContain('<script>');
+      expect(retail.subject).not.toContain('<');
     }
     const invite = renderEmail('invite', 'en', hostile);
     expect(invite.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');

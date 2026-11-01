@@ -1,9 +1,9 @@
-import { Layers, Pill, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Layers, Pill, ShoppingBag, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { Translate } from '@/lib/i18n';
 import { SPACES, type Space } from '@/studio/spaces';
 
-const ICONS: Record<Space['icon'], LucideIcon> = { food: UtensilsCrossed, pharmacy: Pill, platform: Layers };
+const ICONS: Record<Space['icon'], LucideIcon> = { food: UtensilsCrossed, pharmacy: Pill, retail: ShoppingBag, platform: Layers };
 
 /**
  * A Super Admin's first screen: one large icon per project, in the middle of the screen, each leading into that project's
@@ -24,10 +24,11 @@ export function ProjectHub({ t, spaces = SPACES }: { t: Translate; spaces?: read
               key={space.id}
               href={space.home}
               data-project="large"
-              className="flex w-56 flex-col items-center gap-5 rounded-2xl border border-line bg-surface px-8 py-10 text-center transition-colors hover:bg-hover"
+              // Compact on a phone, where the icons stack: three of them still fit one screen between the corner entries.
+              className="flex w-56 flex-col items-center gap-3 rounded-2xl border border-line bg-surface px-8 py-6 text-center transition-colors hover:bg-hover sm:gap-5 sm:py-10"
             >
-              <span aria-hidden className="inline-flex size-24 items-center justify-center rounded-2xl bg-raised">
-                <Icon className="size-12 text-text" />
+              <span aria-hidden className="inline-flex size-16 items-center justify-center rounded-2xl bg-raised sm:size-24">
+                <Icon className="size-8 text-text sm:size-12" />
               </span>
               <span className="text-lg font-semibold text-text">{t(space.nameKey)}</span>
             </Link>

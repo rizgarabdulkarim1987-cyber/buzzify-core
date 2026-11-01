@@ -27,7 +27,7 @@ export interface RestaurantActionsProps {
   /** Where the list of this kind of business is: the page to land on after a delete. */
   listHref?: string;
   /** The space of the page, which the actions name so they never touch the other project's businesses. */
-  space?: 'food' | 'pharmacy';
+  space?: 'food' | 'pharmacy' | 'retail';
 }
 
 const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPENDED: 'suspend', ARCHIVED: 'archive' };

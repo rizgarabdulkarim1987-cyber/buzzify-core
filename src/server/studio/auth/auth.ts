@@ -30,6 +30,12 @@ function localeOf(user: object): Locale {
   return typeof value === 'string' && isLocale(value) ? value : 'en';
 }
 
+/** An account made for Buzzify Retail whose owner has not yet set a password (and so proven the address). */
+function isUnclaimedRetailIdentity(user: object): boolean {
+  const { identityOnly, emailVerified } = user as { identityOnly?: unknown; emailVerified?: unknown };
+  return identityOnly === true && emailVerified !== true;
+}
+
 /** The sender name from the platform settings; none when they cannot be read, so a mail never waits on a setting. */
 async function platformSenderName(): Promise<string | undefined> {
   try {
@@ -160,10 +166,22 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       sendResetPassword: async ({ user, token }) => {
         // A deactivated person cannot sign in whatever their password, so there is nothing for a reset to give back.
         if ((user as { deactivatedAt?: unknown }).deactivatedAt) return;
-        sendAfterResponse(user, 'reset', { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
+        // An account Buzzify Retail asked for has no password yet: its first link is "set your password", not "reset".
+        const template = isUnclaimedRetailIdentity(user) ? 'retailIdentity' : 'reset';
+        sendAfterResponse(user, template, { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
       },
       // The password is already changed and the sessions already ended, so a mail failure must not fail the reset.
       onPasswordReset: async ({ user }) => {
+        // Only the owner of the address could open the link: the address is proven. (Better Auth 1.7.10's reset also
+        // creates the credential of an account that had none, as one made for Buzzify Retail has not.)
+        if (!user.emailVerified) {
+          try {
+            await prisma.user.updateMany({ where: { id: user.id, emailVerified: false }, data: { emailVerified: true } });
+          } catch (error) {
+            // The password is set either way; a later reset proves the address again. The error's name only.
+            console.error(`[auth] The address was not marked verified: ${error instanceof Error ? error.name : 'unknown error'}`);
+          }
+        }
         sendAfterResponse(user, 'passwordChanged', {});
       },
     },
@@ -181,6 +199,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
         isPlatformOwner: { type: 'boolean', required: false, defaultValue: false, input: false },
         locale: { type: 'string', required: false, defaultValue: 'en', input: false },
         deactivatedAt: { type: 'date', required: false, input: false },
+        identityOnly: { type: 'boolean', required: false, defaultValue: false, input: false },
       },
       changeEmail: {
         enabled: true,

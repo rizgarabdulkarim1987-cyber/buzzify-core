@@ -11,6 +11,7 @@ import {
   emptyWorkingHours,
   PH_CURRENCIES,
   type PhCurrency,
+  RETAIL_BRANCH_NAME_MAX,
   readWorkingHours,
   RESTAURANT_TYPES,
   SOCIAL_NETWORKS,
@@ -22,7 +23,7 @@ import {
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
-import { businessPath } from '@/studio/spaces';
+import { businessPath, sectorOfSpace } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
@@ -230,8 +231,12 @@ interface BranchRow {
   city: string;
 }
 
-/** What only a pharmacy has to say when it is created: its branches, its currencies and who owns it. */
+/**
+ * What only a pharmacy or a retail shop has to say when it is created: its branches, its currencies and who owns it. A
+ * retail shop caps branch names at what Retails accepts and cannot be created without an owner.
+ */
 function PharmacyFields({
+  retail = false,
   form,
   branches,
   onBranches,
@@ -240,6 +245,7 @@ function PharmacyFields({
   ownerEmail,
   onOwnerEmail,
 }: {
+  retail?: boolean;
   form: ActionForm<unknown>;
   branches: BranchRow[];
   onBranches: (next: BranchRow[]) => void;
@@ -255,14 +261,14 @@ function PharmacyFields({
 
   return (
     <>
-      <Section id="branches" title={t('restaurants.form.branches')} intro={t('restaurants.form.branchesIntro')}>
+      <Section id="branches" title={t('restaurants.form.branches')} intro={t(retail ? 'restaurants.form.retailBranchesIntro' : 'restaurants.form.branchesIntro')}>
         {branches.map((row, index) => (
           <div key={index} className="flex items-start gap-2">
             <Field label={t('restaurants.form.branchName', { n: index + 1 })} hideLabel error={form.fieldError(`branches.${index}.name`)} className="min-w-0 flex-1">
               <Input
                 name={`branches.${index}.name`}
                 autoComplete="off"
-                maxLength={120}
+                maxLength={retail ? RETAIL_BRANCH_NAME_MAX : 120}
                 placeholder={t('restaurants.form.branchName', { n: index + 1 })}
                 value={row.name}
                 onChange={(event) => change(index, { name: event.target.value })}
@@ -298,7 +304,7 @@ function PharmacyFields({
         </div>
       </Section>
 
-      <Section id="currencies" title={t('restaurants.form.currencies')} intro={t('restaurants.form.currenciesIntro')}>
+      <Section id="currencies" title={t('restaurants.form.currencies')} intro={t(retail ? 'restaurants.form.retailCurrenciesIntro' : 'restaurants.form.currenciesIntro')}>
         <fieldset className="flex flex-col gap-2" aria-describedby={currenciesError ? 'currencies-error' : undefined}>
           <legend className="sr-only">{t('restaurants.form.currencies')}</legend>
           {PH_CURRENCIES.map((currency) => (
@@ -320,7 +326,12 @@ function PharmacyFields({
       </Section>
 
       <Section id="owner" title={t('restaurants.form.ownerEmail')}>
-        <Field label={t('restaurants.form.ownerEmail')} hint={t('restaurants.form.ownerEmailHint')} optional error={form.fieldError('ownerEmail')}>
+        <Field
+          label={t('restaurants.form.ownerEmail')}
+          hint={t(retail ? 'restaurants.form.retailOwnerEmailHint' : 'restaurants.form.ownerEmailHint')}
+          optional={!retail}
+          error={form.fieldError('ownerEmail')}
+        >
           <Input
             name="ownerEmail"
             type="email"
@@ -349,21 +360,23 @@ export function CreateRestaurantForm({
   planNames?: Record<PlanTier, string> | null;
   initialSector?: BusinessSector;
   /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
-  space?: 'food' | 'pharmacy';
+  space?: 'food' | 'pharmacy' | 'retail';
 }) {
   const t = useT();
   const router = useRouter();
-  const [sector, setSector] = useState<BusinessSector>(space ? (space === 'pharmacy' ? 'PHARMACY' : 'FOOD') : initialSector);
+  const [sector, setSector] = useState<BusinessSector>(space ? (sectorOfSpace(space) ?? 'FOOD') : initialSector);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');
-  const pharmacy = sector === 'PHARMACY';
+  const retail = sector === 'RETAIL';
+  // A pharmacy and a retail shop share the branches, currencies and owner fields; neither has a restaurant type or a menu plan.
+  const pharmacy = sector === 'PHARMACY' || retail;
   const form = useActionForm(
     (values) =>
       createRestaurant({
         ...profileOf(values, true),
         ...(space ? { space } : {}),
-        // A pharmacy has no restaurant type and no menu plan.
+        // A pharmacy or retail shop has no restaurant type and no menu plan.
         ...(pharmacy
           ? {
               type: 'OTHER',
@@ -407,6 +420,7 @@ export function CreateRestaurantForm({
       <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} />
       {pharmacy && (
         <PharmacyFields
+          retail={retail}
           form={form}
           branches={branches}
           onBranches={setBranches}

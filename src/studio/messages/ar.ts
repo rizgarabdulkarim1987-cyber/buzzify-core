@@ -6,11 +6,16 @@ import posAi from './pos-ai/ar';
 import posStock from './pos-stock/ar';
 import posTill from './pos-till/ar';
 import pharmacy from './pharmacy/ar';
+import retail from './retail/ar';
 
 const ar: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'انتقل إلى المحتوى',
+  'retailOnly.title': 'هذا الحساب مخصّص لـ Buzzify للتجزئة',
+  'retailOnly.body': 'أضافك أحد متاجر Buzzify للتجزئة إلى موظفيه. عملك في Buzzify للتجزئة: سجّل الدخول هناك بهذا الحساب. لا شيء في هذا الاستوديو مُسند إليك.',
+  'retailOnly.open': 'فتح Buzzify للتجزئة',
+  'retailOnly.role': 'موظف في Buzzify للتجزئة',
   'common.save': 'حفظ',
   'common.saving': 'جارٍ الحفظ…',
   'common.cancel': 'إلغاء',
@@ -2702,12 +2707,11 @@ const ar: Messages = {
   'error.text.limitNoPlan': 'ليس لهذه الصيدلية باقة سارية، لذا لا يمكن إضافة شيء.',
   'error.text.limitBranches': 'لا تتسع هذه الباقة لمزيد من الفروع. انقل الصيدلية إلى باقة أكبر.',
   'error.text.limitStaff': 'لا تتسع هذه الباقة لمزيد من الموظفين. انقل الصيدلية إلى باقة أكبر.',
-  'billingList.pharmacyPlans': 'باقات الصيدلية',
-  'appPlans.title': 'باقات الصيدلية',
-  'appPlans.description': 'اسم كل باقة صيدلية والحدود التي تضعها. تُحدَّد الأسعار في الإعدادات ← الفوترة.',
+  'appPlans.pharmacy.title': 'باقات الصيدلية',
+  'appPlans.pharmacy.description': 'اسم كل باقة صيدلية والحدود التي تضعها. تُحدَّد الأسعار في الإعدادات ← الفوترة.',
   'appPlans.readOnly': 'يمكن لمالك المنصة فقط تغيير الباقات.',
-  'appPlans.emptyTitle': 'لا توجد باقات صيدلية بعد',
-  'appPlans.emptyBody': 'أنشئ باقة قبل بدء تجربة صيدلية. لا تُحدَّد أي أسعار حتى تدخلها.',
+  'appPlans.pharmacy.emptyTitle': 'لا توجد باقات صيدلية بعد',
+  'appPlans.pharmacy.emptyBody': 'أنشئ باقة قبل بدء تجربة صيدلية. لا تُحدَّد أي أسعار حتى تدخلها.',
   'appPlans.new': 'باقة جديدة',
   'appPlans.code': 'الرمز',
   'appPlans.codeHint': 'أحرف وأرقام وشرطات. لا يمكن تغييره لاحقًا.',
@@ -2716,6 +2720,10 @@ const ar: Messages = {
   'appPlans.limit.users': 'الموظفون',
   'appPlans.limit.storageMb': 'التخزين (ميغابايت)',
   'appPlans.limit.aiMonthlyBudgetMinor': 'ميزانية الذكاء الاصطناعي شهريًا (وحدات صغرى)',
+  'appPlans.limit.terminals': 'أجهزة نقاط البيع',
+  'appPlans.limit.aiMonthly': 'قراءات الذكاء الاصطناعي شهرياً',
+  'appPlans.app.pharmacy': 'الصيدلية',
+  'appPlans.app.retail': 'التجزئة',
   'appPlans.limitsHint': '0 يعني لا شيء متبقٍّ وليس غير محدود أبدًا. خفض الحد لا يحذف شيئًا؛ بل يمنع إضافة أي جديد فقط.',
   'appPlans.sortOrder': 'الترتيب',
   'appPlans.onSale': 'معروضة',
@@ -2828,6 +2836,13 @@ const ar: Messages = {
   'email.reset.action': 'اختيار كلمة مرور جديدة',
   'email.reset.expiry': 'يمكن استخدام هذا الرابط مرة واحدة فقط وتنتهي صلاحيته بعد ساعة واحدة.',
   'email.reset.ignore': 'إذا لم تطلب ذلك، تجاهل هذه الرسالة؛ ستبقى كلمة مرورك كما هي.',
+
+  // Email: the first password of an account Buzzify Retail asked for (machine-drafted, to review)
+  'email.retailIdentity.subject': 'عيّن كلمة المرور للدخول إلى Buzzify للتجزئة',
+  'email.retailIdentity.intro': 'أضاف أحد متاجر Buzzify للتجزئة هذا العنوان إلى موظفيه. اختر كلمة مرور للدخول إلى Buzzify للتجزئة بحسابك في Buzzify.',
+  'email.retailIdentity.action': 'تعيين كلمة المرور',
+  'email.retailIdentity.expiry': 'يمكن استخدام هذا الرابط مرة واحدة فقط وتنتهي صلاحيته بعد ساعة واحدة. بعد ذلك استخدم «نسيت كلمة المرور؟» في صفحة الدخول.',
+  'email.retailIdentity.ignore': 'إذا لم تكن تعمل في هذا المتجر، تجاهل هذه الرسالة. لا تُعيَّن أي كلمة مرور حتى تختارها بنفسك.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'وافق على تغيير بريدك الإلكتروني في Buzzify Core',
@@ -3257,6 +3272,18 @@ const ar: Messages = {
   'restaurants.form.planHint': 'ما تشمله منيوهات هذا المطعم. يمكنك تغييرها لاحقًا من تبويب الباقة.',
   'restaurants.sector.FOOD': 'طعام',
   'restaurants.sector.PHARMACY': 'صيدلية',
+  'restaurants.sector.RETAIL': 'محل تجزئة',
+  'restaurants.form.retailBranchesIntro': 'يبدأ المحل بهذه الفروع. تُدار فروعه بعد ذلك في Retails.',
+  'restaurants.form.retailCurrenciesIntro': 'العملات التي يسعّر بها هذا المحل. كل عملة منفصلة، ولا يتم تحويل أي شيء.',
+  'restaurants.form.retailOwnerEmailHint': 'تُرسل إلى هنا دعوة لامتلاك هذا المحل. يحتاج محل التجزئة إلى مالك.',
+  'error.text.retailNotDeleted': 'محل التجزئة لا يُحذف أبدًا: يبقى دليله وسجله في Retails. علّقه بدلًا من ذلك.',
+  'error.text.retailBranchesInRetails': 'تُدار فروع محل التجزئة في Retails',
+  'error.text.menusFoodOnly': 'القوائم مخصصة لأعمال الطعام فقط',
+  'error.text.retailBranchesMax': 'يبدأ محل التجزئة بـ 20 فرعًا كحد أقصى',
+  'error.text.retailLastOwner': 'يجب أن يبقى لمحل التجزئة مالك. أضف مالكًا آخر أولًا.',
+  'error.text.reasonMin3': 'اذكر السبب في 3 أحرف على الأقل',
+  'error.text.branchNamesUnique': 'يجب أن تكون أسماء الفروع مختلفة',
+  'error.text.ownerEmailRequired': 'أدخل البريد الإلكتروني للمالك',
   'restaurants.filter.sector': 'القطاع',
   'restaurants.filter.allSectors': 'كل القطاعات',
   'restaurants.list.sector': 'القطاع',
@@ -3519,6 +3546,8 @@ const ar: Messages = {
   ...aiSettings,
   // The pharmacy (pharmacy/ar.ts)
   ...pharmacy,
+  // The link to Buzzify Retail (retail/ar.ts)
+  ...retail,
   'nav.platformIntro': 'إعلانات الواجهة',
   'workspace.tab.intro': 'الواجهة',
   'platformIntro.title': 'إعلانات الواجهة',
@@ -3607,6 +3636,7 @@ const ar: Messages = {
   'hub.title': 'اختر المشروع',
   'hub.food': 'المنيو والكاشير',
   'hub.pharmacy': 'الصيدلية',
+  'hub.retail': 'التجزئة',
   'hub.platform': 'المنصة',
   'hub.allProjects': 'كل المشاريع',
   'nav.team': 'الفريق',

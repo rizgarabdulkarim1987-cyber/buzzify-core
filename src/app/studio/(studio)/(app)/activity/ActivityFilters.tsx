@@ -25,7 +25,7 @@ const asOption = (selected: { id: string; name: string | null } | null): PickerO
  * everything), an action, and a range of days. Each one is a parameter of the address, which the page reads, so a
  * filtered log is a link.
  */
-export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: 'food' | 'pharmacy' }) {
+export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: 'food' | 'pharmacy' | 'retail' }) {
   const t = useT();
   const { params, set } = useFilterParams();
 

@@ -5,11 +5,16 @@ import posAi from './pos-ai/en';
 import posStock from './pos-stock/en';
 import posTill from './pos-till/en';
 import pharmacy from './pharmacy/en';
+import retail from './retail/en';
 
 const en: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'Skip to content',
+  'retailOnly.title': 'This account is for Buzzify Retail',
+  'retailOnly.body': 'A Buzzify Retail shop added you to its staff. Your work is in Buzzify Retail: sign in there with this account. Nothing in this Studio is assigned to you.',
+  'retailOnly.open': 'Open Buzzify Retail',
+  'retailOnly.role': 'Buzzify Retail staff',
   'common.save': 'Save',
   'common.saving': 'Saving…',
   'common.cancel': 'Cancel',
@@ -2671,12 +2676,11 @@ const en: Messages = {
   'error.text.limitNoPlan': 'This pharmacy has no live plan, so nothing can be added.',
   'error.text.limitBranches': 'This plan has no room for more branches. Move the pharmacy to a larger plan.',
   'error.text.limitStaff': 'This plan has no room for more staff. Move the pharmacy to a larger plan.',
-  'billingList.pharmacyPlans': 'Pharmacy plans',
-  'appPlans.title': 'Pharmacy plans',
-  'appPlans.description': 'What each pharmacy plan is called and the limits it sets. Prices are set in Settings → Billing.',
+  'appPlans.pharmacy.title': 'Pharmacy plans',
+  'appPlans.pharmacy.description': 'What each pharmacy plan is called and the limits it sets. Prices are set in Settings → Billing.',
   'appPlans.readOnly': 'Only the platform owner can change plans.',
-  'appPlans.emptyTitle': 'No pharmacy plans yet',
-  'appPlans.emptyBody': 'Make a plan before starting a pharmacy’s trial. No prices are set until you enter them.',
+  'appPlans.pharmacy.emptyTitle': 'No pharmacy plans yet',
+  'appPlans.pharmacy.emptyBody': 'Make a plan before starting a pharmacy’s trial. No prices are set until you enter them.',
   'appPlans.new': 'New plan',
   'appPlans.code': 'Code',
   'appPlans.codeHint': 'Letters, digits, dashes. It cannot be changed later.',
@@ -2685,6 +2689,10 @@ const en: Messages = {
   'appPlans.limit.users': 'Staff',
   'appPlans.limit.storageMb': 'Storage (MB)',
   'appPlans.limit.aiMonthlyBudgetMinor': 'AI budget per month (minor units)',
+  'appPlans.limit.terminals': 'Terminals',
+  'appPlans.limit.aiMonthly': 'AI reads per month',
+  'appPlans.app.pharmacy': 'Pharmacy',
+  'appPlans.app.retail': 'Retail',
   'appPlans.limitsHint': '0 means none left, never unlimited. Lowering a limit deletes nothing; it only stops anything new being added.',
   'appPlans.sortOrder': 'Order',
   'appPlans.onSale': 'On sale',
@@ -2797,6 +2805,13 @@ const en: Messages = {
   'email.reset.action': 'Choose a new password',
   'email.reset.expiry': 'This link can be used once and expires in 1 hour.',
   'email.reset.ignore': 'If you did not ask for this, ignore this email. Your password stays the same.',
+
+  // Email: the first password of an account Buzzify Retail asked for
+  'email.retailIdentity.subject': 'Set your password to sign in to Buzzify Retail',
+  'email.retailIdentity.intro': 'A Buzzify Retail shop added this address to its staff. Choose a password to sign in to Buzzify Retail with your Buzzify account.',
+  'email.retailIdentity.action': 'Set your password',
+  'email.retailIdentity.expiry': 'This link can be used once and expires in 1 hour. After that, use "Forgot your password?" on the sign-in page.',
+  'email.retailIdentity.ignore': 'If you do not work at this shop, ignore this email. No password is set until you choose one.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'Approve the change of your Buzzify Core email',
@@ -3226,6 +3241,18 @@ const en: Messages = {
   'restaurants.form.planHint': 'What this restaurant’s menus include. You can change it later on its Plan tab.',
   'restaurants.sector.FOOD': 'Food',
   'restaurants.sector.PHARMACY': 'Pharmacy',
+  'restaurants.sector.RETAIL': 'Retail shop',
+  'restaurants.form.retailBranchesIntro': 'The shop opens with these. Its branches are managed in Retails afterwards.',
+  'restaurants.form.retailCurrenciesIntro': 'What this shop prices in. Each currency is kept apart; nothing is converted.',
+  'restaurants.form.retailOwnerEmailHint': 'An invitation to own this shop is sent here. A retail shop needs an owner.',
+  'error.text.retailNotDeleted': 'A retail shop is never deleted: its catalog and history are kept in Retails. Suspend it instead.',
+  'error.text.retailBranchesInRetails': 'Branches of a retail shop are managed in Retails',
+  'error.text.menusFoodOnly': 'Menus are only for food businesses',
+  'error.text.retailBranchesMax': 'A retail shop starts with at most 20 branches',
+  'error.text.retailLastOwner': 'A retail shop must keep an owner. Add another owner first.',
+  'error.text.reasonMin3': 'Say why, in at least 3 characters',
+  'error.text.branchNamesUnique': 'Branch names must be different',
+  'error.text.ownerEmailRequired': 'Enter the owner’s email address',
   'restaurants.filter.sector': 'Sector',
   'restaurants.filter.allSectors': 'All sectors',
   'restaurants.list.sector': 'Sector',
@@ -3488,6 +3515,8 @@ const en: Messages = {
   ...aiSettings,
   // The pharmacy (pharmacy/en.ts)
   ...pharmacy,
+  // The link to Buzzify Retail (retail/en.ts)
+  ...retail,
   'nav.platformIntro': 'Intro adverts',
   'workspace.tab.intro': 'Intro',
   'platformIntro.title': 'Intro adverts',
@@ -3576,6 +3605,7 @@ const en: Messages = {
   'hub.title': 'Choose a project',
   'hub.food': 'Menu and Cashier',
   'hub.pharmacy': 'Pharmacy',
+  'hub.retail': 'Retail',
   'hub.platform': 'Platform',
   'hub.allProjects': 'All projects',
   'nav.team': 'Team',

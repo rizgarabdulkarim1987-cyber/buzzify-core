@@ -214,6 +214,10 @@ describe('products and prices', () => {
       ['cashier', 'DISABLED'],
     ]);
     expect(dataOf(await readAt(new Date(), billingOverview, { space: 'pharmacy' })).applications.map((app) => [app.id, app.status])).toEqual([['pharmacy', 'DISABLED']]);
+    // The Retail space sells Retail alone; its plans are app plans too, so no FOOD plan code is priced for it.
+    const retail = dataOf(await readAt(new Date(), billingOverview, { space: 'retail' }));
+    expect(retail.applications.map((app) => [app.id, app.status])).toEqual([['retail', 'DISABLED']]);
+    expect(retail.applications[0]!.plans).toEqual([]);
     const menu = overview.applications[0]!;
     expect(menu.plans.map((plan) => [plan.code, plan.prices.map((p) => `${p.currency}/${p.period}/${p.amountMinor}`)])).toEqual([
       ['BASIC', []],
@@ -822,6 +826,12 @@ describe('billing.restaurant', () => {
     expect(dataOf(await readAt(at('2027-03-20T12:00:00+03:00'), restaurantBilling, { restaurantId })).subscriptions[0]!.status).toBe('EXPIRED');
     expect(codeOf(await readAt(new Date(), restaurantBilling, { restaurantId: 'nope' }))).toBe('NOT_FOUND');
   });
+
+  it('offers a retail shop only the Retail product, never Menu or Cashier', async () => {
+    const shop = await prisma.restaurant.create({ data: { name: 'Shop billing', sector: 'RETAIL' } });
+    const view = dataOf(await readAt(new Date(), restaurantBilling, { restaurantId: shop.id }));
+    expect(view.applications.map((app) => [app.id, app.planCodes])).toEqual([['retail', []]]);
+  });
 });
 
 describe('billing.restaurants', () => {
@@ -851,6 +861,16 @@ describe('billing.restaurants', () => {
     ]);
     expect(none).toMatchObject({ id: other.restaurant.id, lastPayment: null });
     expect(none!.products.map((product) => product.subscription)).toEqual([null, null]);
+  });
+
+  it('lists a retail shop with the Retail product in the Retail space alone', async () => {
+    await prisma.restaurant.create({ data: { name: 'Shop billing', sector: 'RETAIL' } });
+    const food = dataOf(await readAt(new Date(), billingRestaurants, {}));
+    expect(food.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
+    expect(food.rows.map((row) => row.name)).not.toContain('Shop billing');
+    const retail = dataOf(await readAt(new Date(), billingRestaurants, { space: 'retail' }));
+    expect(retail.applications.map((app) => app.id)).toEqual(['retail']);
+    expect(retail.rows.map((row) => [row.name, row.products.map((product) => product.applicationId)])).toEqual([['Shop billing', ['retail']]]);
   });
 
   it('shows a trial as a trial that ends with its period, and a cancelled one when there is no live one', async () => {

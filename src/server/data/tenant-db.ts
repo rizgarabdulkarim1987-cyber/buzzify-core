@@ -57,7 +57,7 @@ export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as cons
  * restaurants by the platform owner. A client scoped to a
  * restaurant confines them to it (`RESTAURANT_CONFINED_MODELS`).
  */
-export const CROSS_RESTAURANT_MODELS = ['Membership', 'Subscription', 'Payment'] as const;
+export const CROSS_RESTAURANT_MODELS = ['Membership', 'Subscription', 'Payment', 'RetailLink', 'RetailOutbox'] as const;
 
 /**
  * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, the
@@ -110,6 +110,8 @@ export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaur
   Membership: 'restaurantId',
   Subscription: 'restaurantId',
   Payment: 'restaurantId',
+  RetailLink: 'restaurantId',
+  RetailOutbox: 'restaurantId',
 };
 
 /**

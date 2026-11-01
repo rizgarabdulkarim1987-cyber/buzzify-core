@@ -27,18 +27,18 @@ export default async function PharmacySettingsPage() {
   const [overview, plans, appPlans] = await Promise.all([
     query(billingOverview, { space: 'pharmacy' }),
     query(getPlans, {}),
-    query(appPlansList, {}),
+    query(appPlansList, { applicationId: 'pharmacy' }),
   ]);
   const planNames = Object.fromEntries(Object.entries(plans.plans).map(([code, plan]) => [code, plan.names]));
 
   return (
     <>
-      <PageHeader title={t('nav.settings')} description={t('appPlans.description')} />
+      <PageHeader title={t('nav.settings')} description={t('appPlans.pharmacy.description')} />
       <div className="flex flex-col gap-10 px-8 py-6 pb-10">
         <BillingSettings key={JSON.stringify(overview.applications)} products={overview.applications} planNames={planNames} canEdit={overview.canEdit} />
-        <section aria-label={t('appPlans.title')} className="flex flex-col gap-4">
-          <h2 className="text-md font-semibold text-text">{t('appPlans.title')}</h2>
-          <AppPlansEditor plans={appPlans.plans} canEdit={appPlans.canEdit} />
+        <section aria-label={t('appPlans.pharmacy.title')} className="flex flex-col gap-4">
+          <h2 className="text-md font-semibold text-text">{t('appPlans.pharmacy.title')}</h2>
+          <AppPlansEditor applicationId="pharmacy" plans={appPlans.plans} canEdit={appPlans.canEdit} />
         </section>
       </div>
     </>

@@ -14,7 +14,8 @@ export default async function BranchesPage({ params }: { params: Promise<{ id: s
   const branches = await query(restaurantBranches, { restaurantId: restaurant.id });
   return (
     <div className="px-8 py-6">
-      <BranchesManager restaurantId={restaurant.id} branches={branches} canEdit={restaurant.can.edit} />
+      {/* A retail shop's branches are managed in Retails: nothing here adds, renames, reorders or deletes them. */}
+      <BranchesManager restaurantId={restaurant.id} branches={branches} canEdit={restaurant.can.edit && restaurant.sector !== 'RETAIL'} />
     </div>
   );
 }

@@ -166,6 +166,80 @@ describe('checkProductionEnv', () => {
     expect(named(problemsWith({ STUDIO_HOST: 'menu.buzzify.me', BETTER_AUTH_URL: 'https://menu.buzzify.me' }))).toEqual(['STUDIO_HOST']);
   });
 
+  describe('the Buzzify Retail link', () => {
+    const retail = {
+      RETAIL_URL: 'https://retail.buzzify.me',
+      RETAIL_SYNC_SECRET: 'made-up-sync-secret-of-32-characters!',
+      RETAIL_CALLER_SECRET: 'made-up-caller-secret-of-32-characters',
+      RETAIL_HANDOFF_SECRET: 'made-up-handoff-secret-of-32-characters',
+    };
+
+    it('is optional: without RETAIL_URL nothing about it is a problem, even stray secrets', () => {
+      expect(problemsWith({})).toEqual([]);
+      expect(problemsWith({ RETAIL_SYNC_SECRET: 'short', RETAIL_HANDOFF_SECRET: complete.CRON_SECRET })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: '  ' })).toEqual([]);
+    });
+
+    it('accepts a complete link, with or without the previous caller secret, and a trailing slash on the URL', () => {
+      expect(problemsWith(retail)).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: 'made-up-previous-caller-secret-32ch' })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: 'https://retail.buzzify.me/' })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: 'https://retail.buzzify.me:8443' })).toEqual([]);
+    });
+
+    it('with RETAIL_URL set, needs the three shared secrets (the placeholder counts as none)', () => {
+      expect(named(problemsWith({ RETAIL_URL: retail.RETAIL_URL }))).toEqual(['RETAIL_SYNC_SECRET', 'RETAIL_CALLER_SECRET', 'RETAIL_HANDOFF_SECRET']);
+      const placeholder = 'generate with: openssl rand -base64 32';
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET: placeholder }))).toEqual(['RETAIL_CALLER_SECRET']);
+      // Each problem names the Retails twin to copy the value from.
+      expect(problemsWith({ ...retail, RETAIL_HANDOFF_SECRET: undefined })[0]).toContain('CORE_HANDOFF_SECRET');
+    });
+
+    it('requires https and a bare origin written as Retails writes its APP_URL', () => {
+      for (const bad of [
+        'http://retail.buzzify.me',
+        'retail.buzzify.me',
+        'ftp://retail.buzzify.me',
+        'https://retail.buzzify.me/app',
+        'https://retail.buzzify.me/?a=1',
+        'https://retail.buzzify.me/#x',
+        'https://user:pw@retail.buzzify.me',
+        'https://Retail.Buzzify.me',
+        'https://retail.buzzify.me:443',
+      ]) {
+        expect(named(problemsWith({ ...retail, RETAIL_URL: bad })), bad).toEqual(['RETAIL_URL']);
+      }
+    });
+
+    it('refuses a secret under 16 characters, including the optional previous one', () => {
+      expect(named(problemsWith({ ...retail, RETAIL_SYNC_SECRET: 'x'.repeat(15) }))).toEqual(['RETAIL_SYNC_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: 'x'.repeat(15) }))).toEqual(['RETAIL_CALLER_SECRET_PREVIOUS']);
+      expect(problemsWith({ ...retail, RETAIL_SYNC_SECRET: 'x'.repeat(16) })).toEqual([]);
+    });
+
+    it('refuses one value for two jobs: among the four, or shared with CRON_SECRET or BETTER_AUTH_SECRET', () => {
+      expect(named(problemsWith({ ...retail, RETAIL_HANDOFF_SECRET: retail.RETAIL_SYNC_SECRET }))).toEqual(['RETAIL_HANDOFF_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: retail.RETAIL_CALLER_SECRET }))).toEqual(['RETAIL_CALLER_SECRET_PREVIOUS']);
+      expect(named(problemsWith({ ...retail, RETAIL_SYNC_SECRET: complete.CRON_SECRET }))).toEqual(['RETAIL_SYNC_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET: complete.BETTER_AUTH_SECRET }))).toEqual(['RETAIL_CALLER_SECRET']);
+    });
+
+    it('never repeats a value in its problems', () => {
+      const result = checkProductionEnv({
+        ...complete,
+        RETAIL_URL: 'http://hunter2.example.com/hunter2',
+        RETAIL_SYNC_SECRET: 'hunter2',
+        RETAIL_CALLER_SECRET: complete.CRON_SECRET,
+        RETAIL_HANDOFF_SECRET: 'hunter2-handoff-secret-value',
+        RETAIL_CALLER_SECRET_PREVIOUS: 'hunter2-handoff-secret-value',
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.problems.join('\n')).not.toMatch(/hunter2|made-up-cron/);
+      expect(named(result.problems)).toEqual(['RETAIL_URL', 'RETAIL_SYNC_SECRET', 'RETAIL_CALLER_SECRET', 'RETAIL_HANDOFF_SECRET']);
+    });
+  });
+
   it('names each variable once and never repeats a value', () => {
     const wrong = {
       DATABASE_URL: 'postgresql://app:hunter2-pooled@127.0.0.1/buzzify',

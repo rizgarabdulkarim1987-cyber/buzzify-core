@@ -4,7 +4,7 @@ import { Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { jump } from '@/app/studio/_actions/search';
 import { useT } from '@/studio/i18n';
-import { businessPath } from '@/studio/spaces';
+import { businessPath, sectorOfSpace } from '@/studio/spaces';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
 import { isJumpShortcut } from './jump-shortcut';
 
@@ -17,7 +17,7 @@ const MAX_TYPED = 80;
  * result opens the restaurant's profile or the menu's page. When it closes, focus goes back where it was (the button, when
  * the shortcut was pressed with nothing focused).
  */
-export function JumpTo({ space }: { space?: 'food' | 'pharmacy' }) {
+export function JumpTo({ space }: { space?: 'food' | 'pharmacy' | 'retail' }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   // The shortcut's name depends on the platform, which only the browser knows: the server (and hydration) says Ctrl.
@@ -78,7 +78,7 @@ export function JumpTo({ space }: { space?: 'food' | 'pharmacy' }) {
             id: `restaurant:${restaurant.id}`,
             label: restaurant.name,
             detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
-            href: businessPath(space === 'pharmacy' ? 'PHARMACY' : 'FOOD', restaurant.id),
+            href: businessPath((space && sectorOfSpace(space)) ?? 'FOOD', restaurant.id),
           })),
         });
       }

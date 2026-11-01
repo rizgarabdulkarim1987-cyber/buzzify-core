@@ -6,11 +6,16 @@ import posAi from './pos-ai/ckb';
 import posStock from './pos-stock/ckb';
 import posTill from './pos-till/ckb';
 import pharmacy from './pharmacy/ckb';
+import retail from './retail/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'بازدان بۆ ناوەڕۆک',
+  'retailOnly.title': 'ئەم هەژمارە بۆ Buzzify Retail ـە',
+  'retailOnly.body': 'فرۆشگایەکی Buzzify Retail تۆی زیادکرد بۆ کارمەندەکانی. کارەکەت لە Buzzify Retail ـە: لەوێ بەم هەژمارە بچۆ ژوورەوە. هیچ شتێک لەم ستۆدیۆیە بۆ تۆ دیاری نەکراوە.',
+  'retailOnly.open': 'Buzzify Retail بکەرەوە',
+  'retailOnly.role': 'کارمەندی Buzzify Retail',
   'common.save': 'پاشەکەوتکردن',
   'common.saving': 'پاشەکەوت دەکرێت…',
   'common.cancel': 'هەڵوەشاندنەوە',
@@ -2675,12 +2680,11 @@ const ckb: Messages = {
   'error.text.limitNoPlan': 'ئەم دەرمانخانەیە پاکێجی چالاکی نییە، بۆیە هیچ زیاد ناکرێت.',
   'error.text.limitBranches': 'ئەم پاکێجە شوێنی بۆ لقی زیاتر نییە. دەرمانخانەکە بگوێزەرەوە بۆ پاکێجێکی گەورەتر.',
   'error.text.limitStaff': 'ئەم پاکێجە شوێنی بۆ کارمەندی زیاتر نییە. دەرمانخانەکە بگوێزەرەوە بۆ پاکێجێکی گەورەتر.',
-  'billingList.pharmacyPlans': 'پاکێجەکانی دەرمانخانە',
-  'appPlans.title': 'پاکێجەکانی دەرمانخانە',
-  'appPlans.description': 'ناوی هەر پاکێجێکی دەرمانخانە و ئەو سنوورانەی دایدەنێت. نرخەکان لە ڕێکخستنەکان ← فاتورە دیاری دەکرێن.',
+  'appPlans.pharmacy.title': 'پاکێجەکانی دەرمانخانە',
+  'appPlans.pharmacy.description': 'ناوی هەر پاکێجێکی دەرمانخانە و ئەو سنوورانەی دایدەنێت. نرخەکان لە ڕێکخستنەکان ← فاتورە دیاری دەکرێن.',
   'appPlans.readOnly': 'تەنها خاوەنی پلاتفۆرم دەتوانێت پاکێج بگۆڕێت.',
-  'appPlans.emptyTitle': 'هێشتا هیچ پاکێجی دەرمانخانە نییە',
-  'appPlans.emptyBody': 'پاکێجێک دروست بکە پێش دەستپێکردنی تاقیکردنەوەی دەرمانخانە. هیچ نرخێک دیاری ناکرێت تا خۆت نەینووسیت.',
+  'appPlans.pharmacy.emptyTitle': 'هێشتا هیچ پاکێجی دەرمانخانە نییە',
+  'appPlans.pharmacy.emptyBody': 'پاکێجێک دروست بکە پێش دەستپێکردنی تاقیکردنەوەی دەرمانخانە. هیچ نرخێک دیاری ناکرێت تا خۆت نەینووسیت.',
   'appPlans.new': 'پاکێجی نوێ',
   'appPlans.code': 'کۆد',
   'appPlans.codeHint': 'پیت و ژمارە و هێڵ. دواتر ناگۆڕدرێت.',
@@ -2689,6 +2693,10 @@ const ckb: Messages = {
   'appPlans.limit.users': 'کارمەندان',
   'appPlans.limit.storageMb': 'قەبارەی هەڵگرتن (مێگابایت)',
   'appPlans.limit.aiMonthlyBudgetMinor': 'بودجەی زیرەکی دەستکرد مانگانە (یەکەی بچووک)',
+  'appPlans.limit.terminals': 'تێرمیناڵەکانی فرۆشتن',
+  'appPlans.limit.aiMonthly': 'خوێندنەوەکانی زیرەکی دەستکرد مانگانە',
+  'appPlans.app.pharmacy': 'دەرمانخانە',
+  'appPlans.app.retail': 'تاکفرۆشی',
   'appPlans.limitsHint': '0 واتە هیچ نەماوە، هەرگیز بێسنوور نییە. کەمکردنەوەی سنوور هیچ ناسڕێتەوە؛ تەنها ڕێگری لە زیادکردنی نوێ دەکات.',
   'appPlans.sortOrder': 'ڕیزبەندی',
   'appPlans.onSale': 'لە فرۆشتندایە',
@@ -2801,6 +2809,13 @@ const ckb: Messages = {
   'email.reset.action': 'وشەیەکی نهێنی نوێ هەڵبژێرە',
   'email.reset.expiry': 'ئەم بەستەرە تەنیا یەک جار بەکاردێت و دوای کاتژمێرێک بەسەر دەچێت.',
   'email.reset.ignore': 'ئەگەر تۆ ئەمەت نەویستووە، ئەم ئیمەیڵە فەرامۆش بکە؛ وشەی نهێنییەکەت وەک خۆی دەمێنێتەوە.',
+
+  // Email: the first password of an account Buzzify Retail asked for (machine-drafted, to review)
+  'email.retailIdentity.subject': 'وشەی نهێنییەکەت دابنێ بۆ چوونەژوورەوە بۆ Buzzify Retail',
+  'email.retailIdentity.intro': 'فرۆشگایەکی Buzzify Retail ئەم ناونیشانەی زیادکرد بۆ کارمەندەکانی. وشەیەکی نهێنی هەڵبژێرە بۆ چوونەژوورەوە بۆ Buzzify Retail بە هەژماری Buzzify ـەکەت.',
+  'email.retailIdentity.action': 'وشەی نهێنی دابنێ',
+  'email.retailIdentity.expiry': 'ئەم بەستەرە تەنیا یەک جار بەکاردێت و دوای کاتژمێرێک بەسەر دەچێت. دوای ئەوە «وشەی نهێنییەکەت لەبیر چووە؟» لە پەڕەی چوونەژوورەوە بەکاربهێنە.',
+  'email.retailIdentity.ignore': 'ئەگەر لەم فرۆشگایە کار ناکەیت، ئەم ئیمەیڵە فەرامۆش بکە. هیچ وشەیەکی نهێنی دانانرێت تا خۆت یەکێک هەڵنەبژێریت.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
   'email.changeEmailConfirm.subject': 'ڕەزامەندی لەسەر گۆڕینی ئیمەیڵەکەت لە Buzzify Core بدە',
@@ -3231,6 +3246,18 @@ const ckb: Messages = {
   'restaurants.form.planHint': 'ئەوەی مینیوەکانی ئەم ڕێستۆرانە لەخۆیان دەگرن. دواتر لە بەشی پاکێج دەتوانیت بیگۆڕیت.',
   'restaurants.sector.FOOD': 'خواردن',
   'restaurants.sector.PHARMACY': 'دەرمانخانە',
+  'restaurants.sector.RETAIL': 'دوکانی تاکە فرۆشی',
+  'restaurants.form.retailBranchesIntro': 'دوکانەکە بەم لقانە دەست پێدەکات. دواتر لقەکانی لە Retails بەڕێوە دەبرێن.',
+  'restaurants.form.retailCurrenciesIntro': 'ئەو دراوانەی ئەم دوکانە نرخی پێ دادەنێت. هەر دراوێک بە جیا دەمێنێتەوە و هیچ شتێک ناگۆڕدرێت.',
+  'restaurants.form.retailOwnerEmailHint': 'بانگهێشتنامەی خاوەندارێتی ئەم دوکانە بۆ ئێرە دەنێردرێت. دوکانی تاکە فرۆشی پێویستی بە خاوەن هەیە.',
+  'error.text.retailNotDeleted': 'دوکانی تاکە فرۆشی هەرگیز ناسڕدرێتەوە: لیستی بەرهەمەکان و مێژووەکەی لە Retails دەمێننەوە. لە جیاتی ئەوە ڕایبگرە.',
+  'error.text.retailBranchesInRetails': 'لقەکانی دوکانی تاکە فرۆشی لە Retails بەڕێوە دەبرێن',
+  'error.text.menusFoodOnly': 'مینیو تەنها بۆ کارە خواردنییەکانە',
+  'error.text.retailBranchesMax': 'دوکانی تاکە فرۆشی بە زۆرترین ٢٠ لق دەست پێدەکات',
+  'error.text.retailLastOwner': 'دوکانی تاکە فرۆشی دەبێت خاوەنێکی هەبێت. سەرەتا خاوەنێکی تر زیاد بکە.',
+  'error.text.reasonMin3': 'هۆکارەکە بنووسە، بە لانیکەم ٣ پیت',
+  'error.text.branchNamesUnique': 'ناوی لقەکان دەبێت جیاواز بن',
+  'error.text.ownerEmailRequired': 'ئیمەیڵی خاوەن بنووسە',
   'restaurants.filter.sector': 'کەرت',
   'restaurants.filter.allSectors': 'هەموو کەرتەکان',
   'restaurants.list.sector': 'کەرت',
@@ -3493,6 +3520,8 @@ const ckb: Messages = {
   ...aiSettings,
   // The pharmacy (pharmacy/ckb.ts)
   ...pharmacy,
+  // The link to Buzzify Retail (retail/ckb.ts)
+  ...retail,
   'nav.platformIntro': 'ڕیکلامەکانی دەروازە',
   'workspace.tab.intro': 'دەروازە',
   'platformIntro.title': 'ڕیکلامەکانی دەروازە',
@@ -3581,6 +3610,7 @@ const ckb: Messages = {
   'hub.title': 'پڕۆژەیەک هەڵبژێرە',
   'hub.food': 'مینیو و کاشێر',
   'hub.pharmacy': 'دەرمانخانە',
+  'hub.retail': 'تاکە فرۆشی',
   'hub.platform': 'پلاتفۆرم',
   'hub.allProjects': 'هەموو پڕۆژەکان',
   'nav.team': 'تیم',

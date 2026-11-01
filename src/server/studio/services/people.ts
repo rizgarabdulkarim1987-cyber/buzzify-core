@@ -197,10 +197,15 @@ export async function changeEmail(
     throw problem('email', 'An account with this email already exists');
   }
   try {
-    await tx.user.update({ where: { id: args.userId }, data: { email: after } });
+    // Nobody has proven the new address: it is unverified until its owner opens a reset link sent to it, so Buzzify Retail
+    // (which links accounts only on a verified address) does not trust it before then.
+    await tx.user.update({ where: { id: args.userId }, data: { email: after, emailVerified: false } });
   } catch (error) {
     if (isUniqueViolation(error)) throw problem('email', 'An account with this email already exists');
     throw error;
   }
+  // A reset link already sent to the old address would otherwise still set the password of the moved account. (Better
+  // Auth's email-change links are signed tokens bound to the old address and stored nowhere: they fail on their own.)
+  await tx.verification.deleteMany({ where: { value: args.userId, identifier: { startsWith: 'reset-password:' } } });
   return { before: user.email, name: user.name, locale: user.locale, after };
 }

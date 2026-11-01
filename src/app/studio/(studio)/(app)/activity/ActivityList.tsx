@@ -8,6 +8,7 @@ import { listActivity } from '@/server/studio/queries/activity';
 import type { AuditRow, Named } from '@/server/studio/services/activity';
 import { formatDateTime } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
+import { businessBase } from '@/studio/spaces';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { Pagination } from '@/studio/ui/Pagination';
@@ -54,7 +55,7 @@ export async function ActivityList({
   space,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-  space: 'food' | 'pharmacy';
+  space: 'food' | 'pharmacy' | 'retail';
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
@@ -110,7 +111,7 @@ export async function ActivityList({
                             <Item row={row} t={t} />
                           </td>
                           <td className="px-3 py-2.5">
-                            <Place named={row.restaurant} href={`${space === 'pharmacy' ? '/studio/pharmacy' : '/studio/restaurants'}/${row.restaurant?.id ?? ''}`} t={t} />
+                            <Place named={row.restaurant} href={`${businessBase(space)}/${row.restaurant?.id ?? ''}`} t={t} />
                           </td>
                           <td className="px-3 py-2.5 last:pe-4">
                             <Place named={row.menu} href={`/studio/menus/${row.menu?.id ?? ''}`} t={t} />
