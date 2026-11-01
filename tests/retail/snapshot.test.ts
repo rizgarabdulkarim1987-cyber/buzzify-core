@@ -5,7 +5,7 @@ import * as restaurants from '@/server/studio/actions/restaurants';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction } from '@/server/studio/framework/action';
 import { DAY, NOW, person, prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
-import { coreStateSchema } from './core-state-schema';
+import { coreStateSchema } from './contract-oracle';
 import { RETAIL_LIMITS, retailPlan, retailShop } from './world';
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));

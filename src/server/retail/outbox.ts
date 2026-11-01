@@ -1,4 +1,7 @@
+import { after } from 'next/server';
+import { getPrisma } from '@/server/data/prisma';
 import type { AnyDb } from '@/server/data/tenant-db';
+import { retailConfig } from '@/server/retail/config';
 import { retailShopsOwnedBy } from '@/server/retail/owners';
 import { buildRetailState } from '@/server/retail/snapshot';
 
@@ -79,9 +82,33 @@ export async function ensureRetailVersion(tx: AnyDb, restaurantId: string): Prom
   return bumpRetailState(tx, restaurantId);
 }
 
-/** Registers the immediate first attempt after commit (Task 5 fills the sender in; until then a no-op). */
+/**
+ * Registers an immediate attempt for the business once the change has committed (`afterCommit`; without one it is
+ * registered at once, for a caller whose transaction is already over). The attempt itself never runs inside the
+ * request: it is handed to `after()`, which runs it once the response is out and keeps a serverless function alive until
+ * it ends. Without a request scope (tests, scripts) `after()` throws and the attempt simply starts, unawaited. It
+ * claims the row under the sender's lease, so it never races a cron run, and any failure is swallowed: the row stays
+ * queued and the sync cron delivers it. Without RETAIL_URL it does nothing.
+ */
 export function kickAfterCommit(afterCommit: ((fn: () => void) => void) | undefined, restaurantId: string): void {
-  // Until the sender exists, the cron's next run delivers the row.
-  void afterCommit;
-  void restaurantId;
+  const register = afterCommit ?? ((fn: () => void) => fn());
+  register(() => {
+    if (!retailConfig().enabled) return;
+    const task = () => kick(restaurantId);
+    try {
+      after(task);
+    } catch {
+      void task();
+    }
+  });
+}
+
+async function kick(restaurantId: string): Promise<void> {
+  try {
+    // Loaded here: the sender imports this module.
+    const [{ deliverNow }, { createHttpRetailClient }] = await Promise.all([import('@/server/retail/sender'), import('@/server/retail/client')]);
+    await deliverNow(getPrisma(), createHttpRetailClient(), restaurantId, new Date());
+  } catch (error) {
+    console.error(`[retail.sync] ${restaurantId} ${error instanceof Error ? 'KICK_FAILED' : 'UNKNOWN'}`);
+  }
 }
