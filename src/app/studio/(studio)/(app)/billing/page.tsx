@@ -42,7 +42,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         description={t('billingList.description')}
         actions={
           <Link href="/studio/billing/plans" className={buttonClasses('secondary')}>
-            {t('billingList.pharmacyPlans')}
+            {t('billingList.appPlans')}
           </Link>
         }
       />

@@ -39,6 +39,8 @@ export default async function RestaurantLayout({ children, params }: { children:
     ...(actor.isSuperAdmin ? [{ href: `${base}/billing`, label: t('restaurants.tabs.billing') }] : []),
     // What guests send through the menus' box: everyone of the restaurant reads it. A pharmacy has no menus, so no box.
     ...(food ? [{ href: `${base}/feedback`, label: t('restaurants.tabs.feedback') }] : []),
+    // A linked retail shop's delivery to Buzzify Retail, its AI switch and Resync: Super Admins (platform.settings).
+    ...(restaurant.sector === 'RETAIL' && actor.isSuperAdmin ? [{ href: `${base}/retail`, label: t('restaurants.tabs.retail') }] : []),
     ...(food && restaurant.can.media ? [{ href: `${base}/media`, label: t('restaurants.tabs.media') }] : []),
     ...(restaurant.can.invite ? [{ href: `${base}/people`, label: t('restaurants.tabs.people') }] : []),
     ...(restaurant.can.audit ? [{ href: `${base}/activity`, label: t('restaurants.tabs.activity') }] : []),

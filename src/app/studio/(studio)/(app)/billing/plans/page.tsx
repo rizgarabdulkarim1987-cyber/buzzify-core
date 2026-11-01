@@ -10,8 +10,9 @@ import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { AppPlansEditor } from './AppPlansEditor';
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: getStudioTranslator(await requestStudioLocale())('appPlans.title') };
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const { app } = await searchParams;
+  return { title: getStudioTranslator(await requestStudioLocale())(`appPlans.${app === 'retail' ? 'retail' : 'pharmacy'}.title`) };
 }
 
 /**
@@ -35,11 +36,11 @@ export default async function AppPlansPage({ searchParams }: { searchParams: Pro
             {t('billing.title')}
           </Link>
         }
-        title={t('appPlans.title')}
-        description={t('appPlans.description')}
+        title={t(`appPlans.${applicationId}.title`)}
+        description={t(`appPlans.${applicationId}.description`)}
       />
       <div className="px-8 pb-10">
-        <nav aria-label={t('appPlans.title')} className="mb-8 flex gap-2">
+        <nav aria-label={t('appPlans.navLabel')} className="mb-8 flex gap-2">
           {(['pharmacy', 'retail'] as const).map((id) => (
             <Link
               key={id}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Pill } from 'lucide-react';
+import { Pill, ShoppingBag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -70,8 +70,8 @@ export function AppPlansEditor({ applicationId, plans, canEdit }: { applicationI
   return (
     <div className="flex max-w-4xl flex-col gap-10">
       {!canEdit && <Alert>{t('appPlans.readOnly')}</Alert>}
-      {plans.length === 0 && !canEdit && <EmptyState icon={<Pill aria-hidden />} title={t('appPlans.emptyTitle')} body={t('appPlans.emptyBody')} />}
-      {plans.length === 0 && canEdit && <p className="max-w-[72ch] text-sm text-muted">{t('appPlans.emptyBody')}</p>}
+      {plans.length === 0 && !canEdit && <EmptyState icon={applicationId === 'retail' ? <ShoppingBag aria-hidden /> : <Pill aria-hidden />} title={t(`appPlans.${applicationId}.emptyTitle`)} body={t(`appPlans.${applicationId}.emptyBody`)} />}
+      {plans.length === 0 && canEdit && <p className="max-w-[72ch] text-sm text-muted">{t(`appPlans.${applicationId}.emptyBody`)}</p>}
       {plans.map((plan) => (
         <PlanForm key={`${plan.code}:${plan.version}`} applicationId={applicationId} plan={plan} canEdit={canEdit} />
       ))}

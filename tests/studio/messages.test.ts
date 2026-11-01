@@ -132,6 +132,7 @@ describe('server texts', () => {
     'Better Auth started a two-factor method other than an authenticator app',
     'A restaurant action ran without a restaurant',
     'A retail action ran without a restaurant',
+    'A retail query ran without a restaurant',
     'A restaurant query ran without a restaurant',
     'A menu action ran without a menu',
     'A menu import ran without a menu',
