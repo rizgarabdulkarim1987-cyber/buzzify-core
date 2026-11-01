@@ -4,6 +4,7 @@ import * as restaurants from '@/server/studio/actions/restaurants';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import type { ActionResult } from '@/server/studio/framework/result';
+import { MENUS_FOOD_ONLY } from '@/server/studio/services/menus';
 import { RETAIL_BRANCHES_IN_RETAILS, RETAIL_NOT_DELETED } from '@/server/studio/services/restaurants';
 import { person, pharmacy, prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
 
@@ -140,7 +141,7 @@ describe('creating a RETAIL business', () => {
   it('a menu is created only in a FOOD business', async () => {
     const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, RETAIL));
     const refused = await run(admin, menus.createMenu, { restaurantId, name: 'Menu', slug: 'retail-menu' });
-    expect(refused).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: menus.MENUS_FOOD_ONLY } });
+    expect(refused).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: MENUS_FOOD_ONLY } });
     const ph = await pharmacy('Some pharmacy');
     expect(codeOf(await run(admin, menus.createMenu, { restaurantId: ph.id, name: 'Menu', slug: 'ph-menu' }))).toBe('CONFLICT');
     const food = await pharmacy('Some cafe', { sector: 'FOOD' });

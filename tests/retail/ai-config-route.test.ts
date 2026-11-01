@@ -83,14 +83,20 @@ describe('GET /api/retail/v1/ai-config', () => {
     expect(await (await call()).json()).toEqual({ apiKey: null, model: null });
   });
 
-  it('a wrong encryption key reads as no saved key', async () => {
+  it('a saved key that cannot be read answers 503, so Retails keeps its cached key instead of switching AI off', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await save({ provider: 'anthropic', anthropic: { apiKey: SAVED_KEY, askModel: 'claude-ask-model' }, openai: {} });
+    // A wrong encryption key, with or without an environment key to fall back on: never "no key", never the env key.
     vi.stubEnv('AI_SETTINGS_ENCRYPTION_KEY', randomBytes(32).toString('base64'));
-    expect(await (await call()).json()).toEqual({ apiKey: null, model: 'claude-ask-model' });
-    vi.stubEnv('ANTHROPIC_API_KEY', ENV_KEY);
-    expect(await (await call()).json()).toEqual({ apiKey: ENV_KEY, model: 'claude-ask-model' });
+    for (const envKey of ['', ENV_KEY]) {
+      vi.stubEnv('ANTHROPIC_API_KEY', envKey);
+      const response = await call();
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ code: 'UNAVAILABLE' });
+    }
+    // No encryption key at all: the same.
     vi.stubEnv('AI_SETTINGS_ENCRYPTION_KEY', '');
-    expect(await (await call()).json()).toEqual({ apiKey: ENV_KEY, model: 'claude-ask-model' });
+    expect((await call()).status).toBe(503);
   });
 
   it('a malformed stored setting reads as nothing saved', async () => {

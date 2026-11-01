@@ -67,6 +67,7 @@ const retail: Messages = {
   'retail.open.hint': 'يفتح هذا المحل في Buzzify Retail وأنت مسجّل الدخول.',
   'activity.action.retail.ai_intake_changed': 'غيّر قراءة الفواتير بالذكاء الاصطناعي لمحل تجزئة',
   'activity.action.retail.resync': 'أعاد إرسال محل تجزئة إلى Buzzify Retail',
+  'activity.entity.RetailLink': 'ربط التجزئة',
   'appPlans.navLabel': 'التطبيقات',
   'billingList.appPlans': 'باقات الصيدلية والتجزئة',
   'appPlans.retail.title': 'باقات التجزئة',

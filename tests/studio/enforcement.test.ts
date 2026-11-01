@@ -100,11 +100,18 @@ const STUDIO_ROUTE_DIRS = ['src/app/api/studio/', 'src/app/studio/'];
  */
 const FILE_ROUTE_DIRS = ['src/app/studio/style-files/'];
 
+/**
+ * The Buzzify Retail sign-in handoff: its routes answer redirects and small pages, never `{ data }`, so they are not
+ * definitions. Each must only hand the request to `src/server/retail/handoff-http.ts`, which checks the session itself.
+ */
+const HANDOFF_ROUTE_DIRS = ['src/app/studio/retail/'];
+
 /** A route handler the Studio host serves: any `route.*` file in those folders, except the file-serving ones. */
 function isStudioRoute(path: string): boolean {
   return (
     STUDIO_ROUTE_DIRS.some((dir) => path.startsWith(dir)) &&
     !FILE_ROUTE_DIRS.some((dir) => path.startsWith(dir)) &&
+    !HANDOFF_ROUTE_DIRS.some((dir) => path.startsWith(dir)) &&
     /^route\.\w+$/.test(posix.basename(path))
   );
 }
@@ -399,6 +406,16 @@ describe('Studio enforcement rules', () => {
           /^route\.\w+$/.test(posix.basename(path)) &&
           !/import\s*\{[^}]*serveStyleFile[^}]*\}\s*from\s*'@\/server\/studio\/style-files'/.test(read(path)),
       );
+      expect(offenders).toEqual([]);
+    });
+
+    it('has every retail handoff route only call the handoff handlers, which check the session', () => {
+      const routes = HANDOFF_ROUTE_DIRS.flatMap((dir) => sourceFiles(dir.replace(/\/$/, ''))).filter((path) => /^route\.\w+$/.test(posix.basename(path)));
+      expect(routes.length).toBeGreaterThan(0);
+      const offenders = routes.filter((path) => {
+        const imports = [...read(path).matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+        return imports.length !== 1 || imports[0] !== '@/server/retail/handoff-http';
+      });
       expect(offenders).toEqual([]);
     });
   });

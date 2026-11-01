@@ -24,6 +24,7 @@ import {
   isUniqueViolation,
   menuName,
   menuSlugs,
+  MENUS_FOOD_ONLY,
   newMenuInput,
   requireSlugAvailable,
   slugField,
@@ -64,8 +65,6 @@ function restaurantOf(ctx: ActionContext): string {
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 // Creating ------------------------------------------------------------------------------------------------------------
-
-export const MENUS_FOOD_ONLY = 'Menus are only for food businesses';
 
 export const createMenu = defineAction({
   name: 'menus.create',

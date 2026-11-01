@@ -68,6 +68,7 @@ const retail: Messages = {
   'retail.open.hint': 'ئەم دوکانە لە Buzzify Retail دەکاتەوە، بە هەژماری خۆت.',
   'activity.action.retail.ai_intake_changed': 'خوێندنەوەی پسوولە بە زیرەکیی دەستکردی دوکانێکی تاکە فرۆشی گۆڕی',
   'activity.action.retail.resync': 'دوکانێکی تاکە فرۆشیی دووبارە نارد بۆ Buzzify Retail',
+  'activity.entity.RetailLink': 'بەستەری تاکە فرۆشی',
   'appPlans.navLabel': 'بەرنامەکان',
   'billingList.appPlans': 'پاکێجەکانی دەرمانخانە و تاکە فرۆشی',
   'appPlans.retail.title': 'پاکێجەکانی تاکە فرۆشی',

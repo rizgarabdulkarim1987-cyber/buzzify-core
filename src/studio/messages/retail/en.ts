@@ -68,6 +68,7 @@ const retail: Messages = {
   'retail.open.hint': 'Opens this shop in Buzzify Retail, signed in as you.',
   'activity.action.retail.ai_intake_changed': 'Changed a retail shop’s AI receipt reading',
   'activity.action.retail.resync': 'Resent a retail shop to Buzzify Retail',
+  'activity.entity.RetailLink': 'Retail link',
   'appPlans.navLabel': 'Applications',
   'billingList.appPlans': 'Pharmacy and Retail plans',
   'appPlans.retail.title': 'Retail plans',
