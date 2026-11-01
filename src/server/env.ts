@@ -382,8 +382,26 @@ const CHECKED_VARIABLES = [
   'MEDIA_PUBLIC_URL',
   'MEDIA_LOCAL_DIR',
   'CRON_SECRET',
+  'RETAIL_URL',
+  'RETAIL_SYNC_SECRET',
+  'RETAIL_CALLER_SECRET',
+  'RETAIL_CALLER_SECRET_PREVIOUS',
+  'RETAIL_HANDOFF_SECRET',
   'DEV_SEED_PASSWORD',
 ] as const;
+
+/**
+ * The secrets of the Buzzify Retail link, with their Retails twins (same value) and whether they are needed. The same
+ * rules as `src/server/retail/config.ts` applies at run time apply here (at least 16 characters, each one different), and none
+ * may also be CRON_SECRET or BETTER_AUTH_SECRET.
+ */
+const RETAIL_SECRETS = [
+  ['RETAIL_SYNC_SECRET', "Retails' CORE_SYNC_SECRET", true],
+  ['RETAIL_CALLER_SECRET', "Retails' CORE_OUT_SECRET", true],
+  ['RETAIL_CALLER_SECRET_PREVIOUS', "Retails' previous CORE_OUT_SECRET, during a rotation", false],
+  ['RETAIL_HANDOFF_SECRET', "Retails' CORE_HANDOFF_SECRET", true],
+] as const;
+const MIN_RETAIL_SECRET_LENGTH = 16;
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -510,6 +528,47 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   const cronSecret = text('CRON_SECRET');
   if (!cronSecret) report('CRON_SECRET', 'is not set (generate one with: openssl rand -base64 32)');
   else if (cronSecret.length < MIN_CRON_SECRET_LENGTH) report('CRON_SECRET', `must be at least ${MIN_CRON_SECRET_LENGTH} characters`);
+
+  // The Buzzify Retail link is optional: without RETAIL_URL it is off and nothing else about it matters. With it, the
+  // three shared secrets must be set, and every value must be one the runtime's `retailConfig()` accepts.
+  const retailText = (name: string) => {
+    const value = text(name);
+    return value && !SECRET_PLACEHOLDER.test(value) ? value : undefined;
+  };
+  const retailUrl = retailText('RETAIL_URL');
+  if (retailUrl) {
+    const url = URL.canParse(retailUrl) ? new URL(retailUrl) : null;
+    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) {
+      report('RETAIL_URL', "must be the address of Buzzify Retail, the same as its APP_URL, such as https://retail.buzzify.me");
+    } else if (url.protocol !== 'https:') report('RETAIL_URL', 'must start with https://');
+    else if (url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') {
+      report('RETAIL_URL', 'must be an origin only, without a path, query or #');
+    } else if (retailUrl.replace(/\/+$/, '') !== url.origin) {
+      // Retails names its callback from APP_URL as written, and Studio accepts only the one built from this origin.
+      report('RETAIL_URL', "must be written exactly as Retails' APP_URL: lowercase, without a default port");
+    }
+
+    const secrets = new Map<string, string>();
+    for (const [name, twin, required] of RETAIL_SECRETS) {
+      const value = retailText(name);
+      if (!value) {
+        if (required) report(name, `is not set (the same value as ${twin}; generate one with: openssl rand -base64 32)`);
+      } else if (value.length < MIN_RETAIL_SECRET_LENGTH) {
+        report(name, `must be at least ${MIN_RETAIL_SECRET_LENGTH} characters (32 or more recommended)`);
+      } else secrets.set(name, value);
+    }
+    // One value for two jobs lets whoever holds one forge the other.
+    const others: [string, string | undefined][] = [
+      ['CRON_SECRET', text('CRON_SECRET')],
+      ['BETTER_AUTH_SECRET', text('BETTER_AUTH_SECRET')],
+    ];
+    const seen: [string, string][] = [];
+    for (const [name, value] of secrets) {
+      const same = [...seen, ...others].find(([, other]) => other === value);
+      if (same) report(name, `must differ from ${same[0]}; every secret needs its own value`);
+      seen.push([name, value]);
+    }
+  }
 
   if (text('DEV_SEED_PASSWORD')) {
     report('DEV_SEED_PASSWORD', 'must not be set in production; it creates users whose password is published in .env.example');

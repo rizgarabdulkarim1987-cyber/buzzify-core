@@ -161,6 +161,54 @@ not let the first run happen on production.
 
 Never run migrations against the production address from a computer by hand for this release.
 
+## Buzzify Retail link (optional, with the owner's approval)
+
+"Linking Buzzify Retail" in `docs/deploy/production.md` explains the link: what each side sends, the secrets and how to
+change them. On this site:
+
+**Before the merge.** The release that brings the link adds migrations, and the Hostinger build runs
+`prisma migrate deploy` on production. One of them (`ALTER TYPE ... ADD VALUE 'RETAIL'`) cannot be undone. Take a fresh
+Neon snapshot of `production`, rehearse on a branch as in "The production migration for billing" above, and merge only in
+a window the owner approved.
+
+**The settings** (hPanel, Node.js, Environment variables; type each value yourself, never in a chat or the repository).
+Leave `RETAIL_URL` out and the link stays off: the build check ignores the others. With it, the build stops until the three
+secrets are right. Each value is the same as its twin in Retails:
+
+| Here | In Retails | Value |
+|---|---|---|
+| `RETAIL_URL` | `APP_URL` | Retails' address, written identically on both sides: `https://`, lowercase, no path, no trailing slash, no port |
+| `RETAIL_SYNC_SECRET` | `CORE_SYNC_SECRET` | `openssl rand -base64 32` |
+| `RETAIL_CALLER_SECRET` | `CORE_OUT_SECRET` | `openssl rand -base64 32` |
+| `RETAIL_CALLER_SECRET_PREVIOUS` | | empty, except while `RETAIL_CALLER_SECRET` is being changed |
+| `RETAIL_HANDOFF_SECRET` | `CORE_HANDOFF_SECRET` | `openssl rand -base64 32` |
+| | `CORE_BASE_URL` | `https://studio.buzzify-menu.online`, the Studio address. Not `buzzify-menu.online`: there `/api/retail/...` is a 404, which Retails reads as "no AI key" |
+
+Each secret differs from the others and from `CRON_SECRET` and `BETTER_AUTH_SECRET`. A changed variable needs a new build.
+
+**Two more cron jobs** (hPanel -> Advanced -> Cron Jobs -> Custom), with the same `CRON_SECRET` and header as the jobs
+above:
+
+```bash
+# every minute (* * * * *), never more often: Retails allows 120 calls a minute from the Studio
+curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/retail-sync
+# every hour (0 * * * *)
+curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/retail-reconcile
+```
+
+They answer `{"disabled":true}` while `RETAIL_URL` is not set, so they can be added before the link is switched on. Do
+not add a second retail-sync job.
+
+**Access logs.** Sign-in tokens pass in the query string of `/api/retail/v1/handoff` here and of
+`/api/core/v1/handoff/start` and `/api/core/v1/handoff/callback` on Retails. If Hostinger, Cloudflare or another proxy in
+front of either site keeps access logs with query strings, turn that off for those paths (or for the site), and never
+share such logs.
+
+**After the deploy.** On the billing screens, make the retail plans and their prices, then turn the `retail` product on (it
+starts off). Create a retail business, start its trial, and once its owner has accepted the invitation its Retail tab
+shows **synced** within a minute. A shop that shows **failed** (Retails refused it) is not retried automatically: fix the
+cause, then press **Resync** on that tab (the next change to the shop also sends it again).
+
 ## Neon from the command line
 
 The project is linked to the Neon project `buzzify-menu` (`delicate-pond-39271154`, Frankfurt), branch `production`.

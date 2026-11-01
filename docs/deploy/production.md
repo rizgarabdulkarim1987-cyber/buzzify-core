@@ -447,6 +447,123 @@ again, or until the workaround has been re-checked against the new version.
 **Not set up yet.** Image storage on Cloudflare R2 (`media.buzzify.me`) and scheduled publishing (a Vercel cron job) arrive
 with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SECRET`), and this guide will gain their steps.
 
+## Linking Buzzify Retail (optional)
+
+Buzzify Retail ("Retails", its own app and database) runs the shops' tills, stock and staff. The Studio stays the place
+where a retail shop is created, gets its owner, its plan and its subscription, and where people sign in. The link between
+the two is off until `RETAIL_URL` is set. Without it nothing is sent, the two retail cron routes answer
+`{"disabled":true}`, and the deploy check ignores the other `RETAIL_*` settings.
+
+### What goes over the link
+
+| From | Call | When | Carries |
+|---|---|---|---|
+| Studio | `POST /api/core/v1/provision` on Retails | Once per shop, when it has an owner who accepted and a `retail` subscription | The shop's name, its branches (sent only this once), currencies, and its first snapshot |
+| Studio | `POST /api/core/v1/state` on Retails | After every change Retails must know (owner, plan or its limits, subscription, suspend/archive, the AI switch, Resync) | The snapshot: a version number, the shop's status, the plan and its five limits, the subscription dates, the AI switch and the owner |
+| Studio | `GET /api/core/v1/state` on Retails | The hourly reconcile, about once a day per shop | Nothing; Retails answers its version, status and this month's AI use |
+| Retails | `GET /api/retail/v1/ai-config` on the Studio | When Retails' AI is used, at most once a minute per Retails server | Nothing; the Studio answers its saved Anthropic key (or the `ANTHROPIC_API_KEY` setting) and model |
+| Retails | `POST /api/retail/v1/identities` on the Studio | When an owner adds staff in Retails | An email and a name; the Studio answers the person's Studio account (and makes a sign-in-only account with a set-password email for a new address) |
+| Browser | Retails `.../handoff/start` -> Studio `/api/retail/v1/handoff` -> Retails `.../handoff/callback` | "Sign in with Studio" in Retails, or **Open Retails** in the Studio | A sign-in token valid for 60 seconds, in the address of the last step |
+
+Every server-to-server call is signed and refused without the right secret. Retails ignores a snapshot whose version is
+not higher than the one it has, which is why **Resync** sends the same content at a new version.
+
+### The settings, and their twins in Retails
+
+Each Studio setting has a twin in Retails that holds **the same value**. Make each secret the way you made the sign-in
+secret (`openssl rand -base64 32`; at least 16 characters, 32 or more recommended), every one different from the others
+and from `CRON_SECRET` and `BETTER_AUTH_SECRET`. Put each value into both apps yourself; never paste one into a chat, an
+email or the repository.
+
+| Studio | Retails twin | What it does |
+|---|---|---|
+| `RETAIL_URL` | `APP_URL` | Retails' address. The Studio calls it and sends sign-ins back only to it |
+| `RETAIL_SYNC_SECRET` | `CORE_SYNC_SECRET` | Signs the Studio's provision and state calls |
+| `RETAIL_CALLER_SECRET` | `CORE_OUT_SECRET` | Checks Retails' ai-config and identities calls |
+| `RETAIL_CALLER_SECRET_PREVIOUS` | (Retails' previous `CORE_OUT_SECRET`) | Optional, only while that secret is being changed |
+| `RETAIL_HANDOFF_SECRET` | `CORE_HANDOFF_SECRET` | Signs the sign-in token |
+| (the Studio's own address) | `CORE_BASE_URL` | Where Retails calls the Studio |
+
+Three rules about the two addresses:
+
+- **`RETAIL_URL` must be written exactly like Retails' `APP_URL`**: `https://`, lowercase, no path, no trailing slash, no
+  `:443`. Retails builds the sign-in return address from `APP_URL` as written and the Studio accepts only the one built
+  from `RETAIL_URL`, so `https://Retail.example.com` against `https://retail.example.com` refuses every sign-in. The deploy
+  check refuses a `RETAIL_URL` that is not written that way.
+- **Retails' `CORE_BASE_URL` is the Studio's address** (`https://studio.buzzify.me` here), never the menu address. On the
+  menu address `/api/retail/...` is a 404, and Retails reads a 404 from ai-config as "the Studio has no key": its AI
+  switches off without any other error.
+- Both are `https://` in production. Each app refuses plain `http` there.
+
+### The two scheduled jobs
+
+These are not in `vercel.json`. Add them to the scheduler that already calls `/api/cron/subscriptions` (on Hostinger:
+hPanel Cron Jobs, see `docs/deploy/hostinger.md`; elsewhere an external scheduler such as cron-job.org). Both are a `GET`
+with the header `Authorization: Bearer <CRON_SECRET>`, the same secret as the other jobs:
+
+| Address | How often | What it does |
+|---|---|---|
+| `/api/cron/retail-sync` | **every minute, never more often** | Delivers what is queued: up to 40 shops per run, with retries |
+| `/api/cron/retail-reconcile` | every hour | Checks up to 50 shops against Retails (each about once a day) and re-sends what Retails lost or never got |
+
+Retails allows the Studio 120 calls a minute. One sync run per minute (at most 40 calls), the reconcile (50 an hour) and
+the immediate attempts after a change stay under it; a second sync job, or one every 30 seconds, would not. Each run
+answers its counts as JSON, `{"disabled":true}` without `RETAIL_URL`, `401` for a wrong secret and `503` when
+`CRON_SECRET` is not set. Most changes are delivered at once; a plan change, the subscription sweep and changes to people
+wait for the next sync run, so up to a minute.
+
+**What retries and what does not.** When Retails is down or slow, a delivery is retried after 1, 2, 4 ... minutes, at most
+an hour apart, 20 times; the reconcile queues it again after that. When Retails refuses the content itself (a 400, 413 or
+422, such as a plan limit Retails will not accept), neither the sync nor the reconcile retries it: fix the cause, then
+press **Resync** on the shop's Retail tab (the next change to the shop also sends it again). That page shows each shop's state (waiting for the owner or the subscription,
+retrying, failed, synced).
+
+### Changing a secret
+
+Each side has a "previous" setting that accepts the old value while the new one rolls out, so a change never breaks the
+link. Change one secret at a time, in this order:
+
+- **`RETAIL_SYNC_SECRET` / `CORE_SYNC_SECRET`** and **`RETAIL_HANDOFF_SECRET` / `CORE_HANDOFF_SECRET`** (the Studio signs,
+  Retails checks):
+  1. Retails: put the old value in `CORE_SYNC_SECRET_PREVIOUS` (or `CORE_HANDOFF_SECRET_PREVIOUS`) and the new one in
+     `CORE_SYNC_SECRET` (or `CORE_HANDOFF_SECRET`); redeploy Retails. It now accepts both.
+  2. Studio: put the new value in `RETAIL_SYNC_SECRET` (or `RETAIL_HANDOFF_SECRET`); redeploy.
+  3. Retails: remove the `_PREVIOUS` value; redeploy.
+- **`RETAIL_CALLER_SECRET` / `CORE_OUT_SECRET`** (Retails signs, the Studio checks):
+  1. Studio: put the old value in `RETAIL_CALLER_SECRET_PREVIOUS` and the new one in `RETAIL_CALLER_SECRET`; redeploy.
+  2. Retails: put the new value in `CORE_OUT_SECRET`; redeploy.
+  3. Studio: clear `RETAIL_CALLER_SECRET_PREVIOUS`; redeploy.
+
+A secret that leaked is changed the same way, but quickly, and the leaked value is never kept as "previous" longer than
+the rollout takes.
+
+### Keep sign-in addresses out of access logs
+
+The sign-in token travels in the address of the last step, and the handoff's state in the steps before it. Configure the
+web server, proxy or CDN in front of each app not to store the query string of these paths in its access logs:
+
+- Studio: `/api/retail/v1/handoff`
+- Retails: `/api/core/v1/handoff/start` and `/api/core/v1/handoff/callback`
+
+The token lives 60 seconds, is bound to the browser that started the sign-in and is used once, but a log that keeps it is
+still a place it can be read. The apps themselves never log it.
+
+### Switching the link on (once, with the owner's approval)
+
+1. **The migrations.** The release that brings the link adds migrations, and the deploy runs `prisma migrate deploy` on
+   production by itself. One of them is `ALTER TYPE ... ADD VALUE 'RETAIL'`, which **cannot be undone**: rolling back the
+   deploy leaves it in place. Before you merge, take a fresh backup (a Neon snapshot or a restore point of the production
+   branch), rehearse the migrations on a branch made from it, and pick a quiet merge window with the owner.
+2. **The settings.** Retails first: its `APP_URL`, `CORE_BASE_URL` and the three secrets. Then the Studio's five
+   (`RETAIL_CALLER_SECRET_PREVIOUS` stays empty), and a redeploy. The deploy check names any that is missing or wrong.
+3. **The two jobs** above.
+4. **Plans and prices.** The `retail` product starts **turned off**, and there are no retail plans. On the billing
+   screens, make the retail plans (names, the five limits) and their prices, then turn the product on. Until then no
+   retail shop can be given a subscription, so none is sent to Retails.
+5. **A first shop.** Create a retail business (Restaurants, sector Retail, with the owner's email), start its trial on
+   its billing tab, and once the owner has accepted the invitation check its Retail tab: it shows **synced** within a
+   minute. The owner's **Open Retails** then signs them in to Retails.
+
 ## If something goes wrong
 
 | What you see | What to do |
@@ -461,6 +578,10 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | Every page on one host is a 404 | `PUBLIC_MENU_HOST` or `STUDIO_HOST` has a typo, or includes `https://` |
 | Every page on the `.vercel.app` address is a 404 | By design: in production only the two hosts serve the app (step 5). Open `https://studio.buzzify.me` or `https://menu.buzzify.me` |
 | `studio:create-admin` says a table does not exist | Deploy first (step 6): the tables are made by the deploy |
+| Retails' "Sign in with Studio" ends on a plain "Bad request" from the Studio | `RETAIL_URL` is not written exactly like Retails' `APP_URL` (case, trailing slash, port) |
+| A retail shop's Retail tab stays on **retrying** | Retails is down, or the secrets differ: `RETAIL_SYNC_SECRET` must equal Retails' `CORE_SYNC_SECRET` (a `401` from Retails is retried, not refused) |
+| A retail shop shows **failed** with a code | Retails refused the content (for example a plan limit). Fix the cause, then press **Resync** |
+| Retails' AI says it is unavailable although the Studio has a key | Retails' `CORE_BASE_URL` points at the menu address, or `CORE_OUT_SECRET` differs from `RETAIL_CALLER_SECRET` |
 
 ## Safety rules
 
@@ -496,6 +617,11 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | `R2_BUCKET` | yes | You, step 3b | `buzzify-media` |
 | `MEDIA_PUBLIC_URL` | yes | You, step 3b | `https://media.buzzify.me` |
 | `CRON_SECRET` | yes | You, step 3c | 32 or more characters |
+| `RETAIL_URL` | only to link Buzzify Retail | Retails' `APP_URL`, written the same way | `https://retail.buzzify.me` |
+| `RETAIL_SYNC_SECRET` | with `RETAIL_URL` | You; the same value as Retails' `CORE_SYNC_SECRET` | 16 or more characters (32 recommended) |
+| `RETAIL_CALLER_SECRET` | with `RETAIL_URL` | You; the same value as Retails' `CORE_OUT_SECRET` | 16 or more characters (32 recommended) |
+| `RETAIL_CALLER_SECRET_PREVIOUS` | no; only while changing that secret | Its old value | 16 or more characters |
+| `RETAIL_HANDOFF_SECRET` | with `RETAIL_URL` | You; the same value as Retails' `CORE_HANDOFF_SECRET` | 16 or more characters (32 recommended) |
 | `EMAIL_FROM` | no | You | `Buzzify Core <studio@buzzify.me>` (the default) |
 | `PUBLIC_ROOT_REDIRECT` | no | You | `https://buzzify.me` (the default) |
 | `DEV_SEED_PASSWORD` | never in production | | |

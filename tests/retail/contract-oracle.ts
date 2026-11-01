@@ -6,8 +6,10 @@ import { z, type ZodType } from 'zod';
  * or a body is judged by Retails' own code and not by Studio's reading of it. A helper, not a test.
  *
  * Copied from buzzify-retails, branch core-link-a, commit e0ced1063f4b9d6b29ecbd8f4a77e82ed470e79c:
- * - `mac`, `verifyRequest`, `MAX_SKEW_SECONDS`: src/server/core/signing.ts (the accepted secrets are passed in instead
- *   of read from `coreConfig().syncSecrets`);
+ * - `mac`, `signRequest`, `verifyRequest`, `MAX_SKEW_SECONDS`: src/server/core/signing.ts (the accepted secrets are
+ *   passed in instead of read from `coreConfig().syncSecrets`);
+ * - `aiConfigSchema`, `identitySchema`: src/server/core/client.ts (how Retails reads Studio's ai-config and identities
+ *   answers);
  * - `verifyHandoff`, `handoffNonce`, `HandoffClaims`: src/server/core/handoff.ts (secrets passed in instead of
  *   `coreConfig().handoffSecrets`);
  * - `coreStateSchema`: src/server/core/state.ts (the Prisma enum types inlined);
@@ -25,6 +27,11 @@ const sha256Hex = (s: string) => createHash('sha256').update(s, 'utf8').digest('
 export function mac(method: string, path: string, timestamp: string, body: string, secret: string): string {
   const text = `${method.toUpperCase()}\n${path}\n${timestamp}\n${sha256Hex(body)}`;
   return createHmac('sha256', secret).update(text, 'utf8').digest('hex');
+}
+
+export function signRequest(method: string, path: string, body: string, secret: string, now: Date = new Date()) {
+  const timestamp = String(Math.floor(now.getTime() / 1000));
+  return { 'x-bz-timestamp': timestamp, 'x-bz-signature': mac(method, path, timestamp, body, secret) };
 }
 
 /** Constant-time compare of two hex strings; false on any length or format mismatch. */
@@ -53,6 +60,12 @@ export function verifyRequest(
   }
   return match ? { ok: true } : { ok: false, reason: 'BAD_SIGNATURE' };
 }
+
+// ---- src/server/core/client.ts --------------------------------------------------------------------------------------
+
+/** Explicit shapes: {apiKey: string, model} is a key; {apiKey: null, model} is "no key" (cleared). */
+export const aiConfigSchema = z.object({ apiKey: z.string().min(1).nullable(), model: z.string().min(1).nullish() });
+export const identitySchema = z.object({ coreUserId: z.string().min(1), created: z.boolean(), emailVerified: z.boolean() });
 
 // ---- src/server/core/handoff.ts -------------------------------------------------------------------------------------
 
