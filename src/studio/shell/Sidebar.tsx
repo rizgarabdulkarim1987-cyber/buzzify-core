@@ -67,6 +67,14 @@ function initials(name: string): string {
  * The Studio's frame on the reading direction's start side: the product's name, Jump to (the button and Ctrl+K), the areas
  * the person may use (the current one marked with the amber edge), the language switch, and the person's own menu.
  */
+const linkClass = (current: boolean) =>
+  cx(
+    'relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-base transition-colors duration-150',
+    current
+      ? 'bg-raised font-medium text-text before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-accent'
+      : 'text-muted hover:bg-hover hover:text-text',
+  );
+
 export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: SidebarUser }) {
   const t = useT();
   const pathname = usePathname();
@@ -90,19 +98,18 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
             const current = isNavItemActive(item, pathname);
             return (
               <li key={`${item.key}:${item.href}`}>
-                <Link
-                  href={item.href}
-                  aria-current={current ? 'page' : undefined}
-                  className={cx(
-                    'relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-base transition-colors duration-150',
-                    current
-                      ? 'bg-raised font-medium text-text before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-accent'
-                      : 'text-muted hover:bg-hover hover:text-text',
-                  )}
-                >
-                  <Icon aria-hidden className={cx('size-4 shrink-0', current ? 'text-text' : 'text-muted')} />
-                  <span className="truncate">{item.label}</span>
-                </Link>
+                {item.plain ? (
+                  // A Route Handler that redirects (Open Retails): a plain link, so no prefetch ever runs it.
+                  <a href={item.href} className={linkClass(false)}>
+                    <Icon aria-hidden className="size-4 shrink-0 text-muted" />
+                    <span className="truncate">{item.label}</span>
+                  </a>
+                ) : (
+                  <Link href={item.href} aria-current={current ? 'page' : undefined} className={linkClass(current)}>
+                    <Icon aria-hidden className={cx('size-4 shrink-0', current ? 'text-text' : 'text-muted')} />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                )}
               </li>
             );
           })}

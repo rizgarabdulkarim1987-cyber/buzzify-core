@@ -209,3 +209,22 @@ describe('the reconcile', () => {
     expect(client.calls).toEqual([]);
   });
 });
+
+describe('the reconcile, when Retails is ahead of Studio', () => {
+  it('jumps Studio above Retails and queues the snapshot', async () => {
+    const client = fakeClient({ readState: () => report(1) });
+    const shop = await syncedShop('Ahead', client);
+    // Studio restored from an older backup: Retails reports 7 while Studio is at 1.
+    client.answer('readState', () => report(7));
+    expect(await reconcileOne(prisma(), client, shop.id, soon())).toBe('drift');
+    expect(await linkOf(shop.id)).toMatchObject({ stateVersion: 8, acceptedVersion: 1, remoteVersion: 7 });
+    expect(await outboxOf(shop.id)).toMatchObject({ dueVersion: 8, attempts: 0 });
+
+    // The queued delivery goes at 8, which Retails applies.
+    const now = soon();
+    expect(await claimDue(prisma(), now, 10)).toEqual([shop.id]);
+    expect(await deliverOne(prisma(), client, shop.id, now)).toBe('sent');
+    expect(coreStateSchema.parse(client.of('pushState')[0]).version).toBe(8);
+    expect(await linkOf(shop.id)).toMatchObject({ acceptedVersion: 8 });
+  });
+});

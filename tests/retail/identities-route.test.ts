@@ -207,12 +207,21 @@ describe('POST /api/retail/v1/identities', () => {
   });
 
   it('an invalid body answers 400 and writes nothing', async () => {
-    for (const payload of [{}, { email: 'not-an-email' }, { email: `${'a'.repeat(250)}@x.test` }, { email: address('long'), name: 'n'.repeat(121) }, [], 'text']) {
+    for (const payload of [{}, { email: 'not-an-email' }, { email: `${'a'.repeat(250)}@x.test` }, { email: address('long'), name: 7 }, [], 'text']) {
       const response = await identify(payload);
       expect(response.status, JSON.stringify(payload).slice(0, 40)).toBe(400);
       expect(await response.json()).toEqual({ code: 'INVALID_INPUT' });
     }
     expect(await prisma().user.count()).toBe(0);
+  });
+
+  it('a name longer than 120 characters is cut to 120, not refused', async () => {
+    const email = address('longname');
+    const response = await identify({ email, name: `  ${'n'.repeat(119)} ${'x'.repeat(200)}` });
+    expect(response.status).toBe(200);
+    expect((await response.json()).created).toBe(true);
+    const user = await userRow(email);
+    expect(user?.name).toBe('n'.repeat(119));
   });
 
   it('per-address limit answers 429 before any write', async () => {

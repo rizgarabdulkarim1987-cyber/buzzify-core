@@ -204,10 +204,16 @@ not add a second retail-sync job.
 front of either site keeps access logs with query strings, turn that off for those paths (or for the site), and never
 share such logs.
 
-**After the deploy.** On the billing screens, make the retail plans and their prices, then turn the `retail` product on (it
-starts off). Create a retail business, start its trial, and once its owner has accepted the invitation its Retail tab
+**Not ready to merge yet.** See "Before merging" in `docs/deploy/production.md`: the end-to-end run with the real Retails
+has not been done, `tests/e2e/studio-retail.spec.ts` has never passed, and a rebase onto `main` needs a retail Super Admin
+space.
+
+**After the deploy.** On the billing screens, make the retail plans and their prices (each plan must allow at least as many
+branches as the shops on it have), then turn the `retail` product on (it starts off). Create a retail business, start its trial, and once its owner has accepted the invitation its Retail tab
 shows **synced** within a minute. A shop that shows **failed** (Retails refused it) is not retried automatically: fix the
-cause, then press **Resync** on that tab (the next change to the shop also sends it again).
+cause, then press **Resync** on that tab (the next change to the shop also sends it again). A shop Retails could not be reached for over
+about 15 hours also shows **failed**; the daily reconcile re-queues it, Resync does it at once. After restoring the
+Studio's database from a backup, press Resync on each retail shop.
 
 ## Neon from the command line
 

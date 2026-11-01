@@ -332,6 +332,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'A pharmacy branch is never deleted: its staff, prices and settings depend on it.': 'error.text.pharmacyBranchNotDeleted',
   'A retail shop is never deleted: its catalog and history are kept in Retails. Suspend it instead.': 'error.text.retailNotDeleted',
   'Branches of a retail shop are managed in Retails': 'error.text.retailBranchesInRetails',
+  'This plan allows fewer branches than the shop has': 'error.text.retailPlanTooFewBranches',
   'Menus are only for food businesses': 'error.text.menusFoodOnly',
   'A retail shop starts with at most 20 branches': 'error.text.retailBranchesMax',
   'A retail shop must keep an owner. Add another owner first.': 'error.text.retailLastOwner',

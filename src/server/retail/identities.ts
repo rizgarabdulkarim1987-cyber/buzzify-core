@@ -21,7 +21,11 @@ import { isUniqueViolation, normalizeEmail } from '@/server/studio/auth/users';
 
 export const identityInput = z.object({
   email: z.string().trim().max(254).pipe(z.email()),
-  name: z.string().trim().max(120).optional(),
+  // A name longer than Studio keeps is cut, not refused: the account matters more than the last letters of a name.
+  name: z
+    .string()
+    .transform((value) => value.trim().slice(0, 120).trim())
+    .optional(),
 });
 export type IdentityInput = z.infer<typeof identityInput>;
 

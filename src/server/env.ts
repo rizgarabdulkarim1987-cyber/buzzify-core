@@ -543,7 +543,7 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
     } else if (url.protocol !== 'https:') report('RETAIL_URL', 'must start with https://');
     else if (url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') {
       report('RETAIL_URL', 'must be an origin only, without a path, query or #');
-    } else if (retailUrl.replace(/\/+$/, '') !== url.origin) {
+    } else if (retailUrl.replace(/\/$/, '') !== url.origin) {
       // Retails names its callback from APP_URL as written, and Studio accepts only the one built from this origin.
       report('RETAIL_URL', "must be written exactly as Retails' APP_URL: lowercase, without a default port");
     }

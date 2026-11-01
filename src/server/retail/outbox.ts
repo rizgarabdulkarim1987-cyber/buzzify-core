@@ -48,6 +48,19 @@ export async function bumpRetailState(tx: AnyDb, restaurantId: string): Promise<
   return version;
 }
 
+/**
+ * Retails already has `remoteVersion` or later (Studio's database was restored from a backup older than what it sent):
+ * Retails would ignore every snapshot at or under that version, so the version first jumps to it, then one bump puts
+ * the next delivery above it. One jump per call; returns the new version, or null when the business is not retail.
+ */
+export async function jumpRetailVersion(tx: AnyDb, restaurantId: string, remoteVersion: number): Promise<number | null> {
+  // eslint-disable-next-line no-restricted-properties -- one business's link, keyed by its id
+  await tx.$executeRaw`
+    UPDATE "RetailLink" SET "stateVersion" = GREATEST("stateVersion", ${remoteVersion}::int), "updatedAt" = ${new Date()}
+    WHERE "restaurantId" = ${restaurantId}`;
+  return bumpRetailState(tx, restaurantId);
+}
+
 /** Bumps each business in id order: two bumps of overlapping sets take the link locks in the same order, so never deadlock. */
 async function bumpEach(tx: AnyDb, restaurantIds: readonly string[]): Promise<void> {
   for (const restaurantId of restaurantIds) await bumpRetailState(tx, restaurantId);

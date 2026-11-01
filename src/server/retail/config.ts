@@ -61,6 +61,10 @@ function baseUrl(): string {
   if (url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') {
     throw new RetailConfigError('RETAIL_URL');
   }
+  // Written exactly as its origin (lowercase, no default port): Retails names the handoff return from its APP_URL as
+  // written and `checkReturn` compares with the address built from this one, so any other spelling refuses every
+  // sign-in. The deploy check (`checkProductionEnv`) applies the same rule.
+  if (raw.replace(/\/$/, '') !== url.origin) throw new RetailConfigError('RETAIL_URL');
   // The signed calls carry the shop's owner and plan, and the handoff a sign-in token: never over plain http in production.
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') throw new RetailConfigError('RETAIL_URL');
   return url.origin;

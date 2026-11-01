@@ -513,10 +513,26 @@ answers its counts as JSON, `{"disabled":true}` without `RETAIL_URL`, `401` for 
 wait for the next sync run, so up to a minute.
 
 **What retries and what does not.** When Retails is down or slow, a delivery is retried after 1, 2, 4 ... minutes, at most
-an hour apart, 20 times; the reconcile queues it again after that. When Retails refuses the content itself (a 400, 413 or
-422, such as a plan limit Retails will not accept), neither the sync nor the reconcile retries it: fix the cause, then
-press **Resync** on the shop's Retail tab (the next change to the shop also sends it again). That page shows each shop's state (waiting for the owner or the subscription,
-retrying, failed, synced).
+an hour apart, 20 times. That is about 15 hours; after it the shop shows **failed**, and only the daily reconcile queues it
+again, so once Retails is back a shop can wait up to another 24 hours. Press **Resync** on the shop's Retail tab to send
+it at once. When Retails refuses the content itself (a 400, 413 or 422, such as a plan limit Retails will not accept),
+neither the sync nor the reconcile retries it: fix the cause, then press **Resync** (the next change to the shop also
+sends it again). That page shows each shop's state (waiting for the owner or the subscription, retrying, failed, synced).
+
+**A retail plan must allow the shop's branches.** A shop's branches are set when it is created and are managed in
+Retails afterwards, and Retails refuses a shop with more branches than its plan allows. So the billing screens refuse to
+start, change or reactivate a retail subscription on a plan with fewer branches than the shop has ("This plan allows
+fewer branches than the shop has").
+
+**Who Retails sees as the owner.** The snapshot names one owner: the shop's earliest active OWNER in the Studio. A
+second owner added in the Studio gets no role in Retails from that (the owner can invite them in Retails). To hand a shop
+over, add the new owner in the Studio, then remove the first one: the next snapshot names the new owner, and Retails
+makes them the owner. The new owner then signs in again (Open Retails) to see the shop.
+
+**Restoring the Studio's database.** When the Studio's database is restored from a backup, its version numbers can fall
+behind what Retails already has, and Retails would ignore the older numbers. The Studio notices (from Retails' answer to a
+delivery, or from the reconcile), jumps above Retails' number and sends the current details again. To be safe, press
+**Resync** on each retail shop after a restore.
 
 ### Changing a secret
 
@@ -562,7 +578,18 @@ still a place it can be read. The apps themselves never log it.
    retail shop can be given a subscription, so none is sent to Retails.
 5. **A first shop.** Create a retail business (Restaurants, sector Retail, with the owner's email), start its trial on
    its billing tab, and once the owner has accepted the invitation check its Retail tab: it shows **synced** within a
-   minute. The owner's **Open Retails** then signs them in to Retails.
+   minute. **Open Retails** in the owner's sidebar then signs them in to Retails.
+
+### Before merging (not done yet)
+
+- **Not tested against the real Retails.** The link is tested only against a stand-in for Retails that checks every
+  request with a copy of Retails' own checks. The end-to-end run with the real Retails app (create a shop, see it in
+  Retails, sign in through Open Retails) has **not** been done, and the browser test `tests/e2e/studio-retail.spec.ts`
+  has **never passed**. Do both before merging.
+- **Super Admin spaces.** `main` has Super Admin "spaces" (`businessSpace` food or pharmacy, in
+  `src/server/studio/services/space-scope.ts`) that do not know RETAIL. Rebasing this work onto `main` must add a retail
+  space before merging.
+- The fresh backup, the rehearsal and the owner's merge window from step 1 above.
 
 ## If something goes wrong
 

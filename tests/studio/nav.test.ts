@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '@/server/studio/auth/actor';
-import { isNavItemActive, NAV_ITEMS, posNavItem, safeNextPath, visibleNav } from '@/studio/nav';
+import { isNavItemActive, NAV_ITEMS, openRetailNavItem, posNavItem, safeNextPath, visibleNav } from '@/studio/nav';
 
 function actor(overrides: Partial<Actor>): Actor {
   return {
@@ -186,5 +186,33 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(menu!, '/studio/restaurants/r1/menus')).toBe(true);
     expect(isNavItemActive(menu!, '/studio/restaurants/r1/people')).toBe(false);
     expect(isNavItemActive(restaurant!, '/studio/account')).toBe(false);
+  });
+});
+
+describe('openRetailNavItem', () => {
+  const owner = actor({ memberships: [{ restaurantId: 'shop-1', role: 'OWNER' }] });
+
+  it('takes an owner of one retail shop straight to it, as a plain link (the target is a redirecting Route Handler)', () => {
+    expect(openRetailNavItem(owner, [{ id: 'shop-1' }])).toEqual({
+      key: 'openRetail',
+      href: '/studio/retail/open/shop-1',
+      labelKey: 'retail.open',
+      icon: 'retail',
+      plain: true,
+    });
+  });
+
+  it('sends an owner of several retail shops to the chooser', () => {
+    expect(openRetailNavItem(owner, [{ id: 'shop-1' }, { id: 'shop-2' }])).toMatchObject({ key: 'openRetail', href: '/studio/retail/choose', plain: true });
+  });
+
+  it('is nothing without a retail shop, and nothing for a Super Admin', () => {
+    expect(openRetailNavItem(owner, [])).toBeNull();
+    expect(openRetailNavItem(actor({ isSuperAdmin: true }), [{ id: 'shop-1' }])).toBeNull();
+  });
+
+  it('is added beside an owner’s own items, which stay as they are', () => {
+    const items = visibleNav(owner, [{ id: 'shop-1', name: 'Shop', menuIds: [] }]);
+    expect(keys(items)).toEqual(['myRestaurant', 'myMenu']);
   });
 });

@@ -236,3 +236,48 @@ describe('what enqueues a retail snapshot', () => {
 function dataOrCode(result: ActionResult<unknown>): string {
   return result.ok ? 'OK' : result.error.code;
 }
+
+describe('a retail plan must allow the branches the shop has', () => {
+  const TOO_FEW = 'This plan allows fewer branches than the shop has';
+  const refusal = (result: ActionResult<unknown>) => (result.ok ? 'OK' : { code: result.error.code, message: result.error.message, fields: result.error.fields });
+  const sellableWith = async (code: string, branches: number) => {
+    await retailPlan(code, { limits: { ...RETAIL_LIMITS, branches } });
+    await prisma().planPrice.create({ data: { applicationId: 'retail', planCode: code, currency: 'IQD', period: 'MONTHLY', amountMinor: 1_000 } });
+  };
+
+  it('startTrial, changePlan and reactivate refuse a plan with fewer branches; nothing is queued', async () => {
+    await sellableWith('small', 2);
+    await sellableWith('big', 5);
+    const shop = await retailShop('Three Branches', { subscription: 'none', branches: 3 });
+
+    expect(refusal(await run(owner, billing.startTrial, trial(shop.id, 'retail', 'small')))).toEqual({
+      code: 'CONFLICT',
+      message: TOO_FEW,
+      fields: { limitCode: 'PLAN_LIMIT', limitKind: 'branches', limit: '2' },
+    });
+    expect(await prisma().subscription.count({ where: { restaurantId: shop.id } })).toBe(0);
+    expect(await outboxOf(shop.id)).toBeNull();
+
+    dataOf(await run(owner, billing.startTrial, trial(shop.id, 'retail', 'big')));
+    let sub = await subOf(shop.id);
+    const changed = await run(owner, billing.changePlan, { restaurantId: shop.id, subscriptionId: sub.id, version: sub.version, planCode: 'small', keepPrice: true });
+    expect(refusal(changed)).toMatchObject({ code: 'CONFLICT', message: TOO_FEW });
+    expect((await subOf(shop.id)).planCode).toBe('big');
+
+    // The plan shrinks while the subscription is cancelled: reactivating it is refused.
+    dataOf(await run(owner, billing.cancel, { restaurantId: shop.id, subscriptionId: sub.id, version: sub.version }));
+    await prisma().appPlan.update({ where: { applicationId_code: { applicationId: 'retail', code: 'big' } }, data: { limits: { ...RETAIL_LIMITS, branches: 1 } } });
+    sub = await subOf(shop.id);
+    expect(refusal(await run(owner, billing.reactivate, { restaurantId: shop.id, subscriptionId: sub.id, version: sub.version }))).toMatchObject({
+      code: 'CONFLICT',
+      message: TOO_FEW,
+    });
+    expect((await subOf(shop.id)).status).toBe('CANCELLED');
+  });
+
+  it('a plan with exactly as many branches is fine', async () => {
+    await sellableWith('exact', 3);
+    const shop = await retailShop('Exact', { subscription: 'none', branches: 3 });
+    dataOf(await run(owner, billing.startTrial, trial(shop.id, 'retail', 'exact')));
+  });
+});

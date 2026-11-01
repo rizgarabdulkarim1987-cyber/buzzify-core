@@ -3,7 +3,7 @@ import type { Actor } from '@/server/studio/auth/actor';
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy' | 'retail';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies' | 'retail';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies' | 'retail' | 'openRetail';
 
 export interface NavItem {
   key: NavKey;
@@ -21,6 +21,8 @@ export interface NavItem {
   exclude?: string[];
   /** A restaurant's name to append to the label when an owner of several restaurants has the same item for each. */
   scope?: string;
+  /** A plain link, never prefetched: the item opens a Route Handler that redirects (a prefetch must not run it). */
+  plain?: boolean;
 }
 
 /** The Studio's areas in the order the sidebar lists them. */
@@ -141,6 +143,23 @@ export function isNavItemActive(item: Pick<NavItem, 'href' | 'exact' | 'match' |
 /** The one item that leads from the Studio to the till; the shell adds it only for a person with a till (`getPosAccess`). */
 export function posNavItem(): NavItem {
   return { key: 'cashier', href: '/pos', labelKey: 'nav.cashier', icon: 'store' };
+}
+
+/**
+ * The one item that takes an owner of Buzzify Retail shops there, signed in ("Open Retails"): the shell adds it for a
+ * person who OWNs one or more RETAIL shops (`retail.myShops`) while the link is on. One shop opens it at once
+ * (`/studio/retail/open/[id]`); several go to the chooser first. Super Admins never get it: Retails has its own admin.
+ */
+export function openRetailNavItem(actor: Actor, shops: readonly { id: string }[]): NavItem | null {
+  if (actor.isSuperAdmin || shops.length === 0) return null;
+  const one = shops.length === 1;
+  return {
+    key: 'openRetail',
+    href: one ? `/studio/retail/open/${encodeURIComponent(shops[0]!.id)}` : '/studio/retail/choose',
+    labelKey: 'retail.open',
+    icon: 'retail',
+    plain: true,
+  };
 }
 
 /** A Studio, till or pharmacy path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */

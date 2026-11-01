@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { RetailAnswer, RetailClient } from '@/server/retail/client';
 import { RetailConfigError } from '@/server/retail/config';
-import { bumpRetailState, ensureRetailVersion } from '@/server/retail/outbox';
+import { bumpRetailState, ensureRetailVersion, jumpRetailVersion } from '@/server/retail/outbox';
 import { failedPermanently } from '@/server/retail/sender';
 import { buildRetailState, NotRetailError } from '@/server/retail/snapshot';
 
@@ -106,6 +106,7 @@ export async function reconcileOne(prisma: PrismaClient, client: RetailClient, r
   if (!report.success) return failed('BAD_RESPONSE');
   const behind = report.data.version < checked.acceptedVersion;
   const queued = checked.queued;
+  let ahead = false;
   await prisma.$transaction(async (tx) => {
     await tx.retailLink.update({
       where: { restaurantId },
@@ -120,9 +121,15 @@ export async function reconcileOne(prisma: PrismaClient, client: RetailClient, r
     // Retails was restored from a backup older than what it accepted: send the current snapshot again, at a new version.
     // Not when a delivery is already queued (a drift bump above, or a pending change): that row's version is above what
     // Retails accepted, so above what it has now, and Retails applies it; another bump would only add a version.
-    if (behind && !queued) await bumpRetailState(tx, restaurantId);
+    // Retails is ahead of Studio (Studio's database was restored from an older backup): it would ignore every snapshot up
+    // to its version, so Studio's version jumps above it and the current snapshot is queued.
+    const { stateVersion } = await tx.retailLink.findUniqueOrThrow({ where: { restaurantId }, select: { stateVersion: true } });
+    if (report.data.version > stateVersion) {
+      ahead = true;
+      await jumpRetailVersion(tx, restaurantId, report.data.version);
+    } else if (behind && !queued) await bumpRetailState(tx, restaurantId);
   });
-  return behind || checked.drift ? 'drift' : 'same';
+  return ahead || behind || checked.drift ? 'drift' : 'same';
 }
 
 /** One run: the links never reconciled or not in the last 24 hours, oldest first, at most `limit`. */

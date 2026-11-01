@@ -7,6 +7,7 @@ import { addPeriod, BAGHDAD_OFFSET_MS } from '@/server/domain/billing/periods';
 import { effectiveStatus, isLive, lifecycleSteps, type LifecycleStep, type SubscriptionStatus } from '@/server/domain/billing/subscriptions';
 import type { PlanTier } from '@/server/domain/entitlements';
 import type { LimitKind, LimitOutcome } from '@/server/domain/pharmacy/limits';
+import { retailLimitsSchema } from '@/server/domain/retail/limits';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -36,6 +37,7 @@ const REACTIVATE_RESTAURANT_NOT_ACTIVE = 'Only an active restaurant can reactiva
 const REACTIVATE_PRODUCT_DISABLED = 'This product is turned off. Turn it on before reactivating.';
 
 const WRONG_SECTOR = 'This product is not offered to this kind of business';
+const RETAIL_PLAN_TOO_FEW_BRANCHES = 'This plan allows fewer branches than the shop has';
 
 /** The products a business of each sector can subscribe to. A positive list: a new sector or product is offered to nobody until it is added here. */
 const OFFERED: Record<string, readonly ApplicationId[]> = {
@@ -130,6 +132,23 @@ export async function sellablePlanCodes(db: AnyDb, application: ApplicationId): 
     select: { code: true },
   });
   return plans.map((plan) => plan.code);
+}
+
+/**
+ * A retail shop's branches are fixed in Studio (Retails manages them after provisioning), and Retails refuses to
+ * provision a shop with more branches than its plan allows. So a retail subscription is never put on such a plan:
+ * `CONFLICT` with `limitCode: PLAN_LIMIT`, `limitKind: branches` and the plan's limit. Other products: nothing.
+ */
+async function checkRetailBranches(tx: ScopedTx, application: string, restaurantId: string, planCode: string): Promise<void> {
+  if (application !== 'retail') return;
+  const plan = await delegates(tx).appPlan.findUnique({ where: { applicationId_code: { applicationId: 'retail', code: planCode } }, select: { limits: true } });
+  // Limits that are not a valid set allow nothing, as the snapshot reads them.
+  const parsed = plan ? retailLimitsSchema.safeParse(plan.limits) : null;
+  const max = parsed?.success ? parsed.data.branches : 0;
+  const branches = await tx.branch.count({ where: { restaurantId } });
+  if (branches > max) {
+    throw new StudioError('CONFLICT', RETAIL_PLAN_TOO_FEW_BRANCHES, { limitCode: 'PLAN_LIMIT', limitKind: 'branches', limit: String(max) });
+  }
 }
 
 /** A plan code the application sells, or `INVALID` on `planCode`. */
@@ -259,6 +278,7 @@ export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer
   if (!application) throw new StudioError('NOT_FOUND');
   if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', PRODUCT_DISABLED);
   await checkPlanCode(tx, input.applicationId, input.planCode);
+  await checkRetailBranches(tx, input.applicationId, input.restaurantId, input.planCode);
   const priceMinor = await planPrice(tx, input.applicationId, input.planCode, input.currency, input.period);
 
   const live = await tx.subscription.findFirst({
@@ -343,6 +363,7 @@ export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer
   if (!offeredTo(business.sector, sub.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   await checkPlanCode(tx, sub.applicationId as ApplicationId, input.planCode);
   if (input.planCode === sub.planCode) throw invalid('planCode', 'The subscription is already on this plan');
+  await checkRetailBranches(tx, sub.applicationId, sub.restaurantId, input.planCode);
   const priceMinor = input.keepPrice ? sub.priceMinor : await planPrice(tx, sub.applicationId, input.planCode, sub.currency, sub.period);
 
   await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { planCode: input.planCode, priceMinor }, entityType: 'Subscription' }, tx);
@@ -433,6 +454,7 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
     select: { id: true },
   });
   if (other) throw new StudioError('CONFLICT', SECOND_LIVE);
+  await checkRetailBranches(tx, sub.applicationId, sub.restaurantId, sub.planCode);
 
   // A trial that was never paid for comes back as the trial it was, never as a paid period.
   const to: SubscriptionStatus = sub.anchorDay === null && sub.trialEndsAt !== null ? 'TRIAL' : 'ACTIVE';

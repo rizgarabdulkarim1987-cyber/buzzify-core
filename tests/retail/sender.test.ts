@@ -510,3 +510,60 @@ describe('the sender', () => {
     expect(scheduled.tasks).toHaveLength(0);
   });
 });
+
+describe('when Retails is ahead of Studio (Studio restored from an older backup)', () => {
+  /** Retails has version `remote`: it ignores anything at or under it, as its syncCoreState does. */
+  const aheadAt = (remote: number) =>
+    fakeClient({
+      pushState: (body) => {
+        const version = (body as { version: number }).version;
+        return { kind: 'ok', body: version > remote ? { applied: true, version } : { applied: false, version: remote } };
+      },
+    });
+
+  it('jumps above Retails once, re-sends, and Retails ends with the latest content', async () => {
+    const shop = await readyShop('Restored');
+    await deliver(fakeClient(), shop.id); // provisioned at version 1
+    // The restore: Studio is back at version 1 while Retails went on to 7. Then a change at version 2.
+    await prisma().retailLink.update({ where: { restaurantId: shop.id }, data: { aiIntake: true } });
+    await bump(shop.id);
+    const before = await linkOf(shop.id);
+    const client = aheadAt(7);
+
+    expect(await deliver(client, shop.id)).toBe('retry');
+    // Nothing was accepted: the version jumped to 8, the row is due again at once, attempts untouched.
+    expect(await linkOf(shop.id)).toMatchObject({ stateVersion: 8, acceptedVersion: before.acceptedVersion, sentHash: before.sentHash });
+    expect(await outboxOf(shop.id)).toMatchObject({ dueVersion: 8, attempts: 0, failedAt: null, leasedUntil: null });
+
+    expect(await deliver(client, shop.id)).toBe('sent');
+    const pushed = client.of('pushState').map((body) => coreStateSchema.parse(body));
+    expect(pushed.map((state) => state.version)).toEqual([2, 8]);
+    expect(pushed[1]!.aiIntake).toBe(true);
+    expect(await linkOf(shop.id)).toMatchObject({ stateVersion: 8, acceptedVersion: 8, sentHash: await hashOf(shop.id) });
+    expect(await outboxOf(shop.id)).toBeNull();
+  });
+
+  it('never spins: one jump and one call per delivery, even when Retails never applies', async () => {
+    const shop = await readyShop('Stubborn');
+    await deliver(fakeClient(), shop.id);
+    await bump(shop.id);
+    // A Retails that always claims to be five versions ahead of whatever it is sent.
+    const client = fakeClient({ pushState: (body) => ({ kind: 'ok', body: { applied: false, version: (body as { version: number }).version + 5 } }) });
+    for (let pass = 1; pass <= 3; pass += 1) {
+      expect(await runSender(prisma(), client, soon(pass * 10))).toMatchObject({ sent: 0, retried: 1 });
+      expect(client.of('pushState')).toHaveLength(pass);
+    }
+    const versions = client.of('pushState').map((body) => (body as { version: number }).version);
+    expect(versions).toEqual([2, 8, 14]);
+    expect((await linkOf(shop.id)).acceptedVersion).toBe(1);
+  });
+
+  it('an equal or older version reported with applied:true, or applied:false below the sent version, is no jump', async () => {
+    const shop = await readyShop('Normal');
+    await deliver(fakeClient(), shop.id);
+    await bump(shop.id);
+    const client = fakeClient({ pushState: () => ({ kind: 'ok', body: { applied: false, version: 1 } }) });
+    expect(await deliver(client, shop.id)).toBe('sent');
+    expect(await linkOf(shop.id)).toMatchObject({ stateVersion: 2, acceptedVersion: 2 });
+  });
+});

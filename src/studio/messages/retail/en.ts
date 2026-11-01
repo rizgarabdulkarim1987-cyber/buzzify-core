@@ -69,6 +69,7 @@ const retail: Messages = {
   'activity.action.retail.ai_intake_changed': 'Changed a retail shop’s AI receipt reading',
   'activity.action.retail.resync': 'Resent a retail shop to Buzzify Retail',
   'activity.entity.RetailLink': 'Retail link',
+  'error.text.retailPlanTooFewBranches': 'This plan allows fewer branches than the shop has',
   'appPlans.navLabel': 'Applications',
   'billingList.appPlans': 'Pharmacy and Retail plans',
   'appPlans.retail.title': 'Retail plans',

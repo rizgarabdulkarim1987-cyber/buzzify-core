@@ -68,6 +68,7 @@ const retail: Messages = {
   'activity.action.retail.ai_intake_changed': 'غيّر قراءة الفواتير بالذكاء الاصطناعي لمحل تجزئة',
   'activity.action.retail.resync': 'أعاد إرسال محل تجزئة إلى Buzzify Retail',
   'activity.entity.RetailLink': 'ربط التجزئة',
+  'error.text.retailPlanTooFewBranches': 'تسمح هذه الخطة بفروع أقل مما لدى المحل',
   'appPlans.navLabel': 'التطبيقات',
   'billingList.appPlans': 'باقات الصيدلية والتجزئة',
   'appPlans.retail.title': 'باقات التجزئة',

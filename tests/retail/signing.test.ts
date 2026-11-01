@@ -109,11 +109,18 @@ describe('signing', () => {
     expect(http.variable).toBe('RETAIL_URL');
     expect(http.message).not.toContain('retail.example.com');
     expect(refusal(() => retailConfig().callbackUrl).variable).toBe('RETAIL_URL');
-    for (const bad of ['not a url', 'https://retail.example.com/app', 'https://retail.example.com/?a=1', 'https://retail.example.com/#x', 'https://user:pw@retail.example.com', 'ftp://retail.example.com']) {
+    for (const bad of ['not a url', 'https://retail.example.com/app', 'https://retail.example.com/?a=1', 'https://retail.example.com/#x', 'https://user:pw@retail.example.com', 'ftp://retail.example.com',
+      // Not written as its origin: the handoff return Retails builds from its APP_URL would never match.
+      'https://Retail.Example.com', 'https://retail.example.com:443', 'http://retail.example.com:80', 'https://retail.example.com//']) {
       vi.stubEnv('RETAIL_URL', bad);
       const error = refusal(() => retailConfig().baseUrl);
       expect(error.variable).toBe('RETAIL_URL');
       expect(error.message).not.toContain('retail.example.com');
+    }
+    // One trailing slash and a port that is not the default are fine.
+    for (const good of ['https://retail.example.com/', 'https://retail.example.com:8443']) {
+      vi.stubEnv('RETAIL_URL', good);
+      expect(retailConfig().baseUrl).toBe(good.replace(/\/$/, ''));
     }
     vi.stubEnv('RETAIL_URL', 'https://retail.example.com');
 

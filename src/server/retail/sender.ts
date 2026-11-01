@@ -2,7 +2,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import type { AnyDb } from '@/server/data/tenant-db';
 import type { RetailAnswer, RetailClient } from '@/server/retail/client';
 import { RetailConfigError } from '@/server/retail/config';
-import { ensureRetailVersion } from '@/server/retail/outbox';
+import { ensureRetailVersion, jumpRetailVersion } from '@/server/retail/outbox';
 import { buildRetailState, NotRetailError, type ProvisionBody, type RetailState } from '@/server/retail/snapshot';
 
 /**
@@ -140,6 +140,14 @@ const businessIdOf = (body: unknown): string | null => {
   return typeof id === 'string' && id.length > 0 && id.length <= 128 ? id : null;
 };
 
+/** Retails' version when a state push answered `{ applied: false, version }` with a version at or above the one sent. */
+function remoteAhead(body: unknown, sent: number): number | null {
+  const answer = body as { applied?: unknown; version?: unknown } | null;
+  if (answer?.applied !== false) return null;
+  const version = answer.version;
+  return typeof version === 'number' && Number.isInteger(version) && version >= sent && version <= 2_000_000_000 ? version : null;
+}
+
 /** The row as it is now, locked for this update; null when it was removed (the business was deleted). */
 async function lockRow(tx: AnyDb, restaurantId: string): Promise<{ dueVersion: number; attempts: number } | null> {
   // eslint-disable-next-line no-restricted-properties -- one business's outbox row, keyed by its id
@@ -160,6 +168,16 @@ async function record(prisma: PrismaClient, restaurantId: string, prepared: Extr
   if (answer.kind === 'notFound' && prepared.provision) outcome = { kind: 'retry', code: 'HTTP_404' };
 
   return prisma.$transaction(async (tx) => {
+    // Retails ignored the push because it has this version or a later one: Studio's versions are behind (its database
+    // was restored from an older backup). Nothing was accepted; the version jumps above Retails' and the row is due
+    // again, at once (lease lifted). One jump per delivery, so a Retails that never applies cannot make it spin.
+    const ahead = outcome.kind === 'ok' && !prepared.provision ? remoteAhead(outcome.body, sent) : null;
+    if (ahead !== null) {
+      log(restaurantId, 'RETAILS_AHEAD');
+      await jumpRetailVersion(tx, restaurantId, ahead);
+      await tx.retailOutbox.updateMany({ where: { restaurantId }, data: { leasedUntil: null } });
+      return 'retry';
+    }
     if (outcome.kind === 'ok') {
       const link = await tx.retailLink.findUnique({ where: { restaurantId }, select: { acceptedVersion: true } });
       if (link) {

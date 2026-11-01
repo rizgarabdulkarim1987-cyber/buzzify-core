@@ -6,8 +6,9 @@ import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/invoke';
 import { activeAnnouncements } from '@/server/studio/queries/announcements';
 import { myRestaurants } from '@/server/studio/queries/account';
+import { myRetailShops } from '@/server/studio/queries/retail';
 import { getStudioTranslator } from '@/studio/messages';
-import { isOwnerOnly, isRetailOnly, posNavItem, visibleNav } from '@/studio/nav';
+import { isOwnerOnly, isRetailOnly, openRetailNavItem, posNavItem, visibleNav } from '@/studio/nav';
 import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { RetailOnlyNotice } from '@/studio/shell/RetailOnlyNotice';
@@ -53,7 +54,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     : [];
   // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.
   const pos = retailOnly ? null : await getPosAccess();
-  const navItems = pos?.actor && pos.gate?.open ? [...visibleNav(actor, owned), posNavItem()] : visibleNav(actor, owned);
+  // An owner of Buzzify Retail shops gets "Open Retails" while the link is on (never a Super Admin: Retails has its own admin).
+  const openRetail = !retailOnly && !actor.isSuperAdmin && retailConfig().enabled ? openRetailNavItem(actor, await query(myRetailShops, {})) : null;
+  const navItems = [...visibleNav(actor, owned), ...(pos?.actor && pos.gate?.open ? [posNavItem()] : []), ...(openRetail ? [openRetail] : [])];
   const items: SidebarItem[] = navItems.map(({ labelKey, label, scope, ...item }) => ({
     ...item,
     label: label ?? (scope ? `${t(labelKey)} · ${scope}` : t(labelKey)),
