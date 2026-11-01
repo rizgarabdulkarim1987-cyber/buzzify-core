@@ -6,6 +6,7 @@ import { getActor } from '@/server/studio/auth/actor';
 import { SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly } from '@/studio/nav';
+import { businessBase, type BusinessSpaceId } from '@/studio/spaces';
 import { Alert } from '@/studio/ui/Alert';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { RouteTabs, type RouteTab } from '@/studio/ui/RouteTabs';
@@ -13,6 +14,9 @@ import { RestaurantStatusBadge } from '../RestaurantStatusBadge';
 import { SectorBadge } from '../SectorBadge';
 import { loadRestaurant } from './load';
 import { RestaurantActions } from './RestaurantActions';
+
+/** What the way back to a space's list is called. */
+const LIST_LABEL: Record<BusinessSpaceId, string> = { food: 'restaurants.title', pharmacy: 'pharmacies.title', retail: 'retail.title' };
 
 /**
  * The frame of one restaurant: its name, client ID and status, what the person may do to it as a whole, and its tabs.
@@ -27,7 +31,7 @@ export async function BusinessLayout({
   children: ReactNode;
   params: Promise<{ id: string }>;
   /** The space the page is in. A Super Admin keeps to it: its address base and list are its own. */
-  space: 'food' | 'pharmacy';
+  space: BusinessSpaceId;
 }) {
   const { id } = await params;
   const actor = await getActor();
@@ -35,10 +39,10 @@ export async function BusinessLayout({
   const t = getStudioTranslator(actor.locale);
   const restaurant = await loadRestaurant(id);
 
-  const base = space === 'pharmacy' ? `/studio/pharmacy/${restaurant.id}` : `/studio/restaurants/${restaurant.id}`;
-  const listHref = space === 'pharmacy' ? '/studio/pharmacy' : '/studio/restaurants';
-  const listLabel = space === 'pharmacy' ? t('pharmacies.title') : t('restaurants.title');
-  // A pharmacy has no menus, menu plan or menu media library: those tabs are for food businesses only.
+  const listHref = businessBase(space);
+  const base = `${listHref}/${restaurant.id}`;
+  const listLabel = t(LIST_LABEL[space]);
+  // A pharmacy or retail shop has no menus, menu plan or menu media library: those tabs are for food businesses only.
   const food = restaurant.sector === 'FOOD';
   const tabs: RouteTab[] = [
     { href: base, label: t('restaurants.tabs.profile'), exact: true },
@@ -50,6 +54,8 @@ export async function BusinessLayout({
     ...(actor.isSuperAdmin ? [{ href: `${base}/billing`, label: t('restaurants.tabs.billing') }] : []),
     // What guests send through the menus' box: everyone of the restaurant reads it. A pharmacy has no menus, so no box.
     ...(food ? [{ href: `${base}/feedback`, label: t('restaurants.tabs.feedback') }] : []),
+    // A linked retail shop's delivery to Buzzify Retail, its AI switch and Resync: Super Admins (platform.settings).
+    ...(restaurant.sector === 'RETAIL' && actor.isSuperAdmin ? [{ href: `${base}/retail`, label: t('restaurants.tabs.retail') }] : []),
     ...(food && restaurant.can.media ? [{ href: `${base}/media`, label: t('restaurants.tabs.media') }] : []),
     ...(restaurant.can.invite ? [{ href: `${base}/people`, label: t('restaurants.tabs.people') }] : []),
     ...(restaurant.can.audit ? [{ href: `${base}/activity`, label: t('restaurants.tabs.activity') }] : []),

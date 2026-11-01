@@ -10,22 +10,24 @@ import { formatDate, numberFormat } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { syncLabel } from '@/studio/retail-sync';
+import { businessPath } from '@/studio/spaces';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
-import { RestaurantStatusBadge } from '../restaurants/RestaurantStatusBadge';
+import { RestaurantStatusBadge } from '../../restaurants/RestaurantStatusBadge';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('retail.title') };
 }
 
-const NEW_SHOP = '/studio/restaurants/new?sector=RETAIL';
+const NEW_SHOP = '/studio/retail/new';
 
 /**
  * The retail shops on the platform, the way the Pharmacy page is for pharmacies: every RETAIL-sector business linked to
  * Buzzify Retail with its branches, status, Retail subscription and how far delivery to Retails has got. `?failed=1`
- * keeps the shops whose delivery failed. Super Admins read it; anyone else gets the not-found page.
+ * keeps the shops whose delivery failed. It is the Retail space's list: each row opens the shop's Retail tab there. Super
+ * Admins read it; anyone else gets the not-found page.
  */
 export default async function RetailPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const actor = await getActor();
@@ -87,7 +89,7 @@ export default async function RetailPage({ searchParams }: { searchParams: Promi
                   return (
                     <tr key={row.id}>
                       <td className="px-4 py-3">
-                        <Link href={`/studio/restaurants/${row.id}/retail`} className="font-medium text-text underline-offset-2 hover:underline">
+                        <Link href={businessPath('RETAIL', row.id, 'retail')} className="font-medium text-text underline-offset-2 hover:underline">
                           {row.name}
                         </Link>
                         <p className="text-xs text-muted">{formatDate(row.createdAt.toISOString(), actor.locale)}</p>

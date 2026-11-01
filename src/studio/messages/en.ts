@@ -3605,6 +3605,7 @@ const en: Messages = {
   'hub.title': 'Choose a project',
   'hub.food': 'Menu and Cashier',
   'hub.pharmacy': 'Pharmacy',
+  'hub.retail': 'Retail',
   'hub.platform': 'Platform',
   'hub.allProjects': 'All projects',
   'nav.team': 'Team',

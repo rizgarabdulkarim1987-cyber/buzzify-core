@@ -10,6 +10,7 @@ import { newRestaurantAccess } from '@/server/studio/queries/restaurants';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { initialSectorOf } from '@/studio/sector-param';
+import { businessPath } from '@/studio/spaces';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { CreateRestaurantForm } from '../RestaurantForm';
 
@@ -23,6 +24,7 @@ export async function generateMetadata({ searchParams }: Params): Promise<Metada
 /**
  * A new client. Only Super Admins create restaurants: everyone else gets the not-found page. `?sector=PHARMACY` (the
  * Pharmacy page's "New pharmacy") opens the same form on the Pharmacy sector, with the way back to the Pharmacy page.
+ * A Super Admin works in closed spaces, so an old link naming another sector opens that space's own form instead.
  */
 export default async function NewRestaurantPage({ searchParams }: Params) {
   const actor = await getActor();
@@ -30,6 +32,7 @@ export default async function NewRestaurantPage({ searchParams }: Params) {
   await query(newRestaurantAccess, {});
   const t = getStudioTranslator(actor.locale);
   const sector = initialSectorOf(await searchParams);
+  if (actor.isSuperAdmin && sector !== 'FOOD') redirect(businessPath(sector, 'new'));
   const pharmacy = sector === 'PHARMACY';
   // The platform owner chooses the new restaurant's plan; it is the plans' names they need, in their language.
   const planNames = actor.isPlatformOwner

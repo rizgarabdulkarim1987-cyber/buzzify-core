@@ -114,8 +114,10 @@ describe('retail plans', () => {
     dataOf(await run(owner, billing.setPrices, price('retail', 'shop')));
     dataOf(await run(owner, billing.startTrial, trial(shop.id, 'retail', 'shop')));
     expect(await prisma().subscription.findFirstOrThrow({ where: { restaurantId: shop.id } })).toMatchObject({ applicationId: 'retail', planCode: 'shop', status: 'TRIAL' });
-    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, {}));
+    // The Retail product's prices are the Retail space's settings; Menu and Cashier's never list it.
+    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, { space: 'retail' }));
     expect(overview.applications.find((a) => a.id === 'retail')?.plans.map((p) => p.code)).toEqual(['shop']);
+    expect(dataOf(await runQuery(prisma(), owner, billingOverview, {})).applications.map((a) => a.id)).not.toContain('retail');
   });
 
   it('startTrial on a RETAIL business with pharmacy, cashier or menu is WRONG_SECTOR, and retail is refused for the other sectors', async () => {

@@ -42,7 +42,7 @@ const toIso = (local: string): string | undefined => (local ? new Date(local).to
  * The Buzzify team's announcements: the live and scheduled ones, a form to write one in up to three languages, and
  * archiving. A new announcement appears on every till within a minute.
  */
-export function AnnouncementsAdmin({ rows, space = 'food' }: { rows: AnnouncementRow[]; space?: 'food' | 'pharmacy' }) {
+export function AnnouncementsAdmin({ rows, space = 'food' }: { rows: AnnouncementRow[]; space?: 'food' | 'pharmacy' | 'retail' }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();

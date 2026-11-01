@@ -3636,6 +3636,7 @@ const ar: Messages = {
   'hub.title': 'اختر المشروع',
   'hub.food': 'المنيو والكاشير',
   'hub.pharmacy': 'الصيدلية',
+  'hub.retail': 'التجزئة',
   'hub.platform': 'المنصة',
   'hub.allProjects': 'كل المشاريع',
   'nav.team': 'الفريق',

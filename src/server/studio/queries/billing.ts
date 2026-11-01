@@ -5,7 +5,7 @@ import { effectiveStatus, isLive } from '@/server/domain/billing/subscriptions';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { sellablePlanCodes } from '@/server/studio/services/billing';
-import { APPLICATIONS_OF, businessSpace, sectorWhere } from '@/server/studio/services/space-scope';
+import { APPLICATIONS_OF, businessSpace, sectorWhere, spaceOfSector } from '@/server/studio/services/space-scope';
 
 /**
  * Billing reads (Task 3 of docs/superpowers/plans/2026-10-22-business-core-in-menu.md): `platform.settings`, which every
@@ -139,8 +139,8 @@ export const restaurantBilling = defineQuery({
   run: async (ctx, input) => {
     const restaurant = await ctx.db.restaurant.findUnique({ where: { id: input.restaurantId }, select: { id: true, name: true, status: true, plan: true, sector: true } });
     if (!restaurant) throw new StudioError('NOT_FOUND');
-    // Only the products of this business's own project: a pharmacy is never offered Menu or Cashier, nor a restaurant Pharmacy.
-    const products = APPLICATIONS_OF[restaurant.sector === 'PHARMACY' ? 'pharmacy' : 'food'];
+    // Only the products of this business's own project: a pharmacy or retail shop is never offered Menu or Cashier, nor a restaurant either of theirs.
+    const products = APPLICATIONS_OF[spaceOfSector(restaurant.sector)];
     const now = new Date();
     const [applications, subscriptions, payments] = await Promise.all([
       ctx.db.application.findMany({ where: { id: { in: [...products] } }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, name: true, status: true } }),

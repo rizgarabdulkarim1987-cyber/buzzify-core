@@ -87,7 +87,7 @@ export function InviteOwnerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onIssued: (issued: IssuedInvitation) => void;
-  space: 'food' | 'pharmacy' | 'platform';
+  space: 'food' | 'pharmacy' | 'retail' | 'platform';
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -145,7 +145,7 @@ export function PersonDialogs({
   action: PersonAction | null;
   onClose: () => void;
   onDone: () => void;
-  space: 'food' | 'pharmacy' | 'platform';
+  space: 'food' | 'pharmacy' | 'retail' | 'platform';
 }) {
   const t = useT();
   const refuse = useRefuse();

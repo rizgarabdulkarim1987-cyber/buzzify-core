@@ -8,21 +8,27 @@ import { StudioError } from '@/server/studio/framework/result';
 
 /**
  * The closed spaces of a Super Admin, seen from the data: Menu and Cashier works on FOOD businesses, the Pharmacy on
- * PHARMACY ones (docs/superpowers/specs/2026-10-31-super-admin-project-hub-design.md). A query or action that serves a
+ * PHARMACY ones and Retail on RETAIL ones (docs/superpowers/specs/2026-10-31-super-admin-project-hub-design.md). A query or action that serves a
  * space takes `space` and cuts its rows by the sector, so a business of the other project is never read or written
  * through it. Only a Super Admin (scope `all`) is cut by space; everyone else sees what they always saw.
  */
 
-/** The `space` input of a query: Menu and Cashier unless the page says Pharmacy. */
-export const businessSpace = z.enum(['food', 'pharmacy']).default('food');
+const BUSINESS_SPACES = ['food', 'pharmacy', 'retail'] as const;
+
+/** The `space` input of a query: Menu and Cashier unless the page names another space. */
+export const businessSpace = z.enum(BUSINESS_SPACES).default('food');
 export type BusinessSpace = z.infer<typeof businessSpace>;
 
-const SECTORS: Record<BusinessSpace, BusinessSector> = { food: 'FOOD', pharmacy: 'PHARMACY' };
+const SECTORS: Record<BusinessSpace, BusinessSector> = { food: 'FOOD', pharmacy: 'PHARMACY', retail: 'RETAIL' };
 
 /** The products (billing applications) each space sells and bills. */
-export const APPLICATIONS_OF: Record<BusinessSpace, readonly string[]> = { food: ['menu', 'cashier'], pharmacy: ['pharmacy'] };
+export const APPLICATIONS_OF: Record<BusinessSpace, readonly string[]> = { food: ['menu', 'cashier'], pharmacy: ['pharmacy'], retail: ['retail'] };
 
 export const sectorOf = (space: BusinessSpace): BusinessSector => SECTORS[space];
+
+/** The space a business of a sector belongs to. */
+export const spaceOfSector = (sector: BusinessSector): BusinessSpace =>
+  (Object.keys(SECTORS) as BusinessSpace[]).find((space) => SECTORS[space] === sector) ?? 'food';
 
 /** The businesses of a space. */
 export const sectorWhere = (space: BusinessSpace): { sector: BusinessSector } => ({ sector: SECTORS[space] });
@@ -44,25 +50,53 @@ export async function sectorRestaurantIds(db: PrismaClient, space: BusinessSpace
 }
 
 /**
- * The audit rows of a space. The log keeps plain restaurant ids, so the Pharmacy has the rows of its businesses and Menu
- * and Cashier has all the rest: its own businesses, the platform's own events (a setting, an announcement) that name no
- * business, and a business since deleted. Every row is in exactly one space, so nothing in the log is hidden.
+ * The audit rows of a space. The log keeps plain restaurant ids, so the Pharmacy and Retail have the rows of their
+ * businesses and Menu and Cashier has all the rest: its own businesses, the platform's own events (a setting, an
+ * announcement) that name no business, and a business since deleted. A plan (`AppPlan`) row is Retail's when it names
+ * a Retail plan and the Pharmacy's otherwise; an announcement row is the space's it was written in. Every row is in
+ * exactly one space, so nothing in the log is hidden.
  */
 export async function auditSpaceWhere(db: PrismaClient, space: BusinessSpace): Promise<Prisma.AuditLogWhereInput> {
-  const pharmacyIds = await sectorRestaurantIds(db, 'pharmacy');
-  // Platform events that belong to the Pharmacy: its plans, and the announcements written in its space.
-  const notes = (await db.announcement.findMany({ where: { space: 'pharmacy' }, select: { id: true } })).map((row) => row.id);
-  const pharmacyOwn: Prisma.AuditLogWhereInput = {
-    OR: [{ restaurantId: { in: pharmacyIds } }, { entityType: 'AppPlan' }, { entityType: 'Announcement', entityId: { in: notes } }],
-  };
-  if (space === 'pharmacy') return pharmacyOwn;
-  // Everything else. Each exclusion is spelled out because `NOT (x IN ...)` is unknown, not true, for the null restaurant of a platform event.
+  const [pharmacyIds, retailIds, retailPlans, notes] = await Promise.all([
+    sectorRestaurantIds(db, 'pharmacy'),
+    sectorRestaurantIds(db, 'retail'),
+    // Plans are only taken off sale, never deleted, so a plan row's id still names its product.
+    db.appPlan.findMany({ where: { applicationId: 'retail' }, select: { id: true } }),
+    db.announcement.findMany({ where: { space: { in: ['pharmacy', 'retail'] } }, select: { id: true, space: true } }),
+  ]);
+  const retailPlanIds = retailPlans.map((row) => row.id);
+  const notesOf = (of: BusinessSpace) => notes.filter((row) => row.space === of).map((row) => row.id);
+  // Each exclusion is spelled out because `NOT (x IN ...)` is unknown, not true, for the null restaurant of a platform event.
+  const notIn = (ids: string[]): Prisma.AuditLogWhereInput => ({ OR: [{ restaurantId: null }, { restaurantId: { notIn: ids } }] });
+  const notNote = (ids: string[]): Prisma.AuditLogWhereInput => ({ OR: [{ entityType: { not: 'Announcement' } }, { entityId: { notIn: ids } }] });
+
+  if (space === 'retail') {
+    return {
+      OR: [
+        { restaurantId: { in: retailIds } },
+        { entityType: 'AppPlan', entityId: { in: retailPlanIds } },
+        { entityType: 'Announcement', entityId: { in: notesOf('retail') } },
+      ],
+    };
+  }
+  if (space === 'pharmacy') {
+    // Its businesses, every plan that is not Retail's, and its announcements; never a retail shop's row.
+    return {
+      AND: [
+        {
+          OR: [
+            { restaurantId: { in: pharmacyIds } },
+            { entityType: 'AppPlan', entityId: { notIn: retailPlanIds } },
+            { entityType: 'Announcement', entityId: { in: notesOf('pharmacy') } },
+          ],
+        },
+        notIn(retailIds),
+      ],
+    };
+  }
+  // Everything else.
   return {
-    AND: [
-      { OR: [{ restaurantId: null }, { restaurantId: { notIn: pharmacyIds } }] },
-      { entityType: { not: 'AppPlan' } },
-      { OR: [{ entityType: { not: 'Announcement' } }, { entityId: { notIn: notes } }] },
-    ],
+    AND: [notIn([...pharmacyIds, ...retailIds]), { entityType: { not: 'AppPlan' } }, notNote([...notesOf('pharmacy'), ...notesOf('retail')])],
   };
 }
 
@@ -74,7 +108,7 @@ export async function assertSameSector(db: PrismaClient | ScopedTx, restaurantId
 }
 
 /** The `space` an action may carry: the page's space, optional so owners and designers are never cut by it. */
-export const optionalSpace = z.enum(['food', 'pharmacy']).optional();
+export const optionalSpace = z.enum(BUSINESS_SPACES).optional();
 
 /**
  * The first step of an action that works on one business from inside a space: when the page named its space, a business of

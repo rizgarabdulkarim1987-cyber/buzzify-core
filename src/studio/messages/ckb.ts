@@ -3610,6 +3610,7 @@ const ckb: Messages = {
   'hub.title': 'پڕۆژەیەک هەڵبژێرە',
   'hub.food': 'مینیو و کاشێر',
   'hub.pharmacy': 'دەرمانخانە',
+  'hub.retail': 'تاکە فرۆشی',
   'hub.platform': 'پلاتفۆرم',
   'hub.allProjects': 'هەموو پڕۆژەکان',
   'nav.team': 'تیم',

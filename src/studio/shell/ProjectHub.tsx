@@ -1,9 +1,9 @@
-import { Layers, Pill, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { Layers, Pill, ShoppingBag, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { Translate } from '@/lib/i18n';
 import { SPACES, type Space } from '@/studio/spaces';
 
-const ICONS: Record<Space['icon'], LucideIcon> = { food: UtensilsCrossed, pharmacy: Pill, platform: Layers };
+const ICONS: Record<Space['icon'], LucideIcon> = { food: UtensilsCrossed, pharmacy: Pill, retail: ShoppingBag, platform: Layers };
 
 /**
  * A Super Admin's first screen: one large icon per project, in the middle of the screen, each leading into that project's

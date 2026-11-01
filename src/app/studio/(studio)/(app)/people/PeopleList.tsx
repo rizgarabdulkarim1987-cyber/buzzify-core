@@ -18,7 +18,7 @@ function pageOf(raw: string | string[] | undefined): number {
  * Everyone who can sign in to the Studio, and the invitations still waiting, for Super Admins (anyone else gets the
  * not-found page). Search and both pages live in the address (`q`, `page` for people, `ipage` for invitations).
  */
-export async function PeopleList({ searchParams, space }: { searchParams: Promise<RawParams>; space: 'food' | 'pharmacy' | 'platform' }) {
+export async function PeopleList({ searchParams, space }: { searchParams: Promise<RawParams>; space: 'food' | 'pharmacy' | 'retail' | 'platform' }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   const raw = await searchParams;

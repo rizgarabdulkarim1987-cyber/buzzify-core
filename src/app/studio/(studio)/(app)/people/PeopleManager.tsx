@@ -124,7 +124,7 @@ export function PeopleManager({
   people: Page<PersonRow>;
   invitations: Page<InvitationRow>;
   /** The project the screen is in: the businesses to pick from are its own. */
-  space?: 'food' | 'pharmacy' | 'platform';
+  space?: 'food' | 'pharmacy' | 'retail' | 'platform';
 }) {
   const t = useT();
   const { locale } = useLocale();

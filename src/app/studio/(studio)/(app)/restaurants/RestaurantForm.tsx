@@ -23,7 +23,7 @@ import {
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
-import { businessPath } from '@/studio/spaces';
+import { businessPath, sectorOfSpace } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
@@ -360,11 +360,11 @@ export function CreateRestaurantForm({
   planNames?: Record<PlanTier, string> | null;
   initialSector?: BusinessSector;
   /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
-  space?: 'food' | 'pharmacy';
+  space?: 'food' | 'pharmacy' | 'retail';
 }) {
   const t = useT();
   const router = useRouter();
-  const [sector, setSector] = useState<BusinessSector>(space ? (space === 'pharmacy' ? 'PHARMACY' : 'FOOD') : initialSector);
+  const [sector, setSector] = useState<BusinessSector>(space ? (sectorOfSpace(space) ?? 'FOOD') : initialSector);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');

@@ -76,7 +76,7 @@ const linkClass = (current: boolean) =>
       : 'text-muted hover:bg-hover hover:text-text',
   );
 
-export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: 'food' | 'pharmacy' } }) {
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: 'food' | 'pharmacy' | 'retail' } }) {
   const t = useT();
   const pathname = usePathname();
 

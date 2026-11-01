@@ -4,7 +4,7 @@ import { parsePolicy } from '@/server/domain/permissions';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { literal } from '@/server/studio/services/list-filters';
-import { sectorWhere } from '@/server/studio/services/space-scope';
+import { sectorWhere, type BusinessSpace } from '@/server/studio/services/space-scope';
 import type { InvitationRow, PersonRow } from '@/server/studio/services/people';
 
 /**
@@ -25,7 +25,7 @@ const PLATFORM = { kind: 'platform' } as const;
  * (their memberships are cut the same way); everyone else, the Super Admins and the staff attached to no business, is in
  * the platform's own space. So every account is in at least one space.
  */
-const peopleSpace = z.enum(['food', 'pharmacy', 'platform']).default('food');
+const peopleSpace = z.enum(['food', 'pharmacy', 'retail', 'platform']).default('food');
 type PeopleSpace = z.infer<typeof peopleSpace>;
 
 /** A membership of a business space's sector; null for the platform space and for any list that is not the platform-wide one. */
@@ -132,7 +132,7 @@ export const listInvitations = defineQuery({
     requirePlatformScope(ctx);
     const now = new Date();
     const where: Prisma.InvitationWhereInput = {
-      ...(ctx.restaurantId !== null ? { restaurantId: ctx.restaurantId } : isPlatformSpace(ctx, space) ? { restaurantId: null } : inSpace(ctx, space) ? { restaurant: sectorWhere(space as 'food' | 'pharmacy') } : {}),
+      ...(ctx.restaurantId !== null ? { restaurantId: ctx.restaurantId } : isPlatformSpace(ctx, space) ? { restaurantId: null } : inSpace(ctx, space) ? { restaurant: sectorWhere(space as BusinessSpace) } : {}),
       ...(status !== 'all' ? inStatus(status, now) : {}),
     };
     const [total, found] = await Promise.all([
