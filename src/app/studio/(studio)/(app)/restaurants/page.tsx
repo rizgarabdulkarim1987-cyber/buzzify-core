@@ -63,8 +63,15 @@ export default async function RestaurantsPage({ searchParams }: { searchParams: 
           />
         ) : (
           <>
-            <RestaurantFilters cities={list.cities} planNames={list.planNames} />
-            <RestaurantsTable rows={list.rows} sort={input.sort} dir={input.dir} planNames={list.planNames} canDelete={list.canDelete} />
+            <RestaurantFilters cities={list.cities} planNames={list.planNames} showSector={!actor.isSuperAdmin} />
+            <RestaurantsTable
+              rows={list.rows}
+              sort={input.sort}
+              dir={input.dir}
+              planNames={list.planNames}
+              canDelete={list.canDelete}
+              showSector={!actor.isSuperAdmin}
+            />
             <Pagination page={list.page} pageSize={list.pageSize} total={list.total} />
           </>
         )}

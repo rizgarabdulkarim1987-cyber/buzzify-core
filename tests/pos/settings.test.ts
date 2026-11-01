@@ -85,6 +85,9 @@ describe('posSettings', () => {
       invoiceFooter: '',
       requireApproval: true,
       captainApproval: false,
+      loyaltyEnabled: false,
+      loyaltyStampsRequired: 8,
+      loyaltyReward: '',
       catalogMenuId: null,
       version: 0,
     });

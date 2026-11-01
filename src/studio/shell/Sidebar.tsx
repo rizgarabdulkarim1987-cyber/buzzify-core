@@ -6,6 +6,7 @@ import {
   CreditCard,
   Images,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Megaphone,
   Pill,
@@ -75,7 +76,7 @@ const linkClass = (current: boolean) =>
       : 'text-muted hover:bg-hover hover:text-text',
   );
 
-export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: SidebarUser }) {
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: 'food' | 'pharmacy' } }) {
   const t = useT();
   const pathname = usePathname();
 
@@ -87,8 +88,21 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
         </Link>
       </div>
 
+      {space && (
+        <div className="flex flex-col gap-0.5 px-3 pb-2">
+          <Link
+            href="/studio"
+            className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted transition-colors hover:bg-hover hover:text-text"
+          >
+            <LayoutGrid aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{t('hub.allProjects')}</span>
+          </Link>
+          <p className="truncate px-2.5 pt-1 text-xs font-medium uppercase tracking-wide text-muted">{space.name}</p>
+        </div>
+      )}
+
       <div className="px-3 pb-2">
-        <JumpTo />
+        <JumpTo {...(space?.business ? { space: space.business } : {})} />
       </div>
 
       <nav aria-label={t('nav.label')} className="flex-1 overflow-y-auto px-3 py-2">
@@ -124,7 +138,7 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
   );
 }
 
-function UserMenu({ user }: { user: SidebarUser }) {
+export function UserMenu({ user }: { user: SidebarUser }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();

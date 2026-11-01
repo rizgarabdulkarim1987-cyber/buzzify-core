@@ -2,8 +2,8 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { removeRestaurants, removeRestaurantsNamed, SUPER_ADMIN_FILE, uniqueClientAddress } from './helpers/studio';
 
 /**
- * A Super Admin (the one the setup project saved) creates a pharmacy with two branches from the Studio's new-restaurant
- * form and finds it in the list under the Pharmacy sector. Everything it makes is removed afterwards.
+ * A Super Admin (the one the setup project saved) creates a pharmacy with two branches from the Pharmacy space's new
+ * pharmacy form and finds it in the Pharmacy list, and in no Menu and Cashier list. Everything it makes is removed afterwards.
  */
 
 async function freshPage(browser: Browser): Promise<Page> {
@@ -25,13 +25,15 @@ test.describe('Studio pharmacy creation @desktop', () => {
     const name = `E2E Pharmacy ${Math.random().toString(36).slice(2, 8)}`;
     names.push(name);
 
+    // Menu and Cashier makes food restaurants only: no sector to choose, no branches or currencies on the form.
     await page.goto('/studio/restaurants/new');
     await expect(page.getByRole('heading', { level: 1, name: 'New restaurant' })).toBeVisible();
-    // A food restaurant is the default: no branches or currencies on the form.
-    await expect(page.getByLabel('Sector')).toHaveValue('FOOD');
+    await expect(page.getByLabel('Sector')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Branches' })).toHaveCount(0);
 
-    await page.getByLabel('Sector').selectOption('PHARMACY');
+    await page.goto('/studio/pharmacy/new');
+    await expect(page.getByRole('heading', { level: 1, name: 'New pharmacy' })).toBeVisible();
+    await expect(page.getByLabel('Sector')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Branches' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Currencies' })).toBeVisible();
     // A pharmacy has no restaurant type.
@@ -50,8 +52,8 @@ test.describe('Studio pharmacy creation @desktop', () => {
     await page.getByLabel('US dollar (USD)').check();
     await page.getByRole('button', { name: 'Create restaurant' }).click();
 
-    await expect(page).toHaveURL(/\/studio\/restaurants\/(?!new$)[^/]+$/);
-    ids.push(/\/studio\/restaurants\/([^/?]+)/.exec(page.url())![1]!);
+    await expect(page).toHaveURL(/\/studio\/pharmacy\/(?!new$)[^/]+$/);
+    ids.push(/\/studio\/pharmacy\/([^/?]+)/.exec(page.url())![1]!);
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
     // A pharmacy has no menu, plan or media tabs; it keeps its branches.
     const tabs = page.getByRole('navigation', { name: 'Restaurant sections' });
@@ -62,12 +64,10 @@ test.describe('Studio pharmacy creation @desktop', () => {
     await expect(page.getByText('Main branch')).toBeVisible();
     await expect(page.getByText('Ankawa branch')).toBeVisible();
 
-    // The list shows it with its sector, and the sector filter finds it.
-    await page.goto(`/studio/restaurants?sector=PHARMACY&q=${encodeURIComponent(name)}`);
-    const row = page.getByRole('row', { name: new RegExp(name) });
-    await expect(row).toBeVisible();
-    await expect(row.getByText('Pharmacy', { exact: true })).toBeVisible();
-    await page.goto(`/studio/restaurants?sector=FOOD&q=${encodeURIComponent(name)}`);
+    // The Pharmacy list shows it, and the Menu and Cashier list does not.
+    await page.goto('/studio/pharmacy');
+    await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible();
+    await page.goto(`/studio/restaurants?q=${encodeURIComponent(name)}`);
     await expect(page.getByRole('row', { name: new RegExp(name) })).toHaveCount(0);
   });
 });

@@ -10,6 +10,7 @@ import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
 import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
+import { SeasonalParticles } from '@/ui/menu/SeasonalParticles';
 import { brandCss, themeLogo } from '@/ui/brand';
 
 export async function generateMetadata({
@@ -102,8 +103,9 @@ export default async function RootLayout({
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
-            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true, tableBasket: tenant.features.tableBasket === true, callWaiter: tenant.features.callWaiter === true },
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails, livingPhotos: tenant.features.livingPhotos === true, tableBasket: tenant.features.tableBasket === true, callWaiter: tenant.features.callWaiter === true, shareCards: tenant.features.shareCards === true, stampCard: tenant.features.stampCard === true },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
+            ...(tenant.whatsapp ? { whatsapp: tenant.whatsapp } : {}),
             // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
             feedback: tenant.feedbackEnabled !== false,
             // A resolution cached before the extras existed has none: nothing is on.
@@ -111,6 +113,7 @@ export default async function RootLayout({
           }}
         >
           {children}
+          {tenant.extras?.season && <SeasonalParticles effect={tenant.extras.season} />}
         </AppProviders>
       </body>
     </html>

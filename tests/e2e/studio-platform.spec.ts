@@ -59,7 +59,7 @@ test.describe('Studio platform screens @desktop', () => {
 
   test('Overview counts, and Jump to opens ATELIER from the keyboard and gives focus back', async ({ browser }) => {
     const page = await freshPage(browser);
-    await page.goto('/studio');
+    await page.goto('/studio/overview');
     await expect(page.getByRole('heading', { level: 1, name: /^Welcome, / })).toBeVisible();
     for (const title of ['Restaurants', 'Menus', 'Menu views']) await expect(page.getByRole('region', { name: title })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Unpublished changes' })).toBeVisible();
@@ -111,7 +111,7 @@ test.describe('Studio platform screens @desktop', () => {
       const atelier = await menuBySlug('atelier');
       const page = await freshPage(browser);
 
-      await page.goto('/studio/settings');
+      await page.goto('/studio/team/settings');
       await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
       await expect(page).toHaveTitle(/Settings/);
       expect(await seriousViolations(page)).toEqual([]);
@@ -173,7 +173,8 @@ test.describe('Studio platform screens @desktop', () => {
     people.push(designer.email, owner, staff, moved);
     const page = await freshPage(browser);
 
-    await page.goto(`/studio/people?q=${encodeURIComponent(designer.name)}`);
+    // A designer with no restaurant yet works in no project, so they are listed in the Platform space (the team).
+    await page.goto(`/studio/team?q=${encodeURIComponent(designer.name)}`);
     await expect(page.getByRole('heading', { level: 1, name: 'People' })).toBeVisible();
     expect(await seriousViolations(page)).toEqual([]);
     const row = page.getByRole('row').filter({ hasText: designer.name });
@@ -200,6 +201,8 @@ test.describe('Studio platform screens @desktop', () => {
     await assign.getByRole('option', { name: new RegExp(restaurant.name) }).click();
     await assign.getByRole('button', { name: 'Assign' }).click();
     await expect(page.getByText('Designer assigned')).toBeVisible();
+    // Now that they work in a restaurant, they are listed in Menu and Cashier.
+    await page.goto(`/studio/people?q=${encodeURIComponent(designer.name)}`);
     await expect(row).toContainText(`Designer · ${restaurant.name}`);
 
     // Deactivated and reactivated.
@@ -243,7 +246,9 @@ test.describe('Studio platform screens @desktop', () => {
     await expect(page.getByText('Invitation withdrawn')).toBeVisible();
     await expect(page.getByText(owner)).toBeHidden();
 
-    // Staff are invited with a role (a designer here), and their link is shown once too.
+    // Staff are invited with a role (a designer here), and their link is shown once too. Staff belong to no project yet,
+    // so they are invited and listed in the Platform space (the team).
+    await page.goto('/studio/team');
     await page.getByRole('button', { name: 'Invite staff' }).click();
     const staffDialog = page.getByRole('dialog', { name: 'Invite staff' });
     await staffDialog.getByLabel('Email address').fill(staff);

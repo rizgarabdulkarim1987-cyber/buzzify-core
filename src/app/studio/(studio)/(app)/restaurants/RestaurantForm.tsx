@@ -23,6 +23,7 @@ import {
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
+import { businessPath } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
@@ -354,13 +355,16 @@ function PharmacyFields({
 export function CreateRestaurantForm({
   planNames = null,
   initialSector = 'FOOD',
+  space,
 }: {
   planNames?: Record<PlanTier, string> | null;
   initialSector?: BusinessSector;
+  /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
+  space?: 'food' | 'pharmacy';
 }) {
   const t = useT();
   const router = useRouter();
-  const [sector, setSector] = useState<BusinessSector>(initialSector);
+  const [sector, setSector] = useState<BusinessSector>(space ? (space === 'pharmacy' ? 'PHARMACY' : 'FOOD') : initialSector);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -371,6 +375,7 @@ export function CreateRestaurantForm({
     (values) =>
       createRestaurant({
         ...profileOf(values, true),
+        ...(space ? { space } : {}),
         // A pharmacy or retail shop has no restaurant type and no menu plan.
         ...(pharmacy
           ? {
@@ -388,7 +393,7 @@ export function CreateRestaurantForm({
       keep: KEPT,
       onSuccess: ({ restaurantId }) => {
         toast.success(t('restaurants.form.created'));
-        router.push(`/studio/restaurants/${restaurantId}`);
+        router.push(businessPath(sector, restaurantId));
       },
     },
   );
@@ -396,6 +401,7 @@ export function CreateRestaurantForm({
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
       <div className="grid max-w-2xl gap-4 pb-6 sm:grid-cols-2">
+        {!space && (
         <Field label={t('restaurants.form.sector')} hint={t('restaurants.form.sectorHint')} error={form.fieldError('sector')} className="sm:col-span-2">
           <Select
             name="sector"
@@ -404,6 +410,7 @@ export function CreateRestaurantForm({
             options={BUSINESS_SECTORS.map((value) => ({ value, label: t(`restaurants.sector.${value}`) }))}
           />
         </Field>
+        )}
         {planNames && !pharmacy && (
           <Field label={t('restaurants.form.plan')} hint={t('restaurants.form.planHint')} error={form.errors.plan} className="sm:col-span-2 sm:max-w-xs">
             <Select name="plan" defaultValue="BASIC" options={PLAN_TIERS.map((tier) => ({ value: tier, label: planNames[tier] }))} />

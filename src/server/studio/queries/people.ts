@@ -4,6 +4,7 @@ import { parsePolicy } from '@/server/domain/permissions';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { literal } from '@/server/studio/services/list-filters';
+import { sectorWhere } from '@/server/studio/services/space-scope';
 import type { InvitationRow, PersonRow } from '@/server/studio/services/people';
 
 /**
@@ -19,6 +20,21 @@ const idField = z.string().min(1).max(100);
 const pageField = z.number().int().min(1).max(100_000).default(1);
 
 const PLATFORM = { kind: 'platform' } as const;
+/**
+ * The space a platform-wide list is read through. A person is in a business space when they work in one of its businesses
+ * (their memberships are cut the same way); everyone else, the Super Admins and the staff attached to no business, is in
+ * the platform's own space. So every account is in at least one space.
+ */
+const peopleSpace = z.enum(['food', 'pharmacy', 'platform']).default('food');
+type PeopleSpace = z.infer<typeof peopleSpace>;
+
+/** A membership of a business space's sector; null for the platform space and for any list that is not the platform-wide one. */
+const inSpace = (ctx: QueryContext, space: PeopleSpace) =>
+  ctx.restaurantId === null && ctx.scope.kind === 'all' && space !== 'platform' ? { restaurant: sectorWhere(space) } : null;
+
+/** Whether the list is the platform space's own. */
+const isPlatformSpace = (ctx: QueryContext, space: PeopleSpace) => ctx.restaurantId === null && ctx.scope.kind === 'all' && space === 'platform';
+
 const targetOf = (i: { restaurantId?: string | undefined }) =>
   i.restaurantId === undefined ? PLATFORM : ({ kind: 'restaurant', restaurantId: i.restaurantId } as const);
 
@@ -34,15 +50,19 @@ export const listPeople = defineQuery({
     restaurantId: idField.optional(),
     q: z.string().trim().max(100).optional(),
     page: pageField,
+    space: peopleSpace,
   }),
   target: targetOf,
-  run: async (ctx, { q, page }) => {
+  run: async (ctx, { q, page, space }) => {
     requirePlatformScope(ctx);
     const restaurantId = ctx.restaurantId;
+    const spaceMembership = inSpace(ctx, space);
     const where: Prisma.UserWhereInput = {
       ...(restaurantId !== null ? { memberships: { some: { restaurantId } } } : {}),
+      ...(spaceMembership ? { memberships: { some: spaceMembership } } : {}),
+      ...(isPlatformSpace(ctx, space) ? { OR: [{ isSuperAdmin: true }, { memberships: { none: {} } }] } : {}),
       // A typed % or _ is looked for as itself (`literal`), as in every other search.
-      ...(q ? { OR: [{ name: { contains: literal(q), mode: 'insensitive' } }, { email: { contains: literal(q.toLowerCase()) } }] } : {}),
+      ...(q ? { AND: [{ OR: [{ name: { contains: literal(q), mode: 'insensitive' } }, { email: { contains: literal(q.toLowerCase()) } }] }] } : {}),
     };
     const [total, users] = await Promise.all([
       ctx.db.user.count({ where }),
@@ -61,7 +81,7 @@ export const listPeople = defineQuery({
           createdAt: true,
           // In a restaurant's list, only that restaurant: where else a person works is not the reader's to see.
           memberships: {
-            where: restaurantId !== null ? { restaurantId } : {},
+            where: restaurantId !== null ? { restaurantId } : (spaceMembership ?? {}),
             orderBy: { createdAt: 'asc' },
             select: { restaurantId: true, role: true, restaurant: { select: { name: true } } },
           },
@@ -105,13 +125,14 @@ export const listInvitations = defineQuery({
     restaurantId: idField.optional(),
     status: z.enum(STATUSES).default('pending'),
     page: pageField,
+    space: peopleSpace,
   }),
   target: targetOf,
-  run: async (ctx, { status, page }) => {
+  run: async (ctx, { status, page, space }) => {
     requirePlatformScope(ctx);
     const now = new Date();
     const where: Prisma.InvitationWhereInput = {
-      ...(ctx.restaurantId !== null ? { restaurantId: ctx.restaurantId } : {}),
+      ...(ctx.restaurantId !== null ? { restaurantId: ctx.restaurantId } : isPlatformSpace(ctx, space) ? { restaurantId: null } : inSpace(ctx, space) ? { restaurant: sectorWhere(space as 'food' | 'pharmacy') } : {}),
       ...(status !== 'all' ? inStatus(status, now) : {}),
     };
     const [total, found] = await Promise.all([

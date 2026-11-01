@@ -266,6 +266,7 @@ const posTill: Messages = {
   'pos.requests.table': 'Table {n}',
   'pos.requests.sentAt': 'Sent {time}',
   'pos.requests.guestNote': 'Guest note',
+  'pos.requests.reward': 'The guest’s stamp card is full: give them {reward}',
   'pos.requests.joinBanner': 'This table has an open order. Accepting adds these items to it.',
   'pos.requests.openOrder': 'Open the order',
   'pos.requests.accept': 'Accept',

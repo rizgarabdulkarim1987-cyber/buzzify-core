@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { AUDIT_ACTIONS } from '@/server/domain/audit-actions';
 import { createdBetween, dateField } from './list-filters';
+import { auditSpaceWhere, type BusinessSpace } from './space-scope';
 
 /**
  * The audit log as the Studio shows it: filtered, paged, and with the names of the people, restaurants and menus its
@@ -106,8 +107,9 @@ export function activityWhere(filters: Omit<ActivityFilters, 'page'>): Prisma.Au
   };
 }
 
-export async function listActivityRows(db: PrismaClient, filters: ActivityFilters) {
-  const where = activityWhere(filters);
+export async function listActivityRows(db: PrismaClient, filters: ActivityFilters, space: BusinessSpace) {
+  // Every row is in exactly one space (see auditSpaceWhere).
+  const where: Prisma.AuditLogWhereInput = { AND: [activityWhere(filters), await auditSpaceWhere(db, space)] };
   const [total, found] = await Promise.all([
     db.auditLog.count({ where }),
     db.auditLog.findMany({
@@ -156,8 +158,10 @@ export async function restaurantActivityRows(
   return { total, rows: described.map((row, index) => ({ ...row, fields: fieldNames(found[index]!.changes) })) };
 }
 
-/** The newest rows of the whole log, for the Overview. */
-export async function recentActivityRows(db: PrismaClient, limit: number): Promise<AuditRow[]> {
-  const found = await db.auditLog.findMany({ orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }], take: limit, select: ROW_SELECT });
+/** The newest rows of the log, for the Overview; of one space's businesses when `space` is given. */
+export async function recentActivityRows(db: PrismaClient, limit: number, space?: BusinessSpace): Promise<AuditRow[]> {
+  const found = await db.auditLog.findMany({
+    ...(space ? { where: await auditSpaceWhere(db, space) } : {}),
+    orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }], take: limit, select: ROW_SELECT });
   return describeRows(db, found);
 }

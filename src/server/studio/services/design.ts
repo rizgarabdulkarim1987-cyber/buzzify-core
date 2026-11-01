@@ -8,6 +8,7 @@ import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
 import { allows, type Entitlements, type FeatureKey } from '@/server/domain/entitlements';
 import { MOTION_PRESET_IDS, type MotionPresetId } from '@/lib/templates/motion-presets';
+import { isSeasonEffect, type SeasonEffect } from '@/server/domain/seasons';
 import { allowedSceneKinds, motionPresetLock, premiumTemplateLock, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
 import { isSceneKind, SCENE_KINDS, SCENE_MEDIA_KIND } from '@/server/media/kinds';
 import { loadAssets } from '@/server/media/resolve';
@@ -78,6 +79,8 @@ export interface DesignPlanView {
   motionPresets: MotionPresetId[];
   /** Whether the plan has the premium templates; without it the Gallery marks them and a save refuses them. */
   premiumTemplates: boolean;
+  /** Whether the plan lets the business choose a seasonal effect. */
+  seasonalParticles: boolean;
   upgrade: UpgradeInfo;
 }
 
@@ -100,6 +103,8 @@ export interface DesignView {
   /** Which of the restaurant's details are filled in (the menu can show only those). */
   details: Record<'hours' | 'address' | 'map' | 'phone' | 'whatsapp' | 'social', boolean>;
   showPoweredBy: boolean;
+  /** The menu's seasonal effect (read live by guests, shown only when the plan holds it); null for none. */
+  season: SeasonEffect | null;
   /** Only a Super Admin changes Powered by Buzzify and saves designs for every restaurant. */
   superAdmin: boolean;
 }
@@ -121,6 +126,7 @@ export async function designState(
     select: {
       locales: true,
       defaultLocale: true,
+      seasonEffect: true,
       brand: { select: { version: true, templateId: true, design: true, customTemplateId: true } },
       restaurant: { select: { type: true, address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true } },
     },
@@ -147,6 +153,7 @@ export async function designState(
       lockedScene: sceneKind && !allows(plan.entitlements, sceneFeature(sceneKind)) ? sceneFeature(sceneKind) : null,
       motionPresets: MOTION_PRESET_IDS.filter((id) => motionPresetLock(id, undefined, plan.entitlements) === null),
       premiumTemplates: allows(plan.entitlements, 'design.premiumTemplates'),
+      seasonalParticles: allows(plan.entitlements, 'design.seasonalParticles'),
       upgrade: plan.upgrade,
     },
     customTemplateId: menu.brand?.customTemplateId ?? null,
@@ -167,6 +174,7 @@ export async function designState(
       social: Object.values(social).some((value) => typeof value === 'string' && value.trim() !== ''),
     },
     showPoweredBy: r.showPoweredBy,
+    season: isSeasonEffect(menu.seasonEffect) ? menu.seasonEffect : null,
     superAdmin,
   };
 }

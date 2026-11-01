@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { jump } from '@/app/studio/_actions/search';
 import { useT } from '@/studio/i18n';
+import { businessPath } from '@/studio/spaces';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
 import { isJumpShortcut } from './jump-shortcut';
 
@@ -16,7 +17,7 @@ const MAX_TYPED = 80;
  * result opens the restaurant's profile or the menu's page. When it closes, focus goes back where it was (the button, when
  * the shortcut was pressed with nothing focused).
  */
-export function JumpTo() {
+export function JumpTo({ space }: { space?: 'food' | 'pharmacy' }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   // The shortcut's name depends on the platform, which only the browser knows: the server (and hydration) says Ctrl.
@@ -66,7 +67,7 @@ export function JumpTo() {
 
   const search = useCallback(
     async (typed: string): Promise<CommandGroup[]> => {
-      const result = await jump({ q: typed.slice(0, MAX_TYPED) });
+      const result = await jump({ q: typed.slice(0, MAX_TYPED), ...(space ? { space } : {}) });
       if (!result.ok) throw new Error(result.error.code);
       const { restaurants, menus } = result.data;
       const groups: CommandGroup[] = [];
@@ -77,7 +78,7 @@ export function JumpTo() {
             id: `restaurant:${restaurant.id}`,
             label: restaurant.name,
             detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
-            href: `/studio/restaurants/${restaurant.id}`,
+            href: businessPath(space === 'pharmacy' ? 'PHARMACY' : 'FOOD', restaurant.id),
           })),
         });
       }
@@ -94,7 +95,7 @@ export function JumpTo() {
       }
       return groups;
     },
-    [t],
+    [t, space],
   );
 
   const keys = mac ? '⌘K' : 'Ctrl K';

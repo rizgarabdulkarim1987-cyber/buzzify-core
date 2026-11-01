@@ -123,6 +123,8 @@ model Restaurant {
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
   posBillCalls          PosBillCall[]
+  posLoyaltyCards       PosLoyaltyCard[]
+  posLoyaltyStamps      PosLoyaltyStamp[]
   posDeliveryZones      PosDeliveryZone[]
   posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
@@ -282,6 +284,8 @@ model Menu {
   wheelEnabled        Boolean       @default(false)
   /// Whether each dish card shows its order and view counts; read live like the switches above, and shown only when the plan holds menu.dishCounts.
   dishCountsEnabled   Boolean       @default(false)
+  /// The seasonal particle effect drawn over the guest menu (src/server/domain/seasons.ts); null for none. Read live; shown only when the plan holds design.seasonalParticles.
+  seasonEffect        String?
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -440,6 +444,9 @@ model Product {
   isHidden           Boolean   @default(false)
   stockCount         Int?
   lowStockThreshold  Int?
+  /// A limited drop (plan feature `selling.limitedDrops`): the dish is on the menu only from `dropStartsAt` to `dropEndsAt`. Both or neither. Live, not in the snapshot.
+  dropStartsAt       DateTime?
+  dropEndsAt         DateTime?
   dayparts           Daypart[]
   hideOutsideDaypart Boolean   @default(false)
   slot               String?
@@ -1010,6 +1017,8 @@ model Announcement {
   startsAt    DateTime  @default(now())
   endsAt      DateTime?
   archivedAt  DateTime?
+  /// The project it was written in (a Super Admin's space): "food" for Menu and Cashier, "pharmacy".
+  space       String    @default("food")
   /// A plain id, not a relation, so removing the person never removes the announcement.
   createdById String?
   createdAt   DateTime  @default(now())
@@ -1385,6 +1394,10 @@ model PosSettings {
   requireApproval       Boolean            @default(true)
   /// A guest order waits for a captain's approval before the cashier may take it.
   captainApproval       Boolean            @default(false)
+  /// The stamp card (plan feature `loyalty.stampCard`): on or off, stamps for a full card, and what the reward is.
+  loyaltyEnabled        Boolean            @default(false)
+  loyaltyStampsRequired Int                @default(8)
+  loyaltyReward         String             @default("")
   /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
   roundingStep          Int                @default(0)
   /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
@@ -1586,6 +1599,35 @@ model PosBillCall {
 
   @@index([restaurantId, seenAt])
   @@index([tableId, createdAt])
+}
+
+/// A guest's stamp card (plan feature `loyalty.stampCard`): one per restaurant and phone token, which is stored only as its hash.
+/// `stamps` is what the card holds now (earned minus spent).
+model PosLoyaltyCard {
+  id           String     @id @default(cuid())
+  restaurantId String
+  cardKey      String
+  stamps       Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, cardKey])
+}
+
+/// One stamp earned, or a reward spent, by one paid order on one card: the unique key makes each happen once per order.
+model PosLoyaltyStamp {
+  id           String     @id @default(cuid())
+  restaurantId String
+  cardKey      String
+  orderId      String
+  /// `EARN` or `SPEND`.
+  kind         String
+  amount       Int
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, orderId, cardKey, kind])
 }
 
 /// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
@@ -1887,6 +1929,10 @@ model PosCustomerOrder {
   decidedByUserId         String?
   /// True when placed while captain approval was on: the cashier may not accept it until a captain approves.
   requiresCaptain         Boolean                @default(false)
+  /// SHA-256 of the stamp-card token the guest's phone sent with the request; null when it sent none.
+  cardKey                 String?
+  /// The guest asked for the reward of a full card with this request.
+  redeemReward            Boolean                @default(false)
   captainApprovedAt       DateTime?
   /// Plain id (no relation): the captain, manager or owner who approved it.
   captainApprovedByUserId String?

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { POST as waiterCall } from '@/app/api/[tenant]/waiter-call/route';
 import { getTenant } from '@/server/data/public-menu';
 import { callForBill, callForWaiter, listOpenBillCalls } from '@/server/pos/bill-calls';
-import { scopedClient } from '@/server/data/tenant-db';
+import { delegates, scopedClient } from '@/server/data/tenant-db';
 import { publishFixture } from '../helpers/db';
 import { prisma, resetWorld, restaurant, useTestDatabase } from './fixture';
 
@@ -62,7 +62,7 @@ describe('a guest calls a waiter', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ tableNumber: 1, kind: 'WAITER', seenAt: null });
     expect((await prisma().posOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('OPEN');
-    const listed = await listOpenBillCalls(scopedClient(prisma(), { restaurantId }), restaurantId);
+    const listed = await listOpenBillCalls(delegates(scopedClient(prisma(), { restaurantId })), restaurantId);
     expect(listed.map((call) => [call.tableNumber, call.kind])).toEqual([[1, 'WAITER']]);
   });
 

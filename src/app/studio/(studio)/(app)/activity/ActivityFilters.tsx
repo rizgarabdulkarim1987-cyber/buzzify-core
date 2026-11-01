@@ -2,7 +2,7 @@
 
 import { AUDIT_ACTIONS } from '@/server/domain/audit-actions';
 import { useT } from '@/studio/i18n';
-import { findMenuOptions, findPersonOptions, findRestaurantOptions } from '@/studio/pickers';
+import { findMenuOptions, findPersonOptions, findRestaurantOptionsIn } from '@/studio/pickers';
 import { Field } from '@/studio/ui/Field';
 import { FilterBar, useFilterParams } from '@/studio/ui/FilterBar';
 import { Input } from '@/studio/ui/Input';
@@ -25,7 +25,7 @@ const asOption = (selected: { id: string; name: string | null } | null): PickerO
  * everything), an action, and a range of days. Each one is a parameter of the address, which the page reads, so a
  * filtered log is a link.
  */
-export function ActivityFilters({ selected }: { selected: SelectedFilters }) {
+export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: 'food' | 'pharmacy' }) {
   const t = useT();
   const { params, set } = useFilterParams();
 
@@ -45,7 +45,7 @@ export function ActivityFilters({ selected }: { selected: SelectedFilters }) {
           clearable
           value={asOption(selected.restaurant)}
           onChange={(option) => set({ restaurant: option?.value ?? null })}
-          search={findRestaurantOptions}
+          search={findRestaurantOptionsIn[space]}
           placeholder={t('activity.filter.anyRestaurant')}
         />
       </Field>

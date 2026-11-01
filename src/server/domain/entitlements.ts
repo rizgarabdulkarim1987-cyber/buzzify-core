@@ -60,12 +60,12 @@ export const FEATURES = [
   { key: 'immersive.ar', area: 'immersive', status: 'live', project: 4, startsIn: 'PREMIUM' },
   { key: 'ordering.tableBasket', area: 'selling', status: 'live', project: 5, startsIn: 'PREMIUM' },
   { key: 'table.callWaiter', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
-  { key: 'loyalty.stampCard', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
-  { key: 'share.dishCards', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
-  { key: 'display.tvBoard', area: 'immersive', status: 'reserved', project: 6, startsIn: 'PREMIUM' },
-  { key: 'selling.limitedDrops', area: 'selling', status: 'reserved', project: 6, startsIn: 'PRO' },
-  { key: 'design.seasonalParticles', area: 'design', status: 'reserved', project: 6, startsIn: 'PRO' },
-  { key: 'contact.whatsapp', area: 'selling', status: 'reserved', project: 6, startsIn: 'BASIC' },
+  { key: 'contact.whatsapp', area: 'selling', status: 'live', project: 6, startsIn: 'BASIC' },
+  { key: 'share.dishCards', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
+  { key: 'loyalty.stampCard', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
+  { key: 'display.tvBoard', area: 'immersive', status: 'live', project: 6, startsIn: 'PREMIUM' },
+  { key: 'selling.limitedDrops', area: 'selling', status: 'live', project: 6, startsIn: 'PRO' },
+  { key: 'design.seasonalParticles', area: 'design', status: 'live', project: 6, startsIn: 'PRO' },
 ] as const satisfies readonly FeatureDef[];
 
 export type FeatureKey = (typeof FEATURES)[number]['key'];

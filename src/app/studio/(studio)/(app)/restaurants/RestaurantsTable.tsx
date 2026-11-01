@@ -45,6 +45,7 @@ export function RestaurantsTable({
   dir,
   planNames,
   canDelete = false,
+  showSector = true,
 }: {
   rows: RestaurantRow[];
   sort: SortKey;
@@ -52,6 +53,8 @@ export function RestaurantsTable({
   planNames: Record<PlanTier, string>;
   /** Super Admins only; the server checks again when the deletion is asked for. */
   canDelete?: boolean;
+  /** The sector column: for a Super Admin the space is the sector, so it is left out. */
+  showSector?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -92,13 +95,17 @@ export function RestaurantsTable({
         enableSorting: false,
         cell: ({ row }) => (row.original.sector !== 'FOOD' ? <span className="text-muted">–</span> : t(`restaurants.type.${row.original.type}`)),
       },
-      {
-        id: 'sector',
-        accessorKey: 'sector',
-        header: t('restaurants.list.sector'),
-        enableSorting: false,
-        cell: ({ row }) => <SectorBadge sector={row.original.sector} t={t} />,
-      },
+      ...(showSector
+        ? [
+            {
+              id: 'sector',
+              accessorKey: 'sector',
+              header: t('restaurants.list.sector'),
+              enableSorting: false,
+              cell: ({ row }) => <SectorBadge sector={row.original.sector} t={t} />,
+            } satisfies ColumnDef<RestaurantRow, unknown>,
+          ]
+        : []),
       {
         id: 'city',
         accessorKey: 'city',
@@ -150,7 +157,7 @@ export function RestaurantsTable({
           ]
         : []),
     ],
-    [t, locale, number, planNames, canDelete],
+    [t, locale, number, planNames, canDelete, showSector],
   );
 
   const sorting: SortingState = [{ id: sort, desc: dir === 'desc' }];

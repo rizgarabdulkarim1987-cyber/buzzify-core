@@ -9,7 +9,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ tenant: st
   return handleTenantRequest(request, ctx, { schema: basketSendSchema, route: 'table-basket-send', limit: 10 }, async ({ tenant, input, now }) => {
     try {
       const catalog = await getCatalog(tenant);
-      const { publicId } = await sendBasket(getPrisma(), tenant, catalog, input, now);
+      const { publicId } = await sendBasket(getPrisma(), tenant, catalog, { ...input, ...(input.card ? { card: input.card } : {}) }, now);
       return Response.json({ publicId }, { status: 201, headers: { 'cache-control': 'no-store' } });
     } catch (error) {
       if (error instanceof QrGateClosed) return problem(404, 'NOT_FOUND', 'Not found');

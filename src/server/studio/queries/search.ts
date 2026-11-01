@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineQuery } from '@/server/studio/framework/query';
 import { findMenus, findPeople, findRestaurants, JUMP_LIMIT, PICK_LIMIT } from '@/server/studio/services/search';
+import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * Finding things by typing: Jump to (Ctrl+K), and the pickers behind the filters and forms that choose one restaurant,
@@ -19,12 +20,12 @@ const pickText = z.string().trim().max(80).default('');
 export const jump = defineQuery({
   name: 'search.jump',
   permission: 'view',
-  input: z.object({ q: jumpText }),
+  input: z.object({ q: jumpText, space: businessSpace }),
   target: () => PLATFORM,
-  run: async (ctx, { q }) => {
+  run: async (ctx, { q, space }) => {
     const [restaurants, menus] = await Promise.all([
-      findRestaurants(ctx.db, ctx.scope, q, JUMP_LIMIT),
-      findMenus(ctx.db, ctx.scope, q, JUMP_LIMIT),
+      findRestaurants(ctx.db, ctx.scope, q, JUMP_LIMIT, space),
+      findMenus(ctx.db, ctx.scope, q, JUMP_LIMIT, space),
     ]);
     return { restaurants, menus };
   },
@@ -33,17 +34,17 @@ export const jump = defineQuery({
 export const searchRestaurants = defineQuery({
   name: 'search.restaurants',
   permission: 'view',
-  input: z.object({ q: pickText }),
+  input: z.object({ q: pickText, space: businessSpace }),
   target: () => PLATFORM,
-  run: async (ctx, { q }) => ({ rows: await findRestaurants(ctx.db, ctx.scope, q, PICK_LIMIT) }),
+  run: async (ctx, { q, space }) => ({ rows: await findRestaurants(ctx.db, ctx.scope, q, PICK_LIMIT, space) }),
 });
 
 export const searchMenus = defineQuery({
   name: 'search.menus',
   permission: 'view',
-  input: z.object({ q: pickText }),
+  input: z.object({ q: pickText, space: businessSpace }),
   target: () => PLATFORM,
-  run: async (ctx, { q }) => ({ rows: await findMenus(ctx.db, ctx.scope, q, PICK_LIMIT) }),
+  run: async (ctx, { q, space }) => ({ rows: await findMenus(ctx.db, ctx.scope, q, PICK_LIMIT, space) }),
 });
 
 /** People, for choosing one in a filter. Super Admins only: it reads every account on the platform. */

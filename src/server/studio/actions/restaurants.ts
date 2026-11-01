@@ -11,6 +11,7 @@ import { checkCreation } from '@/server/domain/pharmacy/limits';
 import { BUSINESS_SECTORS, PH_CURRENCIES, RETAIL_BRANCH_NAME_MAX } from '@/server/domain/restaurant-profile';
 import { PICTURE_KINDS } from '@/server/media/kinds';
 import { limitRefusal } from '@/server/studio/services/billing';
+import { optionalSpace, requireSpace, sectorOf } from '@/server/studio/services/space-scope';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -75,11 +76,14 @@ const createInput = restaurantInput
     branches: z.array(pharmacyBranch).optional(),
     currencies: z.array(z.enum(PH_CURRENCIES, 'Choose IQD, USD or both')).min(1, 'Choose at least one currency').default(['IQD']),
     ownerEmail: z.string().trim().email('Enter a valid email address').max(254).optional(),
+    // The space the form is in: it decides the sector, so a form of one space cannot make a business of the other.
+    space: optionalSpace,
   })
   .superRefine((input, ctx) => {
-    const retail = input.sector === 'RETAIL';
+    const effective = input.space ? sectorOf(input.space) : input.sector;
+    const retail = effective === 'RETAIL';
     const branches = input.branches ?? [];
-    if ((input.sector === 'PHARMACY' || retail) && branches.length === 0) {
+    if ((effective === 'PHARMACY' || retail) && branches.length === 0) {
       ctx.addIssue({ code: 'custom', path: ['branches'], message: 'Add at least one branch' });
     }
     if (branches.length > 20) {
@@ -105,8 +109,9 @@ export const createRestaurant = defineAction({
   permission: 'restaurant.create',
   input: createInput,
   target: () => PLATFORM,
-  run: (ctx, { plan: chosen, sector, branches, currencies, ownerEmail, ...input }) =>
+  run: (ctx, { plan: chosen, sector: chosenSector, space, branches, currencies, ownerEmail, ...input }) =>
     ctx.transaction(async (tx) => {
+      const sector = space ? sectorOf(space) : chosenSector;
       const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
       const created = await tx.restaurant.create({
         data: { ...profileData(input), plan, ...(sector !== 'FOOD' ? { sector } : {}) },
@@ -162,9 +167,11 @@ export const updateRestaurant = defineAction({
     version: versionField,
     // The restaurant's logo in its library (or the shared one); left out, it stays as it is.
     logoAssetId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
+    space: optionalSpace,
   }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: async (ctx, { version, logoAssetId, ...fields }) => {
+  run: async (ctx, { version, logoAssetId, space, ...fields }) => {
+    await requireSpace(ctx, space);
     const saved = await ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       const input = pickProfile(fields);
@@ -204,10 +211,11 @@ export const updateRestaurant = defineAction({
 export const setRestaurantStatus = defineAction({
   name: 'restaurants.setStatus',
   permission: 'restaurant.status',
-  input: z.object({ restaurantId: idField, status: restaurantStatus }),
+  input: z.object({ restaurantId: idField, status: restaurantStatus, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { status }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { status, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       const row = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true } });
       if (!row) throw new StudioError('NOT_FOUND');
@@ -230,15 +238,17 @@ export const setRestaurantStatus = defineAction({
       // of every menu is expired once this has committed, so guests see the change at once.
       await expireMenusAfterCommit(tx, ctx.afterCommit);
       return { status };
-    }),
+    });
+  },
 });
 
 export const deleteRestaurant = defineAction({
   name: 'restaurants.delete',
   permission: 'restaurant.delete',
-  input: z.object({ restaurantId: idField, confirmName: z.string().max(200) }),
+  input: z.object({ restaurantId: idField, confirmName: z.string().max(200), space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: async (ctx, { confirmName }) => {
+  run: async (ctx, { confirmName, space }) => {
+    await requireSpace(ctx, space);
     const restaurantId = restaurantOf(ctx);
     const pictures = await ctx.transaction(async (tx) => {
       // Read before the deletion cascades to them: their files go once it has committed.
@@ -278,10 +288,11 @@ async function refuseRetailBranches(tx: Parameters<Parameters<ActionContext['tra
 export const createBranch = defineAction({
   name: 'restaurants.createBranch',
   permission: 'restaurant.edit',
-  input: branchInput.extend({ restaurantId: idField }),
+  input: branchInput.extend({ restaurantId: idField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, fields) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { space, ...fields }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const input = pickBranch(fields);
       const restaurantId = restaurantOf(ctx);
       // A pharmacy adds branches only up to what its live plan allows (provisioning, which runs before any plan exists,
@@ -301,16 +312,18 @@ export const createBranch = defineAction({
       });
       ctx.audit({ action: 'branch.created', entityType: 'Branch', entityId: created.id, changes: { name: { before: null, after: input.name } } });
       return { branchId: created.id };
-    }),
+    });
+  },
 });
 
 export const updateBranch = defineAction({
   name: 'restaurants.updateBranch',
   permission: 'restaurant.edit',
-  input: branchInput.extend({ restaurantId: idField, branchId: idField, version: versionField }),
+  input: branchInput.extend({ restaurantId: idField, branchId: idField, version: versionField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { branchId, version, ...fields }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { branchId, version, space, ...fields }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const input = pickBranch(fields);
       await refuseRetailBranches(tx, restaurantOf(ctx));
       const row = await tx.branch.findFirst({ where: { id: branchId } });
@@ -321,16 +334,18 @@ export const updateBranch = defineAction({
       await updateWithVersion(tx.branch, { id: branchId, version, data: branchData(input), entityType: 'Branch' }, tx);
       ctx.audit({ action: 'branch.updated', entityType: 'Branch', entityId: branchId, changes });
       return { version: version + 1 };
-    }),
+    });
+  },
 });
 
 export const deleteBranch = defineAction({
   name: 'restaurants.deleteBranch',
   permission: 'restaurant.edit',
-  input: z.object({ restaurantId: idField, branchId: idField }),
+  input: z.object({ restaurantId: idField, branchId: idField, space: optionalSpace }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { branchId }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { branchId, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const row = await tx.branch.findFirst({ where: { id: branchId }, select: { id: true, name: true } });
       if (!row) throw new StudioError('NOT_FOUND');
       // A pharmacy branch carries staff access, prices and stock settings: deleting it would cascade into them silently.
@@ -341,7 +356,8 @@ export const deleteBranch = defineAction({
       await tx.branch.deleteMany({ where: { id: row.id } });
       ctx.audit({ action: 'branch.deleted', entityType: 'Branch', entityId: row.id, changes: { name: { before: row.name, after: null } } });
       return { deleted: true as const };
-    }),
+    });
+  },
 });
 
 export const reorderBranches = defineAction({
@@ -354,10 +370,12 @@ export const reorderBranches = defineAction({
       .min(1)
       .max(500)
       .refine((ids) => new Set(ids).size === ids.length, 'Each branch can be listed only once'),
+    space: optionalSpace,
   }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { order }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { order, space }) => {
+    await requireSpace(ctx, space);
+    return ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       await refuseRetailBranches(tx, restaurantId);
       const { before, after } = await arrangeBranches(tx, order);
@@ -367,5 +385,6 @@ export const reorderBranches = defineAction({
         ctx.audit({ action: 'branch.reordered', entityType: 'BranchOrder', entityId: restaurantId, changes: { order: { before, after } } });
       }
       return { order: after };
-    }),
+    });
+  },
 });
