@@ -25,11 +25,19 @@ export const RATE_RULES = {
   'invite:ip': { max: 20, windowSec: 3600 },
   /** Attempts to accept one invitation, from any address: the invitation stands for the account it makes. */
   'invite:token': { max: 10, windowSec: 3600 },
-  /** Signed calls from Buzzify Retail (ai-config, identities), per calling address: Retails' own budget for Studio's calls. */
-  'retail:ip': { max: 120, windowSec: 60 },
-  /** Retails asking for an account for a staff email: it can make an account for any address, so it is held tighter. */
-  'retail-identity:ip': { max: 30, windowSec: 600 },
+  /**
+   * Signed calls from Buzzify Retail, per calling address. Retails calls from one egress address, and its ai-config polls
+   * (every 60 s per server process) share this with a staff batch of up to 50 identities: 300 a minute holds both.
+   */
+  'retail:ip': { max: 300, windowSec: 60 },
+  /**
+   * Retails asking for the account of a staff email. The signature and the per-email cap are the real protection; the
+   * per-address one only stops a runaway caller, and lets several batches of 50 through.
+   */
+  'retail-identity:ip': { max: 600, windowSec: 600 },
   'retail-identity:email': { max: 5, windowSec: 3600 },
+  /** The set-password mail of one Retail identity: once per window, so a burst of calls for one address mails once. */
+  'retail-identity:mail': { max: 1, windowSec: 600 },
 } as const satisfies Record<string, RateRule>;
 
 /** Requests whose address is unknown share one bucket, rather than having no per-address limit at all. */

@@ -137,9 +137,10 @@ describe('signed calls from Retails', () => {
     expect(await prisma().authRateLimit.count()).toBe(0);
   });
 
-  it('120 signed calls a minute per address, then 429', async () => {
+  it('300 signed calls a minute per address, then 429', async () => {
     const path = '/api/retail/v1/ai-config';
-    await prisma().authRateLimit.create({ data: { key: 'retail:ip:203.0.113.9', windowStart: new Date(), count: 120 } });
+    await prisma().authRateLimit.create({ data: { key: 'retail:ip:203.0.113.9', windowStart: new Date(), count: 299 } });
+    expect((await getAiConfig(path, signed('GET', path, ''))).status).toBe(200);
     const response = await getAiConfig(path, signed('GET', path, ''));
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toMatch(/^\d+$/);

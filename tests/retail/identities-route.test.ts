@@ -135,10 +135,45 @@ describe('POST /api/retail/v1/identities', () => {
     expect(token).toBeTruthy();
     expect(text).not.toContain(token);
     expect(Object.keys(JSON.parse(text)).sort()).toEqual(['coreUserId', 'created', 'emailVerified']);
-    // A retry for the same address (the owner adds the person again) sends no second mail.
+    // A retry soon after (the owner adds the person again) sends no second mail: the first link is still fresh.
     await identify({ email });
     await quiet();
     expect(await mailTo(email, 1)).toHaveLength(1);
+  });
+
+  it('an identity-only account that never set a password gets the set-password mail again on a later call', async () => {
+    const email = address('resend');
+    const { coreUserId } = await (await identify({ email })).json();
+    await mailTo(email, 1);
+    // Ten minutes on, the first link is likely lost: the owner's retried add sends a new one.
+    await prisma().authRateLimit.update({ where: { key: `retail-identity:mail:${coreUserId}` }, data: { windowStart: new Date(Date.now() - 11 * 60_000) } });
+    const again = await identify({ email });
+    expect(await again.json()).toEqual({ coreUserId, created: false, emailVerified: false });
+    const mails = await mailTo(email, 2);
+    expect(mails.every((m) => m.subject === 'Set your password to sign in to Buzzify Retail')).toBe(true);
+    // Still bounded by the per-email limit: the sixth call of the hour is refused and mails nothing.
+    await prisma().authRateLimit.update({ where: { key: `retail-identity:email:${email}` }, data: { count: 5 } });
+    expect((await identify({ email })).status).toBe(429);
+    await quiet();
+    expect(await mailTo(email, 2)).toHaveLength(2);
+  });
+
+  it('an existing account with a password, or one that is not identity-only, gets no mail', async () => {
+    // Identity-only, but the password is set (it has a credential): nothing to send.
+    const claimed = address('claimed');
+    const { coreUserId } = await ensureIdentity(prisma(), { email: claimed }, new Date());
+    const token = linkParam((await mailTo(claimed))[0]?.text ?? '', 'token');
+    await authFor(prisma()).api.resetPassword({ body: { token, newPassword: GOOD } });
+    await mailTo(claimed, 2); // the set-password mail and "your password was changed"
+    await prisma().authRateLimit.deleteMany({ where: { key: `retail-identity:mail:${coreUserId}` } });
+    await identify({ email: claimed });
+    // An ordinary account without a credential (made some other way) is not Retail's to mail either.
+    const ordinary = await person('no-credential');
+    await prisma().account.deleteMany({ where: { userId: ordinary.userId } });
+    await identify({ email: ordinary.email });
+    await quiet();
+    expect(await mailTo(claimed, 2)).toHaveLength(2);
+    expect(await prisma().verification.count({ where: { value: ordinary.userId } })).toBe(0);
   });
 
   it('a known verified email answers created false, emailVerified true, and changes nothing', async () => {
@@ -181,7 +216,7 @@ describe('POST /api/retail/v1/identities', () => {
   });
 
   it('per-address limit answers 429 before any write', async () => {
-    await prisma().authRateLimit.create({ data: { key: `retail-identity:ip:${IP}`, windowStart: new Date(), count: 30 } });
+    await prisma().authRateLimit.create({ data: { key: `retail-identity:ip:${IP}`, windowStart: new Date(), count: 600 } });
     const response = await identify({ email: address('limited-ip') });
     expect(response.status).toBe(429);
     expect(await response.json()).toEqual({ code: 'RATE_LIMITED' });
@@ -198,6 +233,12 @@ describe('POST /api/retail/v1/identities', () => {
     expect(response.status).toBe(429);
     expect(await prisma().user.count()).toBe(0);
     expect((await identify({ email: address('other-email') }, '203.0.113.11')).status).toBe(200);
+  });
+
+  it('a batch of 50 new emails from one address all succeed', async () => {
+    // Retails adds staff from one egress address, up to 50 at once; its ai-config polls share the per-address budget.
+    for (let i = 0; i < 50; i += 1) expect((await identify({ email: address(`batch-${i}`) })).status, `call ${i}`).toBe(200);
+    expect(await prisma().user.count()).toBe(50);
   });
 
   it('five calls an hour per email pass and the sixth is refused', async () => {

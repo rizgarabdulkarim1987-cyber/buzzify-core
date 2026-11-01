@@ -2,6 +2,7 @@ import { after } from 'next/server';
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { authFor } from '@/server/studio/auth/auth';
+import { checkRateLimit, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { isUniqueViolation, normalizeEmail } from '@/server/studio/auth/users';
 
 /**
@@ -13,7 +14,8 @@ import { isUniqueViolation, normalizeEmail } from '@/server/studio/auth/users';
  * An unknown address gets an identity-only account (`User.identityOnly`): not verified, no password, no membership. Its
  * person is mailed a set-password link after the response (Better Auth's reset, with the `retailIdentity` wording); the
  * link proves the address (`onPasswordReset` marks it verified), and the owner's next add in Retails then links.
- * A known account is never changed here. The answer is the same three fields for every case, and no link, token or
+ * Asked again for an identity-only account that has no password yet, it mails the link again (at most once per ten
+ * minutes, and the route's per-email limit bounds the calls). A known account is never changed here. The answer is the same three fields for every case, and no link, token or
  * password ever travels in it.
  */
 
@@ -36,9 +38,16 @@ const answer = (user: { id: string; emailVerified: boolean; deactivatedAt: Date 
 });
 
 const IDENTITY_FIELDS = { id: true, emailVerified: true, deactivatedAt: true } as const;
+/** What deciding on a repeat mail needs: an identity-only account whose person never set a password has no credential. */
+const FOUND_FIELDS = { ...IDENTITY_FIELDS, identityOnly: true, accounts: { where: { providerId: 'credential' }, select: { id: true } } } as const;
 
-/** Asks Better Auth for the reset link (its token, its expiry), after the response: `sendResetPassword` words it for Retail. */
-function mailSetPassword(prisma: PrismaClient, email: string): void {
+/**
+ * Asks Better Auth for the reset link (its token, its expiry), after the response: `sendResetPassword` words it for Retail.
+ * At most once per `retail-identity:mail` window per account, counted atomically, so concurrent calls for one new address
+ * mail once, and a retry soon after the first mail sends nothing while its link is fresh.
+ */
+async function mailSetPassword(prisma: PrismaClient, userId: string, email: string, now: Date): Promise<void> {
+  if (!(await checkRateLimit(prisma, `retail-identity:mail:${userId}`, RATE_RULES['retail-identity:mail'], now)).allowed) return;
   const task = async () => {
     try {
       await authFor(prisma).api.requestPasswordReset({ body: { email } });
@@ -57,8 +66,13 @@ function mailSetPassword(prisma: PrismaClient, email: string): void {
 
 export async function ensureIdentity(prisma: PrismaClient, input: { email: string; name?: string }, now: Date): Promise<Identity> {
   const email = normalizeEmail(input.email);
-  const found = await prisma.user.findUnique({ where: { email }, select: IDENTITY_FIELDS });
-  if (found) return answer(found, false);
+  const found = await prisma.user.findUnique({ where: { email }, select: FOUND_FIELDS });
+  if (found) {
+    // The person was mailed before but never set a password (the link lasts an hour): the owner's retried add re-sends it.
+    // An ordinary account, or one whose password is set, is never mailed from here.
+    if (found.identityOnly && found.accounts.length === 0 && !found.deactivatedAt) await mailSetPassword(prisma, found.id, email, now);
+    return answer(found, false);
+  }
 
   const name = input.name?.trim() || email.slice(0, email.indexOf('@'));
   const ctx = await authFor(prisma).$context;
@@ -75,6 +89,6 @@ export async function ensureIdentity(prisma: PrismaClient, input: { email: strin
     if (!winner) throw error;
     return answer(winner, false);
   }
-  mailSetPassword(prisma, email);
+  await mailSetPassword(prisma, id, email, now);
   return { coreUserId: id, created: true, emailVerified: false };
 }
