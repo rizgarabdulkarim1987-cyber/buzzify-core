@@ -79,8 +79,8 @@ describe('the restaurant pickers of a space', () => {
 });
 
 describe('a pharmacy has no till', () => {
-  it('does not show the till staff on the people tab of a pharmacy', () => {
+  it('does not show the till staff on the people tab of a pharmacy (only a restaurant has a till)', () => {
     const page = readFileSync('src/app/studio/(studio)/(app)/restaurants/[id]/people/page.tsx', 'utf8');
-    expect(page).toMatch(/restaurant.can.manage && restaurant.sector !== 'PHARMACY'/);
+    expect(page).toMatch(/restaurant.can.manage && restaurant.sector === 'FOOD'/);
   });
 });

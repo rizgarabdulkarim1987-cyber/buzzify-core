@@ -122,10 +122,19 @@ export function isOwnerOnly(actor: Actor): boolean {
 
 /**
  * Whether the person's account exists only for Buzzify Retail (made when a Retail shop added their email): no Studio
- * role, no Super Admin. The Studio shows them one page that points to Retail, and no working areas.
+ * role, no Super Admin. Every Studio page sends them into Retail (`retailOnlyRedirect`); they have no working areas.
  */
 export function isRetailOnly(actor: Actor): boolean {
   return actor.identityOnly === true && !actor.isSuperAdmin && actor.memberships.length === 0;
+}
+
+/**
+ * Where a Studio page sends the person instead of showing itself: a Retail-only account goes straight into Buzzify
+ * Retail (`retailStart`, Retails' start of the sign-in handoff), so it never sees a Studio page. Null for everyone
+ * else, and when the link is off (`retailStart` null): then the frame shows a neutral note instead.
+ */
+export function retailOnlyRedirect(actor: Actor | null, retailStart: string | null): string | null {
+  return actor && retailStart && isRetailOnly(actor) ? retailStart : null;
 }
 
 /**

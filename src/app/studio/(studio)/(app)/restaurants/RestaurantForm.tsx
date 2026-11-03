@@ -22,6 +22,7 @@ import {
 } from '@/server/domain/restaurant-profile';
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { MediaPicker } from '@/studio/media/MediaPicker';
 import { businessPath, sectorOfSpace } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
@@ -117,14 +118,17 @@ function ProfileFields({
   initial,
   withNotes,
   showType = true,
+  sector = 'FOOD',
 }: {
   form: ActionForm<unknown>;
   initial: ProfileValues;
   withNotes: boolean;
-  /** A pharmacy has no restaurant type. */
+  /** A pharmacy or a retail shop has no restaurant type. */
   showType?: boolean;
+  /** Whose words the fields speak: a retail shop's name no restaurant or guest. */
+  sector?: BusinessSector;
 }) {
-  const t = useT();
+  const t = spaceT(useT(), spaceOfSector(sector));
   const kept = (name: string, fallback: string) => form.value(name) ?? fallback;
   const hoursMessage = Object.entries(form.errors).find(([name]) => name === 'workingHours' || name.startsWith('workingHours.'))?.[1];
   const onlyHoursRefused = hoursMessage !== undefined && Object.keys(form.errors).every((name) => name.startsWith('workingHours'));
@@ -362,9 +366,11 @@ export function CreateRestaurantForm({
   /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
   space?: 'food' | 'pharmacy' | 'retail';
 }) {
-  const t = useT();
+  const baseT = useT();
   const router = useRouter();
   const [sector, setSector] = useState<BusinessSector>(space ? (sectorOfSpace(space) ?? 'FOOD') : initialSector);
+  // In the words of the sector chosen: a new retail shop names no restaurant.
+  const t = spaceT(baseT, spaceOfSector(sector));
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -391,6 +397,7 @@ export function CreateRestaurantForm({
       }),
     {
       keep: KEPT,
+      t,
       onSuccess: ({ restaurantId }) => {
         toast.success(t('restaurants.form.created'));
         router.push(businessPath(sector, restaurantId));
@@ -417,7 +424,7 @@ export function CreateRestaurantForm({
           </Field>
         )}
       </div>
-      <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} />
+      <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} sector={sector} />
       {pharmacy && (
         <PharmacyFields
           retail={retail}
@@ -449,20 +456,24 @@ export function EditRestaurantForm({
   version,
   initial,
   logo: initialLogo = null,
+  sector = 'FOOD',
 }: {
   restaurantId: string;
   version: number;
   initial: ProfileValues;
   /** The restaurant's logo; a new menu starts its brand kit with it. */
   logo?: { assetId: string; thumbUrl: string } | null;
+  /** The business's sector: only a restaurant has a type, and a retail shop is spoken of in Retail's words. */
+  sector?: BusinessSector;
 }) {
-  const t = useT();
+  const t = spaceT(useT(), spaceOfSector(sector));
   const router = useRouter();
   const withNotes = initial.notes !== null;
   const [logo, setLogo] = useState(initialLogo);
   const [picking, setPicking] = useState(false);
   const form = useActionForm((values) => updateRestaurant({ restaurantId, version, ...profileOf(values, withNotes), logoAssetId: logo?.assetId ?? null }), {
     keep: KEPT,
+    t,
     onSuccess: () => {
       toast.success(t('restaurants.form.saved'));
       router.refresh();
@@ -471,7 +482,7 @@ export function EditRestaurantForm({
 
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
-      <ProfileFields form={form} initial={initial} withNotes={withNotes} />
+      <ProfileFields form={form} initial={initial} withNotes={withNotes} showType={sector === 'FOOD'} sector={sector} />
       <Section id="logo" title={t('restaurants.form.logo')} intro={t('restaurants.form.logoIntro')}>
         <div className="flex items-center gap-4">
           {logo ? (

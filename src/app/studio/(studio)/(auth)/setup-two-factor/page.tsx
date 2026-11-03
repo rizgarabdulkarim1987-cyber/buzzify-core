@@ -5,6 +5,7 @@ import { SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/p
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { AuthPanel } from '@/studio/shell/AuthPanel';
+import { AuthPageFrame } from '../frame';
 import { SetupTwoFactor } from './SetupTwoFactor';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,12 +23,14 @@ export default async function SetupTwoFactorPage() {
   const t = getStudioTranslator(actor.locale);
 
   return (
-    <AuthPanel title={t('auth.setup.title')} intro={actor.isSuperAdmin ? t('auth.setup.required') : t('auth.setup.optional')} width="md">
-      <SetupTwoFactor
-        email={actor.email}
-        alreadyOn={actor.twoFactorEnabled}
-        finishHref={actor.isSuperAdmin ? '/studio' : '/studio/account'}
-      />
-    </AuthPanel>
+    <AuthPageFrame>
+      <AuthPanel title={t('auth.setup.title')} intro={actor.isSuperAdmin ? t('auth.setup.required') : t('auth.setup.optional')} width="md">
+        <SetupTwoFactor
+          email={actor.email}
+          alreadyOn={actor.twoFactorEnabled}
+          finishHref={actor.isSuperAdmin ? '/studio' : '/studio/account'}
+        />
+      </AuthPanel>
+    </AuthPageFrame>
   );
 }

@@ -3,7 +3,8 @@
 import { Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { jump } from '@/app/studio/_actions/search';
-import { useT } from '@/studio/i18n';
+import { SpaceWords, useT } from '@/studio/i18n';
+import { spaceT } from '@/studio/space-words';
 import { businessPath, sectorOfSpace } from '@/studio/spaces';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
 import { isJumpShortcut } from './jump-shortcut';
@@ -18,7 +19,8 @@ const MAX_TYPED = 80;
  * the shortcut was pressed with nothing focused).
  */
 export function JumpTo({ space }: { space?: 'food' | 'pharmacy' | 'retail' }) {
-  const t = useT();
+  // In the words of the space: Retail's Jump to finds shops, never restaurants or menus.
+  const t = spaceT(useT(), space);
   const [open, setOpen] = useState(false);
   // The shortcut's name depends on the platform, which only the browser knows: the server (and hydration) says Ctrl.
   const mac = useSyncExternalStore(
@@ -117,7 +119,9 @@ export function JumpTo({ space }: { space?: 'food' | 'pharmacy' | 'retail' }) {
           {keys}
         </kbd>
       </button>
-      <CommandPalette open={open} onOpenChange={setOpen} search={search} />
+      <SpaceWords space={space ?? 'food'}>
+        <CommandPalette open={open} onOpenChange={setOpen} search={search} />
+      </SpaceWords>
     </>
   );
 }

@@ -7,6 +7,7 @@ import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { overview } from '@/server/studio/queries/overview';
 import { getStudioTranslator } from '@/studio/messages';
+import { spaceT } from '@/studio/space-words';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
@@ -22,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RetailOverviewPage() {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), 'retail');
   const locale = actor.locale;
   const data = await query(overview, { space: 'retail' });
   const total = RESTAURANT_STATUSES.reduce((sum, status) => sum + data.restaurants[status], 0);

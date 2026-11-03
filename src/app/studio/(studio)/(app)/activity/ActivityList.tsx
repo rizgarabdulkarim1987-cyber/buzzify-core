@@ -8,6 +8,7 @@ import { listActivity } from '@/server/studio/queries/activity';
 import type { AuditRow, Named } from '@/server/studio/services/activity';
 import { formatDateTime } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
+import { spaceT } from '@/studio/space-words';
 import { businessBase } from '@/studio/spaces';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -59,7 +60,10 @@ export async function ActivityList({
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), space);
+  // A retail shop has no menus: the Retail space's log has no Menu column.
+  const withMenu = space !== 'retail';
+  const columns = withMenu ? COLUMNS : COLUMNS.filter((column) => column !== 'menu');
   const input = { ...activityInput(await searchParams), space };
   const log = await query(listActivity, input);
   const filtered = Boolean(input.actorId || input.restaurantId || input.menuId || input.action || input.from || input.to);
@@ -81,7 +85,7 @@ export async function ActivityList({
                   <caption className="sr-only">{t('activity.caption')}</caption>
                   <thead>
                     <tr className="border-b border-line">
-                      {COLUMNS.map((column) => (
+                      {columns.map((column) => (
                         <th key={column} scope="col" className="h-9 px-3 text-start text-xs font-medium text-muted first:ps-4 last:pe-4">
                           {t(`activity.col.${column}`)}
                         </th>
@@ -113,9 +117,11 @@ export async function ActivityList({
                           <td className="px-3 py-2.5">
                             <Place named={row.restaurant} href={`${businessBase(space)}/${row.restaurant?.id ?? ''}`} t={t} />
                           </td>
-                          <td className="px-3 py-2.5 last:pe-4">
-                            <Place named={row.menu} href={`/studio/menus/${row.menu?.id ?? ''}`} t={t} />
-                          </td>
+                          {withMenu && (
+                            <td className="px-3 py-2.5 last:pe-4">
+                              <Place named={row.menu} href={`/studio/menus/${row.menu?.id ?? ''}`} t={t} />
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

@@ -12,9 +12,7 @@ const en: Messages = {
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'Skip to content',
   'retailOnly.title': 'This account is for Buzzify Retail',
-  'retailOnly.body': 'A Buzzify Retail shop added you to its staff. Your work is in Buzzify Retail: sign in there with this account. Nothing in this Studio is assigned to you.',
-  'retailOnly.open': 'Open Buzzify Retail',
-  'retailOnly.role': 'Buzzify Retail staff',
+  'retailOnly.body': 'A Buzzify Retail shop added you to its staff. Your work is in Buzzify Retail: sign in there with this account.',
   'common.save': 'Save',
   'common.saving': 'Saving…',
   'common.cancel': 'Cancel',
@@ -3612,6 +3610,10 @@ const en: Messages = {
   'hub.allProjects': 'All projects',
   'nav.team': 'Team',
   'nav.teamSettings': 'Settings',
+  'auth.neutral.signIn.intro': 'Use the email address and password of your Buzzify account.',
+  'auth.neutral.signIn.alreadyAction': 'Continue',
+  'auth.neutral.twoFactor.intro': 'Open your authenticator app and enter the 6-digit code it shows for Buzzify.',
+  'auth.neutral.forgot.sentBody': 'If {email} belongs to a Buzzify account, a link to choose a new password is on its way. It works once, within 1 hour.',
 };
 
 export default en;

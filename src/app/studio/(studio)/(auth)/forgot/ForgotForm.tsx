@@ -3,6 +3,7 @@
 import { MailCheck } from 'lucide-react';
 import { useState } from 'react';
 import { requestPasswordReset } from '@/app/studio/_actions/session';
+import { authKey, type AuthEntry } from '@/studio/auth-entry';
 import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -13,9 +14,9 @@ import { isolated } from '@/studio/ui/isolate';
 
 /**
  * Asks for a reset link. The answer is the same whether or not the address has an account, so the page never says
- * which addresses do.
+ * which addresses do. From Buzzify Retail (`entry`) its answer names no Studio product.
  */
-export function ForgotForm() {
+export function ForgotForm({ entry = 'studio' }: { entry?: AuthEntry }) {
   const t = useT();
   const [sentTo, setSentTo] = useState<string | null>(null);
   const form = useActionForm((values) => requestPasswordReset({ email: values.email ?? '' }), {
@@ -33,7 +34,7 @@ export function ForgotForm() {
         <div className="flex flex-col gap-1.5">
           <h2 className="text-md font-semibold text-text">{t('auth.forgot.sentTitle')}</h2>
           <p className="text-base text-muted">
-            {isolated(t('auth.forgot.sentBody'), { email: sentTo })}
+            {isolated(t(authKey('auth.forgot.sentBody', entry)), { email: sentTo })}
           </p>
         </div>
         <button

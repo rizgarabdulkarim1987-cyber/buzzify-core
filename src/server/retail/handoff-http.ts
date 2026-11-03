@@ -20,6 +20,7 @@ import {
   PICK_COOKIE,
   RESUME_COOKIE,
 } from './handoff';
+import { CHOOSE_PATH, CONTINUE_PATH, HANDOFF_PATH, RETAIL_START_PATH } from './paths';
 
 /**
  * The three Route Handlers of the sign-in handoff (see `./handoff.ts`), in one place so the Studio's route files stay
@@ -38,10 +39,7 @@ import {
  * Logs carry an error's name only.
  */
 
-export const HANDOFF_PATH = '/api/retail/v1/handoff';
-export const CONTINUE_PATH = '/studio/retail/continue';
-export const CHOOSE_PATH = '/studio/retail/choose';
-const RETAIL_START_PATH = '/api/core/v1/handoff/start';
+export { CHOOSE_PATH, CONTINUE_PATH, HANDOFF_PATH } from './paths';
 
 const BASE_HEADERS = { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff' } as const;
 
@@ -66,12 +64,16 @@ const redirectTo = (location: string, cookies: string[] = []) => answer(302, nul
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** A small page in the person's language: what happened and the way back to the Studio. No token is ever in it. */
+/**
+ * A small page in the person's language: what happened and the way back to Buzzify Retail, where the sign-in started.
+ * It names no other product (a person who only uses Retail never sees the Studio). No token is ever in it.
+ */
 function page(status: number, locale: Locale, key: 'preparing' | 'refused', cookies: string[]): Response {
   const t = getStudioTranslator(locale);
+  const back = escapeHtml(retailConfig().baseUrl);
   const title = escapeHtml(t(`retail.handoff.${key}.title`));
   const body = escapeHtml(t(`retail.handoff.${key}.body`));
-  const html = `<!doctype html><html lang="${locale}" dir="${direction(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 16px;line-height:1.5"><h1 style="font-size:1.375rem">${title}</h1><p>${body}</p><p><a href="/studio">${escapeHtml(t('retail.handoff.back'))}</a></p></body></html>`;
+  const html = `<!doctype html><html lang="${locale}" dir="${direction(locale)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${title}</title></head><body style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 16px;line-height:1.5"><h1 style="font-size:1.375rem">${title}</h1><p>${body}</p><p><a href="${back}">${escapeHtml(t('retail.handoff.back'))}</a></p></body></html>`;
   return answer(status, html, 'text/html; charset=utf-8', cookies);
 }
 
