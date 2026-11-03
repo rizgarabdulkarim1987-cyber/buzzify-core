@@ -87,6 +87,8 @@ const pharmacy: Messages = {
   // التنقل بين شاشات الصيدلية
   'pharmacy.nav.label': 'الصيدلية',
   'pharmacy.nav.home': 'الرئيسية',
+  'pharmacy.nav.labels': 'الملصقات',
+  'pharmacy.nav.doctor': 'الدكتور الذكي',
   'pharmacy.nav.catalog': 'دليل المنتجات',
   // دليل المنتجات: القائمة والبحث والحالات
   'pharmacy.catalog.title': 'دليل المنتجات',

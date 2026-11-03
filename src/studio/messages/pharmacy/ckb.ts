@@ -87,6 +87,8 @@ const pharmacy: Messages = {
   // گەڕان لە نێوان شاشەکانی دەرمانخانە
   'pharmacy.nav.label': 'دەرمانخانە',
   'pharmacy.nav.home': 'سەرەکی',
+  'pharmacy.nav.labels': 'لیبڵەکان',
+  'pharmacy.nav.doctor': 'دکتۆری زیرەک',
   'pharmacy.nav.catalog': 'لیستی بەرهەمەکان',
   // لیستی بەرهەمەکان: لیست، گەڕان و دۆخەکان
   'pharmacy.catalog.title': 'لیستی بەرهەمەکان',
