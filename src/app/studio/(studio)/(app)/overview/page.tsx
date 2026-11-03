@@ -38,7 +38,7 @@ export default async function OverviewPage() {
     const restaurants = await query(myRestaurants, {});
     const landing = landingPath(
       actor,
-      restaurants.map((restaurant) => ({ id: restaurant.id, name: restaurant.name, menuIds: restaurant.menus.map((menu) => menu.id) })),
+      restaurants.map((restaurant) => ({ id: restaurant.id, name: restaurant.name, menuIds: restaurant.menus.map((menu) => menu.id), sector: restaurant.sector })),
     );
     if (landing) redirect(landing);
     return (

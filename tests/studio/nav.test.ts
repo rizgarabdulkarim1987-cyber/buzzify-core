@@ -118,6 +118,14 @@ describe('visibleNav', () => {
     ]);
   });
 
+  it("gives a pharmacy's owner the restaurant and a way into the pharmacy, with no menu settings", () => {
+    const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
+    const items = visibleNav(owner, [{ id: 'r1', name: 'Rizgar Pharmacy', menuIds: [], sector: 'PHARMACY' }]);
+    expect(keys(items)).toEqual(['myRestaurant', 'openPharmacy']);
+    expect(items[0]).toMatchObject({ labelKey: 'nav.myPharmacy', icon: 'pharmacy' });
+    expect(items[1]).toMatchObject({ href: '/pharmacy/home', labelKey: 'nav.openPharmacy', icon: 'pharmacy' });
+  });
+
   it('sends an owner whose restaurant has exactly one menu straight to that menu', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
     const [restaurant, menu] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1'] }]);
