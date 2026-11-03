@@ -147,9 +147,10 @@ const emailChangeNeedsSession = {
  *
  * It is a factory because tests build one on the test database; the application uses `getAuth()`.
  */
-export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
+export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv(), options: { nextCookies?: boolean } = {}) {
   const { secret, baseUrl, production } = config;
   const hostOptions = authHostOptions(config);
+  const withNextCookies = options.nextCookies ?? true;
 
   return betterAuth({
     appName: 'Buzzify Core',
@@ -241,8 +242,13 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       },
     },
 
-    // nextCookies must come last: it warns when another plugin follows it.
-    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }), pinSignIn(prisma), nextCookies()],
+    // nextCookies must come last: it warns when another plugin follows it. Left out for `serverAuthFor`.
+    plugins: [
+      emailChangeNeedsSession,
+      twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }),
+      pinSignIn(prisma),
+      ...(withNextCookies ? [nextCookies()] : []),
+    ],
   });
 }
 
@@ -256,6 +262,22 @@ export function authFor(prisma: PrismaClient): Auth {
   if (!auth) {
     auth = createAuth(prisma);
     instances.set(prisma, auth);
+  }
+  return auth;
+}
+
+const serverInstances = new WeakMap<PrismaClient, Auth>();
+
+/**
+ * The same auth (same database, secret, plugins, hooks and cookie names) without Better Auth's Next cookie plugin: for a
+ * Route Handler that checks a person's password or code for another server (Buzzify Retail's own sign-in form) and must
+ * not hand that server a Studio session cookie. Its answers' cookies are only in `returnHeaders`, for the caller to read.
+ */
+export function serverAuthFor(prisma: PrismaClient): Auth {
+  let auth = serverInstances.get(prisma);
+  if (!auth) {
+    auth = createAuth(prisma, authEnv(), { nextCookies: false }) as unknown as Auth;
+    serverInstances.set(prisma, auth);
   }
   return auth;
 }
