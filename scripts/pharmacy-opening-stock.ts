@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { getPrisma } from '@/server/data/prisma';
+import * as importActions from '@/server/pharmacy/actions/imports';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -19,6 +21,8 @@ import { describeDatabase } from './database-target';
 const NAME_FLAG = process.argv.indexOf('--name');
 const NAME = NAME_FLAG === -1 ? 'Rizgar Pharmacy' : (process.argv[NAME_FLAG + 1] ?? '');
 const APPLY = process.argv.includes('--apply');
+const IMPORT_FLAG = process.argv.indexOf('--import');
+const IMPORT_FILE = IMPORT_FLAG === -1 ? null : (process.argv[IMPORT_FLAG + 1] ?? null);
 const CHUNK = 40;
 const META = { ip: '127.0.0.1', userAgent: 'pharmacy-opening-stock' };
 const DAY = 86_400_000;
@@ -65,6 +69,28 @@ async function main(): Promise<void> {
       if (!result.ok) throw new Error(`${def.name}: ${result.error.code}: ${result.error.message} ${JSON.stringify(result.error.fields ?? {})}`);
       return result.data;
     };
+
+    // `--import file.csv`: the catalog import's own preview and apply, only into an empty catalog; an error row stops it.
+    if (IMPORT_FILE !== null) {
+      const have = await prisma.phProduct.count({ where: { restaurantId: restaurant.id } });
+      const rows = readFileSync(IMPORT_FILE, 'utf8').split(/\r?\n/).filter((l) => l.trim() !== '').length - 1;
+      if (have > 0) console.log(`Import: skipped, the catalog already has ${have} products`);
+      else if (!APPLY) console.log(`Import: would import ${rows} products from ${IMPORT_FILE}`);
+      else {
+        const place = { restaurantId: restaurant.id, branchId: branch.id };
+        const preview = await run(importActions.preview, {
+          ...place,
+          fileName: IMPORT_FILE.split(/[\\/]/).pop()!,
+          fileBase64: readFileSync(IMPORT_FILE).toString('base64'),
+          defaults: { rxLevel: 'OTC' },
+        });
+        const s = preview.summary;
+        console.log(`Import preview: ${s.rows} rows, ${s.ok} ok, ${s.warnings} warnings, ${s.errors} errors`);
+        if (s.errors > 0) throw new Error(`The import has ${s.errors} error rows; nothing was imported: ${JSON.stringify(preview.firstRowsWithIssues).slice(0, 1500)}`);
+        const applied = await run(importActions.apply, { ...place, batchId: preview.batchId, batchHash: preview.batchHash, acceptWarnings: true, excludeRowNumbers: [] });
+        console.log(`Import applied: ${JSON.stringify(applied).slice(0, 200)}`);
+      }
+    }
 
     const products = await prisma.phProduct.findMany({
       where: { restaurantId: restaurant.id, active: true },
