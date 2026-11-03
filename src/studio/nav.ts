@@ -151,9 +151,10 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
     const restaurantItem: NavItem = {
       key: 'myRestaurant',
       href: restaurantPath,
-      labelKey: 'nav.myRestaurant',
+      // A pharmacy is never called a restaurant.
+      labelKey: known?.sector === 'PHARMACY' ? 'nav.myPharmacy' : 'nav.myRestaurant',
       ...(name ? { label: name } : {}),
-      icon: 'store',
+      icon: known?.sector === 'PHARMACY' ? 'pharmacy' : 'store',
       match: [restaurantPath],
       // The Menus tab belongs to the menu item below.
       exclude: [menusPath],

@@ -122,6 +122,7 @@ describe('visibleNav', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
     const items = visibleNav(owner, [{ id: 'r1', name: 'Rizgar Pharmacy', menuIds: [], sector: 'PHARMACY' }]);
     expect(keys(items)).toEqual(['myRestaurant', 'openPharmacy']);
+    expect(items[0]).toMatchObject({ labelKey: 'nav.myPharmacy', icon: 'pharmacy' });
     expect(items[1]).toMatchObject({ href: '/pharmacy/home', labelKey: 'nav.openPharmacy', icon: 'pharmacy' });
   });
 
