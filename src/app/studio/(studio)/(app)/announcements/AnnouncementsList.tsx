@@ -3,6 +3,7 @@ import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { listAnnouncements } from '@/server/studio/queries/announcements';
 import { getStudioTranslator } from '@/studio/messages';
+import { spaceT } from '@/studio/space-words';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { AnnouncementsAdmin } from './AnnouncementsAdmin';
 
@@ -10,7 +11,7 @@ import { AnnouncementsAdmin } from './AnnouncementsAdmin';
 export async function AnnouncementsList({ space }: { space: 'food' | 'pharmacy' | 'retail' }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), space);
   const rows = await query(listAnnouncements, { space });
 
   return (

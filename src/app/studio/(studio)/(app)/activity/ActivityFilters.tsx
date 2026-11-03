@@ -1,8 +1,8 @@
 'use client';
 
-import { AUDIT_ACTIONS } from '@/server/domain/audit-actions';
 import { useT } from '@/studio/i18n';
 import { findMenuOptions, findPersonOptions, findRestaurantOptionsIn } from '@/studio/pickers';
+import { spaceActions, spaceT } from '@/studio/space-words';
 import { Field } from '@/studio/ui/Field';
 import { FilterBar, useFilterParams } from '@/studio/ui/FilterBar';
 import { Input } from '@/studio/ui/Input';
@@ -26,7 +26,8 @@ const asOption = (selected: { id: string; name: string | null } | null): PickerO
  * filtered log is a link.
  */
 export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: 'food' | 'pharmacy' | 'retail' }) {
-  const t = useT();
+  // In the space's words, offering only the space's own actions (Retail lists no menu or till work, and the others no Retail).
+  const t = spaceT(useT(), space);
   const { params, set } = useFilterParams();
 
   return (
@@ -49,22 +50,24 @@ export function ActivityFilters({ selected, space = 'food' }: { selected: Select
           placeholder={t('activity.filter.anyRestaurant')}
         />
       </Field>
-      <Field label={t('activity.filter.menu')} hideLabel className="w-52">
-        <Picker
-          clearable
-          value={asOption(selected.menu)}
-          onChange={(option) => set({ menu: option?.value ?? null })}
-          search={findMenuOptions}
-          placeholder={t('activity.filter.anyMenu')}
-        />
-      </Field>
+      {space !== 'retail' && (
+        <Field label={t('activity.filter.menu')} hideLabel className="w-52">
+          <Picker
+            clearable
+            value={asOption(selected.menu)}
+            onChange={(option) => set({ menu: option?.value ?? null })}
+            search={findMenuOptions}
+            placeholder={t('activity.filter.anyMenu')}
+          />
+        </Field>
+      )}
       <Field label={t('activity.filter.action')} hideLabel className="w-64">
         <Select
           value={params.get('action') ?? ''}
           onChange={(event) => set({ action: event.target.value || null })}
           options={[
             { value: '', label: t('activity.filter.anyAction') },
-            ...AUDIT_ACTIONS.map((action) => ({ value: action, label: t(`activity.action.${action}`) })),
+            ...spaceActions(space).map((action) => ({ value: action, label: t(`activity.action.${action}`) })),
           ]}
         />
       </Field>

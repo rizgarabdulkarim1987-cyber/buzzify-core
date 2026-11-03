@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { deleteRestaurant, setRestaurantStatus } from '@/app/studio/_actions/restaurants';
-import type { RestaurantStatus } from '@/server/domain/restaurant-profile';
+import type { BusinessSector, RestaurantStatus } from '@/server/domain/restaurant-profile';
 import { useT } from '@/studio/i18n';
 import { useRefuse } from '@/studio/refuse';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
@@ -28,6 +29,8 @@ export interface RestaurantActionsProps {
   listHref?: string;
   /** The space of the page, which the actions name so they never touch the other project's businesses. */
   space?: 'food' | 'pharmacy' | 'retail';
+  /** The business's sector, whose project's words the dialogs speak (a retail shop's name no menu or guest). */
+  sector?: BusinessSector;
 }
 
 const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPENDED: 'suspend', ARCHIVED: 'archive' };
@@ -36,8 +39,8 @@ const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPE
  * Suspend, archive, restore and delete, each behind a question: suspending and archiving take every menu of the
  * restaurant off the public pages at once, and deleting cannot be undone. Offers only what the person may do now.
  */
-export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete, listHref = '/studio/restaurants', space }: RestaurantActionsProps) {
-  const t = useT();
+export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete, listHref = '/studio/restaurants', space, sector }: RestaurantActionsProps) {
+  const t = spaceT(useT(), sector ? spaceOfSector(sector) : space);
   const router = useRouter();
   const refuse = useRefuse();
   const [choice, setChoice] = useState<Choice | null>(null);

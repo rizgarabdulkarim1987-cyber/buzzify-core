@@ -6,6 +6,7 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { billingRestaurants } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
 import { getStudioTranslator } from '@/studio/messages';
+import { spaceT } from '@/studio/space-words';
 import { businessBase } from '@/studio/spaces';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
@@ -26,7 +27,7 @@ export async function BillingList({
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), space);
   const raw = (await searchParams).page;
   const page = Number(Array.isArray(raw) ? raw[0] : raw);
   const [list, plans] = await Promise.all([

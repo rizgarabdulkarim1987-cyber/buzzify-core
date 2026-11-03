@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
+import type { Translate } from '@/lib/i18n';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { describeFailure, type DescribedFailure } from './errors';
 import { useLocale, useT } from './i18n';
@@ -24,6 +25,8 @@ export interface ActionFormOptions<T> {
   validate?: (values: FormValues) => Record<string, string> | null;
   /** Runs after the server said yes, with its answer and the values sent. */
   onSuccess?: (data: T, values: FormValues) => void | Promise<void>;
+  /** The translator a refusal is described with: a space's words (`spaceT`) where the form is shared. */
+  t?: Translate;
 }
 
 export interface ActionForm<T> {
@@ -78,7 +81,8 @@ export function useActionForm<T>(
   submit: (values: FormValues) => Promise<ActionResult<T>>,
   options: ActionFormOptions<T> = {},
 ): ActionForm<T> {
-  const t = useT();
+  const ownT = useT();
+  const t = options.t ?? ownT;
   const { locale } = useLocale();
   const ref = useRef<HTMLFormElement>(null);
   const [attempt, setAttempt] = useState(0);

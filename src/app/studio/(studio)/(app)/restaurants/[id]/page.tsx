@@ -32,6 +32,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
           version={restaurant.version}
           initial={restaurant}
           logo={restaurant.logo}
+          sector={restaurant.sector}
         />
       </div>
     );

@@ -4,8 +4,10 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getActor } from '@/server/studio/auth/actor';
 import { SIGN_IN_PATH } from '@/server/studio/framework/invoke';
+import { SpaceWords } from '@/studio/i18n';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly } from '@/studio/nav';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { businessBase, type BusinessSpaceId } from '@/studio/spaces';
 import { Alert } from '@/studio/ui/Alert';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -36,8 +38,9 @@ export async function BusinessLayout({
   const { id } = await params;
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
   const restaurant = await loadRestaurant(id);
+  // In the words of the business's own project: a retail shop's frame names no restaurant, menu or guest.
+  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector));
 
   const listHref = businessBase(space);
   const base = `${listHref}/${restaurant.id}`;
@@ -91,8 +94,10 @@ export async function BusinessLayout({
             status={restaurant.status}
             menuCount={restaurant.menuCount}
             canChangeStatus={restaurant.can.status}
-            canDelete={restaurant.can.delete}
+            // A retail shop is never deleted (its catalog and history live in Retails): the server refuses, so no item.
+            canDelete={restaurant.can.delete && restaurant.sector !== 'RETAIL'}
             listHref={listHref}
+            sector={restaurant.sector}
             {...(actor.isSuperAdmin ? { space } : {})}
           />
         }
@@ -103,7 +108,8 @@ export async function BusinessLayout({
           <Alert tone="neutral">{t(`restaurants.notice.${restaurant.status}`)}</Alert>
         </div>
       )}
-      {children}
+      {/* The tabs' client screens speak the business's own project too, for its owner as for a Super Admin. */}
+      <SpaceWords space={spaceOfSector(restaurant.sector)}>{children}</SpaceWords>
     </>
   );
 }
