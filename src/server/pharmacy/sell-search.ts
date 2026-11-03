@@ -31,6 +31,11 @@ export const sellSearchInput = z.object({
    * prices and units of the products already in the cart (a held cart coming back, a refused payment). At most SELL_SEARCH_MAX.
    */
   productIds: z.array(z.string().min(1).max(64)).min(1, 'Choose at least one product').max(SELL_SEARCH_MAX, 'Choose fewer products').optional(),
+  /**
+   * With an empty `q`: the products this branch has on its shelves right now (by name), so the sale screen has something to
+   * pick before anything is typed. Ignored when `q` has text or `productIds` is given.
+   */
+  browse: z.boolean().optional(),
 });
 
 export interface SellUnit {
@@ -118,10 +123,26 @@ export async function sellSearch(
   if (!ph.branchIds.includes(branchId)) throw new StudioError('FORBIDDEN');
 
   const { sellSettings, currency } = await settingsOf(scoped, input.currency);
+  const browsing = input.browse === true && input.q.trim() === '' && !input.productIds;
   const items = input.productIds
     ? await sellItemsByIds(scoped, { branchId, currency, productIds: input.productIds, now })
-    : await sellItemsOf(scoped, { branchId, currency, found: await searchProducts(scoped, { q: input.q, branchId, limit: input.limit }), now });
+    : browsing
+      ? await sellItemsByIds(scoped, { branchId, currency, productIds: await shelfProductIds(scoped, branchId, input.limit), now })
+      : await sellItemsOf(scoped, { branchId, currency, found: await searchProducts(scoped, { q: input.q, branchId, limit: input.limit }), now });
   return { branchId, currency, settings: sellSettings, items };
+}
+
+/** The active products with sellable stock in `branchId`, by name: what the sale screen offers before a search. */
+async function shelfProductIds(scoped: ScopedClient, branchId: string, limit: number): Promise<string[]> {
+  const stocked = await scoped.phStockBalance.findMany({ where: { branchId, available: { gt: 0 } }, distinct: ['productId'], select: { productId: true } });
+  if (stocked.length === 0) return [];
+  const rows = await scoped.phProduct.findMany({
+    where: { active: true, id: { in: stocked.map((row) => row.productId) } },
+    orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
+    take: limit,
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
 }
 
 /**

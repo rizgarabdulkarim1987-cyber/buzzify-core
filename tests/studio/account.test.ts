@@ -637,6 +637,7 @@ describe('myRestaurants', () => {
         id: mine.restaurant.id,
         name: mine.restaurant.name,
         role: 'OWNER',
+        sector: 'FOOD',
         menus: [
           { id: second.id, name: 'Breakfast' },
           { id: mine.menu.id, name: mine.menu.name },

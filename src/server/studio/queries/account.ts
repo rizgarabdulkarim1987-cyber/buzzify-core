@@ -19,6 +19,8 @@ interface MyRestaurant {
   id: string;
   name: string;
   role: MemberRole;
+  /** FOOD, PHARMACY or RETAIL: a pharmacy's owner is sent to the pharmacy, not to menus. */
+  sector: 'FOOD' | 'PHARMACY' | 'RETAIL';
   menus: Array<{ id: string; name: string }>;
 }
 
@@ -40,11 +42,11 @@ export const myRestaurants = defineQuery({
       select: {
         role: true,
         restaurant: {
-          select: { id: true, name: true, menus: { orderBy: [{ name: 'asc' }, { id: 'asc' }], select: { id: true, name: true } } },
+          select: { id: true, name: true, sector: true, menus: { orderBy: [{ name: 'asc' }, { id: 'asc' }], select: { id: true, name: true } } },
         },
       },
     });
-    return memberships.map(({ role, restaurant }) => ({ id: restaurant.id, name: restaurant.name, role, menus: restaurant.menus }));
+    return memberships.map(({ role, restaurant }) => ({ id: restaurant.id, name: restaurant.name, role, sector: restaurant.sector, menus: restaurant.menus }));
   },
 });
 

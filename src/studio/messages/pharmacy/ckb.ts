@@ -1013,6 +1013,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.search.hint': 'F2 دەتبات بۆ ئێرە. Enter یەکەم ئەنجام زیاد دەکات. سکانەر خۆی کاڵاکە زیاد دەکات.',
   'pharmacy.sell.searching': 'دەگەڕێت…',
   'pharmacy.sell.idle': 'ناوێک بنووسە یان بارکۆدێک سکان بکە بۆ دەستپێکردن.',
+  'pharmacy.sell.shelf.title': 'لەسەر ڕەف',
   'pharmacy.sell.empty': 'هیچ نەدۆزرایەوە بۆ «{q}».',
   'pharmacy.sell.scan.unknown': 'بارکۆدی نەناسراو {code}. لەسەر هیچ بەرهەمێک نییە لێرە.',
   'pharmacy.sell.scan.pick': 'بارکۆد {code} لەگەڵ چەند بەرهەمێک دەگونجێت. یەکێک هەڵبژێرە.',

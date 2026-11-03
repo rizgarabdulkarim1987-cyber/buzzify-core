@@ -81,6 +81,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         id: restaurant.id,
         name: restaurant.name,
         menuIds: restaurant.menus.map((menu) => menu.id),
+        sector: restaurant.sector,
       }))
     : [];
   // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.

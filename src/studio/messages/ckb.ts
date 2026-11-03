@@ -62,6 +62,7 @@ const ckb: Messages = {
   'nav.settings': 'ڕێکخستنەکان',
   'nav.myRestaurant': 'ڕێستۆرانەکەم',
   'nav.myMenu': 'ڕێکخستنەکانی مێنیو',
+  'nav.openPharmacy': 'کردنەوەی دەرمانخانە',
   'nav.cashier': 'کاشێر',
   'error.text.posCashRequired': 'پارەدانی نەقد دەبێت چالاک بمێنێتەوە',
   'error.text.posNotSelf': 'ناتوانیت ڕۆڵ یان دەسەڵاتی خۆت بگۆڕیت',

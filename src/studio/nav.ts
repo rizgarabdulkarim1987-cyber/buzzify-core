@@ -4,7 +4,7 @@ import type { SpaceId } from '@/studio/spaces';
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy' | 'retail';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies' | 'pharmacyOverview' | 'pharmacyBilling' | 'pharmacyPeople' | 'pharmacyAnnouncements' | 'pharmacyActivity' | 'pharmacySettings' | 'team' | 'teamSettings' | 'retail' | 'retailOverview' | 'retailBilling' | 'retailPeople' | 'retailAnnouncements' | 'retailActivity' | 'retailSettings' | 'openRetail';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies' | 'pharmacyOverview' | 'pharmacyBilling' | 'pharmacyPeople' | 'pharmacyAnnouncements' | 'pharmacyActivity' | 'pharmacySettings' | 'team' | 'teamSettings' | 'retail' | 'retailOverview' | 'retailBilling' | 'retailPeople' | 'retailAnnouncements' | 'retailActivity' | 'retailSettings' | 'openRetail' | 'openPharmacy';
 
 export interface NavItem {
   key: NavKey;
@@ -111,6 +111,8 @@ export interface OwnedRestaurant {
   id: string;
   name: string;
   menuIds: string[];
+  /** A pharmacy's owner has no menus to manage: the second item opens the pharmacy instead. */
+  sector?: 'FOOD' | 'PHARMACY' | 'RETAIL';
 }
 
 /** Whether the person works in the Studio only as the owner of one or more restaurants. */
@@ -146,19 +148,23 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
     const restaurantPath = `/studio/restaurants/${id}`;
     const menusPath = `${restaurantPath}/menus`;
     const name = several && known ? known.name : undefined;
+    const restaurantItem: NavItem = {
+      key: 'myRestaurant',
+      href: restaurantPath,
+      labelKey: 'nav.myRestaurant',
+      ...(name ? { label: name } : {}),
+      icon: 'store',
+      match: [restaurantPath],
+      // The Menus tab belongs to the menu item below.
+      exclude: [menusPath],
+    };
+    if (known?.sector === 'PHARMACY') {
+      return [restaurantItem, { key: 'openPharmacy', href: '/pharmacy/home', labelKey: 'nav.openPharmacy', ...(name ? { scope: name } : {}), icon: 'pharmacy' }];
+    }
     // Two items so the owner reaches the restaurant's own pages without going back through the menu: the restaurant
     // (profile, branches, plan...) and the menu's settings. One menu opens at once; otherwise the Menus tab does.
     return [
-      {
-        key: 'myRestaurant',
-        href: restaurantPath,
-        labelKey: 'nav.myRestaurant',
-        ...(name ? { label: name } : {}),
-        icon: 'store',
-        match: [restaurantPath],
-        // The Menus tab belongs to the menu item below.
-        exclude: [menusPath],
-      },
+      restaurantItem,
       {
         key: 'myMenu',
         href: !several && menuIds.length === 1 ? `/studio/menus/${menuIds[0]}` : menusPath,
@@ -178,7 +184,7 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
  */
 export function landingPath(actor: Actor, owned: readonly OwnedRestaurant[]): string | null {
   if (!isOwnerOnly(actor) || new Set(actor.memberships.map((m) => m.restaurantId)).size !== 1) return null;
-  return visibleNav(actor, owned).find((item) => item.key === 'myMenu')?.href ?? null;
+  return visibleNav(actor, owned).find((item) => item.key === 'myMenu' || item.key === 'openPharmacy')?.href ?? null;
 }
 
 const within = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);

@@ -118,6 +118,7 @@ type ScanIssue = { id: number; outcome: Exclude<ScanOutcome, { kind: 'add' }> | 
 const RX_DROP_CODES = ['PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_USED', 'RX_EXPIRED', 'RX_DATE_FUTURE', 'PATIENT_REQUIRED', 'DUPLICATE_PRESCRIPTION'];
 
 const SEARCH_DELAY_MS = 140;
+const SHELF_SIZE = 24;
 const SOON_DAYS = 90;
 const MAX_ISSUES = 50;
 
@@ -150,6 +151,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<View>({ kind: 'idle' });
   const [searching, setSearching] = useState(false);
+  /** What the branch has on its shelves, offered while the box is empty (null until read). */
+  const [shelf, setShelf] = useState<SellItem[] | null>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const searchSeq = useRef(0);
   const latest = useRef<{ q: string; items: SellItem[] } | null>(null);
@@ -355,6 +358,19 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     typingPause.current = timer;
     return () => clearTimeout(timer);
   }, [query, runSearch]);
+
+  // The shelf: read when the box is empty (on arrival, and again after a search is cleared, so the stock shown is current).
+  const idle = view.kind === 'idle';
+  useEffect(() => {
+    if (!idle) return;
+    let live = true;
+    void settle(() => sellSearch({ q: '', browse: true, limit: SHELF_SIZE, currency })).then((result) => {
+      if (live && result.ok) setShelf((result.data as { items: SellItem[] }).items);
+    });
+    return () => {
+      live = false;
+    };
+  }, [idle, currency]);
 
   // Adding ---------------------------------------------------------------------------------------------------------------
   const addable = isAddable;
@@ -701,6 +717,12 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                 {t('pharmacy.sell.idle')}
               </p>
             )}
+            {view.kind === 'idle' && !searching && shelf !== null && shelf.length > 0 && (
+              <section aria-label={t('pharmacy.sell.shelf.title')} className="flex min-w-0 flex-col gap-2" data-testid="sell-shelf">
+                <h2 className="text-sm font-semibold text-muted">{t('pharmacy.sell.shelf.title')}</h2>
+                <ResultList items={shelf} currency={currency} onAdd={add} addable={addable} t={t} />
+              </section>
+            )}
             {view.kind === 'error' && (
               <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="search-error">
                 {view.message}
@@ -938,63 +960,73 @@ function ResultList({
   onDone?: () => void;
 }) {
   return (
-    <ul className="grid min-w-0 gap-2 xl:grid-cols-2" data-testid="result-list">
+    <ul className="grid min-w-0 gap-3 sm:grid-cols-2 2xl:grid-cols-3" data-testid="result-list">
       {items.map((item) => {
         const ok = addable(item);
+        // The biggest priced unit (the box) is the one most sales start from: it is the filled button, the smaller ones are outlined.
+        const main = item.units.filter((u) => u.priceMinor !== null).sort((x, y) => y.baseQty - x.baseQty)[0]?.id;
+        const detail = [item.strength, item.form, item.packLabel].filter((part) => part.trim() !== '').join(' · ');
+        const flagged = item.rxLevel === 'RX' || (item.rxLevel === 'RESTRICTED' && !item.notSellable) || item.notSellable || item.noPrice || (item.sellableQty <= 0 && !item.notSellable);
         return (
-          <li key={item.productId} data-testid="result" className="flex min-w-0 flex-col gap-2 rounded-lg border border-line bg-raised p-3">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="break-words text-base font-semibold text-text" dir="auto">
-                {item.tradeName}
-              </p>
-              <p className="break-words text-sm text-muted" dir="auto">
-                {[item.strength, item.form, item.packLabel].filter((p) => p.trim() !== '').join(' · ')}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {item.rxLevel === 'RX' && (
-                <Chip icon={<Pill aria-hidden />} testId="chip-rx">
-                  {t('pharmacy.sell.chip.rx')}
-                </Chip>
-              )}
-              {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} testId="chip-controlled">
-                  {t('pharmacy.sell.chip.controlled')}
-                </Chip>
-              )}
-              {item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} tone="danger" testId="chip-notSellable">
-                  {t('pharmacy.sell.chip.notSellable')}
-                </Chip>
-              )}
-              {item.noPrice && (
-                <Chip icon={<Ban aria-hidden />} tone="danger" testId="chip-noPrice">
-                  {t('pharmacy.sell.chip.noPrice')}
-                </Chip>
-              )}
-              {item.sellableQty <= 0 && !item.notSellable && (
-                <Chip icon={<PackageX aria-hidden />} tone="danger" testId="chip-outOfStock">
-                  {t('pharmacy.sell.chip.outOfStock')}
-                </Chip>
-              )}
+          <li key={item.productId} data-testid="result" className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-raised p-3.5">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <p className="break-words text-base font-semibold leading-snug text-text" dir="auto">
+                  {item.tradeName}
+                </p>
+                {detail !== '' && (
+                  <p className="break-words text-sm text-muted" dir="auto">
+                    {detail}
+                  </p>
+                )}
+              </div>
               {item.sellableQty > 0 && (
-                <span className="text-sm text-text" data-testid="sellable-qty">
+                <span className="shrink-0 rounded-sm bg-success-wash px-2 py-1 text-xs font-semibold tabular-nums text-success" data-testid="sellable-qty">
                   {t('pharmacy.sell.sellable')}: <Num>{item.sellableQty}</Num>
                 </span>
               )}
             </div>
+            {flagged && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {item.rxLevel === 'RX' && (
+                  <Chip icon={<Pill aria-hidden />} testId="chip-rx">
+                    {t('pharmacy.sell.chip.rx')}
+                  </Chip>
+                )}
+                {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
+                  <Chip icon={<ShieldAlert aria-hidden />} testId="chip-controlled">
+                    {t('pharmacy.sell.chip.controlled')}
+                  </Chip>
+                )}
+                {item.notSellable && (
+                  <Chip icon={<ShieldAlert aria-hidden />} tone="danger" testId="chip-notSellable">
+                    {t('pharmacy.sell.chip.notSellable')}
+                  </Chip>
+                )}
+                {item.noPrice && (
+                  <Chip icon={<Ban aria-hidden />} tone="danger" testId="chip-noPrice">
+                    {t('pharmacy.sell.chip.noPrice')}
+                  </Chip>
+                )}
+                {item.sellableQty <= 0 && !item.notSellable && (
+                  <Chip icon={<PackageX aria-hidden />} tone="danger" testId="chip-outOfStock">
+                    {t('pharmacy.sell.chip.outOfStock')}
+                  </Chip>
+                )}
+              </div>
+            )}
             {item.batches.length > 0 && (
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted" data-testid="batch-strip">
                 <CalendarClock aria-hidden className="size-3.5 shrink-0" />
                 {item.batches.slice(0, 3).map((b) => (
-                  <span key={b.batchId} className={expirySoon(b.expiryDate) ? 'font-medium text-text' : ''}>
+                  <span key={b.batchId} className={`tabular-nums ${expirySoon(b.expiryDate) ? 'font-semibold text-text' : ''}`}>
                     <Num>{b.lot}</Num> · <Num>{b.expiryDate.slice(0, 7)}</Num> · <Num>{b.available}</Num>
                     {expirySoon(b.expiryDate) ? ` · ${t('pharmacy.sell.chip.soon')}` : ''}
                   </span>
                 ))}
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="mt-auto grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2">
               {item.units.map((unit) => {
                 const priced = unit.priceMinor !== null;
                 return (
@@ -1007,11 +1039,17 @@ function ResultList({
                       onAdd(item, unit.id);
                       onDone?.();
                     }}
-                    className={`${TOUCH} flex-1 basis-28 border border-line-strong bg-raised text-text hover:bg-hover active:bg-pressed disabled:cursor-not-allowed disabled:opacity-45`}
+                    className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-45 ${
+                      unit.id === main ? 'bg-ink text-on-ink hover:bg-ink-hover' : 'border border-line-strong bg-raised text-text hover:bg-hover active:bg-pressed'
+                    }`}
                   >
-                    <Plus aria-hidden className="size-4" />
-                    <span dir="auto">{unit.label}</span>
-                    <span className="font-semibold">{priced ? <Num>{formatMinor(BigInt(unit.priceMinor!), currency)}</Num> : t('pharmacy.sell.chip.noPrice')}</span>
+                    <span className="flex max-w-full items-center gap-1 text-xs font-medium">
+                      <Plus aria-hidden className="size-3.5 shrink-0" />
+                      <span className="truncate" dir="auto">
+                        {unit.label}
+                      </span>
+                    </span>
+                    <span className="text-md font-semibold tabular-nums">{priced ? <Num>{formatMinor(BigInt(unit.priceMinor!), currency)}</Num> : t('pharmacy.sell.chip.noPrice')}</span>
                   </button>
                 );
               })}

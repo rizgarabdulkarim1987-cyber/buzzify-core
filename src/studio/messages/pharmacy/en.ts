@@ -1019,6 +1019,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.search.hint': 'F2 focuses here. Enter adds the first result. A scanner adds the item by itself.',
   'pharmacy.sell.searching': 'Searching…',
   'pharmacy.sell.idle': 'Type a name or scan a barcode to start.',
+  'pharmacy.sell.shelf.title': 'On the shelf',
   'pharmacy.sell.empty': 'Nothing found for "{q}".',
   'pharmacy.sell.scan.unknown': 'Unknown barcode {code}. It is not on any product here.',
   'pharmacy.sell.scan.pick': 'Barcode {code} matches several products. Choose one.',

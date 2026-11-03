@@ -1013,6 +1013,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.search.hint': 'F2 ينقلك إلى هنا. Enter يضيف أول نتيجة. الماسح يضيف الصنف تلقائيًا.',
   'pharmacy.sell.searching': 'جارٍ البحث…',
   'pharmacy.sell.idle': 'اكتب اسمًا أو امسح باركودًا للبدء.',
+  'pharmacy.sell.shelf.title': 'المتوفر على الرف',
   'pharmacy.sell.empty': 'لا نتائج لـ «{q}».',
   'pharmacy.sell.scan.unknown': 'باركود غير معروف {code}. ليس على أي منتج هنا.',
   'pharmacy.sell.scan.pick': 'الباركود {code} يطابق عدة منتجات. اختر واحدًا.',
