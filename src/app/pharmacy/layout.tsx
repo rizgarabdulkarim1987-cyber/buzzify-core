@@ -1,4 +1,5 @@
 import '@/studio/studio.css';
+import './pharmacy.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { direction } from '@/lib/locale';
@@ -22,7 +23,7 @@ export default async function PharmacyRootLayout({ children }: { children: React
   return (
     <html lang={locale} dir={direction(locale)} className={studioFontVariables(locale)}>
       {/* No motion anywhere in the pharmacy, toasts included: see [data-motion='none'] in studio.css. */}
-      <body data-motion="none">
+      <body className="ph" data-motion="none">
         <StudioI18nProvider locale={locale} messages={clientMessages(locale)}>
           {children}
           <Toaster />

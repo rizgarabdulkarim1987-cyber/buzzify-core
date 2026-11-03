@@ -1,0 +1,24 @@
+/*
+ * The pharmacy's design tokens, scoped to .ph (the pharmacy body). Pharmacy screens read these; the Tailwind aliases
+ * (--color-ph-*) live in the Studio stylesheet's @theme, the one Tailwind build that includes the pharmacy.
+ * No motion, no backdrop-filter, no gradients: the rail is flat --ph-g9.
+ */
+.ph {
+  --ph-canvas: #f4f3ee;
+  --ph-card: #ffffff;
+  --ph-line: #e6e4dc;
+  --ph-text: #10201b;
+  --ph-muted: #5d6f68;
+  --ph-g9: #0b3b30;
+  --ph-g8: #0f4d3e;
+  --ph-g6: #1a7a62;
+  --ph-g1: #e3f3ed;
+  --ph-blue: #1d4ed8;
+  --ph-blue-wash: #e8effe;
+  --ph-red: #b42318;
+  --ph-red-wash: #fdecea;
+  --ph-amber-ink: #7a5800;
+  --ph-amber-wash: #fff3cf;
+  --ph-accent: #f2b705;
+  --ph-on-green: #ffffff;
+}
