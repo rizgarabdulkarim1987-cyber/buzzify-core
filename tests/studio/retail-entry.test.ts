@@ -117,6 +117,8 @@ describe('the frame of the pages around signing in', () => {
     expect(read('src/app/studio/(studio)/(auth)/two-factor/TwoFactorForm.tsx')).not.toContain('href="/studio/sign-in"');
     expect(read('src/app/studio/(studio)/(auth)/two-factor/page.tsx')).toContain('withNext(SIGN_IN_PATH, next)');
     expect(read('src/app/studio/(studio)/(auth)/forgot/page.tsx')).toContain('withNext(SIGN_IN_PATH, next)');
+    // Started from Retails' own sign-in form, the way back is that form.
+    expect(read('src/app/studio/(studio)/(auth)/forgot/page.tsx')).toContain("entry === 'retail' ? retailSignInUrl() : null");
   });
 });
 
@@ -145,6 +147,17 @@ describe('an account made for Buzzify Retail on a Studio address', () => {
     expect(retailStartUrl()).toBe('https://retail.test/api/core/v1/handoff/start');
     vi.stubEnv('RETAIL_URL', 'https://retail.test/with/a/path');
     expect(retailStartUrl()).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("sends a forgotten password started in Retail back to Retails' own sign-in page", async () => {
+    const { retailSignInUrl } = await import('@/server/retail/entry');
+    vi.stubEnv('RETAIL_URL', '');
+    expect(retailSignInUrl()).toBeNull();
+    vi.stubEnv('RETAIL_URL', 'https://retail.test');
+    expect(retailSignInUrl()).toBe('https://retail.test/login');
+    vi.stubEnv('RETAIL_URL', 'https://retail.test/with/a/path');
+    expect(retailSignInUrl()).toBeNull();
     vi.unstubAllEnvs();
   });
 });
