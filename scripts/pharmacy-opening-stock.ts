@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { getPrisma } from '@/server/data/prisma';
 import * as importActions from '@/server/pharmacy/actions/imports';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
+import * as priceActions from '@/server/pharmacy/actions/prices';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { describeDatabase } from './database-target';
@@ -91,6 +92,34 @@ async function main(): Promise<void> {
         console.log(`Import applied: ${JSON.stringify(applied).slice(0, 200)}`);
       }
     }
+
+    // A pack ladder's lowest unit (the tablet) gets the business-wide price of its top unit divided by the base units in it,
+    // to the nearest 25 IQD, when it has none yet; the pack's own price is never touched.
+    const priceOf = (productId: string, unitId: string) =>
+      prisma.phPrice.findFirst({
+        where: { restaurantId: restaurant.id, productId, unitId, currency: 'IQD', validTo: null, OR: [{ branchId: branch.id }, { branchId: null }] },
+        orderBy: { branchId: { sort: 'asc', nulls: 'last' } },
+        select: { amountMinor: true },
+      });
+    const ladders = await prisma.phProduct.findMany({
+      where: { restaurantId: restaurant.id, active: true },
+      select: { id: true, units: { orderBy: { level: 'asc' }, select: { id: true, baseQty: true, sellable: true } } },
+    });
+    let lowPrices = 0;
+    for (const ladder of ladders) {
+      if (ladder.units.length < 2) continue;
+      const low = ladder.units[0]!;
+      const top = ladder.units[ladder.units.length - 1]!;
+      if (!low.sellable || (await priceOf(ladder.id, low.id))) continue;
+      const topPrice = await priceOf(ladder.id, top.id);
+      if (!topPrice) continue;
+      const amount = Math.max(25, Math.round(Number(topPrice.amountMinor) / (top.baseQty / low.baseQty) / 25) * 25);
+      lowPrices += 1;
+      if (APPLY) {
+        await run(priceActions.set, { restaurantId: restaurant.id, productId: ladder.id, unitId: low.id, currency: 'IQD', amount: String(amount), validFrom: isoDay(new Date()), reason: 'Price per tablet from the pack price' });
+      }
+    }
+    console.log(`Single-unit prices ${APPLY ? 'set' : 'to set'}: ${lowPrices}`);
 
     const products = await prisma.phProduct.findMany({
       where: { restaurantId: restaurant.id, active: true },
