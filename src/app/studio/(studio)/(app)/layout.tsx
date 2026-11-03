@@ -2,15 +2,17 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getPosAccess } from '@/server/pos/actor';
 import { retailConfig } from '@/server/retail/config';
+import { retailStartUrl } from '@/server/retail/entry';
 import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/invoke';
 import { activeAnnouncements } from '@/server/studio/queries/announcements';
 import { myRestaurants } from '@/server/studio/queries/account';
 import { myRetailShops } from '@/server/studio/queries/retail';
 import { getStudioTranslator } from '@/studio/messages';
-import { isOwnerOnly, isRetailOnly, openRetailNavItem, posNavItem, spaceNav, visibleNav } from '@/studio/nav';
+import { isOwnerOnly, isRetailOnly, openRetailNavItem, posNavItem, retailOnlyRedirect, spaceNav, visibleNav } from '@/studio/nav';
 import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
+import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { RetailOnlyNotice } from '@/studio/shell/RetailOnlyNotice';
 import { Sidebar, type SidebarItem } from '@/studio/shell/Sidebar';
 import { SpaceShell, type SpaceNavigation } from '@/studio/shell/SpaceShell';
@@ -19,19 +21,7 @@ import { SPACES } from '@/studio/spaces';
 /** The person's role as the sidebar names it: Super Admin, else their role in their restaurants. */
 function roleKey(actor: Actor): string {
   if (actor.isSuperAdmin) return 'role.SUPER_ADMIN';
-  if (isRetailOnly(actor)) return 'retailOnly.role';
   return isOwnerOnly(actor) ? 'role.OWNER' : 'role.DESIGNER';
-}
-
-/** Retail's address for the Retail-only page, or null when the link is off or its address is not valid. */
-function retailAddress(): string | null {
-  const config = retailConfig();
-  if (!config.enabled) return null;
-  try {
-    return config.baseUrl;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -40,14 +30,31 @@ function retailAddress(): string | null {
  * person may use, in their language. A Super Admin works in closed spaces, one per project: the project icons at
  * `/studio`, and inside a space only that project's pages (`src/studio/spaces.ts`); the frame picks the space from the
  * address in the browser (SpaceShell).
- * An account made for Buzzify Retail sees one page that points there, whatever Studio address it opened, and no working areas.
+ * An account made for Buzzify Retail never sees a Studio page: whatever Studio address it opened, it goes straight into
+ * Buzzify Retail (`retailOnlyRedirect`). Only while the link is off does it get one neutral note, with no Studio frame.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   if (actor.isSuperAdmin && !actor.twoFactorEnabled) redirect(TWO_FACTOR_SETUP_PATH);
+  const toRetail = retailOnlyRedirect(actor, retailStartUrl());
+  if (toRetail) redirect(toRetail);
 
   const t = getStudioTranslator(actor.locale);
+  if (isRetailOnly(actor)) {
+    // The link is off, so there is nowhere to send them: a note in the Buzzify frame, no sidebar and no Studio name.
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <header className="flex h-16 items-center px-8">
+          <BrandLogo height={16} />
+        </header>
+        <main id="main" className="min-w-0 flex-1">
+          <RetailOnlyNotice t={t} />
+        </main>
+        <BrandFooter />
+      </div>
+    );
+  }
   const user = { name: actor.name, email: actor.email, role: t(roleKey(actor)) };
 
   if (actor.isSuperAdmin) {
@@ -75,7 +82,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const retailOnly = isRetailOnly(actor);
   const owned = isOwnerOnly(actor)
     ? (await query(myRestaurants, {})).map((restaurant) => ({
         id: restaurant.id,
@@ -84,9 +90,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       }))
     : [];
   // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.
-  const pos = retailOnly ? null : await getPosAccess();
+  const pos = await getPosAccess();
   // An owner of Buzzify Retail shops gets "Open Retails" while the link is on (never a Super Admin: Retails has its own admin).
-  const openRetail = !retailOnly && !actor.isSuperAdmin && retailConfig().enabled ? openRetailNavItem(actor, await query(myRetailShops, {})) : null;
+  const openRetail = !actor.isSuperAdmin && retailConfig().enabled ? openRetailNavItem(actor, await query(myRetailShops, {})) : null;
   const navItems = [...visibleNav(actor, owned), ...(pos?.actor && pos.gate?.open ? [posNavItem()] : []), ...(openRetail ? [openRetail] : [])];
   const items: SidebarItem[] = navItems.map(({ labelKey, label, scope, ...item }) => ({
     ...item,
@@ -105,7 +111,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <AnnouncementBar userId={actor.userId} initial={await query(activeAnnouncements, {})} />
         <main id="main" className="min-w-0 flex-1">
-          {retailOnly ? <RetailOnlyNotice t={t} retailUrl={retailAddress()} /> : children}
+          {children}
         </main>
         <BrandFooter />
       </div>

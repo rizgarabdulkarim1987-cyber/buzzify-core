@@ -4,6 +4,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { AuthPanel } from '@/studio/shell/AuthPanel';
 import { buttonClasses } from '@/studio/ui/Button';
+import { AuthPageFrame } from '../frame';
 import { ResetForm } from './ResetForm';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,17 +24,21 @@ export default async function ResetPage({ searchParams }: { searchParams: Promis
 
   if (!token) {
     return (
-      <AuthPanel title={t('auth.reset.missingTitle')} intro={t('auth.reset.missingBody')} footer={back}>
-        <Link href="/studio/forgot" className={buttonClasses('secondary', 'lg')}>
-          {t('auth.reset.requestNew')}
-        </Link>
-      </AuthPanel>
+      <AuthPageFrame>
+        <AuthPanel title={t('auth.reset.missingTitle')} intro={t('auth.reset.missingBody')} footer={back}>
+          <Link href="/studio/forgot" className={buttonClasses('secondary', 'lg')}>
+            {t('auth.reset.requestNew')}
+          </Link>
+        </AuthPanel>
+      </AuthPageFrame>
     );
   }
 
   return (
-    <AuthPanel title={t('auth.reset.title')} intro={t('auth.reset.intro')} footer={back}>
-      <ResetForm token={token} />
-    </AuthPanel>
+    <AuthPageFrame>
+      <AuthPanel title={t('auth.reset.title')} intro={t('auth.reset.intro')} footer={back}>
+        <ResetForm token={token} />
+      </AuthPanel>
+    </AuthPageFrame>
   );
 }

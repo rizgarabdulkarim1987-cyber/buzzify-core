@@ -6,7 +6,7 @@ import { loadActor } from '@/server/studio/auth/actor';
 import { authFor } from '@/server/studio/auth/auth';
 import { acceptInvitation, createInvitation } from '@/server/studio/services/invitations';
 import { getStudioTranslator } from '@/studio/messages';
-import { isRetailOnly, visibleNav } from '@/studio/nav';
+import { isRetailOnly, retailOnlyRedirect, visibleNav } from '@/studio/nav';
 import { RetailOnlyNotice } from '@/studio/shell/RetailOnlyNotice';
 import { devMail, linkParam } from '../helpers/mail';
 import { GOOD, person, pharmacy, prisma, resetWorld, useTestDatabase } from '../pharmacy/fixture';
@@ -258,23 +258,30 @@ describe('POST /api/retail/v1/identities', () => {
 });
 
 describe('what an identity-only account is in the Studio', () => {
-  it('an identity-only account sees the Retail page, not the working areas', async () => {
+  it('an identity-only account is sent into Retail from any Studio page, and never sees the working areas', async () => {
+    const start = 'https://retail.test/api/core/v1/handoff/start';
     const { coreUserId } = await ensureIdentity(prisma(), { email: address('page') }, new Date());
     const actor = (await loadActor(prisma(), coreUserId))!;
     expect(actor.identityOnly).toBe(true);
     expect(isRetailOnly(actor)).toBe(true);
     expect(visibleNav(actor)).toEqual([]);
-    const html = renderToStaticMarkup(RetailOnlyNotice({ t: getStudioTranslator('en'), retailUrl: 'https://retail.test' }));
-    expect(html).toContain('This account is for Buzzify Retail');
-    expect(html).toContain('href="https://retail.test"');
-    // Without the link configured the page still says what the account is, with no link.
-    expect(renderToStaticMarkup(RetailOnlyNotice({ t: getStudioTranslator('ar'), retailUrl: null }))).not.toContain('href=');
+    expect(retailOnlyRedirect(actor, start)).toBe(start);
+    // Without the link configured there is nowhere to send it: a note that says what the account is, naming no Studio.
+    expect(retailOnlyRedirect(actor, null)).toBeNull();
+    for (const locale of ['en', 'ar', 'ckb'] as const) {
+      const html = renderToStaticMarkup(RetailOnlyNotice({ t: getStudioTranslator(locale) }));
+      expect(html).not.toContain('href=');
+      expect(html).not.toMatch(/studio|core|استوديو|ستودیۆ|ستۆدیۆ/i);
+    }
+    expect(renderToStaticMarkup(RetailOnlyNotice({ t: getStudioTranslator('en') }))).toContain('This account is for Buzzify Retail');
 
     // An ordinary account (and a Super Admin) is not.
     const ordinary = (await loadActor(prisma(), (await person('ordinary')).userId))!;
     expect(ordinary.identityOnly).toBeUndefined();
     expect(isRetailOnly(ordinary)).toBe(false);
     expect(visibleNav(ordinary).length).toBeGreaterThan(0);
+    expect(retailOnlyRedirect(ordinary, start)).toBeNull();
+    expect(retailOnlyRedirect(null, start)).toBeNull();
   });
 
   it('resetting the password marks the email verified', async () => {

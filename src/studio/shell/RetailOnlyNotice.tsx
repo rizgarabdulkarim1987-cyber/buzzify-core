@@ -1,25 +1,10 @@
 import type { Translate } from '@/lib/i18n';
-import { buttonClasses } from '@/studio/ui/Button';
 import { PageHeader } from '@/studio/ui/PageHeader';
 
 /**
- * The one page an account made for Buzzify Retail sees in the Studio (`isRetailOnly`): what the account is for and the
- * way to Retail. `retailUrl` is Retail's address, or null when the link is not configured (then no link is offered).
+ * What an account made for Buzzify Retail (`isRetailOnly`) sees on a Studio address while the link to Retail is off:
+ * what the account is for, in words that name no Studio. With the link on it never gets here: it is sent into Retail.
  */
-export function RetailOnlyNotice({ t, retailUrl }: { t: Translate; retailUrl: string | null }) {
-  return (
-    <PageHeader
-      title={t('retailOnly.title')}
-      description={t('retailOnly.body')}
-      below={
-        retailUrl ? (
-          <div className="pb-6">
-            <a href={retailUrl} className={buttonClasses('primary')}>
-              {t('retailOnly.open')}
-            </a>
-          </div>
-        ) : undefined
-      }
-    />
-  );
+export function RetailOnlyNotice({ t }: { t: Translate }) {
+  return <PageHeader title={t('retailOnly.title')} description={t('retailOnly.body')} />;
 }

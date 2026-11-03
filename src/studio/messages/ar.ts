@@ -13,9 +13,7 @@ const ar: Messages = {
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'انتقل إلى المحتوى',
   'retailOnly.title': 'هذا الحساب مخصّص لـ Buzzify للتجزئة',
-  'retailOnly.body': 'أضافك أحد متاجر Buzzify للتجزئة إلى موظفيه. عملك في Buzzify للتجزئة: سجّل الدخول هناك بهذا الحساب. لا شيء في هذا الاستوديو مُسند إليك.',
-  'retailOnly.open': 'فتح Buzzify للتجزئة',
-  'retailOnly.role': 'موظف في Buzzify للتجزئة',
+  'retailOnly.body': 'أضافك أحد متاجر Buzzify للتجزئة إلى موظفيه. عملك في Buzzify للتجزئة: سجّل الدخول هناك بهذا الحساب.',
   'common.save': 'حفظ',
   'common.saving': 'جارٍ الحفظ…',
   'common.cancel': 'إلغاء',
@@ -3641,6 +3639,10 @@ const ar: Messages = {
   'hub.allProjects': 'كل المشاريع',
   'nav.team': 'الفريق',
   'nav.teamSettings': 'الإعدادات',
+  'auth.neutral.signIn.intro': 'استخدم البريد الإلكتروني وكلمة المرور لحسابك في Buzzify.',
+  'auth.neutral.signIn.alreadyAction': 'متابعة',
+  'auth.neutral.twoFactor.intro': 'افتح تطبيق المصادقة وأدخل الرمز المكوّن من 6 أرقام الظاهر لـ Buzzify.',
+  'auth.neutral.forgot.sentBody': 'إذا كان {email} لحساب في Buzzify، فإن رابطًا لاختيار كلمة مرور جديدة في طريقه إليك. يعمل مرة واحدة خلال ساعة.',
 };
 
 export default ar;

@@ -13,9 +13,7 @@ const ckb: Messages = {
   'common.appName': 'Buzzify Core',
   'common.skipToContent': 'بازدان بۆ ناوەڕۆک',
   'retailOnly.title': 'ئەم هەژمارە بۆ Buzzify Retail ـە',
-  'retailOnly.body': 'فرۆشگایەکی Buzzify Retail تۆی زیادکرد بۆ کارمەندەکانی. کارەکەت لە Buzzify Retail ـە: لەوێ بەم هەژمارە بچۆ ژوورەوە. هیچ شتێک لەم ستۆدیۆیە بۆ تۆ دیاری نەکراوە.',
-  'retailOnly.open': 'Buzzify Retail بکەرەوە',
-  'retailOnly.role': 'کارمەندی Buzzify Retail',
+  'retailOnly.body': 'فرۆشگایەکی Buzzify Retail تۆی زیادکرد بۆ کارمەندەکانی. کارەکەت لە Buzzify Retail ـە: لەوێ بەم هەژمارە بچۆ ژوورەوە.',
   'common.save': 'پاشەکەوتکردن',
   'common.saving': 'پاشەکەوت دەکرێت…',
   'common.cancel': 'هەڵوەشاندنەوە',
@@ -3615,6 +3613,10 @@ const ckb: Messages = {
   'hub.allProjects': 'هەموو پڕۆژەکان',
   'nav.team': 'تیم',
   'nav.teamSettings': 'ڕێکخستنەکان',
+  'auth.neutral.signIn.intro': 'ئیمەیڵ و وشەی نهێنیی هەژمارەکەت لە Buzzify بەکاربهێنە.',
+  'auth.neutral.signIn.alreadyAction': 'بەردەوامبە',
+  'auth.neutral.twoFactor.intro': 'ئەپی ناسینەوەکەت بکەرەوە و ئەو کۆدە 6 ژمارەییە بنووسە کە بۆ Buzzify پیشانی دەدات.',
+  'auth.neutral.forgot.sentBody': 'ئەگەر {email} هی هەژمارێکی Buzzify بێت، بەستەرێک بۆ هەڵبژاردنی وشەی نهێنیی نوێ لە ڕێدایە. یەک جار کار دەکات، لە ماوەی 1 کاتژمێردا.',
 };
 
 export default ckb;
