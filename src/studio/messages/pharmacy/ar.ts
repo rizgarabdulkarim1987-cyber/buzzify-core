@@ -89,6 +89,9 @@ const pharmacy: Messages = {
   'pharmacy.nav.home': 'الرئيسية',
   'pharmacy.nav.labels': 'الملصقات',
   'pharmacy.nav.doctor': 'الدكتور الذكي',
+  'pharmacy.nav.main': 'التنقل الرئيسي',
+  'pharmacy.nav.more': 'المزيد',
+  'pharmacy.nav.close': 'إغلاق',
   'pharmacy.nav.catalog': 'دليل المنتجات',
   // دليل المنتجات: القائمة والبحث والحالات
   'pharmacy.catalog.title': 'دليل المنتجات',

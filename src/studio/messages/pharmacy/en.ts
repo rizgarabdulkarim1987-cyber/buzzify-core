@@ -95,6 +95,9 @@ const pharmacy: Messages = {
   'pharmacy.nav.home': 'Home',
   'pharmacy.nav.labels': 'Labels',
   'pharmacy.nav.doctor': 'AI Doctor',
+  'pharmacy.nav.main': 'Main navigation',
+  'pharmacy.nav.more': 'More',
+  'pharmacy.nav.close': 'Close',
   'pharmacy.nav.catalog': 'Catalog',
   // The catalog: list, search and states
   'pharmacy.catalog.title': 'Catalog',

@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getPhAccess, getPhPlaces } from '@/server/pharmacy/actor';
 import { phEntry } from '@/server/pharmacy/entry';
+import { getNavCounts } from '@/server/pharmacy/nav-counts';
 import { getStudioTranslator } from '@/studio/messages';
 import { Shell } from '@/app/pharmacy/_ui/Shell';
 import { StateNotice } from '@/app/pharmacy/_ui/StateNotice';
@@ -32,8 +33,10 @@ export default async function PharmacyAppLayout({ children }: { children: ReactN
     );
   }
   const notice = entry.kind === 'readOnly' ? <StateNotice kind="readOnly" until={entry.until} t={t} /> : null;
+  // The counters on Stock and Expiry, for the chosen place; a closed pharmacy (above) draws its nav without them.
+  const counts = await getNavCounts({ branchId: access.place.branchId, now: new Date() });
   return (
-    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t}>
+    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t} counts={counts}>
       {children}
     </Shell>
   );

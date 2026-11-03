@@ -8,7 +8,7 @@ const studio = readFileSync(join(root, 'src/studio/studio.css'), 'utf8');
 
 const NAMES = [
   'canvas', 'card', 'line', 'text', 'muted', 'g9', 'g8', 'g6', 'g1', 'blue', 'blue-wash', 'red', 'red-wash',
-  'amber-ink', 'amber-wash', 'accent', 'on-green',
+  'amber-ink', 'amber-wash', 'accent', 'on-green', 'on-green-muted', 'badge', 'badge-ink',
 ];
 
 function token(name: string): string {
@@ -44,6 +44,7 @@ describe('pharmacy design tokens', () => {
     const pairs: [string, string][] = [
       ['text', 'canvas'], ['text', 'card'], ['muted', 'canvas'], ['muted', 'card'], ['on-green', 'g8'],
       ['on-green', 'g9'], ['amber-ink', 'amber-wash'], ['red', 'red-wash'], ['blue', 'blue-wash'], ['g6', 'g1'],
+      ['on-green-muted', 'g9'], ['on-green-muted', 'g8'], ['badge-ink', 'badge'], ['g8', 'card'],
     ];
     for (const [fg, bg] of pairs) {
       expect(contrast(token(fg), token(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);

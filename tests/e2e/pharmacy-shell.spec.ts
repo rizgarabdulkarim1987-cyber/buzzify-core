@@ -279,11 +279,11 @@ test.describe('Pharmacy shell @desktop', () => {
       expect(await seriousViolations(page)).toEqual([]);
     }
 
-    // The keyboard reaches the skip link first, then the header's controls in reading order, then the page.
+    // The keyboard reaches the skip link first, then the rail's places in reading order (Home first), then the page.
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'انتقل إلى المحتوى' })).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: 'تغيير الفرع' })).toBeFocused();
+    await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي' }).getByRole('link', { name: 'الرئيسية', exact: true })).toBeFocused();
     await page.context().close();
   });
 });

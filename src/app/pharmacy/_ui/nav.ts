@@ -21,6 +21,16 @@ export interface PhNavItem {
   badge?: 'lowStock' | 'expiring';
 }
 
+/** A nav item as the shell's client parts draw it: label already translated, counter already read. */
+export interface PhShellLink {
+  key: PhNavKey;
+  href: string;
+  label: string;
+  icon: PhIconName;
+  /** The counter pill (low stock, expiring); absent or 0 draws none. */
+  count?: number;
+}
+
 interface Entry extends PhNavItem {
   /** Same condition the old Shell.tsx used for this link; a role is never null here. */
   allow: (role: PhRole, ctx: { branchCount: number }) => boolean;

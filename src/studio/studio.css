@@ -97,6 +97,9 @@
   --color-ph-amber-wash: var(--ph-amber-wash);
   --color-ph-accent: var(--ph-accent);
   --color-ph-on-green: var(--ph-on-green);
+  --color-ph-on-green-muted: var(--ph-on-green-muted);
+  --color-ph-badge: var(--ph-badge);
+  --color-ph-badge-ink: var(--ph-badge-ink);
 
   --font-*: initial;
   --font-sans: var(--s-font);

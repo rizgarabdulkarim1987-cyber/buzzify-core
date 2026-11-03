@@ -21,4 +21,9 @@
   --ph-amber-wash: #fff3cf;
   --ph-accent: #f2b705;
   --ph-on-green: #ffffff;
+  /* Secondary text on the green rail and bar (the branch under the name, idle bar labels). */
+  --ph-on-green-muted: #9fcfc0;
+  /* The counters on Stock and Expiry: a coral pill with dark ink, readable on the green rail. */
+  --ph-badge: #ff7a6b;
+  --ph-badge-ink: #2a0a06;
 }
