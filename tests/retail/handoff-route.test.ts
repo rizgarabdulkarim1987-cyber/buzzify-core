@@ -288,6 +288,14 @@ describe('GET /api/retail/v1/handoff', () => {
     for (const name of [RESUME_COOKIE, PICK_COOKIE]) expect(setCookieLine(response, name)).toMatch(/Max-Age=0/);
   });
 
+  it('its pages lead back to Buzzify Retail and never name the Studio', async () => {
+    const shop = await retailShop('Quiet Shop');
+    const html = await (await call(handoffPath(), await signIn(shop.owner!))).text();
+    expect(html).toContain(`href="${RETAIL}"`);
+    expect(html).not.toContain('href="/studio');
+    expect(html).not.toMatch(/studio|core/i);
+  });
+
   it('a signed-in person with no retail shop of their own gets a staff token without a business', async () => {
     const shop = await retailShop('Staffed Shop');
     await provision(shop.id);
