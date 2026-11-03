@@ -21,10 +21,12 @@ export default async function RestaurantPeoplePage({ params }: { params: Promise
   const [members, invitations, policy, tillStaff] = await Promise.all([
     query(restaurantMembers, { restaurantId: restaurant.id }),
     query(listInvitations, { restaurantId: restaurant.id, status: 'pending' }),
-    // The switches are for those who may change permissions; the policy is not read for anyone else.
-    restaurant.can.permissions ? query(restaurantPolicy, { restaurantId: restaurant.id }) : null,
-    // Till accounts are a Super Admin's to make and to see here; a pharmacy has no till.
-    restaurant.can.manage && restaurant.sector !== 'PHARMACY' ? query(restaurantTillStaff, { restaurantId: restaurant.id }) : null,
+    // The switches are for those who may change permissions; the policy is not read for anyone else. They are about the
+    // Studio's restaurant and menu work, which a retail shop does not have (its people work in Buzzify Retail).
+    restaurant.can.permissions && restaurant.sector !== 'RETAIL' ? query(restaurantPolicy, { restaurantId: restaurant.id }) : null,
+    // Till accounts are a Super Admin's to make and to see here; only a restaurant has a till (a pharmacy sells through
+    // the pharmacy's own screens, a retail shop through Buzzify Retail).
+    restaurant.can.manage && restaurant.sector === 'FOOD' ? query(restaurantTillStaff, { restaurantId: restaurant.id }) : null,
   ]);
 
   return (
