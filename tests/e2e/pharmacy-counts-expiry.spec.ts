@@ -181,7 +181,8 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await seedStock(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await railLink(page, 'Expiry', { exact: true });
+    // Not exact: the rail link carries its counter ("Expiry 1") once a batch is close to expiry.
+    await railLink(page, 'Expiry');
     await expect(page.getByRole('heading', { level: 1, name: 'Expiry' })).toBeVisible();
 
     // Default horizon 90 days: the expired and the 20-day batch, not the one a year away.
