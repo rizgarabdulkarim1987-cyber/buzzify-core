@@ -1,7 +1,28 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getNavCounts } from '@/server/pharmacy/nav-counts';
 import * as navQueries from '@/server/pharmacy/queries/nav-counts';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
+import { loadActor } from '@/server/studio/auth/actor';
+import { runQuery } from '@/server/studio/framework/query';
+import { grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
 import { ask, dataOf, makeBatch, makeProduct } from './stock-helpers';
+
+const access = vi.hoisted(() => ({ current: null as null | { actor: { role: string | null; support: object | null }; place: { restaurantId: string; branchId: string | null }; userId: string } }));
+const queried = vi.hoisted(() => ({ calls: 0 }));
+
+vi.mock('@/server/pharmacy/actor', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/server/pharmacy/actor')>()),
+  getPhAccess: async () => (access.current ? { signedIn: true, actor: access.current.actor, gate: { state: 'open' }, place: access.current.place } : { signedIn: false, actor: null, gate: null, place: null }),
+}));
+// `query` stands in for the page loader: it counts calls and runs the real query as the person in `access`.
+vi.mock('@/server/studio/framework/invoke', () => ({
+  query: async (def: never, raw: unknown) => {
+    queried.calls += 1;
+    const { prisma: db } = await import('./fixture');
+    const result = await runQuery(db(), await loadActor(db(), access.current!.userId), def, raw);
+    if (!result.ok) throw new Error(`notFound (${result.error.code})`);
+    return result.data;
+  },
+}));
 
 beforeAll(() => {
   useTestDatabase();
@@ -80,5 +101,36 @@ describe('ph.nav.counts', () => {
     expect(dataOf(await at(b1))).toEqual({ lowStock: 1, expiring: 1 });
     expect(dataOf(await at(b2))).toEqual({ lowStock: 0, expiring: 1 });
     expect(dataOf(await at())).toEqual({ lowStock: 1, expiring: 2 });
+  });
+});
+
+describe('getNavCounts (the layout call)', () => {
+  it('a staff actor gets the real counts', async () => {
+    const { a, owner, b1 } = await world();
+    const p = await makeProduct(a.id, 'Staff');
+    await makeBatch(a.id, b1, p.id, { lot: 'S', expiry: plus(10), buckets: { available: 2 } });
+    access.current = { userId: owner.userId, actor: { role: 'OWNER', support: null }, place: { restaurantId: a.id, branchId: null } };
+    queried.calls = 0;
+    expect(await getNavCounts({ branchId: null, now: NOW })).toEqual({ lowStock: 0, expiring: 1 });
+  });
+
+  it('a support actor gets zeros without the query running (no notFound)', async () => {
+    const { a } = await world();
+    const support = await person('support', { superAdmin: true });
+    await grant(support, a.id);
+    // proves the failure the guard avoids: the query itself refuses this actor
+    expect((await ask(support, navQueries.navCounts, { restaurantId: a.id, now: NOW })).ok).toBe(false);
+    access.current = { userId: support.userId, actor: { role: null, support: { grantId: 'g' } }, place: { restaurantId: a.id, branchId: null } };
+    queried.calls = 0;
+    expect(await getNavCounts({ branchId: null, now: NOW })).toEqual({ lowStock: 0, expiring: 0 });
+    expect(queried.calls).toBe(0);
+  });
+
+  it('an actor with no pharmacy role gets zeros', async () => {
+    const { a } = await world();
+    access.current = { userId: 'x', actor: { role: null, support: null }, place: { restaurantId: a.id, branchId: null } };
+    queried.calls = 0;
+    expect(await getNavCounts({ branchId: null, now: NOW })).toEqual({ lowStock: 0, expiring: 0 });
+    expect(queried.calls).toBe(0);
   });
 });
