@@ -483,6 +483,7 @@ const CASES: Record<string, Case> = {
   'ph.stock.expiry.setStatus': { body: (ids, n) => ({ batchId: pick(ids, n).batchId, status: 'IN_PROGRESS', note: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.stock.expiry': { body: () => ({ days: 180, includeExpired: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.nav.counts': { body: () => ({ now: NOW }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.home.figures': { body: () => ({ period: '7d', now: NOW }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Selling (phase 3). The seller must be in a branch of their own with an open shift; a product of the other business is refused.
   'ph.sales.create': { body: (ids) => saleBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.sales.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },

@@ -161,7 +161,7 @@ test.describe('Pharmacy shell @desktop', () => {
     await expect(banner.getByText(shop.name)).toBeVisible();
     await expect(banner.getByText(shop.branches[0]!.name)).toBeVisible();
     await expect(banner.getByText('Pharmacy Owner · Owner')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1, name: shop.branches[0]!.name })).toBeVisible();
+    await expect(page.getByTestId('home-place')).toHaveText(shop.branches[0]!.name);
     await expect(page.getByTestId('support-banner')).toHaveCount(0);
 
     // The choice is remembered: /pharmacy goes straight home, and "Change" goes back to the picker.
@@ -170,7 +170,7 @@ test.describe('Pharmacy shell @desktop', () => {
     await banner.getByRole('link', { name: 'Change branch' }).click();
     await expect(page).toHaveURL(/\/pharmacy\/select$/);
     await page.getByRole('group', { name: shop.name }).getByRole('button', { name: 'All branches' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'All branches' })).toBeVisible();
+    await expect(page.getByTestId('home-place')).toHaveText('All branches');
     await page.context().close();
   });
 
@@ -274,7 +274,7 @@ test.describe('Pharmacy shell @desktop', () => {
     await expect(page).toHaveURL(/\/pharmacy\/home$/);
     for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 800 });
-      await expect(page.getByRole('heading', { level: 1, name: shop.branches[1]!.name })).toBeVisible();
+      await expect(page.getByTestId('home-place')).toHaveText(shop.branches[1]!.name);
       expect(await scrollsSideways(page), `${width}px`).toBe(false);
       expect(await seriousViolations(page)).toEqual([]);
     }
