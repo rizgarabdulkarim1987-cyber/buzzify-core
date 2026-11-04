@@ -198,6 +198,7 @@ const pharmacy: Messages = {
   'pharmacy.catalog.unsaved': 'Unsaved changes',
   'pharmacy.catalog.saved': 'Saved',
   'pharmacy.catalog.save': 'Save product',
+  'pharmacy.catalog.saving': 'Saving…',
   'pharmacy.catalog.archive': 'Archive product',
   'pharmacy.catalog.archiveConfirm': 'Archive this product? It leaves the list and the till, and its history stays.',
   'pharmacy.catalog.archived': 'This product is archived. It is kept with its history but is not sold.',

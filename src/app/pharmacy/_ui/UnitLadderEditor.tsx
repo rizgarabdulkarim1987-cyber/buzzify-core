@@ -3,9 +3,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
-import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
-import { Input } from '@/studio/ui/Input';
+import { PhCheckbox, PhInput } from './ph-controls';
 import { wholeOf, type LevelDraft } from './product-draft';
 
 /** The most units a product has (the server's limit). */
@@ -41,10 +40,10 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
               <p className="text-sm font-semibold text-ph-text">{name}</p>
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)]">
                 <Field label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.label')}</>} error={index === 0 ? errors.levels : undefined}>
-                  <Input dir="auto" value={level.label} maxLength={40} disabled={disabled} onChange={(e) => update(index, { label: e.target.value })} />
+                  <PhInput dir="auto" value={level.label} maxLength={40} disabled={disabled} onChange={(e) => update(index, { label: e.target.value })} />
                 </Field>
                 <Field label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.baseQty')}</>} error={errors[`levels.${index}.baseQty`]}>
-                  <Input
+                  <PhInput
                     inputMode="numeric"
                     dir="ltr"
                     value={index === 0 ? '1' : level.baseQty}
@@ -55,7 +54,7 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
                 </Field>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <Checkbox
+                <PhCheckbox
                   label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.sellable')}</>}
                   checked={level.sellable}
                   disabled={disabled}

@@ -192,6 +192,7 @@ const pharmacy: Messages = {
   'pharmacy.catalog.unsaved': 'گۆڕانکاریی پاشەکەوتنەکراو',
   'pharmacy.catalog.saved': 'پاشەکەوت کرا',
   'pharmacy.catalog.save': 'پاشەکەوتکردنی بەرهەم',
+  'pharmacy.catalog.saving': 'پاشەکەوت دەکرێت…',
   'pharmacy.catalog.archive': 'ئەرشیفکردنی بەرهەم',
   'pharmacy.catalog.archiveConfirm': 'ئەم بەرهەمە ئەرشیف بکرێت؟ لە لیست و خاڵی فرۆشتن دەردەچێت و مێژووەکەی دەمێنێتەوە.',
   'pharmacy.catalog.archived': 'ئەم بەرهەمە ئەرشیفکراوە. لەگەڵ مێژووەکەی دەپارێزرێت بەڵام نافرۆشرێت.',

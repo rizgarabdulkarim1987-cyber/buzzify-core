@@ -195,6 +195,7 @@ const pharmacy: Messages = {
   'pharmacy.catalog.unsaved': 'تغييرات غير محفوظة',
   'pharmacy.catalog.saved': 'تم الحفظ',
   'pharmacy.catalog.save': 'حفظ المنتج',
+  'pharmacy.catalog.saving': 'جارٍ الحفظ…',
   'pharmacy.catalog.archive': 'أرشفة المنتج',
   'pharmacy.catalog.archiveConfirm': 'أرشفة هذا المنتج؟ سيخرج من القائمة ومن نقطة البيع، ويبقى سجله.',
   'pharmacy.catalog.archived': 'هذا المنتج مؤرشف. يُحفظ مع سجله لكنه لا يُباع.',

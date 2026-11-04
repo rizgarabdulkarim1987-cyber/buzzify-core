@@ -15,13 +15,11 @@ import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
-import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
-import { Input } from '@/studio/ui/Input';
-import { Select } from '@/studio/ui/Select';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { BarcodeList } from './BarcodeList';
 import { PriceHistory } from './PriceHistory';
+import { PhCheckbox, PhInput, PhSelect } from './ph-controls';
 import { PH_BTN, PH_PRIMARY } from './sell-parts';
 import { draftOf, inputOf, type EditorProduct, type ProductDraft } from './product-draft';
 import { UnitLadderEditor } from './UnitLadderEditor';
@@ -195,26 +193,26 @@ export function ProductEditor(props: ProductEditorProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Field label={t('pharmacy.catalog.field.tradeName')} error={errors.tradeName}>
-              <Input name="tradeName" dir="auto" maxLength={200} value={value.tradeName} onChange={(e) => change({ tradeName: e.target.value })} />
+              <PhInput name="tradeName" dir="auto" maxLength={200} value={value.tradeName} onChange={(e) => change({ tradeName: e.target.value })} />
             </Field>
           </div>
           <Field label={t('pharmacy.catalog.field.genericName')} optional error={errors.genericName}>
-            <Input dir="auto" maxLength={200} value={value.genericName} onChange={(e) => change({ genericName: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.genericName} onChange={(e) => change({ genericName: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.activeIngredient')} optional error={errors.activeIngredient}>
-            <Input dir="auto" maxLength={200} value={value.activeIngredient} onChange={(e) => change({ activeIngredient: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.activeIngredient} onChange={(e) => change({ activeIngredient: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.strength')} hint={t('pharmacy.catalog.field.strengthHint')} optional error={errors.strength}>
-            <Input dir="auto" maxLength={200} value={value.strength} onChange={(e) => change({ strength: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.strength} onChange={(e) => change({ strength: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.form')} hint={t('pharmacy.catalog.field.formHint')} optional error={errors.form}>
-            <Input dir="auto" maxLength={200} value={value.form} onChange={(e) => change({ form: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.form} onChange={(e) => change({ form: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.manufacturer')} optional error={errors.manufacturer}>
-            <Input dir="auto" maxLength={200} value={value.manufacturer} onChange={(e) => change({ manufacturer: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.manufacturer} onChange={(e) => change({ manufacturer: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.rxLevel')} error={errors.rxLevel}>
-            <Select
+            <PhSelect
               value={value.rxLevel}
               onChange={(e) => change({ rxLevel: e.target.value as ProductDraft['rxLevel'] })}
               options={(['OTC', 'RX', 'RESTRICTED'] as const).map((rx) => ({ value: rx, label: t(`pharmacy.catalog.rx.${rx}`) }))}
@@ -222,7 +220,7 @@ export function ProductEditor(props: ProductEditorProps) {
           </Field>
           {categories.length > 0 && (
             <Field label={t('pharmacy.catalog.field.category')} optional error={errors.categoryId}>
-              <Select
+              <PhSelect
                 value={value.categoryId}
                 onChange={(e) => change({ categoryId: e.target.value })}
                 options={[{ value: '', label: t('pharmacy.catalog.field.noCategory') }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
@@ -253,13 +251,13 @@ export function ProductEditor(props: ProductEditorProps) {
       </FormSection>
 
       <FormSection id={`${ids}-storage`} title={t('pharmacy.catalog.section.storage')}>
-        <Checkbox label={t('pharmacy.catalog.field.requiresCold')} checked={value.requiresCold} onChange={(e) => change({ requiresCold: e.target.checked })} />
+        <PhCheckbox label={t('pharmacy.catalog.field.requiresCold')} checked={value.requiresCold} onChange={(e) => change({ requiresCold: e.target.checked })} />
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)]">
           <Field label={t('pharmacy.catalog.field.storageNote')} optional error={errors.storageNote}>
-            <Input dir="auto" maxLength={200} value={value.storageNote} onChange={(e) => change({ storageNote: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.storageNote} onChange={(e) => change({ storageNote: e.target.value })} />
           </Field>
           <Field label={t('pharmacy.catalog.field.shelfLocation')} hint={t('pharmacy.catalog.field.shelfHint')} optional error={errors.shelfLocation}>
-            <Input dir="auto" maxLength={200} value={value.shelfLocation} onChange={(e) => change({ shelfLocation: e.target.value })} />
+            <PhInput dir="auto" maxLength={200} value={value.shelfLocation} onChange={(e) => change({ shelfLocation: e.target.value })} />
           </Field>
         </div>
       </FormSection>
@@ -276,10 +274,10 @@ export function ProductEditor(props: ProductEditorProps) {
                     {branch.name}
                   </p>
                   <Field label={<><span className="sr-only">{branch.name}: </span>{t('pharmacy.catalog.field.minQty')}</>} error={errors[`branch.${branch.id}.minQty`]}>
-                    <Input inputMode="numeric" dir="ltr" value={setting.minQty} onChange={(e) => put({ minQty: e.target.value })} />
+                    <PhInput inputMode="numeric" dir="ltr" value={setting.minQty} onChange={(e) => put({ minQty: e.target.value })} />
                   </Field>
                   <Field label={<><span className="sr-only">{branch.name}: </span>{t('pharmacy.catalog.field.reorderQty')}</>} error={errors[`branch.${branch.id}.reorderQty`]}>
-                    <Input inputMode="numeric" dir="ltr" value={setting.reorderQty} onChange={(e) => put({ reorderQty: e.target.value })} />
+                    <PhInput inputMode="numeric" dir="ltr" value={setting.reorderQty} onChange={(e) => put({ reorderQty: e.target.value })} />
                   </Field>
                 </li>
               );
@@ -293,7 +291,7 @@ export function ProductEditor(props: ProductEditorProps) {
         <div data-testid="product-save-bar" className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-ph-line bg-ph-card px-4 py-3 sm:-mx-8 sm:px-8">
           <button type="button" className={PH_PRIMARY} disabled={pending} aria-busy={pending || undefined} onClick={() => void save()}>
             <Save aria-hidden className="size-4 shrink-0" />
-            {t('pharmacy.catalog.save')}
+            {pending ? t('pharmacy.catalog.saving') : t('pharmacy.catalog.save')}
           </button>
           {product && active && (
             <button type="button" className={PH_BTN} disabled={pending} onClick={() => void archive()}>
@@ -307,7 +305,7 @@ export function ProductEditor(props: ProductEditorProps) {
   );
 
   return (
-    <div className="relative flex min-w-0 flex-col gap-4 px-4 pt-6 sm:px-8">
+    <div className="flex min-w-0 flex-col gap-4 px-4 pt-6 sm:px-8">
       <div>
         <Link href="/pharmacy/catalog" className="inline-flex min-h-11 items-center gap-1.5 rounded-ph-xl text-sm font-semibold text-ph-g6 underline-offset-4 hover:underline">
           <BackIcon aria-hidden className="size-4 shrink-0" />
@@ -350,12 +348,13 @@ export function ProductEditor(props: ProductEditorProps) {
             {stale ? t('pharmacy.catalog.draft.stale') : t('pharmacy.catalog.draft.restored')}
             {draft.restoredAt && <span className="text-ph-muted"> ({phDateTime(draft.restoredAt, locale)})</span>}
           </span>
-          <Button size="sm" onClick={() => setRestoreSeen(true)}>
+          <Button size="sm" className="min-h-11" onClick={() => setRestoreSeen(true)}>
             {t('pharmacy.catalog.draft.keep')}
           </Button>
           <Button
             size="sm"
             variant="ghost"
+            className="min-h-11"
             onClick={() => {
               draft.clear(initial);
               setRestoreSeen(true);
@@ -372,7 +371,7 @@ export function ProductEditor(props: ProductEditorProps) {
           {failure?.described.code === 'CONFLICT' && failure.raw?.changedAt && (
             <>
               {' '}
-              <button type="button" className="font-medium underline underline-offset-2" onClick={() => router.refresh()}>
+              <button type="button" className="inline-flex min-h-11 items-center font-medium underline underline-offset-2" onClick={() => router.refresh()}>
                 {t('pharmacy.catalog.reload')}
               </button>
             </>
@@ -391,7 +390,7 @@ export function ProductEditor(props: ProductEditorProps) {
           </p>
           <div className="flex flex-wrap gap-2 ps-6">
             {held.index >= 0 && (
-              <Button size="sm" onClick={share}>
+              <Button size="sm" className="min-h-11" onClick={share}>
                 {t('pharmacy.catalog.barcode.share')}
               </Button>
             )}
@@ -404,7 +403,7 @@ export function ProductEditor(props: ProductEditorProps) {
       {!pending && duplicate && (
         <Alert key={attempt} tone="danger">
           {t('pharmacy.catalog.duplicate', { name: isolate(duplicate.productName ?? '') })}{' '}
-          <Link href={`/pharmacy/catalog/${duplicate.productId}`} className="font-medium underline underline-offset-2">
+          <Link href={`/pharmacy/catalog/${duplicate.productId}`} className="inline-flex min-h-11 items-center font-medium underline underline-offset-2">
             {t('pharmacy.catalog.openDuplicate')}
           </Link>
         </Alert>

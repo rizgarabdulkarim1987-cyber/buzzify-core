@@ -6,10 +6,8 @@ import { normalizeScan } from '@/server/domain/pharmacy/barcode';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
-import { IconButton } from '@/studio/ui/IconButton';
-import { Input } from '@/studio/ui/Input';
-import { Select } from '@/studio/ui/Select';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
+import { PhIconButton, PhInput, PhSelect } from './ph-controls';
 import type { BarcodeDraft, LevelDraft } from './product-draft';
 
 /** The most barcodes a product has (the server's limit). */
@@ -63,7 +61,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
               </span>
               {barcode.shared && <StatusBadge>{t('pharmacy.catalog.barcode.sharedBadge')}</StatusBadge>}
               <div className="ms-auto flex items-center gap-2">
-                <Select
+                <PhSelect
                   aria-label={`${t('pharmacy.catalog.barcode.unit')}: ${barcode.code}`}
                   value={String(Math.min(barcode.level, levels.length - 1))}
                   disabled={disabled}
@@ -71,7 +69,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
                   options={unitOptions}
                 />
                 {!disabled && (
-                  <IconButton
+                  <PhIconButton
                     label={t('pharmacy.catalog.barcode.remove', { code: barcode.code })}
                     icon={<Trash2 />}
                     onClick={() => onChange(barcodes.filter((_, i) => i !== index))}
@@ -86,7 +84,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
       {!disabled && barcodes.length < MAX_BARCODES && (
         <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)_auto]">
           <Field label={t('pharmacy.catalog.barcode.scan')} error={problem ?? undefined}>
-            <Input
+            <PhInput
               dir="ltr"
               inputMode="numeric"
               autoComplete="off"
@@ -104,7 +102,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
             />
           </Field>
           <Field label={t('pharmacy.catalog.barcode.unit')}>
-            <Select value={String(chosen)} onChange={(e) => setLevel(Number(e.target.value))} options={unitOptions} />
+            <PhSelect value={String(chosen)} onChange={(e) => setLevel(Number(e.target.value))} options={unitOptions} />
           </Field>
           <Button className="min-h-11" icon={<Plus aria-hidden />} onClick={add}>
             {t('pharmacy.catalog.barcode.add')}
