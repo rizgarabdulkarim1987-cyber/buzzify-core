@@ -1,5 +1,8 @@
 # Going live on Hostinger (buzzify-menu.online)
 
+> The live site now runs on the VPS (`.github/workflows/deploy.yml`). The move to `buzzify.tech` is in
+> `docs/deploy/buzzify-tech.md`; this page describes the older shared-hosting setup.
+
 Public menus are served at `https://buzzify-menu.online/<menu-address>` and the Studio at
 `https://studio.buzzify-menu.online/studio`. Both are the same Node.js app on the Hostinger website
 `buzzify-menu.online`; `studio.buzzify-menu.online` is an alias (parked domain) of it. The database is Neon
