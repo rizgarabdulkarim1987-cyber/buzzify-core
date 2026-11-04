@@ -31,6 +31,11 @@ export const sellSearchInput = z.object({
    * prices and units of the products already in the cart (a held cart coming back, a refused payment). At most SELL_SEARCH_MAX.
    */
   productIds: z.array(z.string().min(1).max(64)).min(1, 'Choose at least one product').max(SELL_SEARCH_MAX, 'Choose fewer products').optional(),
+  /**
+   * Read the products that own these units (by unit id; active products of this pharmacy only) instead of searching by `q`:
+   * how a unit id handed to the sale screen from outside (the cart bridge, `?add=`) becomes a product it can add. At most SELL_SEARCH_MAX.
+   */
+  unitIds: z.array(z.string().min(1).max(64)).min(1, 'Choose at least one unit').max(SELL_SEARCH_MAX, 'Choose fewer units').optional(),
 });
 
 export interface SellUnit {
@@ -118,8 +123,9 @@ export async function sellSearch(
   if (!ph.branchIds.includes(branchId)) throw new StudioError('FORBIDDEN');
 
   const { sellSettings, currency } = await settingsOf(scoped, input.currency);
-  const items = input.productIds
-    ? await sellItemsByIds(scoped, { branchId, currency, productIds: input.productIds, now })
+  const productIds = input.unitIds ? [...new Set((await scoped.phProductUnit.findMany({ where: { id: { in: input.unitIds } }, select: { productId: true } })).map((u) => u.productId))] : input.productIds;
+  const items = productIds
+    ? await sellItemsByIds(scoped, { branchId, currency, productIds, now })
     : await sellItemsOf(scoped, { branchId, currency, found: await searchProducts(scoped, { q: input.q, branchId, limit: input.limit }), now });
   return { branchId, currency, settings: sellSettings, items };
 }

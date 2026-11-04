@@ -33,6 +33,7 @@ import { creditPaymentsOf } from './credit-logic';
 import { prescriptionGate, prescriptionKept, type RxLine } from './prescription-logic';
 import { PrescriptionDrawer } from './PrescriptionDrawer';
 import { RxCartPanel } from './SellRx';
+import { onAddToCart } from './cart-bridge';
 import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
 import type { SaleResult } from '@/server/pharmacy/sales';
 import type { HoldResult } from '@/server/pharmacy/holds';
@@ -63,6 +64,7 @@ import {
   outcomeUnknown,
   overSellable,
   parseDraft,
+  parseSellAdd,
   parseQtyText,
   plainMinor,
   refreshCart,
@@ -414,6 +416,62 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     scanQueue.current = createScanQueue((code) => scanHandler.current(code));
   }, []);
   useScannerCapture((code) => scanQueue.current?.push(code), { enabled: shift !== null && !dialogOpen });
+  // Items handed in from outside (the cart bridge, `?add=`): looked up by unit id, then added through the same path as a scan.
+  const handleHandedIn = async (code: string) => {
+    const cut = code.lastIndexOf(':');
+    const unitId = code.slice(0, cut);
+    const qty = Number(code.slice(cut + 1));
+    const result = await settle(() => sellSearch({ q: '', currency, unitIds: [unitId] }));
+    if (!result.ok) {
+      if (result.error.message === NETWORK_FAILURE) setNotSent(true);
+      report({ kind: 'failed', code: unitId, message: result.error.message === NETWORK_FAILURE ? t('pharmacy.sell.scan.failed', { code: unitId }) : phMessage(t, locale, result.error, 'pharmacy.sell') });
+      return;
+    }
+    setNotSent(false);
+    const item = (result.data as { items: SellItem[] }).items.find((i) => i.units.some((u) => u.id === unitId));
+    if (!item) report({ kind: 'unknown', code: unitId });
+    else if (!isAddable(item)) report({ kind: 'blocked', code: unitId, item: { ...item, matchedOn: 'unit' } });
+    else {
+      dispatch({ type: 'add', item, unitId, qty });
+      setNotice(null);
+    }
+  };
+  const handedInHandler = useRef(handleHandedIn);
+  useEffect(() => {
+    handedInHandler.current = handleHandedIn;
+  });
+  const handedInQueue = useRef<ReturnType<typeof createScanQueue> | null>(null);
+  useEffect(() => {
+    handedInQueue.current = createScanQueue((code) => handedInHandler.current(code));
+  }, []);
+  // Nothing is added before the saved draft is read (it would replace the cart): early items wait here.
+  const ready = shift !== null && draftChecked;
+  const readyRef = useRef(false);
+  const early = useRef<string[]>([]);
+  const handIn = useCallback((item: { unitId: string; qty: number }) => {
+    const code = `${item.unitId}:${item.qty}`;
+    if (readyRef.current) handedInQueue.current?.push(code);
+    else early.current.push(code);
+  }, []);
+  useEffect(() => onAddToCart(handIn), [handIn]);
+  const urlRead = useRef(false);
+  useEffect(() => {
+    readyRef.current = ready;
+    if (!ready) return;
+    if (!urlRead.current) {
+      urlRead.current = true;
+      const search = window.location.search;
+      const wanted = parseSellAdd(search);
+      if (new URLSearchParams(search).has('add')) {
+        const rest = new URLSearchParams(search);
+        rest.delete('add');
+        const text = rest.toString();
+        router.replace(`${window.location.pathname}${text ? `?${text}` : ''}`);
+      }
+      for (const item of wanted) early.current.push(`${item.unitId}:${item.qty}`);
+    }
+    for (const code of early.current.splice(0)) handedInQueue.current?.push(code);
+  }, [ready, router]);
   const dismissIssue = (id: number) => setIssues((list) => list.filter((i) => i.id !== id));
 
   // Keys -----------------------------------------------------------------------------------------------------------------

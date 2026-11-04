@@ -165,7 +165,7 @@ export const itemDetail = (item: Pick<AddableItem, 'strength' | 'form' | 'packLa
   [item.strength, item.form, item.packLabel].filter((part) => part.trim() !== '').join(' · ');
 
 export type CartAction =
-  | { type: 'add'; item: AddableItem; unitId?: string }
+  | { type: 'add'; item: AddableItem; unitId?: string; qty?: number }
   | { type: 'qty'; key: string; qty: number }
   | { type: 'step'; key: string; delta: number }
   | { type: 'unit'; key: string; unitId: string }
@@ -193,7 +193,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       const unit = startUnit(action.item, action.unitId);
       if (!unit) return state;
       const same = state.lines.find((l) => l.productId === action.item.productId && l.unitId === unit.id && l.batchId === null && l.discount === null && !l.blocked);
-      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + 1) }));
+      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + (action.qty ?? 1)) }));
       if (state.lines.length >= MAX_LINES) return state;
       const line: CartLine = {
         key: `l${state.seq + 1}`,
@@ -203,7 +203,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         rxLevel: action.item.rxLevel,
         units: action.item.units.map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty, priceMinor: u.priceMinor })),
         unitId: unit.id,
-        qty: 1,
+        qty: clampQty(action.qty ?? 1),
         sellableQty: action.item.sellableQty,
         batches: action.item.batches,
         discount: null,
@@ -408,6 +408,30 @@ export function buildCartRequest(cart: CartState, currency: Currency, clientKey:
 
 export function buildPayment(draft: PayDraft, amountMinor: bigint, paymentKey: string) {
   return { method: draft.method, amountMinor: amountMinor.toString(), reference: draft.reference.trim(), clientKey: paymentKey };
+}
+
+// Items handed to the sale screen ---------------------------------------------------------------------------------------
+
+export const SELL_ADD_MAX_QTY = 999;
+
+/**
+ * `add=<unitId>:<qty>,<unitId>:<qty>` from the sale screen's address (with or without the leading `?`): the units to put in
+ * the cart. An entry with no unit id, or a quantity that is not a whole number from 1 to 999, is dropped; the rest stay.
+ */
+export function parseSellAdd(search: string): { unitId: string; qty: number }[] {
+  const raw = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('add');
+  if (!raw) return [];
+  const out: { unitId: string; qty: number }[] = [];
+  for (const entry of raw.split(',')) {
+    const cut = entry.lastIndexOf(':');
+    if (cut < 0) continue;
+    const unitId = entry.slice(0, cut).trim();
+    const qtyText = entry.slice(cut + 1).trim();
+    if (unitId === '' || !/^\d{1,3}$/.test(qtyText)) continue;
+    const qty = Number(qtyText);
+    if (qty >= 1 && qty <= SELL_ADD_MAX_QTY) out.push({ unitId, qty });
+  }
+  return out;
 }
 
 // Keys and ids ----------------------------------------------------------------------------------------------------------
