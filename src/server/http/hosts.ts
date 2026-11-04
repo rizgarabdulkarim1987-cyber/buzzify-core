@@ -83,77 +83,105 @@ function isHost(requestHost: string, configured: string | null): boolean {
   return !wanted.includes(':') && actual.replace(/:\d+$/, '') === wanted;
 }
 
+type Req = { host: string; pathname: string; search?: string; /** The request carries a valid gate cookie. */ coreGate?: boolean };
+
+/** The request, its path as the app router will see it, and the configuration: what each host's rule needs. */
+interface Ctx {
+  req: Req;
+  path: string;
+  cfg: HostConfig;
+}
+
+/** A host's rule: `null` when the request is not for that host, otherwise what to do with it. */
+type Rule = (ctx: Ctx) => HostDecision | null;
+
+/** Whether the path is the favicon or inside one of the prefixes. */
+function serves(path: string, prefixes: string[]): boolean {
+  return path === '/favicon.ico' || prefixes.some((prefix) => within(path, prefix));
+}
+
+const redirect = (to: string): HostDecision => ({ action: 'redirect', to });
+
+/** `https://host/path?query` on another host, keeping what the visitor asked for. */
+const sameRequestOn = (host: string, req: Req): string => `https://${normalizeHost(host)}${req.pathname}${req.search ?? ''}`;
+
+/** The main domain and its `www.` only send visitors to the company site. */
+const apexRule: Rule = ({ req, cfg }) =>
+  cfg.apexHost && (isHost(req.host, cfg.apexHost) || isHost(req.host, `www.${cfg.apexHost}`)) ? redirect(cfg.rootRedirect) : null;
+
+/** Old hosts only redirect: `studio.*` to the Studio host, any other to the menu host. */
+const legacyRule: Rule = ({ req, path, cfg }) => {
+  const legacy = (cfg.legacyHosts ?? []).find((host) => isHost(req.host, host));
+  if (!legacy) return null;
+  const isStudio = normalizeHost(legacy).startsWith('studio.');
+  // The old menu host's `/` always went to the company page.
+  if (!isStudio && path === '/') return redirect(cfg.rootRedirect);
+  const target = isStudio ? cfg.studioHost : cfg.publicHost;
+  return target ? redirect(sameRequestOn(target, req)) : NOT_FOUND;
+};
+
+const pharmacyRule: Rule = ({ req, path, cfg }) => {
+  if (!isHost(req.host, cfg.pharmacyHost ?? null)) return null;
+  if (path === '/') return redirect('/pharmacy');
+  return serves(path, PHARMACY_SERVES) ? NEXT : NOT_FOUND;
+};
+
+/** The super admin host: nothing answers until the secret path has been opened. */
+const coreRule: Rule = ({ req, path, cfg }) => {
+  if (!isHost(req.host, cfg.coreHost ?? null)) return null;
+  const gate = cfg.coreGatePath?.replace(/^\/+|\/+$/g, '');
+  if (gate) {
+    if (path.replace(/\/+$/, '') === `/${gate}`) return { action: 'knock', to: '/studio' };
+    if (!req.coreGate) return NOT_FOUND;
+  }
+  if (path === '/') return redirect('/studio');
+  return serves(path, CORE_SERVES) ? NEXT : NOT_FOUND;
+};
+
+const studioRule: Rule = ({ req, path, cfg }) => {
+  if (!isHost(req.host, cfg.studioHost)) return null;
+  if (path === '/') return redirect('/studio');
+  // Once a product has its own host, the Studio host stops serving it.
+  if (cfg.pharmacyHost && PHARMACY_ONLY.some((prefix) => within(path, prefix))) return NOT_FOUND;
+  if (cfg.coreHost && CORE_ONLY.some((prefix) => within(path, prefix))) return NOT_FOUND;
+  return serves(path, STUDIO_SERVES) ? NEXT : NOT_FOUND;
+};
+
+const publicRule: Rule = ({ req, path, cfg }) => {
+  if (!isHost(req.host, cfg.publicHost)) return null;
+  if (STUDIO_ONLY.some((prefix) => within(path, prefix))) return NOT_FOUND;
+  return path === '/' ? redirect(cfg.rootRedirect) : NEXT;
+};
+
+/** People type `www.` in front of the menus' address; send them to the address itself. */
+const wwwRule: Rule = ({ req, cfg }) =>
+  cfg.publicHost && !cfg.publicHost.includes(':') && isHost(req.host, `www.${cfg.publicHost}`) ? redirect(sameRequestOn(cfg.publicHost, req)) : null;
+
+/** The first rule that knows the host decides. The order matters: the product hosts come before the shared Studio host. */
+const RULES: Rule[] = [apexRule, legacyRule, pharmacyRule, coreRule, studioRule, publicRule, wwwRule];
+
 /**
- * Which of the two hosts a request belongs to, and what to do with the path. One deployment serves both: the Studio
- * keeps its `/studio` prefix everywhere, and public menus live at `/{slug}/...`.
+ * Which host a request belongs to, and what to do with the path. One deployment serves them all: the Studio keeps its
+ * `/studio` prefix everywhere, and public menus live at `/{slug}/...`. Each host's rule is a small function above.
  *
- * Any other host depends on where this runs. In production with both hosts configured it answers 404: the two hosts
- * are the only origins, and another name for the same deployment (its `.vercel.app` address, say) would be a second
- * Studio origin beside the menus. In development and previews the hosts are not both set, and every other host serves
- * everything. Pure, so the proxy that applies it needs no database and no network.
+ * Any other host depends on where this runs. In production with both hosts configured it answers 404: the configured
+ * hosts are the only origins, and another name for the same deployment (its `.vercel.app` address, say) would be a
+ * second Studio origin beside the menus. In development and previews the hosts are not both set, and every other host
+ * serves everything. Pure, so the proxy that applies it needs no database and no network.
  */
-export function routeHost(
-  req: { host: string; pathname: string; search?: string; /** The request carries a valid gate cookie. */ coreGate?: boolean },
-  cfg: HostConfig,
-): HostDecision {
-  const pathname = canonicalPath(req.pathname);
-  if (pathname === null) return NOT_FOUND;
+export function routeHost(req: Req, cfg: HostConfig): HostDecision {
+  const path = canonicalPath(req.pathname);
+  if (path === null) return NOT_FOUND;
 
   // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
-  if (within(pathname, '/api/cron')) return NEXT;
+  if (within(path, '/api/cron')) return NEXT;
 
-  if (cfg.apexHost && (isHost(req.host, cfg.apexHost) || isHost(req.host, `www.${cfg.apexHost}`))) {
-    return { action: 'redirect', to: cfg.rootRedirect };
-  }
-
-  const legacy = (cfg.legacyHosts ?? []).find((host) => isHost(req.host, host));
-  if (legacy) {
-    const isStudio = normalizeHost(legacy).startsWith('studio.');
-    // The old menu host's `/` always went to the company page.
-    if (!isStudio && pathname === '/') return { action: 'redirect', to: cfg.rootRedirect };
-    const target = isStudio ? cfg.studioHost : cfg.publicHost;
-    if (target) return { action: 'redirect', to: `https://${normalizeHost(target)}${req.pathname}${req.search ?? ''}` };
-    return NOT_FOUND;
-  }
-
-  if (isHost(req.host, cfg.pharmacyHost ?? null)) {
-    if (pathname === '/') return { action: 'redirect', to: '/pharmacy' };
-    if (pathname === '/favicon.ico' || PHARMACY_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
-    return NOT_FOUND;
-  }
-
-  if (isHost(req.host, cfg.coreHost ?? null)) {
-    const gate = cfg.coreGatePath?.replace(/^\/+|\/+$/g, '');
-    if (gate) {
-      if (pathname.replace(/\/+$/, '') === `/${gate}`) return { action: 'knock', to: '/studio' };
-      if (!req.coreGate) return NOT_FOUND;
-    }
-    if (pathname === '/') return { action: 'redirect', to: '/studio' };
-    if (pathname === '/favicon.ico' || CORE_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
-    return NOT_FOUND;
-  }
-
-  if (isHost(req.host, cfg.studioHost)) {
-    if (pathname === '/') return { action: 'redirect', to: '/studio' };
-    // Once a product has its own host, the Studio host stops serving it.
-    if (cfg.pharmacyHost && PHARMACY_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
-    if (cfg.coreHost && CORE_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
-    if (pathname === '/favicon.ico' || STUDIO_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
-    return NOT_FOUND;
-  }
-
-  if (isHost(req.host, cfg.publicHost)) {
-    if (STUDIO_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
-    if (pathname === '/') return { action: 'redirect', to: cfg.rootRedirect };
-    return NEXT;
-  }
-
-  // People type `www.` in front of the menus' address; send them to the address itself, keeping what they asked for.
-  if (cfg.publicHost && !cfg.publicHost.includes(':') && isHost(req.host, `www.${cfg.publicHost}`)) {
-    return { action: 'redirect', to: `https://${normalizeHost(cfg.publicHost)}${req.pathname}${req.search ?? ''}` };
+  const ctx: Ctx = { req, path, cfg };
+  for (const rule of RULES) {
+    const decision = rule(ctx);
+    if (decision) return decision;
   }
 
   if (cfg.production && cfg.publicHost && cfg.studioHost) return NOT_FOUND;
-  if (pathname === '/') return { action: 'redirect', to: '/studio' };
-  return NEXT;
+  return path === '/' ? redirect('/studio') : NEXT;
 }
