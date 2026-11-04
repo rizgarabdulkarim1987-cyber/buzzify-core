@@ -31,6 +31,11 @@ export const RATE_RULES = {
    */
   'retail:ip': { max: 300, windowSec: 60 },
   /**
+   * Retails' own sign-in form (`/credentials*`), per calling address, apart from `retail:ip` so the two cannot starve
+   * each other. Only stops a runaway caller: each browser is held by `signin:ip` (and Retails' own count) long before.
+   */
+  'retail-signin:ip': { max: 300, windowSec: 60 },
+  /**
    * Retails asking for the account of a staff email. The signature and the per-email cap are the real protection; the
    * per-address one only stops a runaway caller, and lets several batches of 50 through.
    */

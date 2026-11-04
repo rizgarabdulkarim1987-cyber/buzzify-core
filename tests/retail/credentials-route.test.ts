@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HANDOFF_TTL_SECONDS } from '@/server/retail/handoff';
+import { pruneSpentSignatures, RETAIL_REPLAY_WINDOW_SEC } from '@/server/retail/inbound';
 import { authFor } from '@/server/studio/auth/auth';
 import { RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { cookieHeader, totpFromUri } from '../helpers/auth';
@@ -24,6 +26,8 @@ const RETAILS_EGRESS = '198.51.100.7';
 const BROWSER_IP = '203.0.113.44';
 const STATE = 'c3RhdGUtZnJvbS1yZXRhaWxzLW93bi1mb3JtLTMyLWJ5dGVz';
 const NONCE = handoffNonce(STATE);
+/** Retails makes a fresh state, so a fresh nonce, for every call: no two of its signed bodies are the same. */
+const fresh = () => handoffNonce(randomBytes(32).toString('base64url'));
 
 function enableRetail() {
   vi.stubEnv('RETAIL_URL', 'https://retail.test');
@@ -51,11 +55,7 @@ async function route(path: Path) {
   return (await import('@/app/api/retail/v1/credentials/choose/route')).POST;
 }
 
-async function send(
-  path: Path,
-  payload: unknown,
-  sign: { secret?: string; ageSec?: number; none?: boolean } = {},
-): Promise<Response> {
+function signed(path: Path, payload: unknown, sign: { secret?: string; ageSec?: number; none?: boolean } = {}) {
   const body = JSON.stringify(payload);
   const timestamp = String(Math.floor(Date.now() / 1000) - (sign.ageSec ?? 0));
   const headers: Record<string, string> = { 'content-type': 'application/json', 'x-forwarded-for': RETAILS_EGRESS };
@@ -63,11 +63,24 @@ async function send(
     headers['x-bz-timestamp'] = timestamp;
     headers['x-bz-signature'] = mac('POST', path, timestamp, body, sign.secret ?? CALLER);
   }
-  return (await route(path))(new Request(`${STUDIO}${path}`, { method: 'POST', body, headers }));
+  return { body, headers };
+}
+
+/** Sends exactly these bytes with exactly these headers (a replay sends them twice). */
+async function sendRaw(path: Path, call: { body: string; headers: Record<string, string> }): Promise<Response> {
+  return (await route(path))(new Request(`${STUDIO}${path}`, { method: 'POST', body: call.body, headers: call.headers }));
+}
+
+async function send(
+  path: Path,
+  payload: unknown,
+  sign: { secret?: string; ageSec?: number; none?: boolean } = {},
+): Promise<Response> {
+  return sendRaw(path, signed(path, payload, sign));
 }
 
 const credentials = (email: string, password: string, over: Record<string, unknown> = {}) =>
-  send('/api/retail/v1/credentials', { email, password, clientIp: BROWSER_IP, nonce: NONCE, userAgent: 'Retails test', ...over });
+  send('/api/retail/v1/credentials', { email, password, clientIp: BROWSER_IP, nonce: fresh(), userAgent: 'Retails test', ...over });
 
 const provision = (restaurantId: string) =>
   prisma().retailLink.update({ where: { restaurantId }, data: { retailBusinessId: `rt-${restaurantId}` } });
@@ -119,12 +132,60 @@ describe('POST /api/retail/v1/credentials: the signature', () => {
     expect(await prisma().authRateLimit.count({ where: { key: { startsWith: 'signin:' } } })).toBe(0);
   });
 
+  it('answers a signed request once: the very same bytes sent again are refused, and nothing is counted twice', async () => {
+    const shop = await retailShop('Replay Shop');
+    await provision(shop.id);
+    const call = signed('/api/retail/v1/credentials', { email: shop.owner!.email, password: GOOD, clientIp: BROWSER_IP, nonce: fresh() });
+    const first = await sendRaw('/api/retail/v1/credentials', call);
+    expect((await first.json()).status).toBe('ok');
+    const replayed = await sendRaw('/api/retail/v1/credentials', call);
+    expect(replayed.status).toBe(401);
+    expect(await replayed.json()).toEqual({ code: 'UNAUTHORIZED' });
+    expect(await prisma().authRateLimit.findUnique({ where: { key: `signin:email:${shop.owner!.email}` } })).toMatchObject({ count: 1 });
+    // Only a hash of the signature is kept, never the signature or anything from the body.
+    const marks = await prisma().authRateLimit.findMany({ where: { key: { startsWith: 'retail-sig:' } } });
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.key).toMatch(/^retail-sig:[0-9a-f]{64}$/);
+    expect(marks[0]!.key).not.toContain(call.headers['x-bz-signature']!);
+
+    // The same holds for the code and the chooser.
+    const pick = signed('/api/retail/v1/credentials/choose', { challenge: 'pk.x', shopId: 's', clientIp: BROWSER_IP, nonce: fresh() });
+    expect((await sendRaw('/api/retail/v1/credentials/choose', pick)).status).toBe(200);
+    expect((await sendRaw('/api/retail/v1/credentials/choose', pick)).status).toBe(401);
+    const code = signed('/api/retail/v1/credentials/two-factor', { challenge: 'tf.x', code: '123456', clientIp: BROWSER_IP, nonce: fresh() });
+    expect((await sendRaw('/api/retail/v1/credentials/two-factor', code)).status).toBe(200);
+    expect((await sendRaw('/api/retail/v1/credentials/two-factor', code)).status).toBe(401);
+
+    // The cron job drops marks once their signatures are too old to be accepted anyway.
+    const later = new Date(Date.now() + RETAIL_REPLAY_WINDOW_SEC * 1000 + 1000);
+    expect(await pruneSpentSignatures(prisma(), new Date(later.getTime() - RETAIL_REPLAY_WINDOW_SEC * 1000))).toBe(3);
+    expect(await prisma().authRateLimit.count({ where: { key: { startsWith: 'signin:' } } })).toBeGreaterThan(0);
+  });
+
+  it("counts Retails' calls in a bucket of their own, apart from the ai-config and identity calls' retail:ip", async () => {
+    const shop = await retailShop('Bucket Shop');
+    await provision(shop.id);
+    // retail:ip used up by the other calls: the sign-in form still works.
+    await prisma().authRateLimit.create({ data: { key: `retail:ip:${RETAILS_EGRESS}`, windowStart: new Date(), count: RATE_RULES['retail:ip'].max } });
+    expect((await (await credentials(shop.owner!.email, GOOD)).json()).status).toBe('ok');
+    expect(await prisma().authRateLimit.findUnique({ where: { key: `retail:ip:${RETAILS_EGRESS}` } })).toMatchObject({ count: RATE_RULES['retail:ip'].max });
+    expect(await prisma().authRateLimit.findUnique({ where: { key: `retail-signin:ip:${RETAILS_EGRESS}` } })).toMatchObject({ count: 1 });
+
+    // Its own bucket used up: the sign-in form waits, and retail:ip is not touched.
+    await prisma().authRateLimit.update({ where: { key: `retail-signin:ip:${RETAILS_EGRESS}` }, data: { count: RATE_RULES['retail-signin:ip'].max } });
+    const refused = await credentials(shop.owner!.email, GOOD);
+    expect(refused.status).toBe(429);
+    expect(await prisma().authRateLimit.findUnique({ where: { key: `retail:ip:${RETAILS_EGRESS}` } })).toMatchObject({ count: RATE_RULES['retail:ip'].max });
+  });
+
   it('is 503 while the link is off, and 400 for a malformed body', async () => {
     vi.stubEnv('RETAIL_URL', '');
     expect((await credentials('a@ph-test.example', GOOD)).status).toBe(503);
     enableRetail();
     expect((await credentials('a@ph-test.example', GOOD, { nonce: 'short' })).status).toBe(400);
     expect((await credentials('a@ph-test.example', GOOD, { clientIp: 'not an address' })).status).toBe(400);
+    // No address, no sign-in: browsers Retails cannot tell apart never share one count.
+    expect((await credentials('a@ph-test.example', GOOD, { clientIp: '' })).status).toBe(400);
     expect((await send('/api/retail/v1/credentials', { email: 'a@ph-test.example' })).status).toBe(400);
   });
 });
@@ -133,7 +194,7 @@ describe('POST /api/retail/v1/credentials: the password', () => {
   it("an owner's right password gets a handoff token for the shop, bound to the call's nonce, and leaves no Studio session", async () => {
     const shop = await retailShop('Own Form Shop');
     await provision(shop.id);
-    const response = await credentials(`  ${shop.owner!.email.toUpperCase()} `, GOOD);
+    const response = await credentials(`  ${shop.owner!.email.toUpperCase()} `, GOOD, { nonce: NONCE });
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.getSetCookie()).toEqual([]);
@@ -163,6 +224,17 @@ describe('POST /api/retail/v1/credentials: the password', () => {
       credentials(gone.email, GOOD),
     ]);
     for (const response of answers) {
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ status: 'invalid' });
+    }
+  });
+
+  it('answers an email no account can have and an over-long password as a wrong password, not as a failure', async () => {
+    for (const response of [
+      await credentials('not an email address', GOOD),
+      await credentials('a@ph-test.example', 'x'.repeat(1025)),
+      await credentials('a@ph-test.example', 'x'.repeat(4096)),
+    ]) {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ status: 'invalid' });
     }
@@ -206,6 +278,25 @@ describe('POST /api/retail/v1/credentials: the password', () => {
   });
 });
 
+describe('POST /api/retail/v1/credentials: super admins and platform owners', () => {
+  it('turns them away after the right password, in the words every refusal uses, before any code is asked', async () => {
+    // Two-factor on (the fixture's super admin has it), so the handoff's own rule alone would let them through.
+    const admin = await person('root', { superAdmin: true });
+    const owner = await person('platform', { superAdmin: true });
+    await prisma().user.update({ where: { id: owner.userId }, data: { isPlatformOwner: true, twoFactorEnabled: false } });
+
+    for (const who of [admin, owner]) {
+      const response = await credentials(who.email, GOOD);
+      expect(response.status).toBe(200);
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(await response.json()).toEqual({ status: 'unavailable' });
+      expect(await prisma().session.count({ where: { userId: who.userId } })).toBe(0);
+    }
+    // A wrong password is still just wrong: the refusal says nothing to someone without the password.
+    expect(await (await credentials(admin.email, `${GOOD}!`)).json()).toEqual({ status: 'invalid' });
+  });
+});
+
 describe('POST /api/retail/v1/credentials/two-factor', () => {
   it('asks for the code, refuses a wrong one, gives the token for the right one, and the challenge works once', async () => {
     const shop = await retailShop('Two Step Shop');
@@ -217,12 +308,12 @@ describe('POST /api/retail/v1/credentials/two-factor', () => {
     expect(first.status).toBe('needs_2fa');
     expect(JSON.stringify(first)).not.toContain('handoffToken');
 
-    const step = (code: string, challenge = first.challenge) =>
-      send('/api/retail/v1/credentials/two-factor', { challenge, code, clientIp: BROWSER_IP, nonce: NONCE });
+    const step = (code: string, challenge = first.challenge, nonce = fresh()) =>
+      send('/api/retail/v1/credentials/two-factor', { challenge, code, clientIp: BROWSER_IP, nonce });
     expect(await (await step('000000')).json()).toEqual({ status: 'invalid_code' });
     expect(await (await step('not a code')).json()).toEqual({ status: 'invalid_code' });
 
-    const right = await step(totpFromUri(totpURI));
+    const right = await step(totpFromUri(totpURI), first.challenge, NONCE);
     expect(right.headers.getSetCookie()).toEqual([]);
     const answer = await right.json();
     expect(answer.status).toBe('ok');
@@ -279,7 +370,7 @@ describe('POST /api/retail/v1/credentials/choose', () => {
     expect(first.shops.every((s: { ready: boolean }) => s.ready)).toBe(true);
 
     const pick = (challenge: string, shopId: string) =>
-      send('/api/retail/v1/credentials/choose', { challenge, shopId, clientIp: BROWSER_IP, nonce: NONCE });
+      send('/api/retail/v1/credentials/choose', { challenge, shopId, clientIp: BROWSER_IP, nonce: fresh() });
     const picked = await (await pick(first.challenge, b.id)).json();
     expect(picked.status).toBe('ok');
     expect(claimsOf(picked.handoffToken)).toMatchObject({ coreUserId: a.owner!.userId, coreBusinessId: b.id });

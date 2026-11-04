@@ -34,10 +34,16 @@ import { admitRetailCall, rateLimited, retailJson, retailRefusal } from './inbou
  * - `invalid_code`: the code was wrong (the challenge still stands, up to Better Auth's five attempts);
  * - `expired`: the challenge has run out, was used, or never existed: start again;
  * - `preparing`: the owner's shop is not ready in Retails yet;
- * - `unavailable`: the person may not sign in to Retails (the handoff's own rule, `mayHandOff` and `issueHandoff`).
- * A limit answers 429 `RATE_LIMITED` with `retry-after`. 401 unsigned, 400 malformed, 503 off or misconfigured.
+ * - `unavailable`: the person may not sign in to Retails this way: the handoff's own rule (`mayHandOff` and
+ *   `issueHandoff`), and every super admin or platform owner, who signs in on the Studio's own page only (with its
+ *   stricter checks) and reaches Retails through the browser handoff. Said only after the right password, and in the
+ *   same words for every reason, so it tells nobody who holds which role.
+ * A limit answers 429 `RATE_LIMITED` with `retry-after`. 401 unsigned or replayed (each signature is good for one call:
+ * `admitRetailCall`'s `once`), 400 malformed, 503 off or misconfigured. Retails' calls are counted per calling address
+ * in their own bucket, `retail-signin:ip`, apart from the other Retails calls' `retail:ip`.
  *
- * `clientIp` is the browser's address as Retails saw it. It is trusted only because the call is signed, and it keys the
+ * `clientIp` is the browser's address as Retails saw it, never empty: a call without one is malformed (400), so no
+ * two browsers ever share an `unknown` count. It is trusted only because the call is signed, and it keys the
  * same per-address limit the Studio's sign-in uses (`signin:ip:`), beside the per-email one (`signin:email:`); both count
  * every attempt, the right password included, exactly as the Studio's sign-in does. The second step counts
  * `totp:user:` like the Studio's.
@@ -47,8 +53,8 @@ import { admitRetailCall, rateLimited, retailJson, retailRefusal } from './inbou
  * the error's name only, never the email, the password, a code, a challenge or a token.
  */
 
-/** The browser's address as Retails saw it: an IPv4 or IPv6 address, or empty when Retails had none. */
-const clientIpField = z.string().max(64).regex(/^[0-9A-Fa-f:.]*$/);
+/** The browser's address as Retails saw it: an IPv4 or IPv6 address. Retails refuses a sign-in for which it has none. */
+const clientIpField = z.string().min(2).max(64).regex(/^[0-9A-Fa-f:.]+$/);
 const nonceField = z.string().refine(isNonce);
 const userAgentField = z.string().max(512).optional();
 const challengeField = z.string().min(1).max(1024);
@@ -56,7 +62,8 @@ const challengeField = z.string().min(1).max(1024);
 export const passwordInput = z.object({
   // Only a bound on size: whatever else is typed is for Better Auth to call not an account, as on the Studio's sign-in.
   email: z.string().min(1).max(254),
-  password: z.string().min(1).max(1024),
+  // Longer than any password can be (MAX_PASSWORD_LENGTH), so a long one is answered as a wrong one, not as a bad call.
+  password: z.string().min(1).max(4096),
   clientIp: clientIpField,
   nonce: nonceField,
   userAgent: userAgentField,
@@ -172,10 +179,16 @@ async function endSession(prisma: PrismaClient, token: unknown): Promise<void> {
   if (typeof token === 'string' && token !== '') await prisma.session.deleteMany({ where: { token } });
 }
 
+/** Super admins and platform owners sign in on the Studio's own page only, never through another server's form. */
+async function isPlatformAccount(prisma: PrismaClient, email: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { isSuperAdmin: true, isPlatformOwner: true } });
+  return Boolean(user && (user.isSuperAdmin || user.isPlatformOwner));
+}
+
 /** After the password (and the code): the handoff's own rules, then a token, a chooser, or why not. */
 async function finish(prisma: PrismaClient, userId: string, pick: string | null, nonce: string, now: Date): Promise<CredentialsAnswer> {
   const actor = await loadActor(prisma, userId);
-  if (!actor || !mayHandOff(actor)) return { status: 'unavailable' };
+  if (!actor || !mayHandOff(actor) || actor.isSuperAdmin || actor.isPlatformOwner) return { status: 'unavailable' };
   const choice = await chooseBusiness(prisma, actor, pick);
   if (choice.kind === 'choose') {
     const shops = (await ownedRetailShops(prisma, userId)).map((shop) => ({ id: shop.id, name: shop.name, ready: shop.provisioned }));
@@ -185,6 +198,9 @@ async function finish(prisma: PrismaClient, userId: string, pick: string | null,
   const token = await issueHandoff(prisma, actor, choice.kind === 'business' ? choice.restaurantId : null, nonce, now);
   return token ? { status: 'ok', handoffToken: token } : { status: 'unavailable' };
 }
+
+/** Better Auth's 400s for a sign-in no account can match. */
+const NOT_AN_ACCOUNT = new Set(['INVALID_EMAIL', 'PASSWORD_TOO_LONG', 'PASSWORD_TOO_SHORT']);
 
 export async function passwordStep(prisma: PrismaClient, input: z.infer<typeof passwordInput>, now: Date): Promise<Step> {
   const email = normalizeEmail(input.email);
@@ -209,12 +225,19 @@ export async function passwordStep(prisma: PrismaClient, input: z.infer<typeof p
     );
   if (!attempt.ok) {
     const { error } = attempt;
-    // 401 is a wrong password or an unknown email; 403 a deactivated account. Nobody learns which.
+    // 401 is a wrong password or an unknown email; 403 a deactivated account; 400 something no account can have
+    // (`INVALID_EMAIL`, a password Better Auth will not take). Nobody learns which.
     if (isAPIError(error) && (error.statusCode === 401 || error.statusCode === 403)) return { status: 'invalid' };
+    if (isAPIError(error) && error.statusCode === 400 && NOT_AN_ACCOUNT.has(authErrorCode(error) ?? '')) return { status: 'invalid' };
     throw error;
   }
   const result = attempt.value;
   const response = result.response as { twoFactorRedirect?: boolean; token?: unknown; user?: { id?: unknown } };
+  // The password was right. A super admin or platform owner goes no further here, not even to the code step.
+  if (await isPlatformAccount(prisma, email)) {
+    await endSession(prisma, response.token);
+    return { status: 'unavailable' };
+  }
   if (response.twoFactorRedirect) {
     const signed = cookieValue(result.headers.getSetCookie(), await twoFactorCookieName(prisma));
     if (!signed) throw new Error('two-factor challenge missing');
@@ -295,7 +318,7 @@ export async function credentialsRoute<S extends z.ZodType>(
   const prisma = getPrisma();
   try {
     const now = new Date();
-    const admitted = await admitRetailCall(prisma, request, now);
+    const admitted = await admitRetailCall(prisma, request, now, { bucket: 'retail-signin:ip', once: true });
     if (!admitted.ok) return admitted.response;
     void retailConfig().handoffSecret;
 
