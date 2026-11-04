@@ -11,6 +11,11 @@ export interface HostConfig {
   pharmacyHost?: string | null;
   /** The super admin's host. While null, the Studio host still serves the super admin's pages. */
   coreHost?: string | null;
+  /**
+   * The super admin host's secret path (`7728914040`, no slashes needed). While set, every request to the core host
+   * answers 404 unless it carries the gate cookie, and the path itself hands that cookie out. Unset: no gate.
+   */
+  coreGatePath?: string | null;
   /** The main domain (`buzzify.tech`): it and its `www.` send every path to `rootRedirect`. */
   apexHost?: string | null;
   /**
@@ -20,7 +25,12 @@ export interface HostConfig {
   legacyHosts?: string[];
 }
 
-export type HostDecision = { action: 'next' } | { action: 'redirect'; to: string } | { action: 'notFound' };
+/** `knock` is the super admin's secret path: the proxy sets the gate cookie, then redirects to `to`. */
+export type HostDecision =
+  | { action: 'next' }
+  | { action: 'redirect'; to: string }
+  | { action: 'knock'; to: string }
+  | { action: 'notFound' };
 
 const NEXT: HostDecision = { action: 'next' };
 const NOT_FOUND: HostDecision = { action: 'notFound' };
@@ -66,7 +76,10 @@ function isHost(requestHost: string, configured: string | null): boolean {
  * Studio origin beside the menus. In development and previews the hosts are not both set, and every other host serves
  * everything. Pure, so the proxy that applies it needs no database and no network.
  */
-export function routeHost(req: { host: string; pathname: string; search?: string }, cfg: HostConfig): HostDecision {
+export function routeHost(
+  req: { host: string; pathname: string; search?: string; /** The request carries a valid gate cookie. */ coreGate?: boolean },
+  cfg: HostConfig,
+): HostDecision {
   const { pathname } = req;
 
   // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
@@ -78,7 +91,10 @@ export function routeHost(req: { host: string; pathname: string; search?: string
 
   const legacy = (cfg.legacyHosts ?? []).find((host) => isHost(req.host, host));
   if (legacy) {
-    const target = normalizeHost(legacy).startsWith('studio.') ? cfg.studioHost : cfg.publicHost;
+    const isStudio = normalizeHost(legacy).startsWith('studio.');
+    // The old menu host's `/` always went to the company page.
+    if (!isStudio && pathname === '/') return { action: 'redirect', to: cfg.rootRedirect };
+    const target = isStudio ? cfg.studioHost : cfg.publicHost;
     if (target) return { action: 'redirect', to: `https://${normalizeHost(target)}${pathname}${req.search ?? ''}` };
     return NOT_FOUND;
   }
@@ -90,6 +106,11 @@ export function routeHost(req: { host: string; pathname: string; search?: string
   }
 
   if (isHost(req.host, cfg.coreHost ?? null)) {
+    const gate = cfg.coreGatePath?.replace(/^\/+|\/+$/g, '');
+    if (gate) {
+      if (pathname.replace(/\/+$/, '') === `/${gate}`) return { action: 'knock', to: '/studio' };
+      if (!req.coreGate) return NOT_FOUND;
+    }
     if (pathname === '/') return { action: 'redirect', to: '/studio' };
     if (pathname === '/favicon.ico' || CORE_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
     return NOT_FOUND;

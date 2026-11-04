@@ -19,7 +19,32 @@ describe('parseHostEnv', () => {
       studioHost: null,
       publicOrigin: 'http://127.0.0.1:3100',
       rootRedirect: 'https://buzzify.me',
+      pharmacyHost: null,
+      coreHost: null,
+      coreGatePath: null,
+      apexHost: null,
+      legacyHosts: [],
     });
+  });
+
+  it('reads the product hosts, the secret path, the apex and the legacy hosts', () => {
+    const env = parseHostEnv({
+      PHARMACY_HOST: 'Leaf.Example.Test',
+      CORE_HOST: 'core.example.test',
+      CORE_GATE_PATH: '/7728914040/',
+      APEX_HOST: 'buzzify.tech',
+      LEGACY_HOSTS: ' Buzzify-Menu.Online , studio.buzzify-menu.online ,',
+    });
+    expect(env.pharmacyHost).toBe('leaf.example.test');
+    expect(env.coreHost).toBe('core.example.test');
+    expect(env.coreGatePath).toBe('7728914040');
+    expect(env.apexHost).toBe('buzzify.tech');
+    expect(env.legacyHosts).toEqual(['buzzify-menu.online', 'studio.buzzify-menu.online']);
+  });
+
+  it('rejects a secret path that is too short to be secret or has odd characters', () => {
+    expect(() => parseHostEnv({ CORE_GATE_PATH: 'abc' })).toThrow(/CORE_GATE_PATH/);
+    expect(() => parseHostEnv({ CORE_GATE_PATH: 'has space/and slash' })).toThrow(/CORE_GATE_PATH/);
   });
 
   it('reads the four routing variables', () => {
@@ -35,6 +60,11 @@ describe('parseHostEnv', () => {
       studioHost: 'studio.buzzify.me',
       publicOrigin: 'https://menu.buzzify.me',
       rootRedirect: 'https://example.com/welcome',
+      pharmacyHost: null,
+      coreHost: null,
+      coreGatePath: null,
+      apexHost: null,
+      legacyHosts: [],
     });
   });
 

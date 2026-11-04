@@ -50,18 +50,37 @@ describe('pharmacy host', () => {
     expect(routeHost({ host: PHARMACY, pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: '/pharmacy' }));
 });
 
-describe('core host (super admin)', () => {
+describe('core host (super admin) behind its secret path', () => {
+  const gated: HostConfig = { ...cfg, coreGatePath: 'secret-path-test' };
+
+  it.each(['/', '/studio', '/studio/restaurants', '/api/auth/sign-in/email', '/api/studio/export', '/_next/static/a.js', '/favicon.ico', '/secret-path-test/x'])(
+    'answers 404 for %s without the gate cookie, as if nothing were here',
+    (pathname) => expect(routeHost({ host: CORE, pathname }, gated)).toEqual(NOT_FOUND),
+  );
+
+  it('the secret path itself opens the gate and goes to /studio', () =>
+    expect(routeHost({ host: CORE, pathname: '/secret-path-test' }, gated)).toEqual({ action: 'knock', to: '/studio' }));
+
+  it('a trailing slash on the secret path works too', () =>
+    expect(routeHost({ host: CORE, pathname: '/secret-path-test/' }, gated)).toEqual({ action: 'knock', to: '/studio' }));
+
   it.each(['/studio', '/studio/restaurants', '/studio/restaurants/r1', '/studio/team', '/studio/platform', '/api/auth/sign-in/email', '/api/studio/export', '/_next/static/a.js'])(
-    'serves %s',
-    (pathname) => expect(routeHost({ host: CORE, pathname }, cfg)).toEqual(NEXT),
+    'serves %s with the gate cookie',
+    (pathname) => expect(routeHost({ host: CORE, pathname, coreGate: true }, gated)).toEqual(NEXT),
   );
 
-  it.each(['/pos', '/pharmacy', '/api/pharmacy/intake/files', '/atelier'])('answers 404 for %s', (pathname) =>
-    expect(routeHost({ host: CORE, pathname }, cfg)).toEqual(NOT_FOUND),
+  it.each(['/pos', '/pharmacy', '/api/pharmacy/intake/files', '/atelier'])('answers 404 for %s even with the gate cookie', (pathname) =>
+    expect(routeHost({ host: CORE, pathname, coreGate: true }, gated)).toEqual(NOT_FOUND),
   );
 
-  it('sends / to /studio', () =>
-    expect(routeHost({ host: CORE, pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: '/studio' }));
+  it('sends / to /studio with the gate cookie', () =>
+    expect(routeHost({ host: CORE, pathname: '/', coreGate: true }, gated)).toEqual({ action: 'redirect', to: '/studio' }));
+
+  it('lets the scheduler reach the cron routes without the cookie', () =>
+    expect(routeHost({ host: CORE, pathname: '/api/cron/publish' }, gated)).toEqual(NEXT));
+
+  it('without a configured secret path the host is open (development)', () =>
+    expect(routeHost({ host: CORE, pathname: '/studio' }, cfg)).toEqual(NEXT));
 });
 
 describe('apex and legacy hosts', () => {
@@ -76,6 +95,9 @@ describe('apex and legacy hosts', () => {
       action: 'redirect',
       to: 'https://menu.buzzify.tech/atelier?lang=ar',
     }));
+
+  it('sends the root of the old menu host to the company page, as it always did', () =>
+    expect(routeHost({ host: 'buzzify-menu.online', pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: 'https://buzzify.me' }));
 
   it('sends the old studio host to the new studio host', () =>
     expect(routeHost({ host: 'studio.buzzify-menu.online', pathname: '/studio/menus', search: '?x=1' }, cfg)).toEqual({
