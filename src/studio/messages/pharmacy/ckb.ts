@@ -145,6 +145,8 @@ const pharmacy: Messages = {
   'pharmacy.catalog.intro': 'هەموو ئەو بەرهەمانەی ئەم دەرمانخانەیە دەیانفرۆشێت، لەگەڵ قوتوو و بارکۆد و نرخەکانیان.',
   'pharmacy.catalog.add': 'زیادکردنی بەرهەم',
   'pharmacy.catalog.import': 'هاوردەکردنی فایل',
+  'pharmacy.catalog.importCard.title': 'هێنان لە فایلێکەوە',
+  'pharmacy.catalog.importCard.about': 'چەندین بەرهەم بە یەکجار، لە فایلێکی CSV یان Excel.',
   'pharmacy.catalog.exportCsv': 'هەناردەکردنی CSV',
   'pharmacy.catalog.exportXlsx': 'هەناردەکردنی Excel',
   'pharmacy.catalog.search.label': 'گەڕان لە لیستدا',

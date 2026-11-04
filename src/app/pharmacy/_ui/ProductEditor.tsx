@@ -1,9 +1,9 @@
 'use client';
 
-import { Archive, ArrowLeft, ArrowRight, CircleAlert, History, Save } from 'lucide-react';
+import { Archive, ArrowLeft, ArrowRight, ChevronRight, CircleAlert, FileUp, History, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useId, useState, type KeyboardEvent } from 'react';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { archiveProduct, createProduct, updateProduct } from '@/app/pharmacy/_actions/catalog';
 import { draftKey, useDraft } from '@/lib/use-draft';
 import { useLeaveGuard } from '@/lib/use-leave-guard';
@@ -17,12 +17,12 @@ import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
-import { FormSection } from '@/studio/ui/FormSection';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { BarcodeList } from './BarcodeList';
 import { PriceHistory } from './PriceHistory';
+import { PH_BTN, PH_PRIMARY } from './sell-parts';
 import { draftOf, inputOf, type EditorProduct, type ProductDraft } from './product-draft';
 import { UnitLadderEditor } from './UnitLadderEditor';
 import { UnsavedBadge } from './UnsavedBadge';
@@ -51,6 +51,21 @@ export interface ProductEditorProps {
 }
 
 type Tab = 'details' | 'prices';
+
+/** One part of the form as a card: its heading and what it is for above its fields. */
+function FormSection({ id, title, intro, children }: { id: string; title: string; intro?: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-4 rounded-ph-2xl bg-ph-card p-4 sm:p-5">
+      <div className="flex flex-col gap-1">
+        <h2 id={id} className="text-base font-bold text-ph-text">
+          {title}
+        </h2>
+        {intro && <p className="text-sm text-ph-muted">{intro}</p>}
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">{children}</div>
+    </section>
+  );
+}
 
 /** The `BARCODE_IN_USE` refusal's details, for the explanation and the way on. */
 interface Held {
@@ -174,13 +189,15 @@ export function ProductEditor(props: ProductEditorProps) {
   const BackIcon = locale === 'en' ? ArrowLeft : ArrowRight;
 
   const details = (
-    <fieldset disabled={!editable || pending} className="flex min-w-0 flex-col">
+    <fieldset disabled={!editable || pending} className="flex min-w-0 flex-col gap-4">
       <legend className="sr-only">{t('pharmacy.catalog.tab.details')}</legend>
       <FormSection id={`${ids}-identity`} title={t('pharmacy.catalog.section.identity')} intro={t('pharmacy.catalog.section.identityIntro')}>
-        <Field label={t('pharmacy.catalog.field.tradeName')} error={errors.tradeName}>
-          <Input name="tradeName" dir="auto" maxLength={200} value={value.tradeName} onChange={(e) => change({ tradeName: e.target.value })} />
-        </Field>
         <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Field label={t('pharmacy.catalog.field.tradeName')} error={errors.tradeName}>
+              <Input name="tradeName" dir="auto" maxLength={200} value={value.tradeName} onChange={(e) => change({ tradeName: e.target.value })} />
+            </Field>
+          </div>
           <Field label={t('pharmacy.catalog.field.genericName')} optional error={errors.genericName}>
             <Input dir="auto" maxLength={200} value={value.genericName} onChange={(e) => change({ genericName: e.target.value })} />
           </Field>
@@ -255,7 +272,7 @@ export function ProductEditor(props: ProductEditorProps) {
               const put = (patch: Partial<typeof setting>) => change({ branchSettings: { ...value.branchSettings, [branch.id]: { ...setting, ...patch } } });
               return (
                 <li key={branch.id} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,8rem)_minmax(0,8rem)] sm:items-end">
-                  <p className="min-w-0 break-words text-sm font-medium text-text" dir="auto">
+                  <p className="min-w-0 break-words text-sm font-semibold text-ph-text" dir="auto">
                     {branch.name}
                   </p>
                   <Field label={<><span className="sr-only">{branch.name}: </span>{t('pharmacy.catalog.field.minQty')}</>} error={errors[`branch.${branch.id}.minQty`]}>
@@ -272,14 +289,17 @@ export function ProductEditor(props: ProductEditorProps) {
       )}
 
       {editable && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-line py-6">
-          <Button variant="primary" size="lg" icon={<Save aria-hidden />} pending={pending} onClick={() => void save()}>
+        // Sticky at the bottom of <main> (the one scroll container): the save is always on screen, however long the form.
+        <div data-testid="product-save-bar" className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-3 border-t border-ph-line bg-ph-card px-4 py-3 sm:-mx-8 sm:px-8">
+          <button type="button" className={PH_PRIMARY} disabled={pending} aria-busy={pending || undefined} onClick={() => void save()}>
+            <Save aria-hidden className="size-4 shrink-0" />
             {t('pharmacy.catalog.save')}
-          </Button>
+          </button>
           {product && active && (
-            <Button variant="secondary" size="lg" icon={<Archive aria-hidden />} disabled={pending} onClick={() => void archive()}>
+            <button type="button" className={PH_BTN} disabled={pending} onClick={() => void archive()}>
+              <Archive aria-hidden className="size-4 shrink-0" />
               {t('pharmacy.catalog.archive')}
-            </Button>
+            </button>
           )}
         </div>
       )}
@@ -287,15 +307,15 @@ export function ProductEditor(props: ProductEditorProps) {
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 pt-6 sm:px-8">
+    <div className="relative flex min-w-0 flex-col gap-4 px-4 pt-6 sm:px-8">
       <div>
-        <Link href="/pharmacy/catalog" className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-text underline underline-offset-2">
+        <Link href="/pharmacy/catalog" className="inline-flex min-h-11 items-center gap-1.5 rounded-ph-xl text-sm font-semibold text-ph-g6 underline-offset-4 hover:underline">
           <BackIcon aria-hidden className="size-4 shrink-0" />
           {t('pharmacy.catalog.back')}
         </Link>
       </div>
       <header className="flex flex-col gap-2">
-        <h1 className="break-words text-xl font-semibold text-text" dir="auto">
+        <h1 className="break-words text-xl font-bold text-ph-text" dir="auto">
           {product ? value.tradeName.trim() || product.tradeName : value.tradeName.trim() || t('pharmacy.catalog.newTitle')}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -305,6 +325,18 @@ export function ProductEditor(props: ProductEditorProps) {
       </header>
 
       <WriteBlocked writable={writable} />
+      {!product && editable && (
+        <Link href="/pharmacy/catalog/import" data-testid="product-import" className="flex min-h-11 min-w-0 items-center gap-3 rounded-ph-2xl bg-ph-card p-4 ring-1 ring-ph-line hover:bg-ph-canvas">
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-ph-xl bg-ph-blue-wash text-ph-blue [&_svg]:size-5">
+            <FileUp />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="font-semibold text-ph-text">{t('pharmacy.catalog.importCard.title')}</span>
+            <span className="text-sm text-ph-muted">{t('pharmacy.catalog.importCard.about')}</span>
+          </span>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-ph-muted rtl:rotate-180" />
+        </Link>
+      )}
       {product && !active && (
         <Alert>
           <span>{t('pharmacy.catalog.archived')}</span>
@@ -312,11 +344,11 @@ export function ProductEditor(props: ProductEditorProps) {
       )}
 
       {draft.restored && !restoreSeen && (
-        <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
-          <History aria-hidden className="size-4 shrink-0 text-muted" />
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-ph-xl bg-ph-blue-wash px-3 py-2.5 text-sm text-ph-text">
+          <History aria-hidden className="size-4 shrink-0 text-ph-blue" />
           <span className="min-w-0 flex-1">
             {stale ? t('pharmacy.catalog.draft.stale') : t('pharmacy.catalog.draft.restored')}
-            {draft.restoredAt && <span className="text-muted"> ({phDateTime(draft.restoredAt, locale)})</span>}
+            {draft.restoredAt && <span className="text-ph-muted"> ({phDateTime(draft.restoredAt, locale)})</span>}
           </span>
           <Button size="sm" onClick={() => setRestoreSeen(true)}>
             {t('pharmacy.catalog.draft.keep')}
@@ -348,7 +380,7 @@ export function ProductEditor(props: ProductEditorProps) {
         </Alert>
       )}
       {!pending && held && (
-        <div role="alert" key={attempt} className="flex flex-col gap-2 rounded-md bg-danger-wash px-3 py-2.5 text-sm text-danger">
+        <div role="alert" key={attempt} className="flex flex-col gap-2 rounded-ph-xl bg-ph-red-wash px-3 py-2.5 text-sm text-ph-red">
           <p className="flex items-start gap-2.5">
             <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
             <span className="min-w-0">
@@ -363,7 +395,7 @@ export function ProductEditor(props: ProductEditorProps) {
                 {t('pharmacy.catalog.barcode.share')}
               </Button>
             )}
-            <Link href={`/pharmacy/catalog/${held.productId}`} className="inline-flex min-h-7 items-center font-medium text-text underline underline-offset-2">
+            <Link href={`/pharmacy/catalog/${held.productId}`} className="inline-flex min-h-11 items-center font-medium text-ph-text underline underline-offset-2">
               {t('pharmacy.catalog.barcode.openHolder', { name: isolate(held.name) })}
             </Link>
           </div>
@@ -378,12 +410,12 @@ export function ProductEditor(props: ProductEditorProps) {
         </Alert>
       )}
       {draft.dirty && editable && !held && value.barcodes.some((b) => b.shared && !product?.barcodes.find((p) => p.code === b.code)?.shared) && (
-        <p className="text-sm text-muted">{t('pharmacy.catalog.barcode.shareNote')}</p>
+        <p className="text-sm text-ph-muted">{t('pharmacy.catalog.barcode.shareNote')}</p>
       )}
 
       {product ? (
         <>
-          <div role="tablist" aria-label={t('pharmacy.catalog.tabs')} className="flex gap-1 border-b border-line">
+          <div role="tablist" aria-label={t('pharmacy.catalog.tabs')} className="flex gap-1 border-b border-ph-line">
             {(['details', 'prices'] as const).map((name) => (
               <button
                 key={name}
@@ -397,8 +429,8 @@ export function ProductEditor(props: ProductEditorProps) {
                 onKeyDown={onTabKey}
                 className={
                   tab === name
-                    ? 'min-h-11 border-b-2 border-ink px-3 text-sm font-semibold text-text'
-                    : 'min-h-11 border-b-2 border-transparent px-3 text-sm font-medium text-muted hover:text-text'
+                    ? 'min-h-11 border-b-2 border-ph-g6 px-3 text-sm font-semibold text-ph-text'
+                    : 'min-h-11 border-b-2 border-transparent px-3 text-sm font-medium text-ph-muted hover:text-ph-text'
                 }
               >
                 {t(name === 'details' ? 'pharmacy.catalog.tab.details' : 'pharmacy.catalog.tab.prices')}

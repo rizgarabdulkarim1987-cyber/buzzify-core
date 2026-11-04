@@ -148,6 +148,8 @@ const pharmacy: Messages = {
   'pharmacy.catalog.intro': 'كل منتج تبيعه هذه الصيدلية، مع عبواته وباركوداته وأسعاره.',
   'pharmacy.catalog.add': 'إضافة منتج',
   'pharmacy.catalog.import': 'استيراد ملف',
+  'pharmacy.catalog.importCard.title': 'استيراد من ملف',
+  'pharmacy.catalog.importCard.about': 'منتجات كثيرة دفعة واحدة من ملف CSV أو Excel.',
   'pharmacy.catalog.exportCsv': 'تصدير CSV',
   'pharmacy.catalog.exportXlsx': 'تصدير Excel',
   'pharmacy.catalog.search.label': 'البحث في الدليل',

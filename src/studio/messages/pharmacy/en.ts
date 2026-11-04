@@ -151,6 +151,8 @@ const pharmacy: Messages = {
   'pharmacy.catalog.intro': 'Every product this pharmacy sells, with its packs, barcodes and prices.',
   'pharmacy.catalog.add': 'Add a product',
   'pharmacy.catalog.import': 'Import a file',
+  'pharmacy.catalog.importCard.title': 'Import from a file',
+  'pharmacy.catalog.importCard.about': 'Many products at once, from a CSV or Excel file.',
   'pharmacy.catalog.exportCsv': 'Export CSV',
   'pharmacy.catalog.exportXlsx': 'Export Excel',
   'pharmacy.catalog.search.label': 'Search the catalog',

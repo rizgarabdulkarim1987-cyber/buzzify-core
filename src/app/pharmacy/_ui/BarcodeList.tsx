@@ -50,15 +50,15 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
   return (
     <div className="flex flex-col gap-3">
       {barcodes.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
+        <p className="flex items-center gap-2 text-sm text-ph-muted">
           <ScanBarcode aria-hidden className="size-4 shrink-0" />
           {t('pharmacy.catalog.barcode.none')}
         </p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line rounded-md border border-line">
+        <ul className="flex min-w-0 flex-col divide-y divide-ph-line rounded-ph-xl border border-ph-line">
           {barcodes.map((barcode, index) => (
-            <li key={`${barcode.code}-${index}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
-              <span dir="ltr" className="min-w-0 break-all font-mono text-sm text-text tabular-nums">
+            <li key={`${barcode.code}-${index}`} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+              <span dir="ltr" className="min-w-0 break-all font-mono text-sm text-ph-text tabular-nums">
                 {barcode.code}
               </span>
               {barcode.shared && <StatusBadge>{t('pharmacy.catalog.barcode.sharedBadge')}</StatusBadge>}
@@ -78,7 +78,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
                   />
                 )}
               </div>
-              {errors[`barcodes.${index}.code`] && <p className="w-full text-sm text-danger">{errors[`barcodes.${index}.code`]}</p>}
+              {errors[`barcodes.${index}.code`] && <p className="w-full text-sm text-ph-red">{errors[`barcodes.${index}.code`]}</p>}
             </li>
           ))}
         </ul>
@@ -106,7 +106,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
           <Field label={t('pharmacy.catalog.barcode.unit')}>
             <Select value={String(chosen)} onChange={(e) => setLevel(Number(e.target.value))} options={unitOptions} />
           </Field>
-          <Button icon={<Plus aria-hidden />} onClick={add}>
+          <Button className="min-h-11" icon={<Plus aria-hidden />} onClick={add}>
             {t('pharmacy.catalog.barcode.add')}
           </Button>
         </div>
