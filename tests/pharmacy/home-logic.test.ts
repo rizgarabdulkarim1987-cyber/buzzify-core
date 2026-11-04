@@ -82,8 +82,8 @@ describe('chartPaths', () => {
 });
 
 describe('mixAttention', () => {
-  const e = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: 'expiry' as const, productName: `E${i}`, detail: '', days: i, qty: 1, min: null }));
-  const l = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: 'lowStock' as const, productName: `L${i}`, detail: '', days: null, qty: 0, min: 5 }));
+  const e = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: 'expiry' as const, productName: `E${i}`, detail: '', days: i, urgency: i, qty: 1, min: null }));
+  const l = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: 'lowStock' as const, productName: `L${i}`, detail: '', days: null, urgency: null, qty: 0, min: 5 }));
 
   it('takes up to six, three of each, and fills from the other when one side is short', () => {
     expect(mixAttention(e(5), l(5)).map((x) => x.productName)).toEqual(['E0', 'E1', 'E2', 'L0', 'L1', 'L2']);

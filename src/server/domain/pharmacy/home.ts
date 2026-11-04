@@ -15,6 +15,8 @@ export interface HomeAttention {
   detail: string;
   /** Expiry: whole days from today to the expiry date (0 is today). Low stock: null. */
   days: number | null;
+  /** Expiry: the days the batch is alerted by (`urgencyDays`: a MONTH batch counts to the start of its month), which sets its colour. Low stock: null. */
+  urgency: number | null;
   /** Expiry: the batch's units in stock (available, reserved and quarantine). Low stock: the sellable units on hand. */
   qty: number;
   /** Low stock: the product's minimum in that branch. Expiry: null. */

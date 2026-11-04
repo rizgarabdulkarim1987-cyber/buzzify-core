@@ -177,9 +177,20 @@ describe('ph.home.figures', () => {
     expect({ lowStock: f.lowStock, expiring: f.expiring90 }).toEqual(nav);
     expect(f).toMatchObject({ lowStock: 1, expiring90: 1 });
     expect(f.attention).toEqual([
-      { kind: 'expiry', productName: 'Amoxicillin 500', detail: 'B2231', days: 18, qty: 12, min: null },
-      { kind: 'lowStock', productName: 'Masks', detail: '', days: null, qty: 3, min: 10 },
+      { kind: 'expiry', productName: 'Amoxicillin 500', detail: 'B2231', days: 18, urgency: 18, qty: 12, min: null },
+      { kind: 'lowStock', productName: 'Masks', detail: '', days: null, urgency: null, qty: 3, min: 10 },
     ]);
+  });
+
+  it('a MONTH-precision batch says the days to its month end and is coloured by the start of that month, as on the Expiry screen', async () => {
+    const w = await world();
+    const product = await makeProduct(w.a.id, 'Syrup');
+    // 01/2027 is stored as 2027-01-31: 96 days to sell, alerted from 1 January (66 days away, the 90-day band).
+    const batchId = await makeBatch(w.a.id, w.b1, product.id, { lot: 'S1', expiry: '2027-01-31', buckets: { available: 4 } });
+    await prisma().phBatch.update({ where: { id: batchId }, data: { expiryPrecision: 'MONTH' } });
+    const f = dataOf(await figures(w));
+    expect(f.expiring90).toBe(1);
+    expect(f.attention).toEqual([{ kind: 'expiry', productName: 'Syrup', detail: 'S1', days: 96, urgency: 66, qty: 4, min: null }]);
   });
 
   it('a role without report.view sees the stock figures but no money', async () => {

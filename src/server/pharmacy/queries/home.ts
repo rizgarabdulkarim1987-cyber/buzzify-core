@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@/generated/prisma/client';
 import { baghdadDay, baghdadDayOf, DAY_MS } from '@/lib/baghdad';
 import { canPh } from '@/server/domain/pharmacy/permissions';
+import { urgencyDays, utcToday } from '@/server/domain/pharmacy/expiry';
 import { homeWindow, mixAttention, type HomeAttention, type HomeFigures } from '@/server/domain/pharmacy/home';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
@@ -58,7 +59,7 @@ export const homeFigures = defineQuery({
         where: expiringWhere(branch, input.now),
         orderBy: [{ batch: { expiryDate: 'asc' } }, { id: 'asc' }],
         take: ATTENTION_EACH,
-        select: { available: true, reserved: true, quarantine: true, batch: { select: { lot: true, expiryDate: true } }, product: { select: { tradeName: true } } },
+        select: { available: true, reserved: true, quarantine: true, batch: { select: { lot: true, expiryDate: true, expiryPrecision: true } }, product: { select: { tradeName: true } } },
       }),
     ]);
     const currency = settings?.defaultCurrency ?? 'IQD';
@@ -83,6 +84,7 @@ export const homeFigures = defineQuery({
       productName: b.product.tradeName,
       detail: b.batch.lot,
       days: Math.round((b.batch.expiryDate.getTime() - expiryToday(input.now).getTime()) / DAY_MS),
+      urgency: urgencyDays({ expiryDate: b.batch.expiryDate.toISOString().slice(0, 10), expiryPrecision: b.batch.expiryPrecision }, utcToday(input.now)),
       qty: b.available + b.reserved + b.quarantine,
       min: null,
     }));
@@ -95,7 +97,7 @@ export const homeFigures = defineQuery({
     const names = lowest.length
       ? new Map((await scoped.phProduct.findMany({ where: { id: { in: lowest.map(([id]) => id) } }, select: { id: true, tradeName: true } })).map((p) => [p.id, p.tradeName]))
       : new Map<string, string>();
-    const low: HomeAttention[] = lowest.map(([id, r]) => ({ kind: 'lowStock', productName: names.get(id) ?? '', detail: '', days: null, qty: r.available, min: r.minQty }));
+    const low: HomeAttention[] = lowest.map(([id, r]) => ({ kind: 'lowStock', productName: names.get(id) ?? '', detail: '', days: null, urgency: null, qty: r.available, min: r.minQty }));
 
     return {
       currency,

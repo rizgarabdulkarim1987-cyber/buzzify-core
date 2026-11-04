@@ -192,6 +192,16 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await expect(page.locator('span[data-band="expired"]')).toContainText('Expired');
     await expect(page.locator('span[data-band="d30"]')).toContainText('Within 30 days');
     await expect(page.locator('[data-total="expired"]')).toContainText('1');
+    // Grouped by urgency, each group under its heading; the empty 31-60 and 61-90 groups are not drawn.
+    const groups = page.getByTestId('expiry-group');
+    await expect(groups).toHaveCount(2);
+    expect(await groups.evaluateAll((els) => els.map((el) => el.getAttribute('data-group')))).toEqual(['expired', 'd30']);
+    await expect(groups.nth(0).getByRole('heading', { level: 2 })).toContainText('Expired');
+    await expect(groups.nth(1).getByRole('heading', { level: 2 })).toContainText('Within 30 days');
+    await expect(groups.nth(0).getByTestId('expiry-lot')).toHaveText(['OLD-1']);
+    await expect(groups.nth(1).getByTestId('expiry-lot')).toHaveText(['SOON-2']);
+    await expect(page.getByTestId('expiry-summary')).toContainText('One batch expires within 90 days');
+    await expect(page.getByTestId('expiry-summary')).toContainText('one already expired');
     await page.getByRole('link', { name: '30 days' }).click();
     await expect(page).toHaveURL(/days=30/);
     await expect(page.getByTestId('expiry-lot')).toHaveText(['OLD-1', 'SOON-2']);

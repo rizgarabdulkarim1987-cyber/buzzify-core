@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
 import { DoctorSlot } from './DoctorSlot';
 import { average, trendOf, type HomeAttention, type HomeFigures, type HomePeriod } from './home-logic';
+import { urgencyTone } from './expiry-groups';
 import { Money } from './money-parts';
 import { SalesChart } from './SalesChart';
 import { Num } from './sell-parts';
@@ -47,7 +48,8 @@ function TrendChip({ today, yesterday, t }: { today: number; yesterday: number; 
 function AttentionRow({ item, t }: { item: HomeAttention; t: Translate }) {
   const expiry = item.kind === 'expiry';
   const days = item.days ?? 0;
-  const tone: Tone = !expiry ? 'amber' : days <= 30 ? 'red' : days <= 60 ? 'amber' : 'green';
+  // The colour follows the alert (a MONTH batch from the start of its month), the same as the Expiry screen's groups.
+  const tone: Tone = !expiry ? 'amber' : urgencyTone(item.urgency ?? days);
   return (
     <li className="flex min-h-[52px] min-w-0 items-center gap-3 border-ph-line py-1.5 [&+&]:border-t sm:[&+&]:border-t-0">
       <span aria-hidden className={`grid size-10 shrink-0 place-items-center rounded-ph-xl [&_svg]:size-5 ${TILE[tone]}`}>
