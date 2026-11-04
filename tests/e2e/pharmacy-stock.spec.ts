@@ -67,10 +67,10 @@ async function makePharmacy(label: string): Promise<TestPharmacy> {
 }
 
 /** One product with three batches in the first branch: expired, expiring in 20 days, and a year away. */
-async function seedStock(shop: TestPharmacy, tag: string): Promise<{ productName: string }> {
+async function seedStock(shop: TestPharmacy, tag: string, name?: string): Promise<{ productName: string }> {
   const client = db();
   try {
-    const productName = `Stocked ${tag}`;
+    const productName = name ?? `Stocked ${tag}`;
     const product = await client.phProduct.create({
       data: {
         restaurantId: shop.id,
@@ -359,6 +359,30 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(till.getByTestId('stock-row').first()).toBeVisible();
     await expect(till.getByTestId('stock-new-product')).toHaveCount(0);
     await till.context().close();
+  });
+
+  test('an 80-letter Arabic name in Arabic at 375px: the row keeps one line and 52px, the opened panel wraps it, nothing scrolls sideways', async ({ browser }) => {
+    const { shop, owner } = await owned('LongAr', 'ar');
+    await seedStock(shop, randomUUID().slice(0, 6), LONG_ARABIC);
+    const page = await freshPage(browser, { width: 375, height: 800 });
+    await signInAndChoose(page, owner, shop, 1);
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await page.goto('/pharmacy/stock');
+    const row = page.getByTestId('stock-row').filter({ hasText: LONG_ARABIC });
+    await expect(row).toBeVisible();
+    expect(await scrollsSideways(page), 'the row').toBe(false);
+    const height = await row.evaluate((el) => el.getBoundingClientRect().height);
+    expect(Math.abs(height - 52), `row height ${height}`).toBeLessThanOrEqual(1);
+    await row.getByTestId('stock-batches').locator('> summary').click();
+    await expect(row.getByTestId('batch-row').first()).toBeVisible();
+    expect(await scrollsSideways(page), 'the opened panel').toBe(false);
+    // The whole name is in the panel, wrapped inside the screen.
+    const whole = row.locator('details > div span[dir="auto"]').filter({ hasText: LONG_ARABIC }).first();
+    const box = await whole.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(375);
+    expect(box.height, 'wraps to more than one line').toBeGreaterThan(30);
+    await page.context().close();
   });
 
   test('reads in Arabic right to left with no sideways scroll at 375, 768 and 1280px, and passes axe', async ({ browser }) => {

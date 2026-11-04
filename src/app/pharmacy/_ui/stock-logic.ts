@@ -1,4 +1,6 @@
 import { expiryBand, type ExpiryBand } from '@/server/domain/pharmacy/expiry';
+import type { Translate } from '@/lib/i18n';
+import { formatNumber } from '@/lib/pos-format';
 import type { ProductBalance } from '@/server/pharmacy/stock-reads';
 
 /** The stock list's filter chips, in their order; the page reads the choice from `?filter=`. */
@@ -34,3 +36,6 @@ export function stockState(product: ProductBalance, today: string): StockState {
 
 /** The sellable quantity of a row: the sum over the branches shown, in base units. */
 export const sellableTotal = (product: ProductBalance): number => product.branches.reduce((sum, b) => sum + b.sellable, 0);
+
+/** "1,003 products": the plural form follows the language's rules (Arabic has six), the number keeps its grouping. */
+export const productCount = (t: Translate, total: number): string => t('pharmacy.stock.count', { count: total, n: formatNumber(total) });

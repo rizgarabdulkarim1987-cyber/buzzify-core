@@ -5,9 +5,8 @@ import type { ReactNode } from 'react';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { StockBlocked } from '@/app/pharmacy/_ui/StockBlocked';
 import { StockList, StockListHead } from '@/app/pharmacy/_ui/StockList';
-import { filterQuery, parseStockFilter, STOCK_FILTERS, type StockFilter } from '@/app/pharmacy/_ui/stock-logic';
+import { filterQuery, parseStockFilter, productCount, STOCK_FILTERS, type StockFilter } from '@/app/pharmacy/_ui/stock-logic';
 import { transfersWaiting } from '@/app/pharmacy/_ui/transfers-counts';
-import { formatNumber } from '@/lib/pos-format';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { getPhBranches, getPhPlaces } from '@/server/pharmacy/actor';
 import { balances } from '@/server/pharmacy/queries/stock';
@@ -122,7 +121,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         {title(
           <span data-testid="stock-count" className="text-sm font-medium text-ph-muted tabular-nums">
-            {t('pharmacy.stock.count', { count: formatNumber(page.total) })}
+            {productCount(t, page.total)}
           </span>,
         )}
         {(canImport || canExport || canAdd) && (

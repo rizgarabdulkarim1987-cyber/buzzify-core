@@ -523,6 +523,7 @@ describe('states carry text and an icon', () => {
 
 describe('the stock messages', () => {
   const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  const PLURAL_FORM = /_(zero|one|two|few|many|other)$/;
   const mine = (key: string) => key.startsWith('pharmacy.stock.') || key.startsWith('pharmacy.movements.') || key === 'pharmacy.nav.stock' || key === 'pharmacy.nav.movements';
   const keys = Object.keys(STUDIO_MESSAGES.en).filter(mine);
 
@@ -532,9 +533,12 @@ describe('the stock messages', () => {
       for (const key of keys) {
         const value = STUDIO_MESSAGES[locale][key];
         expect(value, `${locale} ${key}`).toBeTruthy();
-        expect(placeholders(value!), `${locale} ${key}`).toEqual(placeholders(STUDIO_MESSAGES.en[key]!));
+        // A plural form may say its number in words ("منتجان", two products), so only the other forms must match.
+        if (!PLURAL_FORM.test(key)) expect(placeholders(value!), `${locale} ${key}`).toEqual(placeholders(STUDIO_MESSAGES.en[key]!));
       }
-      const extra = Object.keys(STUDIO_MESSAGES[locale]).filter(mine).filter((key) => !(key in STUDIO_MESSAGES.en));
+      // Arabic has six plural forms and English two: a form counts by its base key.
+      const enBases = new Set(Object.keys(STUDIO_MESSAGES.en).map((key) => key.replace(PLURAL_FORM, '')));
+      const extra = Object.keys(STUDIO_MESSAGES[locale]).filter(mine).filter((key) => !enBases.has(key.replace(PLURAL_FORM, '')));
       expect(extra).toEqual([]);
     }
   });

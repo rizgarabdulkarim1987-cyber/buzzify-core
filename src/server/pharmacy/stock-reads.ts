@@ -132,10 +132,9 @@ type Place = { branchId?: string | undefined };
  */
 export const MAX_FILTERED_PRODUCTS = 5000;
 
-/** The products a stock filter keeps (`in`) or leaves out (`notIn`), as ids; null when no such filter is on. */
-async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesInput> & Place): Promise<{ in: string[] | null; notIn: string[] | null }> {
-  const notIn = input.outOfStock ? await sellableIds(scoped, input) : null;
-  if (!input.onlyWithStock && !input.lowStock && !input.expiring) return { in: null, notIn };
+/** The products a stock filter keeps, as ids; null when no such filter is on. ("Out of stock" is a relation predicate, see `outOfStockWhere`.) */
+async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesInput> & Place): Promise<string[] | null> {
+  if (!input.onlyWithStock && !input.lowStock && !input.expiring) return null;
   const branch = input.branchId ? { branchId: input.branchId } : {};
   const product = input.productId ? { productId: input.productId } : {};
   const today = new Date(`${utcToday()}T00:00:00.000Z`);
@@ -174,22 +173,21 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
   if (kept.length > MAX_FILTERED_PRODUCTS) {
     throw new StudioError('CONFLICT', 'Too many products match: narrow the search or choose a branch', { phCode: 'TOO_MANY' });
   }
-  return { in: kept, notIn };
+  return kept;
 }
 
-/** The products with something sellable in the branches shown (what "out of stock" leaves out). */
-async function sellableIds(scoped: ScopedClient, input: z.infer<typeof balancesInput> & Place): Promise<string[]> {
+/**
+ * "Out of stock": no sellable balance in the branches shown, as a NOT EXISTS on the product's balances, so no id list
+ * goes back to the database however many products are stocked. Sellable is the stock screen's own rule (R2-5):
+ * `available` above 0 in an ACTIVE batch that has not expired.
+ */
+function outOfStockWhere(input: Place) {
   const today = new Date(`${utcToday()}T00:00:00.000Z`);
-  const rows = await scoped.phStockBalance.groupBy({
-    by: ['productId'],
-    where: { ...(input.branchId ? { branchId: input.branchId } : {}), ...(input.productId ? { productId: input.productId } : {}), available: { gt: 0 }, batch: { status: 'ACTIVE', expiryDate: { gte: today } } },
-    _sum: { available: true },
-  });
-  const ids = rows.map((r) => r.productId);
-  if (ids.length > MAX_FILTERED_PRODUCTS) {
-    throw new StudioError('CONFLICT', 'Too many products match: narrow the search or choose a branch', { phCode: 'TOO_MANY' });
-  }
-  return ids;
+  return {
+    balances: {
+      none: { ...(input.branchId ? { branchId: input.branchId } : {}), available: { gt: 0 }, batch: { status: 'ACTIVE' as const, expiryDate: { gte: today } } },
+    },
+  };
 }
 
 /** Products by trade name, each with its branch totals and its batches earliest expiry first. */
@@ -202,8 +200,8 @@ export async function listBalances(
   const words = [...new Set(normalizeForSearch(input.search ?? '').split(' ').filter(Boolean))].slice(0, 8);
   const idWhere = [
     ...(input.productId ? [{ id: input.productId }] : []),
-    ...(ids.in !== null ? [{ id: { in: ids.in } }] : []),
-    ...(ids.notIn !== null && ids.notIn.length > 0 ? [{ id: { notIn: ids.notIn } }] : []),
+    ...(ids !== null ? [{ id: { in: ids } }] : []),
+    ...(input.outOfStock ? [outOfStockWhere(input)] : []),
   ];
   const searchWhere = words.length > 0 ? words.map((w) => ({ searchText: { contains: literal(w) } })) : [];
   const finalWhere = { AND: [...idWhere, ...searchWhere] };

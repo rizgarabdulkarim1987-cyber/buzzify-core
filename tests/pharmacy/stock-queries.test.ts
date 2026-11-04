@@ -151,6 +151,24 @@ describe('ph.stock.balances', () => {
     expect(dataOf(await ask(owner, stockQueries.balances, at)).items).toHaveLength(50);
   }, 60_000);
 
+  it('filters out of stock in a well-stocked pharmacy: more sellable products than the cap is no refusal', async () => {
+    const { a, owner, at, b1 } = await world();
+    const products = Array.from({ length: 5001 }, (_, i) => ({ restaurantId: a.id, tradeName: 'P' + i, identityKey: 'k' + i, searchText: 'p' + i }));
+    await prisma().phProduct.createMany({ data: [...products, { restaurantId: a.id, tradeName: 'Zero', identityKey: 'zero', searchText: 'zero' }] });
+    const rows = await prisma().phProduct.findMany({ where: { restaurantId: a.id, tradeName: { not: 'Zero' } }, select: { id: true } });
+    await prisma().phBatch.createMany({ data: rows.map((r) => ({ restaurantId: a.id, productId: r.id, lot: 'L', expiryDate: new Date('2028-01-31T00:00:00.000Z') })) });
+    const batches = await prisma().phBatch.findMany({ where: { restaurantId: a.id }, select: { id: true, productId: true } });
+    await prisma().phStockBalance.createMany({ data: batches.map((x) => ({ restaurantId: a.id, branchId: b1, productId: x.productId, batchId: x.id, available: 1 })) });
+    // A live database has planner statistics (autovacuum analyzes after a bulk load); a table seeded a moment ago does not,
+    // and without them Postgres plans the NOT EXISTS as a nested loop.
+    await prisma().$executeRawUnsafe('ANALYZE "PhProduct", "PhBatch", "PhStockBalance"');
+    const out = dataOf(await ask(owner, stockQueries.balances, { ...at, outOfStock: true }));
+    expect(out.items.map((p) => p.tradeName)).toEqual(['Zero']);
+    expect(out.total).toBe(1);
+    // In the other branch nothing is sellable: every product is out there.
+    expect(dataOf(await ask(owner, stockQueries.balances, { ...at, branchId: a.branchIds[1]!, outOfStock: true })).total).toBe(5002);
+  }, 90_000);
+
   it('a search never returns another business’s product', async () => {
     const { owner, at } = await world();
     const b = await pharmacy('B');

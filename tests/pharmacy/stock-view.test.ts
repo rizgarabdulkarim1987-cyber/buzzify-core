@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { filterQuery, parseStockFilter, stockState, STOCK_FILTERS } from '@/app/pharmacy/_ui/stock-logic';
+import { filterQuery, parseStockFilter, productCount, stockState, STOCK_FILTERS } from '@/app/pharmacy/_ui/stock-logic';
+import { getStudioTranslator } from '@/studio/messages';
 import type { BatchView, ProductBalance } from '@/server/pharmacy/stock-reads';
 
 const bucket = (over: Partial<BatchView['buckets'][number]> = {}) => ({ branchId: 'b1', available: 10, reserved: 0, quarantine: 0, damaged: 0, sellable: 10, ...over });
@@ -63,5 +64,25 @@ describe('the state of a row', () => {
     expect(stockState(product({ batches: [batch({ expiryDate: '2026-10-01', expired: true }), batch({ batchId: 'y' })] }), TODAY)).toBe('ok');
     expect(stockState(product({ batches: [batch({ expiryDate: '2026-12-01', buckets: [bucket({ available: 0, sellable: 0 })] }), batch({ batchId: 'y' })] }), TODAY)).toBe('ok');
     expect(stockState(product(), TODAY)).toBe('ok');
+  });
+});
+
+describe('the product count', () => {
+  it('says the number with grouping and the right plural in each language', () => {
+    const en = getStudioTranslator('en');
+    expect(productCount(en, 1)).toBe('1 product');
+    expect(productCount(en, 1003)).toBe('1,003 products');
+    expect(productCount(en, 0)).toBe('0 products');
+    const ar = getStudioTranslator('ar');
+    expect(productCount(ar, 1)).toBe('منتج واحد');
+    expect(productCount(ar, 2)).toBe('منتجان');
+    expect(productCount(ar, 3)).toBe('3 منتجات');
+    expect(productCount(ar, 11)).toBe('11 منتجًا');
+    expect(productCount(ar, 100)).toBe('100 منتج');
+    expect(productCount(ar, 1003)).toBe('1,003 منتجات');
+    expect(productCount(ar, 0)).toBe('لا منتجات');
+    const ckb = getStudioTranslator('ckb');
+    expect(productCount(ckb, 1)).toBe('1 بەرهەم');
+    expect(productCount(ckb, 1003)).toBe('1,003 بەرهەم');
   });
 });
