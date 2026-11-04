@@ -178,6 +178,8 @@ export type CartAction =
   | { type: 'load'; cart: CartState };
 
 const clampQty = (qty: number): number => (Number.isFinite(qty) ? Math.min(MAX_QTY, Math.max(1, Math.trunc(qty))) : 1);
+/** How many an `add` puts in: a whole number from 1 (anything else handed in, NaN or infinite included, counts as one). */
+const addedQty = (qty: number | undefined): number => (qty !== undefined && Number.isFinite(qty) && qty >= 1 ? Math.trunc(qty) : 1);
 
 /** The unit a new line starts in: the one a barcode named, else the cheapest-to-count (the smallest sellable unit). */
 export function startUnit(item: AddableItem, unitId?: string): CartUnit | null {
@@ -193,7 +195,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       const unit = startUnit(action.item, action.unitId);
       if (!unit) return state;
       const same = state.lines.find((l) => l.productId === action.item.productId && l.unitId === unit.id && l.batchId === null && l.discount === null && !l.blocked);
-      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + (action.qty ?? 1)) }));
+      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + addedQty(action.qty)) }));
       if (state.lines.length >= MAX_LINES) return state;
       const line: CartLine = {
         key: `l${state.seq + 1}`,
@@ -203,7 +205,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         rxLevel: action.item.rxLevel,
         units: action.item.units.map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty, priceMinor: u.priceMinor })),
         unitId: unit.id,
-        qty: clampQty(action.qty ?? 1),
+        qty: clampQty(addedQty(action.qty)),
         sellableQty: action.item.sellableQty,
         batches: action.item.batches,
         discount: null,

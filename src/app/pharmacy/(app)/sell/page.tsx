@@ -1,5 +1,6 @@
 import { Lock, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
+import { DoctorSlot } from '@/app/pharmacy/_ui/DoctorSlot';
 import { SellWorkspace } from '@/app/pharmacy/_ui/SellWorkspace';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { current } from '@/server/pharmacy/queries/shifts';
@@ -65,6 +66,7 @@ export default async function SellPage() {
         rx: roleMay(actor, 'rx.dispense'),
         credit: found.settings.creditEnabled && roleMay(actor, 'credit.sell'),
       }}
+      aside={<DoctorSlot where="sell" />}
     />
   );
 }

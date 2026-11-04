@@ -26,7 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { discardHold, holdSale, createSale, resumeHold, sellSearch } from '@/app/pharmacy/_actions/sales';
 import { getPrescription } from '@/app/pharmacy/_actions/prescriptions';
 import { creditPaymentsOf } from './credit-logic';
@@ -45,7 +45,7 @@ import { Field } from '@/studio/ui/Field';
 import { OpenShiftPanel, type OpenShift } from './OpenShiftPanel';
 import { phMessage } from './ph-failure';
 import { AskDialog, HoldsDialog, PayDialog, ReceiptDialog } from './SellDialogs';
-import { Chip, FIELD, Note, Num, TOUCH, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
+import { Chip, Note, Num, PH_BTN, PH_FIELD, FieldInput, FieldSelect } from './sell-parts';
 import {
   blockedLines,
   buildCartRequest,
@@ -106,6 +106,8 @@ export interface SellWorkspaceProps {
   shift: OpenShift | null;
   settings: SellSettings;
   perms: SellPerms;
+  /** The start-side column beside the sale (the AI Doctor's slot): hidden below `lg:`, and while it renders nothing. */
+  aside?: ReactNode;
 }
 
 type View =
@@ -114,7 +116,12 @@ type View =
   | { kind: 'error'; message: string };
 
 /** A scan that was not simply added: said on screen until the cashier dismisses it (several can wait at once). */
-type ScanIssue = { id: number; outcome: Exclude<ScanOutcome, { kind: 'add' }> | { kind: 'failed'; code: string; message: string } };
+type ScanIssue = {
+  id: number;
+  outcome: Exclude<ScanOutcome, { kind: 'add' }> | { kind: 'failed'; code: string; message: string };
+  /** Handed in by unit id (the cart bridge, `?add=`), not scanned: said without the raw id. */
+  handIn?: boolean;
+};
 
 /** Refusals that mean the recorded prescription cannot be used any more: the sale lets go of it and asks for another. */
 const RX_DROP_CODES = ['PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_USED', 'RX_EXPIRED', 'RX_DATE_FUTURE', 'PATIENT_REQUIRED', 'DUPLICATE_PRESCRIPTION'];
@@ -140,7 +147,7 @@ function expirySoon(expiryDate: string): boolean {
  * says the sale may or may not have been recorded. A definite refusal drops the attempt. A sale is never queued.
  */
 export function SellWorkspace(props: SellWorkspaceProps) {
-  const { restaurantId, branchId, userId, settings, perms } = props;
+  const { restaurantId, branchId, userId, settings, perms, aside } = props;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -388,10 +395,10 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   };
 
   // Scans: one at a time, in order, each added or said ---------------------------------------------------------------------
-  const report = useCallback((outcome: ScanIssue['outcome']) => {
+  const report = useCallback((outcome: ScanIssue['outcome'], handIn = false) => {
     issueSeq.current += 1;
     const id = issueSeq.current;
-    setIssues((list) => [...list, { id, outcome }].slice(-MAX_ISSUES));
+    setIssues((list) => [...list, { id, outcome, ...(handIn ? { handIn } : {}) }].slice(-MAX_ISSUES));
   }, []);
   const handleScan = async (code: string) => {
     const result = await settle(() => sellSearch({ q: code, currency }));
@@ -424,13 +431,13 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     const result = await settle(() => sellSearch({ q: '', currency, unitIds: [unitId] }));
     if (!result.ok) {
       if (result.error.message === NETWORK_FAILURE) setNotSent(true);
-      report({ kind: 'failed', code: unitId, message: result.error.message === NETWORK_FAILURE ? t('pharmacy.sell.scan.failed', { code: unitId }) : phMessage(t, locale, result.error, 'pharmacy.sell') });
+      report({ kind: 'failed', code: unitId, message: result.error.message === NETWORK_FAILURE ? t('pharmacy.sell.handIn.failed') : phMessage(t, locale, result.error, 'pharmacy.sell') }, true);
       return;
     }
     setNotSent(false);
     const item = (result.data as { items: SellItem[] }).items.find((i) => i.units.some((u) => u.id === unitId));
-    if (!item) report({ kind: 'unknown', code: unitId });
-    else if (!isAddable(item)) report({ kind: 'blocked', code: unitId, item: { ...item, matchedOn: 'unit' } });
+    if (!item) report({ kind: 'unknown', code: unitId }, true);
+    else if (!isAddable(item)) report({ kind: 'blocked', code: unitId, item: { ...item, matchedOn: 'unit' } }, true);
     else {
       dispatch({ type: 'add', item, unitId, qty });
       setNotice(null);
@@ -676,241 +683,275 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     </>
   );
 
-  return (
-    <div className="flex min-w-0 flex-col gap-3 px-3 pb-24 pt-3 sm:px-6 lg:pb-6" data-testid="sell-workspace">
-      <h1 className="sr-only">{t('pharmacy.sell.title')}</h1>
-      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted" data-testid="shift-line">
-        <span className="inline-flex items-center gap-1.5 text-text">
-          <CircleCheck aria-hidden className="size-4 text-success" />
-          {t('pharmacy.sell.shift.openNow', { currency })}
-        </span>
-        <span>
-          {t('pharmacy.sell.shift.float', { currency })}: <Num>{formatMinor(BigInt(shift.openingFloatMinor), currency)}</Num>
-        </span>
-        <span>
-          <Num>{phDateTime(shift.openedAt, locale)}</Num>
-        </span>
+  // The dark-green pay bar: the total large, Hold, and the white Pay. One on the desktop (under the cart), one on the phone
+  // (at the foot of the screen); both stay in view while the cart scrolls in its own pane.
+  const payBar = (phone: boolean) => (
+    <div
+      role="region"
+      aria-label={t('pharmacy.sell.bar.region')}
+      data-testid={phone ? 'sell-bar' : 'pay-bar'}
+      className={`${phone ? 'mx-3 mb-3 flex sm:mx-6 lg:hidden' : 'hidden lg:mt-auto lg:flex'} shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[22px] bg-ph-g9 px-4 py-3 text-ph-on-green`}
+    >
+      <p className="flex min-w-0 flex-1 basis-28 flex-col">
+        <span className="text-xs text-ph-on-green-muted">{t('pharmacy.sell.totals.total')}</span>
+        <span className="break-words text-2xl font-extrabold leading-8 tracking-tight tabular-nums lg:text-[30px] lg:leading-9">{money(estimate.totalMinor)}</span>
       </p>
+      <button
+        type="button"
+        className="inline-flex min-h-14 min-w-11 shrink-0 items-center justify-center gap-2 rounded-[16px] border border-ph-on-green-muted px-4 text-sm font-semibold text-ph-on-green hover:bg-ph-g8 disabled:cursor-not-allowed disabled:opacity-45"
+        data-testid={phone ? 'hold-cart-bar' : 'hold-cart'}
+        disabled={!canHold}
+        onClick={() => void holdCart()}
+      >
+        <Pause aria-hidden className="size-4" />
+        {t('pharmacy.sell.hold')}
+        {!phone && <kbd className="text-xs font-normal text-ph-on-green-muted">F8</kbd>}
+      </button>
+      <button
+        type="button"
+        className="inline-flex min-h-14 min-w-11 flex-1 basis-32 items-center justify-center gap-2 rounded-[16px] bg-ph-card px-5 text-lg font-bold text-ph-g8 hover:bg-ph-g1 disabled:cursor-not-allowed disabled:opacity-60"
+        data-testid={phone ? 'pay-open-bar' : 'pay-open'}
+        disabled={!canPay}
+        aria-describedby={blocked ? 'pay-blocked-reason' : undefined}
+        onClick={openPay}
+      >
+        <CircleDollarSign aria-hidden className="size-5" />
+        {t('pharmacy.sell.pay')}
+        {!phone && <kbd className="text-xs font-normal text-ph-muted">F4</kbd>}
+      </button>
+      {phone && blocked && (
+        <span aria-hidden className="basis-full break-words text-xs text-ph-on-green-muted">
+          {blocked}
+        </span>
+      )}
+    </div>
+  );
 
-      {showOffline && (
-        <Note icon={<CloudOff aria-hidden />} tone="danger" role="alert" testId="sell-offline">
-          {t('pharmacy.sell.offline.banner')}
-        </Note>
-      )}
-      {restored && cart.lines.length > 0 && (
-        <Note icon={<Undo2 aria-hidden />} tone="info" role="status" testId="draft-restored">
-          {t('pharmacy.sell.draft.restored')}
-        </Note>
-      )}
-      {pending && !payOpen && !sale && (
-        <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert" testId="attempt-unknown">
-          {t('pharmacy.sell.attempt.unknown')}
-        </Note>
-      )}
-      {heldBlocked.length > 0 && (
-        <Note icon={<Ban aria-hidden />} tone="danger" role="alert" testId="held-blocked">
-          {t('pharmacy.sell.holds.blocked', { count: heldBlocked.length, names: heldBlocked.map((l) => l.name).join(', ') })}
-        </Note>
-      )}
-      {notice && (
-        <Note icon={notice.tone === 'danger' ? <CircleAlert aria-hidden /> : <CircleCheck aria-hidden />} tone={notice.tone} role="status" testId="sell-notice">
-          {notice.text}
-        </Note>
-      )}
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="sell-workspace">
+      <h1 className="sr-only">{t('pharmacy.sell.title')}</h1>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        {/* The start-side column for the AI Doctor: it takes no room while the slot renders nothing. */}
+        <aside className="hidden min-h-0 w-[340px] shrink-0 flex-col gap-2.5 overflow-y-auto py-3 ps-3 sm:ps-6 lg:flex lg:empty:hidden" data-testid="sell-doctor-slot">
+          {aside}
+        </aside>
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+          {/* Search and results */}
+          <div className="flex min-w-0 flex-col gap-3 px-3 pb-3 pt-3 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:pb-6 lg:pe-3">
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-ph-text">
+                <CircleCheck aria-hidden className="size-4 text-ph-g6" />
+                {t('pharmacy.sell.shift.openNow', { currency })}
+              </span>
+              <span>
+                {t('pharmacy.sell.shift.float', { currency })}: <Num>{formatMinor(BigInt(shift.openingFloatMinor), currency)}</Num>
+              </span>
+              <span>
+                <Num>{phDateTime(shift.openedAt, locale)}</Num>
+              </span>
+            </p>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:items-start">
-        {/* Search and results */}
-        <section aria-label={t('pharmacy.sell.search.region')} className="flex min-w-0 flex-col gap-3">
-          <Field label={t('pharmacy.sell.search.label')} hint={t('pharmacy.sell.search.hint')}>
-            <div className="relative">
-              <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-muted" />
-              <FieldInput
-                ref={searchBox}
-                type="search"
-                dir="auto"
-                autoComplete="off"
-                enterKeyHint="search"
-                autoFocus
-                data-testid="sell-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  // A scanner's closing Enter was already taken by the scan capture (default prevented): it must not also add the top result.
-                  if (event.nativeEvent.defaultPrevented) return;
-                  if (shortcutOf(event.nativeEvent, true) === 'addTop') {
-                    event.preventDefault();
-                    void addTop();
-                  }
-                }}
-                className={`${FIELD} min-h-12 ps-10 text-md`}
-              />
-            </div>
-          </Field>
-
-          <div aria-live="polite" className="flex min-w-0 flex-col gap-2" data-testid="sell-results">
-            {searching && (
-              <Note icon={<Hourglass aria-hidden />} role="status">
-                {t('pharmacy.sell.searching')}
+            {showOffline && (
+              <Note look="ph" icon={<CloudOff aria-hidden />} tone="danger" role="alert" testId="sell-offline">
+                {t('pharmacy.sell.offline.banner')}
               </Note>
             )}
-            {view.kind === 'idle' && !searching && (
-              <p className="flex items-center gap-2.5 py-3 text-sm text-muted" data-testid="sell-idle">
-                <Barcode aria-hidden className="size-4 shrink-0" />
-                {t('pharmacy.sell.idle')}
-              </p>
-            )}
-            {view.kind === 'error' && (
-              <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="search-error">
-                {view.message}
+            {restored && cart.lines.length > 0 && (
+              <Note look="ph" icon={<Undo2 aria-hidden />} tone="info" role="status" testId="draft-restored">
+                {t('pharmacy.sell.draft.restored')}
               </Note>
             )}
-            {issues.map((issue) => (
-              <ScanIssueCard key={issue.id} issue={issue} currency={currency} add={add} dismiss={() => dismissIssue(issue.id)} t={t} />
-            ))}
-            {view.kind === 'results' &&
-              (view.items.length === 0 ? (
-                <p className="flex items-center gap-2.5 py-3 text-sm text-text" data-testid="sell-empty">
-                  <SearchX aria-hidden className="size-4 shrink-0 text-muted" />
-                  {t('pharmacy.sell.empty', { q: view.q })}
+            {pending && !payOpen && !sale && (
+              <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="alert" testId="attempt-unknown">
+                {t('pharmacy.sell.attempt.unknown')}
+              </Note>
+            )}
+            {heldBlocked.length > 0 && (
+              <Note look="ph" icon={<Ban aria-hidden />} tone="danger" role="alert" testId="held-blocked">
+                {t('pharmacy.sell.holds.blocked', { count: heldBlocked.length, names: heldBlocked.map((l) => l.name).join(', ') })}
+              </Note>
+            )}
+            {notice && (
+              <Note look="ph" icon={notice.tone === 'danger' ? <CircleAlert aria-hidden /> : <CircleCheck aria-hidden />} tone={notice.tone} role="status" testId="sell-notice">
+                {notice.text}
+              </Note>
+            )}
+
+            <section aria-label={t('pharmacy.sell.search.region')} className="flex min-w-0 flex-col gap-3">
+              <Field label={t('pharmacy.sell.search.label')} hint={t('pharmacy.sell.search.hint')}>
+                <div className="relative">
+                  <Barcode aria-hidden className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-ph-muted" />
+                  <FieldInput
+                    ref={searchBox}
+                    type="search"
+                    dir="auto"
+                    autoComplete="off"
+                    enterKeyHint="search"
+                    autoFocus
+                    data-testid="sell-search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      // A scanner's closing Enter was already taken by the scan capture (default prevented): it must not also add the top result.
+                      if (event.nativeEvent.defaultPrevented) return;
+                      if (shortcutOf(event.nativeEvent, true) === 'addTop') {
+                        event.preventDefault();
+                        void addTop();
+                      }
+                    }}
+                    className="min-h-[54px] w-full min-w-0 rounded-[18px] border-2 border-ph-line bg-ph-card pe-4 ps-12 text-md text-ph-text focus:border-ph-accent"
+                  />
+                </div>
+              </Field>
+
+              <div aria-live="polite" className="flex min-w-0 flex-col gap-2" data-testid="sell-results">
+                {searching && (
+                  <Note look="ph" icon={<Hourglass aria-hidden />} role="status">
+                    {t('pharmacy.sell.searching')}
+                  </Note>
+                )}
+                {view.kind === 'idle' && !searching && (
+                  <p className="flex items-center gap-2.5 py-3 text-sm text-ph-muted" data-testid="sell-idle">
+                    <Search aria-hidden className="size-4 shrink-0" />
+                    {t('pharmacy.sell.idle')}
+                  </p>
+                )}
+                {view.kind === 'error' && (
+                  <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="search-error">
+                    {view.message}
+                  </Note>
+                )}
+                {issues.map((issue) => (
+                  <ScanIssueCard key={issue.id} issue={issue} currency={currency} add={add} dismiss={() => dismissIssue(issue.id)} t={t} />
+                ))}
+                {view.kind === 'results' &&
+                  (view.items.length === 0 ? (
+                    <p className="flex items-center gap-2.5 py-3 text-sm text-ph-text" data-testid="sell-empty">
+                      <SearchX aria-hidden className="size-4 shrink-0 text-ph-muted" />
+                      {t('pharmacy.sell.empty', { q: view.q })}
+                    </p>
+                  ) : (
+                    <ResultList items={view.items} currency={currency} onAdd={add} addable={addable} t={t} />
+                  ))}
+              </div>
+            </section>
+          </div>
+
+          {/* Cart, then (on a desktop) the pay bar under it */}
+          <div className="flex min-w-0 flex-col gap-3 px-3 pb-3 sm:px-6 lg:min-h-0 lg:pb-4 lg:ps-3 lg:pt-3">
+            <section aria-labelledby="cart-title" className="flex min-w-0 flex-col gap-3 rounded-[22px] bg-ph-card p-4 lg:min-h-0 lg:overflow-y-auto" data-testid="cart">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 id="cart-title" className="flex items-center gap-2 text-base font-bold text-ph-text">
+                  <ShoppingCart aria-hidden className="size-5 shrink-0 text-ph-g6" />
+                  {t('pharmacy.sell.cart.title')}
+                  <span className="text-sm font-normal text-ph-muted" data-testid="cart-count">
+                    ({cart.lines.length})
+                  </span>
+                </h2>
+                <span className="flex flex-wrap gap-2">
+                  <button type="button" className={PH_BTN} data-testid="open-holds" onClick={() => setHoldsOpen(true)}>
+                    <Pause aria-hidden className="size-4" />
+                    {t('pharmacy.sell.holds.open')}
+                  </button>
+                  <button type="button" className={PH_BTN} data-testid="clear-cart" disabled={cart.lines.length === 0} onClick={() => setAskClear(true)}>
+                    <Trash2 aria-hidden className="size-4" />
+                    {t('pharmacy.sell.cart.clear')}
+                  </button>
+                </span>
+              </div>
+
+              {cart.lines.length === 0 ? (
+                <p className="flex items-center gap-2.5 py-6 text-sm text-ph-muted" data-testid="cart-empty">
+                  <ShoppingCart aria-hidden className="size-4 shrink-0" />
+                  {t('pharmacy.sell.cart.empty')}
                 </p>
               ) : (
-                <ResultList items={view.items} currency={currency} onAdd={add} addable={addable} t={t} />
-              ))}
-          </div>
-        </section>
+                <ul className="flex flex-col divide-y divide-ph-line" data-testid="cart-lines">
+                  {cart.lines.map((line) => (
+                    <CartRow
+                      key={line.key}
+                      line={line}
+                      currency={currency}
+                      total={estimate.lines.find((l) => l.key === line.key)}
+                      over={over.has(line.productId)}
+                      perms={perms}
+                      t={t}
+                      dispatch={dispatch}
+                    />
+                  ))}
+                </ul>
+              )}
 
-        {/* Cart */}
-        <section aria-labelledby="cart-title" className="flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-raised p-3 lg:sticky lg:top-3" data-testid="cart">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="cart-title" className="flex items-center gap-2 text-md font-semibold text-text">
-              <ShoppingCart aria-hidden className="size-4 shrink-0" />
-              {t('pharmacy.sell.cart.title')}
-              <span className="text-sm font-normal text-muted" data-testid="cart-count">
-                ({cart.lines.length})
-              </span>
-            </h2>
-            <span className="flex flex-wrap gap-2">
-              <button type="button" className={TOUCH_BTN} data-testid="open-holds" onClick={() => setHoldsOpen(true)}>
-                <Pause aria-hidden className="size-4" />
-                {t('pharmacy.sell.holds.open')}
-              </button>
-              <button type="button" className={TOUCH_BTN} data-testid="clear-cart" disabled={cart.lines.length === 0} onClick={() => setAskClear(true)}>
-                <Trash2 aria-hidden className="size-4" />
-                {t('pharmacy.sell.cart.clear')}
-              </button>
-            </span>
-          </div>
-
-          {cart.lines.length === 0 ? (
-            <p className="flex items-center gap-2.5 py-6 text-sm text-muted" data-testid="cart-empty">
-              <ShoppingCart aria-hidden className="size-4 shrink-0" />
-              {t('pharmacy.sell.cart.empty')}
-            </p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line" data-testid="cart-lines">
-              {cart.lines.map((line) => (
-                <CartRow
-                  key={line.key}
-                  line={line}
-                  currency={currency}
-                  total={estimate.lines.find((l) => l.key === line.key)}
-                  over={over.has(line.productId)}
-                  perms={perms}
-                  t={t}
-                  dispatch={dispatch}
-                />
-              ))}
-            </ul>
-          )}
-
-          {cart.lines.length > 0 && (
-            <div className="flex flex-col gap-3 border-t border-line pt-3">
-              <RxCartPanel
-                lines={rxLines}
-                maxQty={settings.controlledMaxQty}
-                attached={rx !== null}
-                number={rx?.number ?? null}
-                mayDispense={perms.rx}
-                onOpen={() => setRxOpen(true)}
-                onDetach={() => setRx(null)}
-              />
-              {perms.discount && (
-                <div className="flex flex-col gap-2">
-                  <DiscountEditor
-                    label={t('pharmacy.sell.discount.invoice')}
-                    value={cart.invoiceDiscount}
-                    currency={currency}
-                    testId="invoice-discount"
-                    t={t}
-                    onChange={(discount) => dispatch({ type: 'invoiceDiscount', discount })}
+              {cart.lines.length > 0 && (
+                <div className="flex flex-col gap-3 border-t border-ph-line pt-3">
+                  <RxCartPanel
+                    lines={rxLines}
+                    maxQty={settings.controlledMaxQty}
+                    attached={rx !== null}
+                    number={rx?.number ?? null}
+                    mayDispense={perms.rx}
+                    onOpen={() => setRxOpen(true)}
+                    onDetach={() => setRx(null)}
                   />
-                  {anyDiscount && (
-                    <Field label={t('pharmacy.sell.discount.reason')} hint={t('pharmacy.sell.discount.reasonHint', { percent: settings.maxDiscountPercent })} optional>
-                      <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={300} data-testid="discount-reason" value={cart.discountReason} onChange={(event) => dispatch({ type: 'discountReason', reason: event.target.value })} />
-                    </Field>
+                  {perms.discount && (
+                    <div className="flex flex-col gap-2">
+                      <DiscountEditor
+                        label={t('pharmacy.sell.discount.invoice')}
+                        value={cart.invoiceDiscount}
+                        currency={currency}
+                        testId="invoice-discount"
+                        t={t}
+                        onChange={(discount) => dispatch({ type: 'invoiceDiscount', discount })}
+                      />
+                      {anyDiscount && (
+                        <Field label={t('pharmacy.sell.discount.reason')} hint={t('pharmacy.sell.discount.reasonHint', { percent: settings.maxDiscountPercent })} optional>
+                          <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={300} data-testid="discount-reason" value={cart.discountReason} onChange={(event) => dispatch({ type: 'discountReason', reason: event.target.value })} />
+                        </Field>
+                      )}
+                    </div>
                   )}
+                  <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm text-ph-text" data-testid="cart-totals">
+                    <dt className="text-ph-muted">{t('pharmacy.sell.totals.subtotal')}</dt>
+                    <dd className="text-end tabular-nums">{money(estimate.grossMinor)}</dd>
+                    {estimate.lineDiscountMinor + estimate.invoiceDiscountMinor > 0n && (
+                      <>
+                        <dt className="text-ph-muted">{t('pharmacy.sell.totals.discount')}</dt>
+                        <dd className="text-end tabular-nums">−{money(estimate.lineDiscountMinor + estimate.invoiceDiscountMinor)}</dd>
+                      </>
+                    )}
+                    {estimate.roundingMinor !== 0n && (
+                      <>
+                        <dt className="text-ph-muted">{t('pharmacy.sell.totals.rounding')}</dt>
+                        <dd className="text-end tabular-nums">{money(estimate.roundingMinor)}</dd>
+                      </>
+                    )}
+                    <dt className="text-md font-semibold">
+                      {t('pharmacy.sell.totals.total')}
+                      <span className="ms-2 inline-flex items-center gap-1 text-xs font-normal text-ph-muted" data-testid="estimate-mark">
+                        <Tag aria-hidden className="size-3" />
+                        {t('pharmacy.sell.estimate')}
+                      </span>
+                    </dt>
+                    <dd className="text-end text-lg font-bold tabular-nums" data-testid="cart-total">
+                      {money(estimate.totalMinor)}
+                    </dd>
+                  </dl>
                 </div>
               )}
-              <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm text-text" data-testid="cart-totals">
-                <dt className="text-muted">{t('pharmacy.sell.totals.subtotal')}</dt>
-                <dd className="text-end">{money(estimate.grossMinor)}</dd>
-                {estimate.lineDiscountMinor + estimate.invoiceDiscountMinor > 0n && (
-                  <>
-                    <dt className="text-muted">{t('pharmacy.sell.totals.discount')}</dt>
-                    <dd className="text-end">−{money(estimate.lineDiscountMinor + estimate.invoiceDiscountMinor)}</dd>
-                  </>
-                )}
-                {estimate.roundingMinor !== 0n && (
-                  <>
-                    <dt className="text-muted">{t('pharmacy.sell.totals.rounding')}</dt>
-                    <dd className="text-end">{money(estimate.roundingMinor)}</dd>
-                  </>
-                )}
-                <dt className="text-md font-semibold">
-                  {t('pharmacy.sell.totals.total')}
-                  <span className="ms-2 inline-flex items-center gap-1 text-xs font-normal text-muted" data-testid="estimate-mark">
-                    <Tag aria-hidden className="size-3" />
-                    {t('pharmacy.sell.estimate')}
-                  </span>
-                </dt>
-                <dd className="text-end text-lg font-semibold" data-testid="cart-total">
-                  {money(estimate.totalMinor)}
-                </dd>
-              </dl>
-              {blocked && (
-                <Note icon={<TriangleAlert aria-hidden />} role="status" testId="pay-blocked">
+            </section>
+            {cart.lines.length > 0 && blocked && (
+              <div id="pay-blocked-reason" className="shrink-0">
+                <Note look="ph" icon={<TriangleAlert aria-hidden />} role="status" testId="pay-blocked">
                   {blocked}
                 </Note>
-              )}
-              <div className="hidden gap-2 lg:flex">
-                <button type="button" className={`${TOUCH_BTN} flex-1`} data-testid="hold-cart" disabled={!canHold} onClick={() => void holdCart()}>
-                  <Pause aria-hidden className="size-4" />
-                  {t('pharmacy.sell.hold')} <kbd className="text-xs text-muted">F8</kbd>
-                </button>
-                <button type="button" className={`${TOUCH_PRIMARY} flex-[2]`} data-testid="pay-open" disabled={!canPay} onClick={openPay}>
-                  <CircleDollarSign aria-hidden className="size-4" />
-                  {t('pharmacy.sell.pay')} <kbd className="text-xs opacity-80">F4</kbd>
-                </button>
               </div>
-            </div>
-          )}
-        </section>
+            )}
+            {cart.lines.length > 0 && payBar(false)}
+          </div>
+        </div>
       </div>
 
-      {/* The phone's bar: the total and the two actions stay in reach. */}
-      {cart.lines.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-line bg-raised px-3 py-2 lg:hidden" data-testid="sell-bar">
-          <span className="min-w-0 flex-1 text-md font-semibold text-text">{money(estimate.totalMinor)}</span>
-          <button type="button" className={TOUCH_BTN} data-testid="hold-cart-bar" disabled={!canHold} onClick={() => void holdCart()}>
-            <Pause aria-hidden className="size-4" />
-            {t('pharmacy.sell.hold')}
-          </button>
-          <button type="button" className={TOUCH_PRIMARY} data-testid="pay-open-bar" disabled={!canPay} onClick={openPay}>
-            <CircleDollarSign aria-hidden className="size-4" />
-            {t('pharmacy.sell.pay')}
-          </button>
-        </div>
-      )}
+      {cart.lines.length > 0 && payBar(true)}
 
       <PayDialog
         open={payOpen}
@@ -1000,52 +1041,52 @@ function ResultList({
       {items.map((item) => {
         const ok = addable(item);
         return (
-          <li key={item.productId} data-testid="result" className="flex min-w-0 flex-col gap-2 rounded-lg border border-line bg-raised p-3">
+          <li key={item.productId} data-testid="result" className="flex min-w-0 flex-col gap-2 rounded-[18px] bg-ph-card p-3.5">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="break-words text-base font-semibold text-text" dir="auto">
+              <p className="break-words text-base font-semibold text-ph-text" dir="auto">
                 {item.tradeName}
               </p>
-              <p className="break-words text-sm text-muted" dir="auto">
+              <p className="break-words text-sm text-ph-muted" dir="auto">
                 {[item.strength, item.form, item.packLabel].filter((p) => p.trim() !== '').join(' · ')}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {item.rxLevel === 'RX' && (
-                <Chip icon={<Pill aria-hidden />} testId="chip-rx">
+                <Chip icon={<Pill aria-hidden />} look="ph" testId="chip-rx">
                   {t('pharmacy.sell.chip.rx')}
                 </Chip>
               )}
               {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} testId="chip-controlled">
+                <Chip icon={<ShieldAlert aria-hidden />} look="ph" testId="chip-controlled">
                   {t('pharmacy.sell.chip.controlled')}
                 </Chip>
               )}
               {item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} tone="danger" testId="chip-notSellable">
+                <Chip icon={<ShieldAlert aria-hidden />} tone="danger" look="ph" testId="chip-notSellable">
                   {t('pharmacy.sell.chip.notSellable')}
                 </Chip>
               )}
               {item.noPrice && (
-                <Chip icon={<Ban aria-hidden />} tone="danger" testId="chip-noPrice">
+                <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="chip-noPrice">
                   {t('pharmacy.sell.chip.noPrice')}
                 </Chip>
               )}
               {item.sellableQty <= 0 && !item.notSellable && (
-                <Chip icon={<PackageX aria-hidden />} tone="danger" testId="chip-outOfStock">
+                <Chip icon={<PackageX aria-hidden />} tone="danger" look="ph" testId="chip-outOfStock">
                   {t('pharmacy.sell.chip.outOfStock')}
                 </Chip>
               )}
               {item.sellableQty > 0 && (
-                <span className="text-sm text-text" data-testid="sellable-qty">
+                <span className="text-sm text-ph-text" data-testid="sellable-qty">
                   {t('pharmacy.sell.sellable')}: <Num>{item.sellableQty}</Num>
                 </span>
               )}
             </div>
             {item.batches.length > 0 && (
-              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted" data-testid="batch-strip">
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ph-muted" data-testid="batch-strip">
                 <CalendarClock aria-hidden className="size-3.5 shrink-0" />
                 {item.batches.slice(0, 3).map((b) => (
-                  <span key={b.batchId} className={expirySoon(b.expiryDate) ? 'font-medium text-text' : ''}>
+                  <span key={b.batchId} className={expirySoon(b.expiryDate) ? 'font-semibold text-ph-amber-ink' : ''}>
                     <Num>{b.lot}</Num> · <Num>{b.expiryDate.slice(0, 7)}</Num> · <Num>{b.available}</Num>
                     {expirySoon(b.expiryDate) ? ` · ${t('pharmacy.sell.chip.soon')}` : ''}
                   </span>
@@ -1065,7 +1106,7 @@ function ResultList({
                       onAdd(item, unit.id);
                       onDone?.();
                     }}
-                    className={`${TOUCH} flex-1 basis-28 border border-line-strong bg-raised text-text hover:bg-hover active:bg-pressed disabled:cursor-not-allowed disabled:opacity-45`}
+                    className={`${PH_BTN} flex-1 basis-28`}
                   >
                     <Plus aria-hidden className="size-4" />
                     <span dir="auto">{unit.label}</span>
@@ -1087,7 +1128,7 @@ function ResultList({
 function ScanIssueCard({ issue, currency, add, dismiss, t }: { issue: ScanIssue; currency: Currency; add: (item: AddableItem, unitId?: string) => void; dismiss: () => void; t: ReturnType<typeof useT> }) {
   const o = issue.outcome;
   const dismissButton = (
-    <button type="button" className={TOUCH_BTN} onClick={dismiss} data-testid="scan-dismiss">
+    <button type="button" className={PH_BTN} onClick={dismiss} data-testid="scan-dismiss">
       <X aria-hidden className="size-4" />
       {t('pharmacy.sell.scan.dismiss')}
     </button>
@@ -1095,7 +1136,7 @@ function ScanIssueCard({ issue, currency, add, dismiss, t }: { issue: ScanIssue;
   if (o.kind === 'pick') {
     return (
       <div className="flex flex-col gap-2" data-testid="scan-pick">
-        <Note icon={<ListChecks aria-hidden />} tone="info" role="status">
+        <Note look="ph" icon={<ListChecks aria-hidden />} tone="info" role="status">
           {t('pharmacy.sell.scan.pick', { code: o.code })}
         </Note>
         <ResultList items={o.items} currency={currency} onAdd={add} addable={isAddable} t={t} onDone={dismiss} />
@@ -1104,11 +1145,19 @@ function ScanIssueCard({ issue, currency, add, dismiss, t }: { issue: ScanIssue;
     );
   }
   const text =
-    o.kind === 'unknown' ? t('pharmacy.sell.scan.unknown', { code: o.code }) : o.kind === 'blocked' ? t('pharmacy.sell.scan.blocked', { code: o.code, name: o.item.tradeName }) : o.message;
+    o.kind === 'unknown'
+      ? issue.handIn
+        ? t('pharmacy.sell.handIn.unknown')
+        : t('pharmacy.sell.scan.unknown', { code: o.code })
+      : o.kind === 'blocked'
+        ? issue.handIn
+          ? t('pharmacy.sell.handIn.blocked', { name: o.item.tradeName })
+          : t('pharmacy.sell.scan.blocked', { code: o.code, name: o.item.tradeName })
+        : o.message;
   return (
     <div className="flex flex-wrap items-start gap-2" data-testid={`scan-${o.kind}`}>
       <div className="min-w-0 flex-1 basis-60">
-        <Note icon={o.kind === 'unknown' ? <SearchX aria-hidden /> : <CircleAlert aria-hidden />} tone="danger" role="alert">
+        <Note look="ph" icon={o.kind === 'unknown' ? <SearchX aria-hidden /> : <CircleAlert aria-hidden />} tone="danger" role="alert">
           {text}
         </Note>
       </div>
@@ -1128,7 +1177,7 @@ function QtyInput({ value, label, onCommit }: { value: number; label: string; on
   const [typed, setTyped] = useState<string | null>(null);
   return (
     <input
-      className="min-h-11 w-14 min-w-0 border-y border-line-strong bg-raised text-center text-base font-semibold text-text"
+      className="min-h-11 w-12 min-w-0 bg-transparent text-center text-base font-bold tabular-nums text-ph-text"
       dir="ltr"
       inputMode="numeric"
       autoComplete="off"
@@ -1167,7 +1216,7 @@ function DiscountEditor({
     <div className="flex flex-wrap items-end gap-2" data-testid={testId}>
       <Field label={label} className="min-w-0 flex-1 basis-32">
         <FieldInput
-          className={FIELD}
+          className={PH_FIELD}
           dir="ltr"
           inputMode="decimal"
           autoComplete="off"
@@ -1182,7 +1231,7 @@ function DiscountEditor({
             type="button"
             aria-pressed={draft.kind === kind}
             onClick={() => onChange({ ...draft, kind })}
-            className={`${TOUCH} border ${draft.kind === kind ? 'border-ink bg-ink text-on-ink' : 'border-line-strong bg-raised text-text hover:bg-hover'}`}
+            className={`${PH_BTN} ${draft.kind === kind ? 'border-ph-g8 bg-ph-g8 text-ph-on-green hover:bg-ph-g8' : ''}`}
           >
             {kind === 'percent' ? '%' : currency}
           </button>
@@ -1191,6 +1240,15 @@ function DiscountEditor({
     </div>
   );
 }
+
+/** The line's tile: green for an over-the-counter product, blue for a prescription one, amber for a controlled one (the chips say it in words). */
+const THUMB: Record<CartLine['rxLevel'], string> = {
+  OTC: 'bg-ph-g1 text-ph-g6',
+  RX: 'bg-ph-blue-wash text-ph-blue',
+  RESTRICTED: 'bg-ph-amber-wash text-ph-amber-ink',
+};
+/** A 44 px stepper button on the quantity's cream pill. */
+const STEP = 'grid size-11 shrink-0 place-items-center rounded-[12px] text-ph-text hover:bg-ph-line disabled:cursor-not-allowed disabled:opacity-45';
 
 function CartRow({
   line,
@@ -1212,60 +1270,63 @@ function CartRow({
   const unit = unitOf(line);
   return (
     <li data-testid="cart-line" data-blocked={line.blocked ?? undefined} className="flex min-w-0 flex-col gap-2 py-3 first:pt-0">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <p className="min-w-0">
-          <span className="block break-words text-base font-semibold text-text" dir="auto">
+      <div className="flex min-w-0 items-start gap-3">
+        <span aria-hidden className={`mt-0.5 grid size-[38px] shrink-0 place-items-center rounded-[12px] [&_svg]:size-5 ${THUMB[line.rxLevel]}`}>
+          {line.rxLevel === 'RESTRICTED' ? <ShieldAlert /> : <Pill />}
+        </span>
+        <p className="min-w-0 flex-1">
+          <span className="block break-words text-base font-semibold text-ph-text" dir="auto">
             {line.name}
           </span>
           {line.detail && (
-            <span className="block break-words text-sm text-muted" dir="auto">
+            <span className="block break-words text-sm text-ph-muted" dir="auto">
               {line.detail}
             </span>
           )}
         </p>
-        <button type="button" className={TOUCH_BTN} aria-label={t('pharmacy.sell.cart.remove', { name: line.name })} data-testid="remove-line" onClick={() => dispatch({ type: 'remove', key: line.key })}>
+        <button type="button" className={`${PH_BTN} shrink-0`} aria-label={t('pharmacy.sell.cart.remove', { name: line.name })} data-testid="remove-line" onClick={() => dispatch({ type: 'remove', key: line.key })}>
           <Trash2 aria-hidden className="size-4" />
         </button>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
         {line.blocked && (
-          <Chip icon={<Ban aria-hidden />} tone="danger" testId="chip-blocked">
+          <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="chip-blocked">
             {t(`pharmacy.sell.line.blocked.${line.blocked}`)}
           </Chip>
         )}
         {line.rxLevel === 'RX' && (
-          <Chip icon={<Pill aria-hidden />}>{t('pharmacy.sell.chip.rx')}</Chip>
+          <Chip look="ph" icon={<Pill aria-hidden />}>{t('pharmacy.sell.chip.rx')}</Chip>
         )}
         {line.rxLevel === 'RESTRICTED' && !line.blocked && (
-          <Chip icon={<ShieldAlert aria-hidden />}>{t('pharmacy.sell.chip.controlled')}</Chip>
+          <Chip look="ph" icon={<ShieldAlert aria-hidden />}>{t('pharmacy.sell.chip.controlled')}</Chip>
         )}
         {unit.priceMinor === null && !line.blocked && (
-          <Chip icon={<Ban aria-hidden />} tone="danger">
+          <Chip look="ph" icon={<Ban aria-hidden />} tone="danger">
             {t('pharmacy.sell.chip.noPrice')}
           </Chip>
         )}
         {over && (
-          <Chip icon={<TriangleAlert aria-hidden />} tone="danger" testId="chip-over">
+          <Chip icon={<TriangleAlert aria-hidden />} tone="danger" look="ph" testId="chip-over">
             {t('pharmacy.sell.chip.over', { qty: line.sellableQty })}
           </Chip>
         )}
         {line.batchId && (
-          <Chip icon={<CalendarClock aria-hidden />}>
+          <Chip look="ph" icon={<CalendarClock aria-hidden />}>
             {t('pharmacy.sell.batch.chosen')} <Num>{line.batchLot}</Num>
           </Chip>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center" role="group" aria-label={t('pharmacy.sell.cart.qty')}>
-          <button type="button" className={TOUCH_BTN} aria-label={t('pharmacy.sell.cart.less')} data-testid="qty-less" disabled={line.qty <= 1} onClick={() => dispatch({ type: 'step', key: line.key, delta: -1 })}>
+        <div className="inline-flex items-center rounded-[12px] bg-ph-canvas" role="group" aria-label={t('pharmacy.sell.cart.qty')}>
+          <button type="button" className={STEP} aria-label={t('pharmacy.sell.cart.less')} data-testid="qty-less" disabled={line.qty <= 1} onClick={() => dispatch({ type: 'step', key: line.key, delta: -1 })}>
             <Minus aria-hidden className="size-4" />
           </button>
           <QtyInput value={line.qty} label={t('pharmacy.sell.cart.qty')} onCommit={(qty) => dispatch({ type: 'qty', key: line.key, qty })} />
-          <button type="button" className={TOUCH_BTN} aria-label={t('pharmacy.sell.cart.more')} data-testid="qty-more" onClick={() => dispatch({ type: 'step', key: line.key, delta: 1 })}>
+          <button type="button" className={STEP} aria-label={t('pharmacy.sell.cart.more')} data-testid="qty-more" onClick={() => dispatch({ type: 'step', key: line.key, delta: 1 })}>
             <Plus aria-hidden className="size-4" />
           </button>
         </div>
-        <span className="ms-auto text-md font-semibold text-text" data-testid="line-total">
+        <span className="ms-auto text-md font-bold tabular-nums text-ph-text" data-testid="line-total">
           {total && !total.unpriced ? (
             <>
               <Num>{formatMinor(total.totalMinor, currency)}</Num> {currency}
@@ -1276,7 +1337,7 @@ function CartRow({
         </span>
         {line.units.length > 1 ? (
           <select
-            className={`${FIELD} basis-full pe-8`}
+            className={`${PH_FIELD} basis-full pe-8`}
             aria-label={t('pharmacy.sell.cart.unit')}
             data-testid="unit-select"
             value={line.unitId}
@@ -1290,18 +1351,18 @@ function CartRow({
             ))}
           </select>
         ) : (
-          <span className="text-sm text-muted" dir="auto">
+          <span className="text-sm text-ph-muted" dir="auto">
             {unit.label}
           </span>
         )}
       </div>
       {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
         <details className="min-w-0" data-testid="line-more">
-          <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
+          <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[12px] px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
             <Tag aria-hidden className="size-4 shrink-0" />
             {t('pharmacy.sell.cart.more.open')}
           </summary>
-          <div className="mt-2 flex flex-col gap-3 rounded-md border border-line bg-surface p-3">
+          <div className="mt-2 flex flex-col gap-3 rounded-[12px] border border-ph-line bg-ph-canvas p-3">
             {perms.discount && (
               <DiscountEditor label={t('pharmacy.sell.discount.line')} value={line.discount} currency={currency} testId="line-discount" t={t} onChange={(discount) => dispatch({ type: 'discount', key: line.key, discount })} />
             )}
@@ -1309,7 +1370,7 @@ function CartRow({
               <>
                 <Field label={t('pharmacy.sell.batch.label')} hint={t('pharmacy.sell.batch.hint')}>
                   <FieldSelect
-                    className={`${FIELD} pe-8`}
+                    className={`${PH_FIELD} pe-8 bg-ph-card`}
                     data-testid="batch-select"
                     value={line.batchId ?? ''}
                     onChange={(event) => {
@@ -1328,7 +1389,7 @@ function CartRow({
                 {line.batchId && (
                   <Field label={t('pharmacy.sell.batch.reason')} error={line.batchReason.trim().length < 3 ? t('pharmacy.sell.batch.reasonNeeded') : undefined}>
                     <FieldInput
-                      className={FIELD}
+                      className={`${PH_FIELD} bg-ph-card`}
                       dir="auto"
                       autoComplete="off"
                       maxLength={300}
