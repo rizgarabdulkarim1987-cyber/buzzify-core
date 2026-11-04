@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { readPlans } from '@/server/data/plans';
+import { customerLinks, customerMessage, type CustomerLink } from '@/server/domain/customer-links';
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
+import { hostEnv } from '@/server/env';
+import { cashierSubscriptionOf } from '@/server/pos/subscription';
 import type { Permission } from '@/server/domain/permissions';
 import { BUSINESS_SECTORS, formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -186,6 +189,38 @@ export const getRestaurant = defineQuery({
         media: can('media.manage'),
       },
     };
+  },
+});
+
+/**
+ * The addresses to send a new customer, and the message to paste, for the Super Admin's "Customer links" card. The email
+ * in the message is the owner's, or the address of the owner invitation still waiting; empty if there is neither. No
+ * password, and never the super admin's own host.
+ */
+export const restaurantCustomerLinks = defineQuery({
+  name: 'restaurants.customerLinks',
+  permission: 'view',
+  input: z.object({ restaurantId: idField }),
+  target: (i) => atRestaurant(i.restaurantId),
+  run: async (ctx) => {
+    if (!ctx.actor.isSuperAdmin) return { links: [] as CustomerLink[], message: '' };
+    const restaurantId = restaurantOf(ctx);
+    const [restaurant, menus, cashier, owner, invitation] = await Promise.all([
+      ctx.db.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } }),
+      ctx.db.menu.findMany({ where: { restaurantId, status: { not: 'ARCHIVED' } }, orderBy: { createdAt: 'asc' }, select: { name: true, slug: true } }),
+      cashierSubscriptionOf(ctx.db, restaurantId),
+      ctx.db.membership.findFirst({ where: { restaurantId, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { email: true } } } }),
+      ctx.db.invitation.findFirst({ where: { restaurantId, role: 'OWNER', acceptedAt: null, revokedAt: null }, orderBy: { id: 'desc' }, select: { email: true } }),
+    ]);
+    if (!restaurant) throw new StudioError('NOT_FOUND');
+    const { studioHost, pharmacyHost, publicOrigin } = hostEnv();
+    const links = customerLinks({
+      sector: restaurant.sector,
+      hasCashier: cashier !== null && cashier.state !== 'EXPIRED' && cashier.state !== 'CANCELLED',
+      menus,
+      hosts: { studioHost, pharmacyHost, publicOrigin },
+    });
+    return { links, message: customerMessage(links, owner?.user.email ?? invitation?.email ?? '') };
   },
 });
 

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getActor } from '@/server/studio/auth/actor';
-import { SIGN_IN_PATH } from '@/server/studio/framework/invoke';
+import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
+import { restaurantCustomerLinks } from '@/server/studio/queries/restaurants';
 import { getStudioTranslator } from '@/studio/messages';
+import { CustomerLinksCard } from './CustomerLinksCard';
 import { EditRestaurantForm } from '../RestaurantForm';
 import { WorkingHoursList } from '../WorkingHoursList';
 import { loadRestaurant } from './load';
@@ -22,10 +24,13 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
   if (!actor) redirect(SIGN_IN_PATH);
   const t = getStudioTranslator(actor.locale);
   const restaurant = await loadRestaurant(id);
+  const customer = actor.isSuperAdmin ? await query(restaurantCustomerLinks, { restaurantId: id }) : null;
+  const linksCard = customer ? <CustomerLinksCard links={customer.links} message={customer.message} /> : null;
 
   if (restaurant.can.edit) {
     return (
-      <div className="px-8 pb-2">
+      <div className="flex flex-col gap-6 px-8 pb-2">
+        {linksCard}
         <EditRestaurantForm
           key={`${restaurant.id}:${restaurant.version}`}
           restaurantId={restaurant.id}
@@ -53,6 +58,7 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
 
   return (
     <div className="flex max-w-3xl flex-col gap-8 px-8 py-6">
+      {linksCard}
       <dl className="grid grid-cols-[9rem_minmax(0,1fr)] gap-x-6 gap-y-2.5 text-base">
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
