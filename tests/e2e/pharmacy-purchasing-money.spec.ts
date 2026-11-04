@@ -1004,8 +1004,12 @@ test.describe('Pharmacy purchasing money @desktop', () => {
     await page.getByTestId('alloc-auto').click();
     await page.getByTestId('pay-amount').fill('500');
     await mkShot(page, 'after/en-payment-new-375-viewport', false);
-    // At the very end of the page the allocation status sits above the footer.
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    // At the very end of the page the allocation status sits above the footer. The pharmacy's frame never scrolls the
+    // document: <main id="main"> is the scroll container.
+    await page.evaluate(() => {
+      const main = document.getElementById('main')!;
+      main.scrollTo(0, main.scrollHeight);
+    });
     const status = page.getByTestId('alloc-status');
     const footer = page.getByTestId('pay-total').locator('xpath=..');
     const statusBox = await status.boundingBox();
