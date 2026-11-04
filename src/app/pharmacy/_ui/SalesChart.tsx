@@ -62,7 +62,7 @@ export function SalesChart({
             {t('pharmacy.home.chart.reports')}
           </Link>
         ) : null}
-        <nav aria-label={t('pharmacy.home.period.label')} className="ms-auto flex rounded-xl bg-ph-canvas p-0.5">
+        <nav aria-label={t('pharmacy.home.period.label')} className="ms-auto flex rounded-ph-xl bg-ph-canvas p-0.5">
           {HOME_PERIODS.map((p) => (
             <Link
               key={p}
@@ -114,7 +114,7 @@ export function SalesChart({
           </figcaption>
         </figure>
       ) : (
-        <p data-testid="home-chart-empty" className="grid min-h-36 place-items-center rounded-xl bg-ph-canvas px-4 text-center text-sm text-ph-muted">
+        <p data-testid="home-chart-empty" className="grid min-h-36 place-items-center rounded-ph-xl bg-ph-canvas px-4 text-center text-sm text-ph-muted">
           {t('pharmacy.home.chart.empty')}
         </p>
       )}

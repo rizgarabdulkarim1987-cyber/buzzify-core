@@ -54,7 +54,7 @@ export function MoreSheet({
               type="button"
               onClick={onClose}
               aria-label={closeLabel}
-              className="grid size-11 shrink-0 place-items-center rounded-xl text-ph-text hover:bg-ph-g1"
+              className="grid size-11 shrink-0 place-items-center rounded-ph-xl text-ph-text hover:bg-ph-g1"
             >
               <X aria-hidden size={22} />
             </button>

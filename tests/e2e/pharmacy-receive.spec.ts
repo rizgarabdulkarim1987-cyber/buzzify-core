@@ -13,6 +13,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy receiving screens: the owner starts a receipt, adds two products from the search (one expiry given as a
@@ -181,7 +182,7 @@ test.describe('Pharmacy receiving @desktop', () => {
     const dates = futureDates();
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await page.getByRole('navigation').getByRole('link', { name: 'Receiving' }).click();
+    await railLink(page, 'Receiving');
     await expect(page.getByRole('heading', { level: 1, name: 'Receiving goods' })).toBeVisible();
     await expect(page.getByTestId('receive-empty')).toBeVisible();
     await page.getByRole('link', { name: 'New receipt' }).first().click();
@@ -265,6 +266,8 @@ test.describe('Pharmacy receiving @desktop', () => {
     await makeCashier(cashier.userId, shop.id);
     const till = await freshPage(browser);
     await signInAndChoose(till, cashier, shop, 1);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Receiving' })).toHaveCount(0);
     await till.goto('/pharmacy/stock/receive');
     await expect(till.getByRole('heading', { level: 1, name: 'Receiving goods' })).toBeVisible();

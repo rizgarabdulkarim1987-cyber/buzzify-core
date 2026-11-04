@@ -750,16 +750,35 @@ test.describe('Pharmacy sell @desktop', () => {
         expect((await pay.boundingBox())!.height, `pay at ${width}px`).toBeGreaterThanOrEqual(56);
         expect(await frameScrolls(page), `${width}px`).toEqual({ page: false, main: false });
         expect(await scrollsSideways(page), `sideways at ${width}px`).toBe(false);
+        // Every row's stepper, not just the first.
         for (const id of ['qty-less', 'qty-more']) {
-          const box = (await page.getByTestId(id).first().boundingBox())!;
-          expect(Math.min(box.width, box.height), `${id} at ${width}px`).toBeGreaterThanOrEqual(44);
+          const buttons = await page.getByTestId(id).all();
+          expect(buttons, `${id} at ${width}px`).toHaveLength(4);
+          for (const [row, button] of buttons.entries()) {
+            const box = (await button.boundingBox())!;
+            expect(Math.min(box.width, box.height), `${id} row ${row + 1} at ${width}px`).toBeGreaterThanOrEqual(44);
+          }
         }
         // The last line is reached by scrolling the cart's own pane; the pay bar stays where it was.
         await page.getByTestId('cart-line').last().scrollIntoViewIfNeeded();
         await expect(pay, `${width}px after scrolling the cart`).toBeInViewport({ ratio: 1 });
         expect(await frameScrolls(page), `${width}px after scrolling the cart`).toEqual({ page: false, main: false });
-        await page.screenshot({ path: `test-results/sell-bar-${locale}-${width}.png` });
       }
+
+      // Keyboard focus is visible: the amber ring on the scan field and on a pharmacy field (the invoice discount).
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.getByTestId('sell-search').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Shift+Tab');
+      const ring = (testId: string, inner = false) =>
+        page.getByTestId(testId).evaluate((el, deep) => {
+          const target = (deep ? el.querySelector('input') : el) as HTMLElement;
+          const style = getComputedStyle(target);
+          return { focused: target.matches(':focus-visible'), outline: style.outlineStyle, width: style.outlineWidth, colour: style.outlineColor };
+        }, inner);
+      expect(await ring('sell-search')).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
+      await page.getByTestId('invoice-discount').locator('input').focus();
+      expect(await ring('invoice-discount', true)).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
       await page.context().close();
     });
   }

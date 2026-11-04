@@ -16,6 +16,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy expiry list and stock counts: the owner sees the batch that expires soon and the expired one, follows them
@@ -180,7 +181,7 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await seedStock(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await page.getByRole('navigation').getByRole('link', { name: 'Expiry', exact: true }).click();
+    await railLink(page, 'Expiry', { exact: true });
     await expect(page.getByRole('heading', { level: 1, name: 'Expiry' })).toBeVisible();
 
     // Default horizon 90 days: the expired and the 20-day batch, not the one a year away.
@@ -249,7 +250,7 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await page.goto('/pharmacy/select');
     await page.getByRole('group', { name: shop.name }).getByRole('button').nth(1).click();
 
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock counts' }).click();
+    await railLink(page, 'Stock counts');
     await expect(page.getByRole('heading', { level: 1, name: 'Stock counts' })).toBeVisible();
     await expect(page.getByTestId('counts-empty')).toContainText('No counts yet');
     await page.getByLabel('Blind count').check();
@@ -358,6 +359,8 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await expect(till.getByTestId('expiry-row').first()).toBeVisible();
     await expect(till.getByTestId('stock-write-blocked')).toContainText('Your role can look at stock');
     await expect(till.getByTestId('expiry-followup')).toHaveCount(0);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Stock counts' })).toHaveCount(0);
     await till.goto('/pharmacy/stock/counts');
     await expect(till.getByTestId('counts-forbidden')).toContainText('You cannot see this page');

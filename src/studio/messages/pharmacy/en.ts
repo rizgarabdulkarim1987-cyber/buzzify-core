@@ -112,6 +112,8 @@ const pharmacy: Messages = {
   'error.text.phPriceReason': 'Enter a reason of at least 3 characters',
   'error.text.phBulkNoProduct': 'Choose at least one product',
   'error.text.phBulkFewerProducts': 'Choose fewer products',
+  'error.text.phSellNoUnit': 'Choose at least one unit',
+  'error.text.phSellFewerUnits': 'Choose fewer units',
   'error.text.phBulkCutMax': 'A price can go down by at most 100%',
   'error.text.phBulkRiseMax': 'A price can go up by at most 1000%',
   'error.text.phPriceConflict': 'Someone changed this price at the same time. Reload and try again.',

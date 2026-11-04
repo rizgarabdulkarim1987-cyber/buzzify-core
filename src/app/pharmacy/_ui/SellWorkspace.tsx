@@ -698,7 +698,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       </p>
       <button
         type="button"
-        className="inline-flex min-h-14 min-w-11 shrink-0 items-center justify-center gap-2 rounded-[16px] border border-ph-on-green-muted px-4 text-sm font-semibold text-ph-on-green hover:bg-ph-g8 disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex min-h-14 min-w-11 shrink-0 items-center justify-center gap-2 rounded-ph-2xl border border-ph-on-green-muted px-4 text-sm font-semibold text-ph-on-green hover:bg-ph-g8 disabled:cursor-not-allowed disabled:opacity-45"
         data-testid={phone ? 'hold-cart-bar' : 'hold-cart'}
         disabled={!canHold}
         onClick={() => void holdCart()}
@@ -709,7 +709,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       </button>
       <button
         type="button"
-        className="inline-flex min-h-14 min-w-11 flex-1 basis-32 items-center justify-center gap-2 rounded-[16px] bg-ph-card px-5 text-lg font-bold text-ph-g8 hover:bg-ph-g1 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex min-h-14 min-w-11 flex-1 basis-32 items-center justify-center gap-2 rounded-ph-2xl bg-ph-card px-5 text-lg font-bold text-ph-g8 hover:bg-ph-g1 disabled:cursor-not-allowed disabled:opacity-60"
         data-testid={phone ? 'pay-open-bar' : 'pay-open'}
         disabled={!canPay}
         aria-describedby={blocked ? 'pay-blocked-reason' : undefined}
@@ -1248,7 +1248,7 @@ const THUMB: Record<CartLine['rxLevel'], string> = {
   RESTRICTED: 'bg-ph-amber-wash text-ph-amber-ink',
 };
 /** A 44 px stepper button on the quantity's cream pill. */
-const STEP = 'grid size-11 shrink-0 place-items-center rounded-[12px] text-ph-text hover:bg-ph-line disabled:cursor-not-allowed disabled:opacity-45';
+const STEP = 'grid size-11 shrink-0 place-items-center rounded-ph-xl text-ph-text hover:bg-ph-line disabled:cursor-not-allowed disabled:opacity-45';
 
 function CartRow({
   line,
@@ -1271,7 +1271,7 @@ function CartRow({
   return (
     <li data-testid="cart-line" data-blocked={line.blocked ?? undefined} className="flex min-w-0 flex-col gap-2 py-3 first:pt-0">
       <div className="flex min-w-0 items-start gap-3">
-        <span aria-hidden className={`mt-0.5 grid size-[38px] shrink-0 place-items-center rounded-[12px] [&_svg]:size-5 ${THUMB[line.rxLevel]}`}>
+        <span aria-hidden className={`mt-0.5 grid size-[38px] shrink-0 place-items-center rounded-ph-xl [&_svg]:size-5 ${THUMB[line.rxLevel]}`}>
           {line.rxLevel === 'RESTRICTED' ? <ShieldAlert /> : <Pill />}
         </span>
         <p className="min-w-0 flex-1">
@@ -1317,7 +1317,7 @@ function CartRow({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center rounded-[12px] bg-ph-canvas" role="group" aria-label={t('pharmacy.sell.cart.qty')}>
+        <div className="inline-flex items-center rounded-ph-xl bg-ph-canvas" role="group" aria-label={t('pharmacy.sell.cart.qty')}>
           <button type="button" className={STEP} aria-label={t('pharmacy.sell.cart.less')} data-testid="qty-less" disabled={line.qty <= 1} onClick={() => dispatch({ type: 'step', key: line.key, delta: -1 })}>
             <Minus aria-hidden className="size-4" />
           </button>
@@ -1358,11 +1358,11 @@ function CartRow({
       </div>
       {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
         <details className="min-w-0" data-testid="line-more">
-          <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-[12px] px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
+          <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
             <Tag aria-hidden className="size-4 shrink-0" />
             {t('pharmacy.sell.cart.more.open')}
           </summary>
-          <div className="mt-2 flex flex-col gap-3 rounded-[12px] border border-ph-line bg-ph-canvas p-3">
+          <div className="mt-2 flex flex-col gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas p-3">
             {perms.discount && (
               <DiscountEditor label={t('pharmacy.sell.discount.line')} value={line.discount} currency={currency} testId="line-discount" t={t} onChange={(discount) => dispatch({ type: 'discount', key: line.key, discount })} />
             )}

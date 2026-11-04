@@ -21,7 +21,7 @@ const PILL = 'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-
 function Kpi({ testid, tone, icon, label, value, foot }: { testid: string; tone: Tone; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
   return (
     <li data-testid={testid} className={`${CARD} flex flex-col gap-0.5`}>
-      <span aria-hidden className={`mb-1.5 grid size-[38px] place-items-center rounded-xl [&_svg]:size-5 ${TILE[tone]}`}>
+      <span aria-hidden className={`mb-1.5 grid size-[38px] place-items-center rounded-ph-xl [&_svg]:size-5 ${TILE[tone]}`}>
         {icon}
       </span>
       <span className="text-xs text-ph-muted">{label}</span>
@@ -50,7 +50,7 @@ function AttentionRow({ item, t }: { item: HomeAttention; t: Translate }) {
   const tone: Tone = !expiry ? 'amber' : days <= 30 ? 'red' : days <= 60 ? 'amber' : 'green';
   return (
     <li className="flex min-h-[52px] min-w-0 items-center gap-3 border-ph-line py-1.5 [&+&]:border-t sm:[&+&]:border-t-0">
-      <span aria-hidden className={`grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5 ${TILE[tone]}`}>
+      <span aria-hidden className={`grid size-10 shrink-0 place-items-center rounded-ph-xl [&_svg]:size-5 ${TILE[tone]}`}>
         {expiry ? <Pill /> : <Boxes />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
@@ -105,7 +105,7 @@ export function HomeDashboard({
           </p>
         </div>
         {sellHref ? (
-          <Link href={sellHref} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-ph-g8 px-5 text-base font-bold text-ph-on-green hover:bg-ph-g9">
+          <Link href={sellHref} className="inline-flex min-h-11 items-center gap-2 rounded-ph-2xl bg-ph-g8 px-5 text-base font-bold text-ph-on-green hover:bg-ph-g9">
             <ShoppingCart aria-hidden className="size-5" />
             {t('pharmacy.home.newSale')}
           </Link>

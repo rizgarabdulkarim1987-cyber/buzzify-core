@@ -371,6 +371,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Enter a reason of at least 3 characters': 'error.text.phPriceReason',
   'Choose at least one product': 'error.text.phBulkNoProduct',
   'Choose fewer products': 'error.text.phBulkFewerProducts',
+  'Choose at least one unit': 'error.text.phSellNoUnit',
+  'Choose fewer units': 'error.text.phSellFewerUnits',
   'A price can go down by at most 100%': 'error.text.phBulkCutMax',
   'A price can go up by at most 1000%': 'error.text.phBulkRiseMax',
   'Someone changed this price at the same time. Reload and try again.': 'error.text.phPriceConflict',

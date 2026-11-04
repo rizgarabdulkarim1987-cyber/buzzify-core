@@ -18,7 +18,7 @@ export const NOTE_TONE = {
 } as const;
 
 /** The same lines in the pharmacy redesign's colours (`--ph-*`): the Sell screen uses these (`look="ph"`). */
-const PH_NOTE = 'flex items-start gap-2.5 rounded-[12px] border px-3 py-2.5 text-sm [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0';
+const PH_NOTE = 'flex items-start gap-2.5 rounded-ph-xl border px-3 py-2.5 text-sm [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0';
 const PH_NOTE_TONE: Record<keyof typeof NOTE_TONE, string> = {
   plain: 'border-ph-line bg-ph-card text-ph-text',
   danger: 'border-transparent bg-ph-red-wash text-ph-red',
@@ -74,10 +74,10 @@ export const TOUCH_PRIMARY = `${TOUCH} bg-ink px-4 text-on-ink hover:bg-ink-hove
 export const FIELD = 'min-h-11 w-full min-w-0 rounded-md border border-line-strong bg-raised px-3 text-base text-text hover:border-muted/60 focus:border-ink aria-invalid:border-danger disabled:bg-surface disabled:text-muted';
 
 /** The pharmacy redesign's controls (`--ph-*`, used by the Sell screen): 44 px, rounder, no motion. */
-const PH_TOUCH = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-[12px] px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45';
+const PH_TOUCH = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45';
 export const PH_BTN = `${PH_TOUCH} border border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas`;
 export const PH_PRIMARY = `${PH_TOUCH} bg-ph-g8 px-4 text-ph-on-green hover:bg-ph-g9`;
-export const PH_FIELD = 'min-h-11 w-full min-w-0 rounded-[12px] border border-ph-line bg-ph-canvas px-3 text-base text-ph-text focus:border-ph-accent aria-invalid:border-ph-red disabled:text-ph-muted';
+export const PH_FIELD = 'min-h-11 w-full min-w-0 rounded-ph-xl border border-ph-line bg-ph-canvas px-3 text-base text-ph-text focus:border-ph-accent aria-invalid:border-ph-red disabled:text-ph-muted';
 
 /** A text control inside a `Field`: takes the field's id and description so its label and error reach assistive technology. */
 export function FieldInput(props: ComponentProps<'input'>) {

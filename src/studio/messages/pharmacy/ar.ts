@@ -110,6 +110,8 @@ const pharmacy: Messages = {
   'error.text.phPriceReason': 'اكتب سببًا من 3 أحرف على الأقل',
   'error.text.phBulkNoProduct': 'اختر منتجًا واحدًا على الأقل',
   'error.text.phBulkFewerProducts': 'اختر منتجات أقل',
+  'error.text.phSellNoUnit': 'اختر وحدة واحدة على الأقل',
+  'error.text.phSellFewerUnits': 'اختر وحدات أقل',
   'error.text.phBulkCutMax': 'يمكن خفض السعر بنسبة 100% على الأكثر',
   'error.text.phBulkRiseMax': 'يمكن رفع السعر بنسبة 1000% على الأكثر',
   'error.text.phPriceConflict': 'غيّر شخص آخر هذا السعر في الوقت نفسه. أعد التحميل وحاول مرة أخرى.',

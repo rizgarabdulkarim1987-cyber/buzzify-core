@@ -12,8 +12,8 @@ import { phNav, type PhNavItem, type PhNavKey, type PhShellLink } from './nav';
 /** The places the phone's bottom bar holds; everything else goes in its "More" sheet. */
 const BAR = new Set<PhNavKey>(['home', 'sell', 'stock', 'expiry']);
 
-const RAIL_LINK = 'flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-medium text-ph-on-green underline underline-offset-2 hover:bg-ph-g9';
-const SHEET_LINK = 'flex min-h-12 items-center gap-2 rounded-xl px-3 text-base font-medium text-ph-text underline underline-offset-2 hover:bg-ph-card';
+const RAIL_LINK = 'flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-on-green underline underline-offset-2 hover:bg-ph-g9';
+const SHEET_LINK = 'flex min-h-12 items-center gap-2 rounded-ph-xl px-3 text-base font-medium text-ph-text underline underline-offset-2 hover:bg-ph-card';
 
 /**
  * The fixed frame of every pharmacy screen once a place is chosen. On a desktop (`md:` and up): the flat green rail at
@@ -69,7 +69,7 @@ export function Shell({
       </a>
       <header className="flex shrink-0 items-center gap-3 bg-ph-g9 px-4 py-2 text-ph-on-green md:w-[196px] md:flex-col md:items-stretch md:gap-1 md:overflow-y-auto md:px-3 md:py-[18px] print:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 md:flex-none md:px-2 md:pb-[18px]">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ph-card text-ph-g8">
+          <span className="grid size-9 shrink-0 place-items-center rounded-ph-xl bg-ph-card text-ph-g8">
             <Pill aria-hidden size={20} />
           </span>
           <p className="flex min-w-0 flex-col">
@@ -88,7 +88,7 @@ export function Shell({
         <Link
           href="/studio/account"
           aria-label={t('pharmacy.shell.account')}
-          className="grid size-11 shrink-0 place-items-center rounded-xl text-ph-on-green hover:bg-ph-g8 md:hidden"
+          className="grid size-11 shrink-0 place-items-center rounded-ph-xl text-ph-on-green hover:bg-ph-g8 md:hidden"
         >
           <UserRound aria-hidden size={22} />
         </Link>
@@ -103,7 +103,7 @@ export function Shell({
           <Link href="/studio/account" className={RAIL_LINK}>
             {t('pharmacy.shell.account')}
           </Link>
-          <SignOutButton className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-ph-on-green hover:bg-ph-g9 disabled:opacity-60" />
+          <SignOutButton className="inline-flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-semibold text-ph-on-green hover:bg-ph-g9 disabled:opacity-60" />
         </div>
       </header>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col print:min-h-0">
@@ -130,7 +130,7 @@ export function Shell({
             <Link href="/studio/account" className={SHEET_LINK}>
               {t('pharmacy.shell.account')}
             </Link>
-            <SignOutButton className="inline-flex min-h-12 items-center gap-2 rounded-xl px-3 text-base font-semibold text-ph-text hover:bg-ph-card disabled:opacity-60" />
+            <SignOutButton className="inline-flex min-h-12 items-center gap-2 rounded-ph-xl px-3 text-base font-semibold text-ph-text hover:bg-ph-card disabled:opacity-60" />
           </div>
         }
       />

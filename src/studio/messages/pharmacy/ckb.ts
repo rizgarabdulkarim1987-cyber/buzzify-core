@@ -107,6 +107,8 @@ const pharmacy: Messages = {
   'error.text.phPriceReason': 'هۆکارێک بنووسە کە لانیکەم 3 پیت بێت',
   'error.text.phBulkNoProduct': 'لانیکەم یەک بەرهەم هەڵبژێرە',
   'error.text.phBulkFewerProducts': 'بەرهەمی کەمتر هەڵبژێرە',
+  'error.text.phSellNoUnit': 'لانیکەم یەک یەکە هەڵبژێرە',
+  'error.text.phSellFewerUnits': 'یەکەی کەمتر هەڵبژێرە',
   'error.text.phBulkCutMax': 'نرخ دەتوانێت زۆرترین 100% دابەزێت',
   'error.text.phBulkRiseMax': 'نرخ دەتوانێت زۆرترین 1000% بەرز بێتەوە',
   'error.text.phPriceConflict': 'کەسێکی تر لە هەمان کاتدا ئەم نرخەی گۆڕی. نوێی بکەرەوە و دووبارە هەوڵ بدەرەوە.',

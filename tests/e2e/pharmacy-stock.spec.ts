@@ -15,6 +15,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy stock screens: the owner reads the stock of a product with its batches soonest-expiry first, changes a
@@ -177,7 +178,7 @@ test.describe('Pharmacy stock @desktop', () => {
     const page = await freshPage(browser);
     // All branches: the stock is readable, and the page says to choose one branch to change it.
     await signInAndChoose(page, owner, shop, 0);
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock', exact: true }).click();
+    await railLink(page, 'Stock', { exact: true });
     await expect(page.getByRole('heading', { level: 1, name: 'Stock' })).toBeVisible();
     await expect(page.getByTestId('stock-pick-branch')).toBeVisible();
     await expect(page.getByTestId('batch-actions')).toHaveCount(0);
@@ -215,7 +216,7 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(soon.locator('dl').first()).toContainText('33');
 
     // The movement list shows the line; reversing it needs a reason and leaves a reversal line behind.
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock movements' }).click();
+    await railLink(page, 'Stock movements');
     await expect(page.getByRole('heading', { level: 1, name: 'Stock movements' })).toBeVisible();
     const line = page.getByTestId('movement-row').filter({ hasText: 'Broken box' });
     await expect(line).toContainText('Adjustment');
@@ -240,6 +241,8 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(till.getByTestId('stock-row').first()).toBeVisible();
     await expect(till.getByTestId('stock-write-blocked')).toContainText('Your role can look at stock');
     await expect(till.getByTestId('batch-actions')).toHaveCount(0);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Stock movements' })).toHaveCount(0);
     await expect(till.locator('[data-cost]')).toHaveCount(0);
     await till.goto('/pharmacy/stock/movements');

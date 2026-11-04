@@ -16,6 +16,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy purchasing money screens: a supplier's invoices, what is owed, payments (recorded in the books only),
@@ -392,7 +393,7 @@ test.describe('Pharmacy purchasing money @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
 
     // The hub's invoice, payment, credit and return cards are real links now.
-    await page.getByRole('navigation').getByRole('link', { name: 'Purchasing' }).click();
+    await railLink(page, 'Purchasing');
     for (const id of ['hub-invoices', 'hub-payments', 'hub-credits', 'hub-returns']) await expect(page.getByTestId(id).getByRole('link').first()).toBeVisible();
     await shoot(page, 'en-hub-1280');
 

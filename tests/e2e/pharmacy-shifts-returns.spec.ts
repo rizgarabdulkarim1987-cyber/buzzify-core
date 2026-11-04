@@ -7,6 +7,7 @@ import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, uniqueClientAddress, type StudioUser } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy shift, sales and returns screens: open a shift, sell, paid in and paid out (and the refusal of too much
@@ -279,7 +280,7 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
 
     // The shifts page: no shift yet, so the opening panel (the same as the sale screen's).
-    await page.getByRole('navigation').getByRole('link', { name: 'Shifts', exact: true }).click();
+    await railLink(page, 'Shifts', { exact: true });
     await expect(page.getByTestId('open-shift')).toBeVisible();
     await page.getByTestId('shift-float').fill('10,000');
     await page.getByTestId('shift-open').click();
@@ -313,7 +314,7 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     await expect(page.getByTestId('expected-live')).toContainText('12,500');
 
     // The sale in the list and its detail.
-    await page.getByRole('navigation').getByRole('link', { name: 'Sales', exact: true }).click();
+    await railLink(page, 'Sales', { exact: true });
     await expect(page.getByTestId('sale-row')).toHaveCount(1);
     await expect(page.getByTestId('sale-status-COMPLETED')).toBeVisible();
     await page.getByTestId('sale-number').click();
@@ -373,7 +374,7 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     await expect(page.getByTestId('sales-empty')).toBeVisible();
 
     // Returns list and detail.
-    await page.getByRole('navigation').getByRole('link', { name: 'Returns', exact: true }).click();
+    await railLink(page, 'Returns', { exact: true });
     await expect(page.getByTestId('return-row')).toHaveCount(2);
     await page.getByTestId('return-row').first().getByRole('link').click();
     await expect(page.getByTestId('return-detail')).toContainText('Customer left');
@@ -423,6 +424,8 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     const page = await freshPage(browser);
     await signInAndChoose(page, cashier, shop, 0);
     // The cashier's navigation has no Returns; sale detail says why there is no return.
+    await openRailMore(page);
+
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Returns', exact: true })).toHaveCount(0);
     await sellStrip(page, '2000');
     await page.goto('/pharmacy/sales');

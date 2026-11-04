@@ -8,6 +8,7 @@ import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, setUserLocale, uniqueClientAddress, type StudioUser } from './helpers/studio';
+import { openRailMore } from './helpers/pharmacy-nav';
 
 /**
  * The transfer screens, end to end: A requests 30 units for B, sends them first-expiry-first across two batches (a double
@@ -530,6 +531,8 @@ test.describe('Pharmacy transfers @desktop', () => {
     await till.goto('/pharmacy/stock/transfers');
     await expect(till.getByTestId('transfers-forbidden')).toBeVisible();
     await expect(till.getByTestId('transfer-row')).toHaveCount(0);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Transfers', exact: true })).toHaveCount(0);
     await till.goto(`/pharmacy/stock/transfers/${ids.partial}`);
     await expect(till.getByTestId('transfers-forbidden')).toBeVisible();

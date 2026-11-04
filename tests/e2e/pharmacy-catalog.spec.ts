@@ -13,6 +13,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy catalog screens: the owner adds a product with its packs and barcodes, finds it by barcode and by its
@@ -151,7 +152,7 @@ test.describe('Pharmacy catalog @desktop', () => {
     await signInAndChoose(page, owner, shop);
 
     // An empty catalog says so and offers the two ways to fill it.
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page.getByRole('heading', { level: 1, name: 'Catalog' })).toBeVisible();
     await expect(page.getByTestId('catalog-empty')).toBeVisible();
     await page.getByTestId('catalog-empty').getByRole('link', { name: 'Add a product' }).click();
@@ -219,11 +220,11 @@ test.describe('Pharmacy catalog @desktop', () => {
     await page.getByRole('tab', { name: 'Details' }).click();
     await page.getByLabel('Trade name').fill(`${tradeName} changed`);
     page.once('dialog', (dialog) => void dialog.dismiss());
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page.getByLabel('Trade name')).toHaveValue(`${tradeName} changed`);
     expect(page.url()).toBe(productUrl);
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page).toHaveURL(/\/pharmacy\/catalog$/);
 
     // An import of 20 rows, two without a name: they are shown and left out, the rest are added.

@@ -129,6 +129,10 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-full: 9999px;
+  /* The pharmacy redesign's rounder corners (rounded-ph-xl, rounded-ph-2xl): their own names, so the till and the Studio,
+     whose rounded-xl/2xl have no radius, look as before. */
+  --radius-ph-xl: 12px;
+  --radius-ph-2xl: 16px;
 
   /* The one shadow: a dialog lifts off the page. */
   --shadow-*: initial;

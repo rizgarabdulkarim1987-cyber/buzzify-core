@@ -144,7 +144,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
     >
       <form id={form} onSubmit={submit} className="flex flex-col gap-4">
         {creditAllowed && (
-          <fieldset className="flex flex-col gap-3 rounded-[12px] border border-ph-line p-3" data-testid="pay-credit">
+          <fieldset className="flex flex-col gap-3 rounded-ph-xl border border-ph-line p-3" data-testid="pay-credit">
             <legend className="px-1 text-sm font-medium text-ph-text">{t('pharmacy.credit.pay.legend')}</legend>
             <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ph-text">
               <input
@@ -201,7 +201,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
                 {METHODS.map(({ method, icon }) => (
                   <label
                     key={method}
-                    className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-[12px] border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
+                    className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-ph-xl border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
                       draft.method === method ? 'border-ph-g8 bg-ph-g8 text-ph-on-green' : 'border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas'
                     } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ph-accent`}
                   >
@@ -245,7 +245,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
             )}
 
             {draft.method === 'CASH' ? (
-              <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-[12px] border border-ph-line bg-ph-canvas px-3 py-2.5 text-md font-semibold text-ph-text">
+              <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas px-3 py-2.5 text-md font-semibold text-ph-text">
                 <span>{t('pharmacy.sell.pay.change')}</span>
                 <span><Num>{formatMinor(preview.changeMinor, currency)}</Num> {currency}</span>
               </p>
@@ -342,7 +342,7 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
         )}
         <ul className="flex flex-col gap-2">
           {items?.map((hold) => (
-            <li key={hold.id} data-testid="hold-row" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[12px] border border-ph-line px-3 py-2">
+            <li key={hold.id} data-testid="hold-row" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-ph-xl border border-ph-line px-3 py-2">
               <p className="flex min-w-0 flex-col text-sm text-ph-text">
                 <span className="font-semibold">
                   <Num>{formatMinor(BigInt(hold.totalPreviewMinor), hold.currency)}</Num> {hold.currency}
@@ -549,7 +549,7 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
               data-testid="receipt-frame"
               sandbox="allow-same-origin allow-modals"
               srcDoc={receipt.html}
-              className="h-72 w-full rounded-[12px] border border-ph-line bg-white"
+              className="h-72 w-full rounded-ph-xl border border-ph-line bg-white"
             />
           )}
           {printFailed && (
