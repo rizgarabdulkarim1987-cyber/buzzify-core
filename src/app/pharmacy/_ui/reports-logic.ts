@@ -2,7 +2,9 @@ import { formatNumber } from '@/lib/pos-format';
 import { addDays, baghdadDay, baghdadWindow, ReportsError, validDay } from '@/server/domain/pharmacy/reports-domain';
 import { dashboardWindow } from '@/server/domain/pharmacy/chain-domain';
 import type { ExpiryReport, ValuationReport } from '@/server/pharmacy/reports-stock';
-import type { MarginReport } from '@/server/pharmacy/reports-margin';
+import type { MarginReport, MarginTotals } from '@/server/pharmacy/reports-margin';
+import type { MoneyTotals } from '@/server/pharmacy/reports';
+import { homeWindow, type HomePeriod } from '@/server/domain/pharmacy/home';
 import type { TransfersReport } from '@/server/pharmacy/reports-ledger';
 import type { ChainDashboard } from '@/server/pharmacy/chain';
 
@@ -358,4 +360,34 @@ export function expiryNotices(r: Pick<ExpiryReport, 'listTruncated'>): Notice[] 
 }
 export function transfersNotices(r: Pick<TransfersReport, 'scope'>): Notice[] {
   return r.scope === 'transfers-touching-the-branches-shown' ? [{ key: 'transfers.scope', tone: 'info' }] : [];
+}
+
+/**
+ * The days the reports landing covers (pharmacy redesign, task 10): the same days as the home chart for the period, so the cards
+ * and the chart above them agree. Seven or thirty Baghdad days ending today, or twelve months from the first of the eleventh month back.
+ */
+export function landingRange(period: HomePeriod, now: Date): { from: string; to: string } {
+  const first = homeWindow(period, now).labels[0]!;
+  return { from: period === '12m' ? `${first}-01` : first, to: baghdadDay(now) };
+}
+
+export interface LandingFigures {
+  salesMinor: string;
+  invoices: number;
+  refundsMinor: string;
+  refundCount: number;
+  /** Null when the margin was not read (no `profit.view` and `cost.view`): the card is not drawn. */
+  profitMinor: string | null;
+}
+
+/** The landing's cards in one currency (Ruling 6: the primary one; other currencies are left out and a note says so). */
+export function landingFigures(sales: { totals: readonly MoneyTotals[] }, margin: { totals: readonly MarginTotals[] } | null, currency: Currency): LandingFigures {
+  const line = sales.totals.find((x) => x.currency === currency);
+  return {
+    salesMinor: line?.salesMinor ?? '0',
+    invoices: line?.count ?? 0,
+    refundsMinor: line?.refundsMinor ?? '0',
+    refundCount: line?.refundCount ?? 0,
+    profitMinor: margin ? (margin.totals.find((x) => x.currency === currency)?.marginMinor ?? '0') : null,
+  };
 }

@@ -9,7 +9,7 @@ import { Money } from './money-parts';
 import { SalesChart } from './SalesChart';
 import { Num } from './sell-parts';
 
-type Tone = 'green' | 'blue' | 'amber' | 'red';
+export type Tone = 'green' | 'blue' | 'amber' | 'red';
 const TILE: Record<Tone, string> = {
   green: 'bg-ph-g1 text-ph-g6',
   blue: 'bg-ph-blue-wash text-ph-blue',
@@ -19,7 +19,7 @@ const TILE: Record<Tone, string> = {
 const CARD = 'min-w-0 rounded-[22px] bg-ph-card p-4';
 const PILL = 'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold';
 
-function Kpi({ testid, tone, icon, label, value, foot }: { testid: string; tone: Tone; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
+export function Kpi({ testid, tone, icon, label, value, foot }: { testid: string; tone: Tone; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
   return (
     <li data-testid={testid} className={`${CARD} flex flex-col gap-0.5`}>
       <span aria-hidden className={`mb-1.5 grid size-[38px] place-items-center rounded-ph-xl [&_svg]:size-5 ${TILE[tone]}`}>
