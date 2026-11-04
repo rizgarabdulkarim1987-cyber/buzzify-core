@@ -103,6 +103,8 @@ describe('RATE_RULES', () => {
       // Buzzify Retail: its signed calls (the handoff counts on its own key with the same rule), identity requests by
       // address and by email, and the set-password mail per account.
       'retail:ip': { max: 300, windowSec: 60 },
+      // Retails' own sign-in form (/api/retail/v1/credentials*), apart from retail:ip.
+      'retail-signin:ip': { max: 300, windowSec: 60 },
       'retail-identity:ip': { max: 600, windowSec: 600 },
       'retail-identity:email': { max: 5, windowSec: 3600 },
       'retail-identity:mail': { max: 1, windowSec: 600 },
