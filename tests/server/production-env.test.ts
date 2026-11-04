@@ -38,6 +38,17 @@ describe('the product hosts', () => {
     expect(named(problemsWith({ ...hosts, CORE_HOST: 'leaf.buzzify.me' }))).toEqual(['PHARMACY_HOST', 'CORE_HOST']);
   });
 
+  it('stops the build when the apex or a legacy host repeats a live host, which would redirect it in a loop', () => {
+    expect(named(problemsWith({ ...hosts, APEX_HOST: 'menu.buzzify.me' }))).toEqual(['APEX_HOST']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.buzzify.me, studio.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'leaf.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
+  it('names a legacy host written with a scheme or a path', () => {
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'https://old.example.test' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.example.test/x' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
   it('refuses a super admin host without its secret path', () =>
     expect(named(problemsWith({ ...hosts, CORE_GATE_PATH: undefined }))).toEqual(['CORE_GATE_PATH']));
 

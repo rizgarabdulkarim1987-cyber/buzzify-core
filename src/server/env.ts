@@ -651,6 +651,18 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   if (coreHost && clean('CORE_HOST') && [publicHost, studioHost, pharmacyHost].includes(coreHost)) {
     report('CORE_HOST', 'must differ from PUBLIC_MENU_HOST, STUDIO_HOST and PHARMACY_HOST');
   }
+  // The main domain and the old hosts only redirect; one that is also a live host would redirect that host away or loop.
+  const liveHosts = [publicHost, studioHost, pharmacyHost, coreHost].filter((name): name is string => !!name);
+  const apexHost = text('APEX_HOST')?.toLowerCase();
+  if (apexHost && clean('APEX_HOST') && liveHosts.includes(apexHost)) {
+    report('APEX_HOST', 'must differ from PUBLIC_MENU_HOST, STUDIO_HOST, PHARMACY_HOST and CORE_HOST; it only redirects');
+  }
+  const legacy = (text('LEGACY_HOSTS') ?? '').split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
+  if (legacy.some((name) => !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(name))) {
+    report('LEGACY_HOSTS', 'must be host names separated by commas, such as old.example.com, without https:// or a path');
+  } else if (legacy.some((name) => liveHosts.includes(name))) {
+    report('LEGACY_HOSTS', 'must not repeat a live host (PUBLIC_MENU_HOST, STUDIO_HOST, PHARMACY_HOST, CORE_HOST); it would redirect to itself');
+  }
   // A super admin host with no secret path would show its sign-in page to anyone who finds the name.
   if (coreHost && !text('CORE_GATE_PATH') && clean('CORE_GATE_PATH')) {
     report('CORE_GATE_PATH', 'is not set (the secret part of the super admin address, such as 8 to 64 random letters and digits)');

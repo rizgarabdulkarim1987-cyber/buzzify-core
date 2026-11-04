@@ -41,7 +41,10 @@ const STUDIO_ONLY = ['/studio', '/pos', '/pharmacy', '/api/auth', '/api/studio',
 const STUDIO_SERVES = [...STUDIO_ONLY, '/_next'];
 /** What belongs to the pharmacy host once it is set (sign-in is `/api/auth`, shared by every product host). */
 const PHARMACY_ONLY = ['/pharmacy', '/api/pharmacy', '/api/dev-intake'];
-const PHARMACY_SERVES = [...PHARMACY_ONLY, '/api/auth', '/_next'];
+// Signing in, the sign-in's second step, resetting a password, accepting an invitation and the account page live under
+// `/studio` and are shared by every product; the pharmacy host serves them so a signed-out pharmacist can get in.
+const SHARED_ACCOUNT_PAGES = ['/studio/sign-in', '/studio/forgot', '/studio/reset', '/studio/invite', '/studio/setup-two-factor', '/studio/two-factor', '/studio/account'];
+const PHARMACY_SERVES = [...PHARMACY_ONLY, ...SHARED_ACCOUNT_PAGES, '/api/auth', '/_next'];
 /** Pages only the super admin has; once the core host is set the Studio host no longer serves them. */
 const CORE_ONLY = ['/studio/restaurants', '/studio/team'];
 const CORE_SERVES = ['/studio', '/api/auth', '/api/studio', '/_next'];
@@ -49,6 +52,19 @@ const CORE_SERVES = ['/studio', '/api/auth', '/api/studio', '/_next'];
 /** Whether `pathname` is `prefix` or inside it: `/studio` and `/studio/x`, not `/studios`. */
 function within(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/**
+ * The path as the app router will see it: percent-escapes decoded (`/%73tudio` is `/studio`) and repeated slashes
+ * collapsed, so a prefix rule cannot be stepped around. `null` for a malformed escape, which is answered with a 404.
+ * Reserved characters stay escaped (`%2F` is not a slash).
+ */
+function canonicalPath(pathname: string): string | null {
+  try {
+    return decodeURI(pathname).replace(/\/{2,}/g, '/');
+  } catch {
+    return null;
+  }
 }
 
 function normalizeHost(host: string): string {
@@ -80,7 +96,8 @@ export function routeHost(
   req: { host: string; pathname: string; search?: string; /** The request carries a valid gate cookie. */ coreGate?: boolean },
   cfg: HostConfig,
 ): HostDecision {
-  const { pathname } = req;
+  const pathname = canonicalPath(req.pathname);
+  if (pathname === null) return NOT_FOUND;
 
   // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
   if (within(pathname, '/api/cron')) return NEXT;
@@ -95,7 +112,7 @@ export function routeHost(
     // The old menu host's `/` always went to the company page.
     if (!isStudio && pathname === '/') return { action: 'redirect', to: cfg.rootRedirect };
     const target = isStudio ? cfg.studioHost : cfg.publicHost;
-    if (target) return { action: 'redirect', to: `https://${normalizeHost(target)}${pathname}${req.search ?? ''}` };
+    if (target) return { action: 'redirect', to: `https://${normalizeHost(target)}${req.pathname}${req.search ?? ''}` };
     return NOT_FOUND;
   }
 
@@ -133,7 +150,7 @@ export function routeHost(
 
   // People type `www.` in front of the menus' address; send them to the address itself, keeping what they asked for.
   if (cfg.publicHost && !cfg.publicHost.includes(':') && isHost(req.host, `www.${cfg.publicHost}`)) {
-    return { action: 'redirect', to: `https://${normalizeHost(cfg.publicHost)}${pathname}${req.search ?? ''}` };
+    return { action: 'redirect', to: `https://${normalizeHost(cfg.publicHost)}${req.pathname}${req.search ?? ''}` };
   }
 
   if (cfg.production && cfg.publicHost && cfg.studioHost) return NOT_FOUND;

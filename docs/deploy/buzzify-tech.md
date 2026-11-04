@@ -32,6 +32,34 @@ Rules: every host must differ from the others (the production check stops the bu
 - Change the path any time: set a new `CORE_GATE_PATH`, restart; every old cookie stops working.
 - The scheduler's `/api/cron/*` routes answer on every host without the cookie (each checks its own secret).
 
+## What the gate does not hide (and what to add in the reverse proxy)
+
+- The app's proxy never sees Next's static files (`/_next/static/...`, `/_next/image`) nor files with an extension outside the
+  Studio, till and pharmacy (`/favicon.ico`, `/cafe/en/x.png`). On the super admin host those still answer, so a visitor who
+  finds the name can tell it is a Buzzify app. To hide even that, make the reverse proxy answer 404 on the super admin host
+  unless the request carries a `__cg` cookie or asks for the secret path (the proxy config lives only on the server):
+
+  ```nginx
+  # inside the server block of the super admin host
+  set $gate 0;
+  if ($cookie___cg != "") { set $gate 1; }
+  if ($uri ~ "^/<CORE_GATE_PATH>/?$") { set $gate 1; }
+  if ($uri ~ "^/api/cron/") { set $gate 1; }
+  if ($gate = 0) { return 404; }
+  ```
+
+  The app still checks the cookie's value; the proxy rule only keeps strangers from reaching the app at all. Also allow
+  only your own IP or VPN on that server block if you can.
+- Only `/studio/restaurants` and `/studio/team` are turned away on the Studio host. The other super admin pages
+  (`/studio/platform`, `/pharmacies`, `/announcements`, `/activity`) are not confirmed to be for the super admin alone, so
+  they stay reachable on the Studio host behind the app's own role checks. A super admin who signs in on the Studio host
+  therefore still reaches them: protect the account with its password and two-factor code.
+- Emailed verification and change-address links are always built on the Studio host, whichever host asked for them.
+- The gate cookie is a fixed keyed hash of the secret path: it cannot be revoked for one browser. Changing
+  `CORE_GATE_PATH` (or `BETTER_AUTH_SECRET`) invalidates every copy at once.
+- The pharmacy host serves the shared account pages (`/studio/sign-in`, `/forgot`, `/reset`, `/invite`, `/setup-two-factor`,
+  `/two-factor`, `/account`) so pharmacists can sign in there; the rest of `/studio` is 404 on it.
+
 ## DNS and certificate (at the registrar or Cloudflare for `buzzify.tech`)
 
 1. Confirm which address is the VPS (`buzzify.tech` points at `2.57.91.91` today, `buzzify-menu.online` at `187.126.23.110`).
@@ -63,7 +91,7 @@ Rules: every host must differ from the others (the production check stops the bu
 | `https://buzzify.tech/` and any path on it | redirect to the company page |
 | `https://hive-4q.buzzify.tech/` | redirect to `/studio`; the sign-in page opens |
 | `https://hive-4q.buzzify.tech/pharmacy` | 404 |
-| `https://leaf-2x.buzzify.tech/pharmacy` | the pharmacy sign-in |
+| `https://leaf-2x.buzzify.tech/pharmacy` (signed out) | redirects to `/studio/sign-in?next=/pharmacy`, which opens on that host |
 | `https://leaf-2x.buzzify.tech/studio` | 404 |
 | `https://<CORE_HOST>/` and `/studio` | 404, as if nothing were there |
 | `https://<CORE_HOST>/<CORE_GATE_PATH>` | goes to `/studio`, then sign-in and two-factor |

@@ -46,6 +46,15 @@ describe('pharmacy host', () => {
     (pathname) => expect(routeHost({ host: PHARMACY, pathname }, cfg)).toEqual(NOT_FOUND),
   );
 
+  it.each(['/studio/sign-in', '/studio/forgot', '/studio/reset', '/studio/invite/abc', '/studio/setup-two-factor', '/studio/two-factor', '/studio/account'])(
+    'serves the sign-in and account page %s, so a signed-out pharmacist can get in',
+    (pathname) => expect(routeHost({ host: PHARMACY, pathname }, cfg)).toEqual(NEXT),
+  );
+
+  it.each(['/studio', '/studio/menus', '/studio/restaurants', '/studio/sign-in-x'])('still answers 404 for %s', (pathname) =>
+    expect(routeHost({ host: PHARMACY, pathname }, cfg)).toEqual(NOT_FOUND),
+  );
+
   it('sends / to /pharmacy', () =>
     expect(routeHost({ host: PHARMACY, pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: '/pharmacy' }));
 });
@@ -81,6 +90,24 @@ describe('core host (super admin) behind its secret path', () => {
 
   it('without a configured secret path the host is open (development)', () =>
     expect(routeHost({ host: CORE, pathname: '/studio' }, cfg)).toEqual(NEXT));
+});
+
+describe('encoded and doubled slashes in the path', () => {
+  it.each(['/studio/%72estaurants', '/studio//restaurants', '/studio/restaurants/%2e', '/%73tudio/team', '/studio/%74eam/', '//studio/team'])(
+    'the Studio host answers 404 for %s once the core host is set',
+    (pathname) => expect(routeHost({ host: STUDIO, pathname }, cfg)).toEqual(NOT_FOUND),
+  );
+
+  it.each(['/%73tudio', '/%70os/staff', '//pharmacy', '/api//studio/export', '/%61pi/auth/sign-in/email'])(
+    'the menu host answers 404 for %s',
+    (pathname) => expect(routeHost({ host: 'menu.buzzify.tech', pathname }, cfg)).toEqual(NOT_FOUND),
+  );
+
+  it('answers 404 for a path whose encoding is malformed', () =>
+    expect(routeHost({ host: 'menu.buzzify.tech', pathname: '/atelier/%E0%A4%A' }, cfg)).toEqual(NOT_FOUND));
+
+  it('still serves a menu whose address has an encoded character', () =>
+    expect(routeHost({ host: 'menu.buzzify.tech', pathname: '/caf%C3%A9/en' }, cfg)).toEqual(NEXT));
 });
 
 describe('apex and legacy hosts', () => {
