@@ -282,6 +282,16 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     // The shifts page: no shift yet, so the opening panel (the same as the sale screen's).
     await railLink(page, 'Shifts', { exact: true });
     await expect(page.getByTestId('open-shift')).toBeVisible();
+    // The opening card: a 44px field and a large "Open shift" button across the card, on a phone too.
+    for (const width of [375, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+      const button = (await page.getByTestId('shift-open').boundingBox())!;
+      const card = (await page.getByTestId('open-shift').boundingBox())!;
+      expect(button.height, `open shift button at ${width}px`).toBeGreaterThanOrEqual(52);
+      expect(button.width, `open shift button spans the card at ${width}px`).toBeGreaterThan(card.width * 0.8);
+      expect((await page.getByTestId('shift-float').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), `${width}px`).toBe(false);
+    }
     await page.getByTestId('shift-float').fill('10,000');
     await page.getByTestId('shift-open').click();
     await expect(page.getByTestId('shift-card')).toBeVisible();

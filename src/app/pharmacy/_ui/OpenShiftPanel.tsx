@@ -7,7 +7,7 @@ import { settle } from '@/studio/settle';
 import { useLocale, useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
-import { FIELD, Note, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
+import { Note, PH_FIELD, FieldInput, FieldSelect } from './sell-parts';
 import { keyFor, minorDigits, openedShiftOrClosed, outcomeUnknown, parseMoney, type Currency, type KeyedAttempt } from './sell-logic';
 import { useOnline } from './use-online';
 
@@ -17,6 +17,9 @@ export interface OpenShift {
   openingFloatMinor: string;
   openedAt: string;
 }
+
+/** The large "Open shift" button: across the card, 56px high. */
+const OPEN = 'inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-ph-xl bg-ph-g8 px-4 text-base font-semibold text-ph-on-green hover:bg-ph-g9 disabled:cursor-not-allowed disabled:opacity-45';
 
 /**
  * The gate before selling: no open shift, no sale. The cashier names the currency of the shift and the cash in the
@@ -61,16 +64,22 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
   };
 
   return (
-    <section aria-labelledby="open-shift-title" data-testid="open-shift" className="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-8 sm:px-8">
-      <h1 id="open-shift-title" className="flex items-center gap-2 text-xl font-semibold text-text">
-        <Lock aria-hidden className="size-5 shrink-0 text-muted" />
+    <section
+      aria-labelledby="open-shift-title"
+      data-testid="open-shift"
+      className="mx-4 my-8 flex min-w-0 flex-col gap-4 rounded-ph-2xl bg-ph-card p-5 text-ph-text sm:mx-auto sm:w-full sm:max-w-[30rem] sm:p-6"
+    >
+      <span aria-hidden className="grid size-12 place-items-center rounded-ph-xl bg-ph-g1 text-ph-g6">
+        <Lock className="size-6" />
+      </span>
+      <h1 id="open-shift-title" className="text-xl font-bold">
         {t('pharmacy.sell.shift.title')}
       </h1>
-      <p className="text-base text-muted">{t('pharmacy.sell.shift.body')}</p>
+      <p className="text-base text-ph-muted">{t('pharmacy.sell.shift.body')}</p>
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
         {currencies.length > 1 && (
           <Field label={t('pharmacy.sell.shift.currency')}>
-            <FieldSelect className={`${FIELD} pe-8`} value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} data-testid="shift-currency">
+            <FieldSelect className={`${PH_FIELD} pe-8`} value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} data-testid="shift-currency">
               {currencies.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -84,12 +93,12 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
           hint={t('pharmacy.sell.shift.floatHint', { digits: minorDigits(currency) })}
           error={amount === null ? t('pharmacy.sell.pay.invalidAmount') : undefined}
         >
-          <FieldInput className={FIELD} dir="ltr" inputMode="decimal" autoComplete="off" autoFocus value={float} placeholder="0" data-testid="shift-float" onChange={(event) => setFloat(event.target.value)} />
+          <FieldInput className={PH_FIELD} dir="ltr" inputMode="decimal" autoComplete="off" autoFocus value={float} placeholder="0" data-testid="shift-float" onChange={(event) => setFloat(event.target.value)} />
         </Field>
-        {!online && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.banner')}</Note>}
-        {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="shift-problem">{problem}</Note>}
+        {!online && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.banner')}</Note>}
+        {problem && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="shift-problem">{problem}</Note>}
         <div>
-          <button type="submit" className={TOUCH_PRIMARY} disabled={busy || !online || amount === null} data-testid="shift-open">
+          <button type="submit" className={OPEN} disabled={busy || !online || amount === null} data-testid="shift-open">
             {busy ? <Hourglass aria-hidden className="size-4" /> : <DoorOpen aria-hidden className="size-4" />}
             {busy ? t('pharmacy.sell.pay.saving') : t('pharmacy.sell.shift.open')}
           </button>
