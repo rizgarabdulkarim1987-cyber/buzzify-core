@@ -201,6 +201,8 @@ export interface AuthEnv {
   /** The origin the Studio is served on, no trailing slash. Emailed links are built on it. */
   baseUrl: string;
   production: boolean;
+  /** The pharmacy and super admin hosts, when set: further hosts sign-in answers on. */
+  extraHosts?: string[];
 }
 
 /**
@@ -228,6 +230,11 @@ export function parseAuthEnv(source: Source): AuthEnv {
     secret: parsed.BETTER_AUTH_SECRET ?? DEVELOPMENT_SECRET,
     baseUrl: (parsed.BETTER_AUTH_URL ?? DEVELOPMENT_URL).replace(/\/+$/, ''),
     production,
+    // A malformed host is the production check's business; sign-in simply ignores it.
+    extraHosts: (() => {
+      const result = hostSchema.pick({ PHARMACY_HOST: true, CORE_HOST: true }).safeParse(source);
+      return result.success ? [result.data.PHARMACY_HOST, result.data.CORE_HOST].filter((host): host is string => !!host) : [];
+    })(),
   };
 }
 

@@ -142,7 +142,14 @@ describe('parseAuthEnv', () => {
       secret: SECRET,
       baseUrl: 'https://studio.buzzify.me',
       production: false,
+      extraHosts: [],
     });
+  });
+
+  it('lists the pharmacy and super admin hosts as further hosts sign-in is allowed on', () => {
+    expect(
+      parseAuthEnv({ BETTER_AUTH_URL: 'https://hive.example.test', PHARMACY_HOST: 'leaf.example.test', CORE_HOST: 'core.example.test' }).extraHosts,
+    ).toEqual(['leaf.example.test', 'core.example.test']);
   });
 
   it('refuses a missing secret in production, and one under 32 characters', () => {
