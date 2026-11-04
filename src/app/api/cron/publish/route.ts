@@ -3,6 +3,7 @@ import { parseCronEnv } from '@/server/env';
 import { authorized } from '@/server/http/cron-auth';
 import { prunePublicRateLimits, pruneProductViewMarks, pruneWheelSpins } from '@/server/http/rate-limit';
 import { activateDueRevisions } from '@/server/publish/revisions';
+import { pruneSpentSignatures, RETAIL_REPLAY_WINDOW_SEC } from '@/server/retail/inbound';
 
 /** One run makes up to 100 revisions live; a minute is plenty, and the next run picks up the rest. */
 export const maxDuration = 60;
@@ -24,5 +25,7 @@ export async function GET(request: Request) {
   await prunePublicRateLimits(getPrisma(), new Date(now.getTime() - 86_400_000));
   await pruneWheelSpins(getPrisma(), new Date(now.getTime() - 3 * 86_400_000));
   await pruneProductViewMarks(getPrisma(), new Date(now.getTime() - 3 * 86_400_000));
+  // Retails' spent signatures: a mark older than a signature can live guards nothing.
+  await pruneSpentSignatures(getPrisma(), new Date(now.getTime() - RETAIL_REPLAY_WINDOW_SEC * 1000));
   return Response.json(result, { headers: NO_STORE });
 }

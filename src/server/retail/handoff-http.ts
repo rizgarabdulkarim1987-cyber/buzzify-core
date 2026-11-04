@@ -2,7 +2,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { direction, type Locale } from '@/lib/locale';
 import { getPrisma } from '@/server/data/prisma';
 import { clientIp } from '@/server/http/client-ip';
-import { actorFromHeaders, type Actor } from '@/server/studio/auth/actor';
+import { actorFromHeaders } from '@/server/studio/auth/actor';
 import { addressKey, checkRateLimit, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
 import { getStudioTranslator } from '@/studio/messages';
@@ -16,6 +16,7 @@ import {
   HANDOFF_COOKIE_MAX_AGE,
   isRestaurantId,
   issueHandoff,
+  mayHandOff,
   ownedRetailShops,
   PICK_COOKIE,
   RESUME_COOKIE,
@@ -95,9 +96,6 @@ async function admit(prisma: PrismaClient, request: Request, now: Date): Promise
   if (!verdict.allowed) return answer(429, 'Too many requests', 'text/plain; charset=utf-8', [], { 'retry-after': String(verdict.retryAfterSec) });
   return null;
 }
-
-/** A session that may sign in elsewhere: not a till's PIN session, and a Super Admin only with two-factor on. */
-const mayHandOff = (actor: Actor) => !actor.posRestaurantId && (!actor.isSuperAdmin || actor.twoFactorEnabled);
 
 async function guarded(label: string, run: () => Promise<Response>): Promise<Response> {
   try {

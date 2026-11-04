@@ -60,6 +60,14 @@ export function checkStateAndNonce(state: string | null, nonce: string | null): 
   return timingSafeEqual(Buffer.from(nonce, 'utf8'), Buffer.from(expected, 'utf8'));
 }
 
+/** Whether `value` has the shape of a handoff nonce, base64url(sha256(state)) (43 chars). Retails' own form sends one per call. */
+export function isNonce(value: unknown): value is string {
+  return typeof value === 'string' && NONCE.test(value);
+}
+
+/** A person who may sign in to Retails: not a till's PIN session, and a Super Admin only with two-factor on. */
+export const mayHandOff = (actor: Actor): boolean => !actor.posRestaurantId && (!actor.isSuperAdmin || actor.twoFactorEnabled);
+
 export function isRestaurantId(value: string | null | undefined): value is string {
   return typeof value === 'string' && RESTAURANT_ID.test(value);
 }

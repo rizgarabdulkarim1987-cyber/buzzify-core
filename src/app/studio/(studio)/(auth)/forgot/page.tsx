@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { retailSignInUrl } from '@/server/retail/entry';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
 import { authEntryOf, authTitle, withNext } from '@/studio/auth-entry';
 import { getStudioTranslator } from '@/studio/messages';
@@ -16,20 +17,31 @@ export async function generateMetadata({ searchParams }: { searchParams: Params 
   return { title: authTitle(getStudioTranslator(locale)('auth.forgot.title'), authEntryOf(safeNextPath(params.next))) };
 }
 
-/** Asks for a reset link. `next` only comes along from the sign-in page, so the way back keeps its entry (and its frame). */
+/**
+ * Asks for a reset link. `next` comes along from the sign-in page and from Buzzify Retail's own sign-in form, so the page
+ * keeps its entry (and its frame). From Retail the way back is Retails' sign-in page, where the person started.
+ */
 export default async function ForgotPage({ searchParams }: { searchParams: Params }) {
   const [params, locale] = await Promise.all([searchParams, requestStudioLocale()]);
   const t = getStudioTranslator(locale);
   const next = safeNextPath(params.next);
   const entry = authEntryOf(next);
+  const retailBack = entry === 'retail' ? retailSignInUrl() : null;
+  const backClass = 'hover:text-text hover:underline';
   return (
     <AuthPageFrame entry={entry}>
       <AuthPanel
         title={t('auth.forgot.title')}
         footer={
-          <Link href={withNext(SIGN_IN_PATH, next)} className="hover:text-text hover:underline">
-            {t('auth.backToSignIn')}
-          </Link>
+          retailBack ? (
+            <a href={retailBack} className={backClass}>
+              {t('auth.backToSignIn')}
+            </a>
+          ) : (
+            <Link href={withNext(SIGN_IN_PATH, next)} className={backClass}>
+              {t('auth.backToSignIn')}
+            </Link>
+          )
         }
       >
         <ForgotForm entry={entry} />
