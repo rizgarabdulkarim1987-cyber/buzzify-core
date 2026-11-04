@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { PrismaClient } from '@/generated/prisma/client';
+import { DEFAULT_RETAIL_ACTIVITY, type RetailActivity } from '@/server/domain/retail/activity';
 import type { Actor } from '@/server/studio/auth/actor';
 import { retailConfig } from './config';
 
@@ -31,6 +32,12 @@ export const HANDOFF_TTL_SECONDS = 60;
 export const RESUME_COOKIE = 'studio_retail_resume';
 /** The shop an owner picked ("Open Retails" or the chooser): a restaurant id, honoured only for an owner of it. */
 export const PICK_COOKIE = 'studio_retail_pick';
+/**
+ * Set when a handoff that came back to one Retails address was sent on to the address of the chosen shop's own product
+ * (its start makes a new state there). The next handoff for that shop then gets its token whatever its return is, so a
+ * Retails that names one return for every address never makes the browser go round.
+ */
+export const HOP_COOKIE = 'studio_retail_hop';
 export const HANDOFF_COOKIE_MAX_AGE = 600;
 
 const NAME_MAX = 200;
@@ -48,9 +55,13 @@ export function signHandoff(claims: HandoffClaims, secret: string): string {
   return `${payload}.${b64url(createHmac('sha256', secret).update(payload, 'utf8').digest())}`;
 }
 
-/** The return address is the configured callback, character for character: no parsing, no normalising, no trimming. */
-export function checkReturn(raw: string | null, callbackUrl: string): boolean {
-  return typeof raw === 'string' && raw.length > 0 && raw === callbackUrl;
+/**
+ * The return address is a configured callback (`RETAIL_URL`'s or a Retail product address's), character for character:
+ * no parsing, no normalising, no trimming.
+ */
+export function checkReturn(raw: string | null, callbackUrls: string | readonly string[]): boolean {
+  const allowed = typeof callbackUrls === 'string' ? [callbackUrls] : callbackUrls;
+  return typeof raw === 'string' && raw.length > 0 && allowed.includes(raw);
 }
 
 /** Retails' state (base64url, 16..256) and the nonce it derives from it, base64url(sha256(state)) (43 chars). */
@@ -64,13 +75,20 @@ export function isRestaurantId(value: string | null | undefined): value is strin
   return typeof value === 'string' && RESTAURANT_ID.test(value);
 }
 
+export type Resume = {
+  state: string;
+  nonce: string;
+  /** The return the handoff came with, when it was not `RETAIL_URL`'s (a Retail product's address); checked again on use. */
+  return?: string;
+};
+
 /** The resume cookie's value for a handoff. */
-export function encodeResume(resume: { state: string; nonce: string }): string {
-  return b64url(Buffer.from(JSON.stringify({ state: resume.state, nonce: resume.nonce }), 'utf8'));
+export function encodeResume(resume: Resume): string {
+  return b64url(Buffer.from(JSON.stringify({ state: resume.state, nonce: resume.nonce, ...(resume.return ? { return: resume.return } : {}) }), 'utf8'));
 }
 
-/** The handoff a resume cookie holds, checked again as on arrival; null for anything else. */
-export function decodeResume(raw: string | null | undefined): { state: string; nonce: string } | null {
+/** The handoff a resume cookie holds, checked again as on arrival; null for anything else. A cookie without `return` is RETAIL_URL's. */
+export function decodeResume(raw: string | null | undefined): Resume | null {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_RESUME_LENGTH || !B64URL.test(raw)) return null;
   let parsed: unknown;
   try {
@@ -79,25 +97,38 @@ export function decodeResume(raw: string | null | undefined): { state: string; n
     return null;
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-  const { state, nonce } = parsed as Record<string, unknown>;
+  const { state, nonce, return: back } = parsed as Record<string, unknown>;
   if (typeof state !== 'string' || typeof nonce !== 'string' || !checkStateAndNonce(state, nonce)) return null;
-  return { state, nonce };
+  if (back !== undefined && (typeof back !== 'string' || back.length === 0 || back.length > 512)) return null;
+  return typeof back === 'string' ? { state, nonce, return: back } : { state, nonce };
 }
 
-/** The retail shops `userId` is an OWNER of, oldest membership first, and whether Retails has provisioned each. */
+/**
+ * The retail shops `userId` is an OWNER of, oldest membership first, whether Retails has provisioned each, and which
+ * Retail product each is (whose Retails address its owner is sent to).
+ */
 export async function ownedRetailShops(
   db: Pick<PrismaClient, 'membership'>,
   userId: string,
-): Promise<Array<{ id: string; name: string; provisioned: boolean }>> {
+): Promise<Array<{ id: string; name: string; provisioned: boolean; activity: RetailActivity }>> {
   const rows = await db.membership.findMany({
     where: { userId, role: 'OWNER', restaurant: { sector: 'RETAIL' } },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    select: { restaurant: { select: { id: true, name: true, retailLink: { select: { retailBusinessId: true } } } } },
+    select: { restaurant: { select: { id: true, name: true, retailLink: { select: { retailBusinessId: true, activity: true } } } } },
   });
-  return rows.map(({ restaurant }) => ({ id: restaurant.id, name: restaurant.name, provisioned: Boolean(restaurant.retailLink?.retailBusinessId) }));
+  return rows.map(({ restaurant }) => ({
+    id: restaurant.id,
+    name: restaurant.name,
+    provisioned: Boolean(restaurant.retailLink?.retailBusinessId),
+    activity: restaurant.retailLink?.activity ?? DEFAULT_RETAIL_ACTIVITY,
+  }));
 }
 
-export type Choice = { kind: 'business'; restaurantId: string } | { kind: 'choose' } | { kind: 'none' } | { kind: 'notReady'; restaurantId: string };
+export type Choice =
+  | { kind: 'business'; restaurantId: string; activity: RetailActivity }
+  | { kind: 'choose' }
+  | { kind: 'none' }
+  | { kind: 'notReady'; restaurantId: string };
 
 /**
  * Which shop the token names: the picked one when the actor owns that retail shop (any other pick is ignored), else the
@@ -107,7 +138,7 @@ export async function chooseBusiness(prisma: PrismaClient, actor: Actor, pick: s
   const shops = await ownedRetailShops(prisma, actor.userId);
   const chosen = (isRestaurantId(pick) ? shops.find((shop) => shop.id === pick) : undefined) ?? (shops.length === 1 ? shops[0] : undefined);
   if (!chosen) return shops.length === 0 ? { kind: 'none' } : { kind: 'choose' };
-  return chosen.provisioned ? { kind: 'business', restaurantId: chosen.id } : { kind: 'notReady', restaurantId: chosen.id };
+  return chosen.provisioned ? { kind: 'business', restaurantId: chosen.id, activity: chosen.activity } : { kind: 'notReady', restaurantId: chosen.id };
 }
 
 /**

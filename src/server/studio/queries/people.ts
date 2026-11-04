@@ -25,7 +25,7 @@ const PLATFORM = { kind: 'platform' } as const;
  * (their memberships are cut the same way); everyone else, the Super Admins and the staff attached to no business, is in
  * the platform's own space. So every account is in at least one space.
  */
-const peopleSpace = z.enum(['food', 'pharmacy', 'retail', 'platform']).default('food');
+const peopleSpace = z.enum(['food', 'pharmacy', 'supermarket', 'electronics', 'clothing', 'platform']).default('food');
 type PeopleSpace = z.infer<typeof peopleSpace>;
 
 /** A membership of a business space's sector; null for the platform space and for any list that is not the platform-wide one. */

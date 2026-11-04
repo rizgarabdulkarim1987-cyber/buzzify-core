@@ -72,12 +72,13 @@ describe('buildRetailState', () => {
         graceDays: 7,
       },
       aiIntake: true,
+      activityType: 'MARKET',
       owner: { coreUserId: owner.id, email: owner.email, emailVerified: owner.emailVerified, name: owner.name },
     });
     expect(built.provision).toEqual({
       coreBusinessId: shop.id,
       name: 'Good Shop',
-      activityType: 'MIXED',
+      activityType: 'MARKET',
       capabilities: [],
       branches: [{ name: 'Good Shop branch 1' }, { name: 'Good Shop branch 2' }],
       currencies: ['IQD', 'USD'],

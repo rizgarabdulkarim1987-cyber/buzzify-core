@@ -119,7 +119,7 @@ describe('the Studio retail list (retail.list)', () => {
     await pharmacy('F Pharmacy', { subscription: 'none' });
     const boss = await admin('list-admin@rt-test.example', false);
 
-    const { rows } = dataOf(await ask(boss, retailList, {}));
+    const { rows } = dataOf(await ask(boss, retailList, { space: 'supermarket' }));
 
     expect(rows.map((row) => row.name)).toEqual(['A Synced', 'B Waiting', 'C Retrying', 'D Failed', 'E Fresh']);
     expect(rows.map((row) => row.sync.kind)).toEqual(['synced', 'waitingOwner', 'retrying', 'failed', 'notProvisioned']);
@@ -135,14 +135,26 @@ describe('the Studio retail list (retail.list)', () => {
     await prisma().retailOutbox.create({ data: { restaurantId: bad.id, dueVersion: 1, attempts: 1, failedAt: NOW, lastError: 'INVALID_INPUT' } });
     const boss = await admin('list-admin2@rt-test.example', false);
 
-    const { rows } = dataOf(await ask(boss, retailList, { failedOnly: true }));
+    const { rows } = dataOf(await ask(boss, retailList, { failedOnly: true, space: 'supermarket' }));
 
     expect(rows.map((row) => row.name)).toEqual(['Broken']);
   });
 
+  it('lists each Retail product its own shops only', async () => {
+    await retailShop('Old Market');
+    const volt = await retailShop('Volt Gadgets');
+    await prisma().retailLink.update({ where: { restaurantId: volt.id }, data: { activity: 'ELECTRONICS' } });
+    const boss = await admin('list-admin3@rt-test.example', false);
+    const names = async (space: 'supermarket' | 'electronics' | 'clothing') => dataOf(await ask(boss, retailList, { space })).rows.map((row) => row.name);
+    expect(await names('supermarket')).toEqual(['Old Market']);
+    expect(await names('electronics')).toEqual(['Volt Gadgets']);
+    expect(await names('clothing')).toEqual([]);
+    expect((await ask(boss, retailList, {})).ok).toBe(false);
+  });
+
   it('is refused to an owner', async () => {
     const shop = await retailShop('Mine');
-    expect((await ask(shop.owner!, retailList, {})).ok).toBe(false);
+    expect((await ask(shop.owner!, retailList, { space: 'supermarket' })).ok).toBe(false);
   });
 });
 

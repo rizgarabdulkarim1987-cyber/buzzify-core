@@ -115,7 +115,7 @@ describe('retail plans', () => {
     dataOf(await run(owner, billing.startTrial, trial(shop.id, 'retail', 'shop')));
     expect(await prisma().subscription.findFirstOrThrow({ where: { restaurantId: shop.id } })).toMatchObject({ applicationId: 'retail', planCode: 'shop', status: 'TRIAL' });
     // The Retail product's prices are the Retail space's settings; Menu and Cashier's never list it.
-    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, { space: 'retail' }));
+    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, { space: 'supermarket' }));
     expect(overview.applications.find((a) => a.id === 'retail')?.plans.map((p) => p.code)).toEqual(['shop']);
     expect(dataOf(await runQuery(prisma(), owner, billingOverview, {})).applications.map((a) => a.id)).not.toContain('retail');
   });
