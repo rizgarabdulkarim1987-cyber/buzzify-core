@@ -241,6 +241,8 @@ test.describe('Pharmacy routes sweep @desktop', () => {
         expect(response?.status(), `${target} answers`).toBe(200);
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         await expect(page.locator('main#main')).toHaveCount(1);
+        // The scroll container is in the tab order: a page with nothing focusable can still be scrolled by keyboard.
+        await expect(page.locator('main#main')).toHaveAttribute('tabindex', '0');
         // The page drew its own heading inside the frame (not an error or blank page).
         await expect(page.locator('main#main h1').first()).toBeVisible();
         const key = phActiveKey(new URL(page.url()).pathname);

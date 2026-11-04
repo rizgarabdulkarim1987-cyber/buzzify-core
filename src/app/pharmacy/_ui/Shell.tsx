@@ -109,7 +109,8 @@ export function Shell({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col print:min-h-0">
         <SupportBanner support={actor.support} locale={actor.locale} />
         {notice ? <div className="shrink-0 print:hidden">{notice}</div> : null}
-        <main id="main" className="relative flex min-h-0 min-w-0 flex-1 scroll-pb-24 flex-col overflow-y-auto print:overflow-visible">
+        {/* The one scroll container: in the tab order, so the keyboard can scroll a page that has nothing focusable (axe scrollable-region-focusable). */}
+        <main id="main" tabIndex={0} className="relative flex min-h-0 min-w-0 flex-1 scroll-pb-24 flex-col overflow-y-auto focus-visible:-outline-offset-2 print:overflow-visible">
           {children}
         </main>
       </div>
