@@ -245,6 +245,22 @@ describe('checkProductionEnv', () => {
       }
     });
 
+    it('accepts each Retail product address, optional, by the same rules as RETAIL_URL, and only with RETAIL_URL', () => {
+      const products = {
+        RETAIL_URL_SUPERMARKET: 'https://supermarket.buzzify.tech',
+        RETAIL_URL_ELECTRONICS: 'https://electronics.buzzify.tech',
+        RETAIL_URL_CLOTHING: 'https://clothing.buzzify.tech/',
+      };
+      expect(problemsWith({ ...retail, ...products })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL_ELECTRONICS: products.RETAIL_URL_ELECTRONICS })).toEqual([]);
+      for (const bad of ['http://electronics.buzzify.tech', 'electronics.buzzify.tech', 'https://electronics.buzzify.tech/app', 'https://Electronics.buzzify.tech', 'https://electronics.buzzify.tech:443']) {
+        expect(named(problemsWith({ ...retail, RETAIL_URL_ELECTRONICS: bad })), bad).toEqual(['RETAIL_URL_ELECTRONICS']);
+      }
+      // A product address alone switches nothing on, and says so rather than being ignored.
+      expect(named(problemsWith({ RETAIL_URL_CLOTHING: products.RETAIL_URL_CLOTHING }))).toEqual(['RETAIL_URL_CLOTHING']);
+      expect(problemsWith({ RETAIL_URL_CLOTHING: products.RETAIL_URL_CLOTHING })[0]).toContain('RETAIL_URL is not');
+    });
+
     it('refuses a secret under 16 characters, including the optional previous one', () => {
       expect(named(problemsWith({ ...retail, RETAIL_SYNC_SECRET: 'x'.repeat(15) }))).toEqual(['RETAIL_SYNC_SECRET']);
       expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: 'x'.repeat(15) }))).toEqual(['RETAIL_CALLER_SECRET_PREVIOUS']);

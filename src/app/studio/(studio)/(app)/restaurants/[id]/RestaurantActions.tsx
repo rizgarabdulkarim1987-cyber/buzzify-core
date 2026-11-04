@@ -9,6 +9,7 @@ import type { BusinessSector, RestaurantStatus } from '@/server/domain/restauran
 import { useT } from '@/studio/i18n';
 import { useRefuse } from '@/studio/refuse';
 import { spaceOfSector, spaceT } from '@/studio/space-words';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
@@ -28,7 +29,7 @@ export interface RestaurantActionsProps {
   /** Where the list of this kind of business is: the page to land on after a delete. */
   listHref?: string;
   /** The space of the page, which the actions name so they never touch the other project's businesses. */
-  space?: 'food' | 'pharmacy' | 'retail';
+  space?: BusinessSpaceId;
   /** The business's sector, whose project's words the dialogs speak (a retail shop's name no menu or guest). */
   sector?: BusinessSector;
 }
@@ -40,7 +41,8 @@ const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPE
  * restaurant off the public pages at once, and deleting cannot be undone. Offers only what the person may do now.
  */
 export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete, listHref = '/studio/restaurants', space, sector }: RestaurantActionsProps) {
-  const t = spaceT(useT(), sector ? spaceOfSector(sector) : space);
+  // The page's space first (a Super Admin's, which names a shop's own product), else the words of the business's sector.
+  const t = spaceT(useT(), space ?? (sector ? spaceOfSector(sector) : undefined));
   const router = useRouter();
   const refuse = useRefuse();
   const [choice, setChoice] = useState<Choice | null>(null);

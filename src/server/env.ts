@@ -436,6 +436,9 @@ const CHECKED_VARIABLES = [
   'MEDIA_LOCAL_DIR',
   'CRON_SECRET',
   'RETAIL_URL',
+  'RETAIL_URL_SUPERMARKET',
+  'RETAIL_URL_ELECTRONICS',
+  'RETAIL_URL_CLOTHING',
   'RETAIL_SYNC_SECRET',
   'RETAIL_CALLER_SECRET',
   'RETAIL_CALLER_SECRET_PREVIOUS',
@@ -455,6 +458,8 @@ const RETAIL_SECRETS = [
   ['RETAIL_HANDOFF_SECRET', "Retails' CORE_HANDOFF_SECRET", true],
 ] as const;
 const MIN_RETAIL_SECRET_LENGTH = 16;
+/** The optional address of each Retail product (Supermarket, Electronics, Clothing); unset, it is RETAIL_URL. */
+const RETAIL_PRODUCT_URLS = ['RETAIL_URL_SUPERMARKET', 'RETAIL_URL_ELECTRONICS', 'RETAIL_URL_CLOTHING'] as const;
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -588,18 +593,34 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
     const value = text(name);
     return value && !SECRET_PLACEHOLDER.test(value) ? value : undefined;
   };
-  const retailUrl = retailText('RETAIL_URL');
-  if (retailUrl) {
-    const url = URL.canParse(retailUrl) ? new URL(retailUrl) : null;
-    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) {
-      report('RETAIL_URL', "must be the address of Buzzify Retail, the same as its APP_URL, such as https://retail.buzzify.me");
-    } else if (url.protocol !== 'https:') report('RETAIL_URL', 'must start with https://');
+  /** An address of Buzzify Retail: https, an origin only, written exactly as its origin (what `retailConfig()` requires). */
+  const checkRetailAddress = (name: string, value: string, what: string, written: string) => {
+    const url = URL.canParse(value) ? new URL(value) : null;
+    if (!url || (url.protocol !== 'https:' && url.protocol !== 'http:')) report(name, what);
+    else if (url.protocol !== 'https:') report(name, 'must start with https://');
     else if (url.pathname !== '/' || url.search !== '' || url.hash !== '' || url.username !== '' || url.password !== '') {
-      report('RETAIL_URL', 'must be an origin only, without a path, query or #');
-    } else if (retailUrl.replace(/\/$/, '') !== url.origin) {
-      // Retails names its callback from APP_URL as written, and Studio accepts only the one built from this origin.
-      report('RETAIL_URL', "must be written exactly as Retails' APP_URL: lowercase, without a default port");
+      report(name, 'must be an origin only, without a path, query or #');
+    } else if (value.replace(/\/$/, '') !== url.origin) {
+      // Retails names its callback from the address as written, and Studio accepts only the one built from this origin.
+      report(name, written);
     }
+  };
+  const retailUrl = retailText('RETAIL_URL');
+  // Each Retail product's own address is optional (unset, the product uses RETAIL_URL) and means nothing while the link is off.
+  for (const name of RETAIL_PRODUCT_URLS) {
+    const value = retailText(name);
+    if (value && !retailUrl) report(name, 'is set but RETAIL_URL is not: set RETAIL_URL to switch the Retail link on, or remove it');
+    else if (value) {
+      checkRetailAddress(name, value, 'must be an address Buzzify Retail serves for this product, such as https://supermarket.buzzify.tech', 'must be written exactly as Retails serves it: lowercase, without a default port');
+    }
+  }
+  if (retailUrl) {
+    checkRetailAddress(
+      'RETAIL_URL',
+      retailUrl,
+      'must be the address of Buzzify Retail, the same as its APP_URL, such as https://retail.buzzify.me',
+      "must be written exactly as Retails' APP_URL: lowercase, without a default port",
+    );
 
     const secrets = new Map<string, string>();
     for (const [name, twin, required] of RETAIL_SECRETS) {

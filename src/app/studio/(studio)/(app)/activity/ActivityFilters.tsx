@@ -3,6 +3,7 @@
 import { useT } from '@/studio/i18n';
 import { findMenuOptions, findPersonOptions, findRestaurantOptionsIn } from '@/studio/pickers';
 import { spaceActions, spaceT } from '@/studio/space-words';
+import { isRetailSpace, type BusinessSpaceId } from '@/studio/spaces';
 import { Field } from '@/studio/ui/Field';
 import { FilterBar, useFilterParams } from '@/studio/ui/FilterBar';
 import { Input } from '@/studio/ui/Input';
@@ -25,7 +26,7 @@ const asOption = (selected: { id: string; name: string | null } | null): PickerO
  * everything), an action, and a range of days. Each one is a parameter of the address, which the page reads, so a
  * filtered log is a link.
  */
-export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: 'food' | 'pharmacy' | 'retail' }) {
+export function ActivityFilters({ selected, space = 'food' }: { selected: SelectedFilters; space?: BusinessSpaceId }) {
   // In the space's words, offering only the space's own actions (Retail lists no menu or till work, and the others no Retail).
   const t = spaceT(useT(), space);
   const { params, set } = useFilterParams();
@@ -50,7 +51,7 @@ export function ActivityFilters({ selected, space = 'food' }: { selected: Select
           placeholder={t('activity.filter.anyRestaurant')}
         />
       </Field>
-      {space !== 'retail' && (
+      {!isRetailSpace(space) && (
         <Field label={t('activity.filter.menu')} hideLabel className="w-52">
           <Picker
             clearable

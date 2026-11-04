@@ -7,25 +7,32 @@ import { billingOverview } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
+import { spaceT } from '@/studio/space-words';
+import { isRetailSpace } from '@/studio/spaces';
 import { PageHeader } from '@/studio/ui/PageHeader';
-import { AppPlansEditor } from '../../../billing/plans/AppPlansEditor';
-import { BillingSettings } from '../../../settings/billing/BillingSettings';
+import { AppPlansEditor } from '../../billing/plans/AppPlansEditor';
+import { BillingSettings } from '../../settings/billing/BillingSettings';
+import { productOf, type ProductParams } from '../product';
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({ params }: ProductParams): Promise<Metadata> {
+  const { product } = await params;
   const t = getStudioTranslator(await requestStudioLocale());
-  return { title: `${t('nav.settings')} · ${t('hub.retail')}` };
+  return { title: isRetailSpace(product) ? `${t('nav.settings')} · ${t(`hub.${product}`)}` : t('nav.settings') };
 }
 
 /**
- * Retail's own settings, apart from the other projects: what the Retail product costs and the Retail plans with the limits
- * each sets (once the `?app=retail` tab of Billing → Plans). Super Admins read it; the platform owner changes it.
+ * A Retail product's settings, apart from the other projects: what the Retail product costs and the Retail plans with the
+ * limits each sets (once the `?app=retail` tab of Billing → Plans). The three Retail products share the one Retail
+ * product and its plans for now, so this page is the same in each of their spaces. Super Admins read it; the platform
+ * owner changes it.
  */
-export default async function RetailSettingsPage() {
+export default async function RetailSettingsPage({ params }: ProductParams) {
+  const product = await productOf(params);
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), product);
   const [overview, plans, appPlans] = await Promise.all([
-    query(billingOverview, { space: 'retail' }),
+    query(billingOverview, { space: product }),
     query(getPlans, {}),
     query(appPlansList, { applicationId: 'retail' }),
   ]);

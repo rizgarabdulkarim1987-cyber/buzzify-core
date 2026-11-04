@@ -477,7 +477,8 @@ email or the repository.
 
 | Studio | Retails twin | What it does |
 |---|---|---|
-| `RETAIL_URL` | `APP_URL` | Retails' address. The Studio calls it and sends sign-ins back only to it |
+| `RETAIL_URL` | `APP_URL` | Retails' address. The Studio calls it, and sends sign-ins back to it or to a product address below |
+| `RETAIL_URL_SUPERMARKET`, `RETAIL_URL_ELECTRONICS`, `RETAIL_URL_CLOTHING` | hosts in `PACK_HOSTS` | Optional. Each Retail product's own address, where its owners sign in. Unset: `RETAIL_URL` |
 | `RETAIL_SYNC_SECRET` | `CORE_SYNC_SECRET` | Signs the Studio's provision and state calls |
 | `RETAIL_CALLER_SECRET` | `CORE_OUT_SECRET` | Checks Retails' ai-config and identities calls |
 | `RETAIL_CALLER_SECRET_PREVIOUS` | (Retails' previous `CORE_OUT_SECRET`) | Optional, only while that secret is being changed |
@@ -645,6 +646,7 @@ still a place it can be read. The apps themselves never log it.
 | `MEDIA_PUBLIC_URL` | yes | You, step 3b | `https://media.buzzify.me` |
 | `CRON_SECRET` | yes | You, step 3c | 32 or more characters |
 | `RETAIL_URL` | only to link Buzzify Retail | Retails' `APP_URL`, written the same way | `https://retail.buzzify.me` |
+| `RETAIL_URL_SUPERMARKET` / `_ELECTRONICS` / `_CLOTHING` | no; with `RETAIL_URL` | A product's own Retails address, written like `RETAIL_URL` | `https://electronics.buzzify.tech` |
 | `RETAIL_SYNC_SECRET` | with `RETAIL_URL` | You; the same value as Retails' `CORE_SYNC_SECRET` | 16 or more characters (32 recommended) |
 | `RETAIL_CALLER_SECRET` | with `RETAIL_URL` | You; the same value as Retails' `CORE_OUT_SECRET` | 16 or more characters (32 recommended) |
 | `RETAIL_CALLER_SECRET_PREVIOUS` | no; only while changing that secret | Its old value | 16 or more characters |

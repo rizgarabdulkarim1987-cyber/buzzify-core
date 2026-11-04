@@ -65,7 +65,7 @@ export default async function PharmaciesPage() {
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td className="px-4 py-3">
-                      <Link href={businessPath('PHARMACY', row.id)} className="font-medium text-text underline-offset-2 hover:underline">
+                      <Link href={businessPath('pharmacy', row.id)} className="font-medium text-text underline-offset-2 hover:underline">
                         {row.name}
                       </Link>
                     </td>

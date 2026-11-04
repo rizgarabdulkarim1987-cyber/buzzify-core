@@ -1,4 +1,5 @@
 import type { Messages } from '@/lib/i18n';
+import products from './products/en';
 
 /** The link to Buzzify Retail: the sign-in handoff's pages. Spread into the Studio catalog by `../en.ts`; later tasks add their keys here. */
 const retail: Messages = {
@@ -140,6 +141,7 @@ const retail: Messages = {
   'retail.as.error.text.deleteHasTillHistory': 'This account has history in another product, so it can only stay deactivated',
   'retail.as.restaurants.branches.emptyBody': 'Add a branch if the shop has more than one location.',
   'retail.as.media.picker.intro': 'From this shop’s library and the shared one.',
+  ...products,
 };
 
 export default retail;

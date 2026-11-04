@@ -4,13 +4,13 @@ import type { ReactNode } from 'react';
 import { REQUEST_PATH_HEADER } from '@/server/http/request-path';
 import { getActor } from '@/server/studio/auth/actor';
 import { SIGN_IN_PATH } from '@/server/studio/framework/invoke';
-import { businessPath, movedBusinessAddressOf, pharmacyAddressOf } from '@/studio/spaces';
+import { businessPath, movedBusinessAddressOf, pharmacyAddressOf, spaceOfBusiness } from '@/studio/spaces';
 import { BusinessLayout } from './BusinessLayout';
 import { loadRestaurant } from './load';
 
 /**
  * The frame of one restaurant in Menu and Cashier (see BusinessLayout). A Super Admin who opens a pharmacy or a retail
- * shop here (an old link, a bookmark) lands on the same page in the Pharmacy or Retail space; everyone else is never moved.
+ * shop here (an old link, a bookmark) lands on the same page in the Pharmacy or in the shop's Retail product's space; everyone else is never moved.
  */
 export default async function RestaurantLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const actor = await getActor();
@@ -21,8 +21,10 @@ export default async function RestaurantLayout({ children, params }: { children:
     redirect(target ?? `/studio/pharmacy/${restaurant.id}`);
   }
   if (actor.isSuperAdmin && restaurant.sector === 'RETAIL') {
-    const target = movedBusinessAddressOf((await headers()).get(REQUEST_PATH_HEADER) ?? '', restaurant.id, 'RETAIL');
-    redirect(target ?? businessPath('RETAIL', restaurant.id));
+    // In the space of the shop's own Retail product.
+    const space = spaceOfBusiness(restaurant.sector, restaurant.retailActivity);
+    const target = movedBusinessAddressOf((await headers()).get(REQUEST_PATH_HEADER) ?? '', restaurant.id, space);
+    redirect(target ?? businessPath(space, restaurant.id));
   }
   return (
     <BusinessLayout space="food" params={params}>

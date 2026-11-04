@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { AnyDb } from '@/server/data/tenant-db';
+import { retailsActivityType, type RetailsActivityType } from '@/server/domain/retail/activity';
 import { retailLimitsSchema } from '@/server/domain/retail/limits';
 
 /**
@@ -26,12 +27,18 @@ export type RetailState = {
   };
   aiIntake: boolean;
   owner: { coreUserId: string; email: string; emailVerified: boolean; name: string };
+  /**
+   * The shop's Retail product as Retails names it (SUPERMARKET is MARKET). The provision body carries it too; it is in
+   * every snapshot so a shop provisioned before the three products reaches Retails with its type as well. Retails' state
+   * schema drops keys it does not know, so a Retails that does not read it yet accepts the snapshot as before.
+   */
+  activityType: RetailsActivityType;
 };
 
 export type ProvisionBody = {
   coreBusinessId: string;
   name: string;
-  activityType: 'MIXED';
+  activityType: RetailsActivityType;
   capabilities: [];
   branches: { name: string }[];
   currencies: ('IQD' | 'USD')[];
@@ -66,7 +73,7 @@ export async function buildRetailState(tx: AnyDb, restaurantId: string): Promise
   // eslint-disable-next-line no-restricted-properties -- a row lock on this one business's link, keyed by its id
   const locked = await tx.$queryRaw<{ restaurantId: string }[]>`SELECT "restaurantId" FROM "RetailLink" WHERE "restaurantId" = ${restaurantId} FOR SHARE`;
   if (locked.length === 0) throw new NotRetailError(restaurantId);
-  const link = await tx.retailLink.findUniqueOrThrow({ where: { restaurantId }, select: { stateVersion: true, aiIntake: true, currencies: true } });
+  const link = await tx.retailLink.findUniqueOrThrow({ where: { restaurantId }, select: { stateVersion: true, aiIntake: true, currencies: true, activity: true } });
 
   const membership = await tx.membership.findFirst({
     where: { restaurantId, role: 'OWNER', user: { deactivatedAt: null } },
@@ -118,12 +125,13 @@ export async function buildRetailState(tx: AnyDb, restaurantId: string): Promise
     },
     aiIntake: link.aiIntake,
     owner: { coreUserId: owner.id, email: owner.email, emailVerified: owner.emailVerified, name: owner.name.trim().slice(0, OWNER_NAME_MAX) },
+    activityType: retailsActivityType(link.activity),
   };
   const provision: ProvisionBody = {
     coreBusinessId: restaurantId,
     name: business.name.trim().slice(0, BUSINESS_NAME_MAX),
-    // Owner question 7: the owner sets the shop type and capabilities in Retails.
-    activityType: 'MIXED',
+    // The shop's product, chosen when it was made in the Studio; the owner sets its capabilities in Retails.
+    activityType: state.activityType,
     capabilities: [],
     branches: branches.map((branch) => ({ name: branch.name })),
     currencies: [...link.currencies],

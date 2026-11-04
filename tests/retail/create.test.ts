@@ -75,6 +75,17 @@ describe('creating a RETAIL business', () => {
     expect(await prisma().subscription.count({ where: { restaurantId } })).toBe(0);
   });
 
+  it('makes a shop of the Retail product of the space it is created in, a Supermarket when no space is named', async () => {
+    const plain = dataOf(await run(admin, restaurants.createRestaurant, RETAIL));
+    expect((await prisma().retailLink.findUniqueOrThrow({ where: { restaurantId: plain.restaurantId } })).activity).toBe('SUPERMARKET');
+    for (const [space, activity] of [['supermarket', 'SUPERMARKET'], ['electronics', 'ELECTRONICS'], ['clothing', 'CLOTHING']] as const) {
+      const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, { ...RETAIL, name: `Shop ${space}`, space }));
+      expect((await prisma().retailLink.findUniqueOrThrow({ where: { restaurantId } })).activity).toBe(activity);
+      const created = await prisma().auditLog.findFirstOrThrow({ where: { action: 'restaurant.created', restaurantId } });
+      expect(created.changes).toMatchObject({ activity: { before: null, after: activity } });
+    }
+  });
+
   it('refuses duplicate branch names', async () => {
     const result = await run(admin, restaurants.createRestaurant, { ...RETAIL, branches: [{ name: 'Main' }, { name: ' main ' }] });
     expect(result.ok ? 'OK' : Object.keys(result.error.fields ?? {})).toEqual(['branches']);

@@ -4,6 +4,7 @@ import { ownedRetailShops } from '@/server/retail/handoff';
 import { aiUnitsOf, deriveSyncState } from '@/server/retail/sync-state';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { retailSpace, sectorWhere } from '@/server/studio/services/space-scope';
 
 type Names = { en: string; ar: string; ckb: string };
 
@@ -20,20 +21,21 @@ export const myRetailShops = defineQuery({
 });
 
 /**
- * Every RETAIL-sector business that has a `RetailLink`, for the Studio's Retail page: branches, status, its `retail`
+ * Every RETAIL-sector business of one Retail product that has a `RetailLink`, for that product's list: branches, status, its `retail`
  * subscription as it is now (the live one, else the newest) and how far delivery to Buzzify Retail is. `failedOnly` keeps
  * the shops whose delivery failed. `platform.settings`, like the pharmacy list: no tenant reads it.
  */
 export const retailList = defineQuery({
   name: 'retail.list',
   permission: 'platform.settings',
-  input: z.object({ failedOnly: z.boolean().optional() }),
+  // The Retail product whose shops are listed: each product's space lists its own and no other.
+  input: z.object({ failedOnly: z.boolean().optional(), space: retailSpace }),
   target: () => ({ kind: 'platform' }) as const,
-  run: async (ctx, { failedOnly }) => {
+  run: async (ctx, { failedOnly, space }) => {
     const now = new Date();
     const [shops, plans] = await Promise.all([
       ctx.db.restaurant.findMany({
-        where: { sector: 'RETAIL', retailLink: { isNot: null } },
+        where: { AND: [sectorWhere(space), { retailLink: { isNot: null } }] },
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         select: {
           id: true,

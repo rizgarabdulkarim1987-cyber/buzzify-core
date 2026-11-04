@@ -10,7 +10,7 @@ import { newRestaurantAccess } from '@/server/studio/queries/restaurants';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { initialSectorOf } from '@/studio/sector-param';
-import { businessPath } from '@/studio/spaces';
+import { businessPath, spaceOfBusiness } from '@/studio/spaces';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { CreateRestaurantForm } from '../RestaurantForm';
 
@@ -32,7 +32,7 @@ export default async function NewRestaurantPage({ searchParams }: Params) {
   await query(newRestaurantAccess, {});
   const t = getStudioTranslator(actor.locale);
   const sector = initialSectorOf(await searchParams);
-  if (actor.isSuperAdmin && sector !== 'FOOD') redirect(businessPath(sector, 'new'));
+  if (actor.isSuperAdmin && sector !== 'FOOD') redirect(businessPath(spaceOfBusiness(sector), 'new'));
   const pharmacy = sector === 'PHARMACY';
   // The platform owner chooses the new restaurant's plan; it is the plans' names they need, in their language.
   const planNames = actor.isPlatformOwner

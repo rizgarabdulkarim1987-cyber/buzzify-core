@@ -9,9 +9,10 @@ import { bumpRetailState, kickAfterCommit } from '@/server/retail/outbox';
 import { provisionRetail } from '@/server/retail/provision';
 import { checkCreation } from '@/server/domain/pharmacy/limits';
 import { BUSINESS_SECTORS, PH_CURRENCIES, RETAIL_BRANCH_NAME_MAX } from '@/server/domain/restaurant-profile';
+import { DEFAULT_RETAIL_ACTIVITY } from '@/server/domain/retail/activity';
 import { PICTURE_KINDS } from '@/server/media/kinds';
 import { limitRefusal } from '@/server/studio/services/billing';
-import { optionalSpace, requireSpace, sectorOf } from '@/server/studio/services/space-scope';
+import { activityOf, optionalSpace, requireSpace, sectorOf } from '@/server/studio/services/space-scope';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -125,8 +126,10 @@ export const createRestaurant = defineAction({
         invitedById: ctx.actor.userId,
         afterCommit: ctx.afterCommit,
       };
+      // A Retail product's form makes a shop of that product; a retail shop made without one is a supermarket.
+      const activity = (space ? activityOf(space) : null) ?? DEFAULT_RETAIL_ACTIVITY;
       const provisioned =
-        sector === 'PHARMACY' ? await provisionPharmacy(tx, provisioning) : sector === 'RETAIL' ? await provisionRetail(tx, provisioning) : null;
+        sector === 'PHARMACY' ? await provisionPharmacy(tx, provisioning) : sector === 'RETAIL' ? await provisionRetail(tx, { ...provisioning, activity }) : null;
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
         action: 'restaurant.created',
@@ -139,6 +142,7 @@ export const createRestaurant = defineAction({
           ...(provisioned
             ? {
                 sector: { before: null, after: sector },
+                ...(sector === 'RETAIL' ? { activity: { before: null, after: activity } } : {}),
                 branches: { before: null, after: (branches ?? []).map((branch) => branch.name) },
                 currencies: { before: null, after: currencies },
               }

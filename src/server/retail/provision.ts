@@ -1,5 +1,6 @@
 import type { ScopedTx } from '@/server/data/tenant-db';
 import type { PhCurrency } from '@/server/domain/restaurant-profile';
+import { DEFAULT_RETAIL_ACTIVITY, type RetailActivity } from '@/server/domain/retail/activity';
 import { createInvitation, type InvitationOptions } from '@/server/studio/services/invitations';
 
 /**
@@ -20,6 +21,8 @@ export interface ProvisionRetailArgs {
   branches: readonly RetailBranchInput[];
   /** The currencies the business may price in; the first is its default. */
   currencies: readonly PhCurrency[];
+  /** Which Retail product the shop is (its space in the hub); a supermarket when not named. Never changed here afterwards. */
+  activity?: RetailActivity;
   /** The person to invite as owner. Needs `invitedById` (the Super Admin creating the business). */
   ownerEmail?: string;
   invitedById?: string;
@@ -41,7 +44,7 @@ export async function provisionRetail(
     where: { id: args.restaurantId },
     data: {
       branches: { create: args.branches.map((branch, sortOrder) => ({ name: branch.name, city: branch.city ?? '', sortOrder })) },
-      retailLink: { create: { currencies } },
+      retailLink: { create: { currencies, activity: args.activity ?? DEFAULT_RETAIL_ACTIVITY } },
     },
     select: { branches: { select: { id: true }, orderBy: { sortOrder: 'asc' } } },
   });

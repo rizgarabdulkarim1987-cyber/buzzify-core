@@ -1,6 +1,6 @@
 import { cookies, headers as nextHeaders } from 'next/headers';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HANDOFF_TTL_SECONDS, issueHandoff, PICK_COOKIE, RESUME_COOKIE } from '@/server/retail/handoff';
+import { HANDOFF_TTL_SECONDS, HOP_COOKIE, issueHandoff, PICK_COOKIE, RESUME_COOKIE } from '@/server/retail/handoff';
 import { loadActor } from '@/server/studio/auth/actor';
 import { authFor } from '@/server/studio/auth/auth';
 import { cookieHeader, cookieStore } from '../helpers/auth';
@@ -24,6 +24,12 @@ const STUDIO = 'https://studio.example.test';
 const IP = '203.0.113.21';
 const STATE = 'c3RhdGUtZnJvbS1yZXRhaWxzLXJhbmRvbS0zMi1ieXRlcw';
 const NONCE = handoffNonce(STATE);
+/** The three Retail products' own addresses (as planned: supermarket., electronics., clothing.buzzify.tech). */
+const SUPERMARKET = 'https://supermarket.retail.test';
+const ELECTRONICS = 'https://electronics.retail.test';
+const CLOTHING = 'https://clothing.retail.test';
+const PRODUCT_VARIABLES = ['RETAIL_URL_SUPERMARKET', 'RETAIL_URL_ELECTRONICS', 'RETAIL_URL_CLOTHING'] as const;
+const callbackAt = (origin: string) => `${origin}/api/core/v1/handoff/callback`;
 
 function enableRetail() {
   vi.stubEnv('RETAIL_URL', RETAIL);
@@ -132,6 +138,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   // Not unstubAllEnvs: it would also drop the test database's DATABASE_URL.
   vi.stubEnv('RETAIL_URL', '');
+  for (const name of PRODUCT_VARIABLES) vi.stubEnv(name, '');
   vi.stubEnv('NODE_ENV', 'test');
 });
 
@@ -473,5 +480,130 @@ describe('GET /studio/retail/open/[restaurantId]', () => {
       expect(response.headers.get('location')).toBeNull();
       expect(setCookieLine(response, PICK_COOKIE)).toBeUndefined();
     }
+  });
+});
+
+describe('the three Retail product addresses', () => {
+  function enableProducts() {
+    vi.stubEnv('RETAIL_URL_SUPERMARKET', SUPERMARKET);
+    vi.stubEnv('RETAIL_URL_ELECTRONICS', ELECTRONICS);
+    vi.stubEnv('RETAIL_URL_CLOTHING', CLOTHING);
+  }
+  const productShop = async (name: string, activity: 'SUPERMARKET' | 'ELECTRONICS' | 'CLOTHING') => {
+    const shop = await retailShop(name);
+    await prisma().retailLink.update({ where: { restaurantId: shop.id }, data: { activity, retailBusinessId: `rt-${shop.id}` } });
+    return shop;
+  };
+  /** The token of a 302 to `callback`, judged by Retails' oracle. */
+  function tokenAt(response: Response, callback: string) {
+    expect(response.status).toBe(302);
+    const target = new URL(response.headers.get('location') ?? '');
+    expect(`${target.origin}${target.pathname}`).toBe(callback);
+    const verdict = verifyHandoff(target.searchParams.get('token')!, [HANDOFF_SECRET]);
+    if (!verdict.ok) throw new Error(`oracle refused: ${verdict.reason}`);
+    return verdict.claims;
+  }
+
+  it('accepts a return on exactly RETAIL_URL and each product address, and nothing else', async () => {
+    enableProducts();
+    const staff = await person('staff-only');
+    const jar = await signIn(staff);
+    for (const origin of [RETAIL, SUPERMARKET, ELECTRONICS, CLOTHING]) {
+      expect(tokenAt(await call(handoffPath({ return: callbackAt(origin) }), jar), callbackAt(origin)).coreBusinessId ?? null).toBeNull();
+    }
+    for (const bad of [
+      callbackAt('https://evil.test'),
+      callbackAt('https://electronics.retail.test.evil.test'),
+      callbackAt('http://electronics.retail.test'),
+      callbackAt('https://ELECTRONICS.retail.test'),
+      callbackAt('https://electronics.retail.test:8443'),
+      `${ELECTRONICS}/api/core/v1/handoff/callback/`,
+      `${ELECTRONICS}/api/core/v1/handoff/callback?x=1`,
+      `${ELECTRONICS}/other`,
+      callbackAt('https://pharmacy.retail.test'),
+    ]) {
+      const response = await call(handoffPath({ return: bad }), jar);
+      expect(response.status, bad).toBe(400);
+      expect(response.headers.get('location'), bad).toBeNull();
+    }
+  });
+
+  it('accepts a product address only once it is configured', async () => {
+    const staff = await person('staff-only');
+    const jar = await signIn(staff);
+    expect((await call(handoffPath({ return: callbackAt(ELECTRONICS) }), jar)).status).toBe(400);
+    vi.stubEnv('RETAIL_URL_ELECTRONICS', ELECTRONICS);
+    expect((await call(handoffPath({ return: callbackAt(ELECTRONICS) }), jar)).status).toBe(302);
+  });
+
+  it("signs an owner in at their shop's own product address", async () => {
+    enableProducts();
+    const shop = await productShop('Volt Gadgets', 'ELECTRONICS');
+    const jar = await signIn(shop.owner!);
+    const claims = tokenAt(await call(handoffPath({ return: callbackAt(ELECTRONICS) }), jar), callbackAt(ELECTRONICS));
+    expect(claims.coreBusinessId).toBe(shop.id);
+  });
+
+  it('sends an owner who came back to another address to start again at their product, with the shop picked, once', async () => {
+    enableProducts();
+    const shop = await productShop('Thread Clothing', 'CLOTHING');
+    const jar = await signIn(shop.owner!);
+
+    const hop = await call(handoffPath({ return: callbackAt(RETAIL) }), jar);
+    expect(hop.status).toBe(302);
+    expect(hop.headers.get('location')).toBe(`${CLOTHING}/api/core/v1/handoff/start`);
+    await noToken(hop);
+    expect(setCookieLine(hop, PICK_COOKIE)).toBe(`${PICK_COOKIE}=${shop.id}; Path=/; Max-Age=600; HttpOnly; SameSite=Lax`);
+    expect(setCookieLine(hop, HOP_COOKIE)).toBe(`${HOP_COOKIE}=${shop.id}; Path=/; Max-Age=600; HttpOnly; SameSite=Lax`);
+
+    // Retails at the product address starts again: the token goes there, and every cookie is cleared.
+    const done = await call(handoffPath({ return: callbackAt(CLOTHING) }), jar);
+    expect(tokenAt(done, callbackAt(CLOTHING)).coreBusinessId).toBe(shop.id);
+    for (const name of [RESUME_COOKIE, PICK_COOKIE, HOP_COOKIE]) expect(setCookieLine(done, name)).toMatch(/Max-Age=0/);
+
+    // A Retails that names one return for all its addresses: one bounce, then the token goes to the return it named.
+    const again = await call(handoffPath({ return: callbackAt(SUPERMARKET) }), jar);
+    expect(again.headers.get('location')).toBe(`${CLOTHING}/api/core/v1/handoff/start`);
+    const named = await call(handoffPath({ return: callbackAt(SUPERMARKET) }), jar);
+    expect(tokenAt(named, callbackAt(SUPERMARKET)).coreBusinessId).toBe(shop.id);
+  });
+
+  it('keeps a supermarket (every shop from before) at RETAIL_URL while its product has no address of its own', async () => {
+    vi.stubEnv('RETAIL_URL_ELECTRONICS', ELECTRONICS);
+    const shop = await productShop('Corner Market', 'SUPERMARKET');
+    const jar = await signIn(shop.owner!);
+    expect(tokenAt(await call(handoffPath(), jar), CALLBACK).coreBusinessId).toBe(shop.id);
+    const open = await call(`/studio/retail/open/${shop.id}`, new Map(jar));
+    expect(open.headers.get('location')).toBe(`${RETAIL}/api/core/v1/handoff/start`);
+  });
+
+  it("opens Retails at the shop's own product address", async () => {
+    enableProducts();
+    for (const [activity, origin] of [['SUPERMARKET', SUPERMARKET], ['ELECTRONICS', ELECTRONICS], ['CLOTHING', CLOTHING]] as const) {
+      const shop = await productShop(`Open ${activity}`, activity);
+      const response = await call(`/studio/retail/open/${shop.id}`, await signIn(shop.owner!));
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe(`${origin}/api/core/v1/handoff/start`);
+    }
+  });
+
+  it('resumes a parked handoff at the address it came back to', async () => {
+    enableProducts();
+    const shop = await productShop('Parked Volt', 'ELECTRONICS');
+    const jar: Jar = new Map();
+    const parked = await call(handoffPath({ return: callbackAt(ELECTRONICS) }), jar);
+    expect(parked.status).toBe(302);
+    await signIn(shop.owner!, jar);
+    const resumed = await call('/studio/retail/continue', jar);
+    const back = new URL(resumed.headers.get('location')!, STUDIO);
+    expect(back.searchParams.get('return')).toBe(callbackAt(ELECTRONICS));
+    expect(tokenAt(await call(back.pathname + back.search, jar), callbackAt(ELECTRONICS)).coreBusinessId).toBe(shop.id);
+  });
+
+  it('answers 503 for a misconfigured product address and never redirects', async () => {
+    vi.stubEnv('RETAIL_URL_CLOTHING', 'https://clothing.retail.test/path');
+    const response = await call(handoffPath());
+    expect(response.status).toBe(503);
+    expect(response.headers.get('location')).toBeNull();
   });
 });

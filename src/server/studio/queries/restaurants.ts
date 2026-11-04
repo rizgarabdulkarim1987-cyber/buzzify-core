@@ -3,6 +3,7 @@ import type { Prisma } from '@/generated/prisma/client';
 import { readPlans } from '@/server/data/plans';
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
+import { DEFAULT_RETAIL_ACTIVITY } from '@/server/domain/retail/activity';
 import { BUSINESS_SECTORS, formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
@@ -150,7 +151,7 @@ export const getRestaurant = defineQuery({
     const restaurantId = restaurantOf(ctx);
     const row = await ctx.db.restaurant.findUnique({
       where: { id: restaurantId },
-      include: { _count: { select: { menus: true, branches: true } } },
+      include: { _count: { select: { menus: true, branches: true } }, retailLink: { select: { activity: true } } },
     });
     if (!row) throw new StudioError('NOT_FOUND');
     const profile = profileOf(row);
@@ -166,6 +167,8 @@ export const getRestaurant = defineQuery({
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
       sector: row.sector,
+      /** A retail shop's product (its space); a supermarket when it has no link; null for any other business. */
+      retailActivity: row.sector === 'RETAIL' ? (row.retailLink?.activity ?? DEFAULT_RETAIL_ACTIVITY) : null,
       status: row.status,
       plan: row.plan,
       logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,

@@ -1,4 +1,5 @@
 import { searchMenus, searchPeople, searchRestaurants } from '@/app/studio/_actions/search';
+import { RETAIL_SPACE_IDS, type BusinessSpaceId } from '@/studio/spaces';
 import type { PickerOption } from '@/studio/ui/Picker';
 
 /**
@@ -7,10 +8,10 @@ import type { PickerOption } from '@/studio/ui/Picker';
  * refusal throws, which the picker shows as "not available".
  */
 
-type PickerSpace = 'food' | 'pharmacy' | 'retail' | 'platform';
+type PickerSpace = BusinessSpaceId | 'platform';
 
 const restaurantFinder =
-  (space?: 'food' | 'pharmacy' | 'retail') =>
+  (space?: BusinessSpaceId) =>
   async (q: string): Promise<PickerOption[]> => {
     const result = await searchRestaurants({ q, ...(space ? { space } : {}) });
     if (!result.ok) throw new Error(result.error.code);
@@ -27,9 +28,11 @@ export const findRestaurantOptions = restaurantFinder();
 export const findRestaurantOptionsIn: Record<PickerSpace, (q: string) => Promise<PickerOption[]>> = {
   food: restaurantFinder('food'),
   pharmacy: restaurantFinder('pharmacy'),
-  retail: restaurantFinder('retail'),
+  supermarket: restaurantFinder('supermarket'),
+  electronics: restaurantFinder('electronics'),
+  clothing: restaurantFinder('clothing'),
   // The Platform space works on people of every project, so it finds the businesses of each.
-  platform: async (q) => (await Promise.all([restaurantFinder('food')(q), restaurantFinder('pharmacy')(q), restaurantFinder('retail')(q)])).flat(),
+  platform: async (q) => (await Promise.all([restaurantFinder('food')(q), restaurantFinder('pharmacy')(q), ...RETAIL_SPACE_IDS.map((space) => restaurantFinder(space)(q))])).flat(),
 };
 
 export async function findMenuOptions(q: string): Promise<PickerOption[]> {
