@@ -7,6 +7,17 @@ export interface HostConfig {
   rootRedirect: string;
   /** Whether this is a production deployment (`NODE_ENV` is `production`). */
   production: boolean;
+  /** The pharmacy's own host. While null, the Studio host still serves the pharmacy. */
+  pharmacyHost?: string | null;
+  /** The super admin's host. While null, the Studio host still serves the super admin's pages. */
+  coreHost?: string | null;
+  /** The main domain (`buzzify.tech`): it and its `www.` send every path to `rootRedirect`. */
+  apexHost?: string | null;
+  /**
+   * Old hosts that only redirect. A name starting with `studio.` goes to `studioHost`, any other to `publicHost`,
+   * keeping path and query. The scheduler's `/api/cron` routes still answer on them.
+   */
+  legacyHosts?: string[];
 }
 
 export type HostDecision = { action: 'next' } | { action: 'redirect'; to: string } | { action: 'notFound' };
@@ -18,6 +29,12 @@ const NOT_FOUND: HostDecision = { action: 'notFound' };
 const STUDIO_ONLY = ['/studio', '/pos', '/pharmacy', '/api/auth', '/api/studio', '/api/pos', '/api/pharmacy', '/api/dev-intake', '/api/retail'];
 /** What the Studio host serves besides `/`. */
 const STUDIO_SERVES = [...STUDIO_ONLY, '/_next'];
+/** What belongs to the pharmacy host once it is set (sign-in is `/api/auth`, shared by every product host). */
+const PHARMACY_ONLY = ['/pharmacy', '/api/pharmacy', '/api/dev-intake'];
+const PHARMACY_SERVES = [...PHARMACY_ONLY, '/api/auth', '/_next'];
+/** Pages only the super admin has; once the core host is set the Studio host no longer serves them. */
+const CORE_ONLY = ['/studio/restaurants', '/studio/team'];
+const CORE_SERVES = ['/studio', '/api/auth', '/api/studio', '/_next'];
 
 /** Whether `pathname` is `prefix` or inside it: `/studio` and `/studio/x`, not `/studios`. */
 function within(pathname: string, prefix: string): boolean {
@@ -55,8 +72,34 @@ export function routeHost(req: { host: string; pathname: string; search?: string
   // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
   if (within(pathname, '/api/cron')) return NEXT;
 
+  if (cfg.apexHost && (isHost(req.host, cfg.apexHost) || isHost(req.host, `www.${cfg.apexHost}`))) {
+    return { action: 'redirect', to: cfg.rootRedirect };
+  }
+
+  const legacy = (cfg.legacyHosts ?? []).find((host) => isHost(req.host, host));
+  if (legacy) {
+    const target = normalizeHost(legacy).startsWith('studio.') ? cfg.studioHost : cfg.publicHost;
+    if (target) return { action: 'redirect', to: `https://${normalizeHost(target)}${pathname}${req.search ?? ''}` };
+    return NOT_FOUND;
+  }
+
+  if (isHost(req.host, cfg.pharmacyHost ?? null)) {
+    if (pathname === '/') return { action: 'redirect', to: '/pharmacy' };
+    if (pathname === '/favicon.ico' || PHARMACY_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
+    return NOT_FOUND;
+  }
+
+  if (isHost(req.host, cfg.coreHost ?? null)) {
+    if (pathname === '/') return { action: 'redirect', to: '/studio' };
+    if (pathname === '/favicon.ico' || CORE_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
+    return NOT_FOUND;
+  }
+
   if (isHost(req.host, cfg.studioHost)) {
     if (pathname === '/') return { action: 'redirect', to: '/studio' };
+    // Once a product has its own host, the Studio host stops serving it.
+    if (cfg.pharmacyHost && PHARMACY_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
+    if (cfg.coreHost && CORE_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
     if (pathname === '/favicon.ico' || STUDIO_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;
     return NOT_FOUND;
   }
