@@ -12,6 +12,7 @@ import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/emai
 import { authEnv, type AuthEnv } from '@/server/env';
 import { getPlatformSettings } from '@/server/studio/services/settings';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
+import { authHostOptions, onStudioHost } from './hosts';
 import { pinSignIn } from './pin-plugin';
 import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
@@ -148,10 +149,11 @@ const emailChangeNeedsSession = {
  */
 export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
   const { secret, baseUrl, production } = config;
+  const hostOptions = authHostOptions(config);
 
   return betterAuth({
     appName: 'Buzzify Core',
-    baseURL: baseUrl,
+    baseURL: hostOptions.baseURL,
     secret,
     database: prismaAdapter(prisma, { provider: 'postgresql' }),
 
@@ -189,7 +191,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     // Sent when someone changes their address: to the new one, once the old one has confirmed.
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        sendAfterResponse(user, 'verifyNewEmail', { url });
+        sendAfterResponse(user, 'verifyNewEmail', { url: onStudioHost(url, baseUrl) });
       },
     },
 
@@ -205,7 +207,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
         enabled: true,
         // To the old address, which must confirm before the new one is asked to verify.
         sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
-          sendAfterResponse(user, 'changeEmailConfirm', { newEmail, url });
+          sendAfterResponse(user, 'changeEmailConfirm', { newEmail, url: onStudioHost(url, baseUrl) });
         },
       },
     },
@@ -218,7 +220,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     // Better Auth's limiter covers requests that arrive over HTTP only; the Server Actions use checkRateLimit.
     rateLimit: { enabled: true, storage: 'database' },
 
-    trustedOrigins: [baseUrl, ...(production ? [] : ['http://localhost:3100', 'http://127.0.0.1:3100'])],
+    trustedOrigins: hostOptions.trustedOrigins,
 
     // `disabledPaths` hides the HTTP route (404); `disableSignUp` also refuses `auth.api.signUpEmail`.
     disabledPaths: ['/sign-up/email'],

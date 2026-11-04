@@ -25,6 +25,40 @@ function problemsWith(changes: Record<string, string | undefined>): string[] {
   return result.ok ? [] : result.problems;
 }
 
+describe('the product hosts', () => {
+  const hosts = { PHARMACY_HOST: 'leaf.buzzify.me', CORE_HOST: 'core.buzzify.me', CORE_GATE_PATH: 'gate-path-12345', APEX_HOST: 'buzzify.me' };
+
+  it('accepts a configuration with distinct product hosts and a secret path', () =>
+    expect(problemsWith(hosts)).toEqual([]));
+
+  it('stops the build when the pharmacy or core host repeats another host', () => {
+    expect(named(problemsWith({ ...hosts, PHARMACY_HOST: 'studio.buzzify.me' }))).toEqual(['PHARMACY_HOST']);
+    expect(named(problemsWith({ ...hosts, CORE_HOST: 'menu.buzzify.me' }))).toEqual(['CORE_HOST']);
+    // Two products on one name: both settings are named.
+    expect(named(problemsWith({ ...hosts, CORE_HOST: 'leaf.buzzify.me' }))).toEqual(['PHARMACY_HOST', 'CORE_HOST']);
+  });
+
+  it('stops the build when the apex or a legacy host repeats a live host, which would redirect it in a loop', () => {
+    expect(named(problemsWith({ ...hosts, APEX_HOST: 'menu.buzzify.me' }))).toEqual(['APEX_HOST']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.buzzify.me, studio.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'leaf.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
+  it('names a legacy host written with a scheme or a path', () => {
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'https://old.example.test' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.example.test/x' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
+  it('refuses a super admin host without its secret path', () =>
+    expect(named(problemsWith({ ...hosts, CORE_GATE_PATH: undefined }))).toEqual(['CORE_GATE_PATH']));
+
+  it('names a badly formed secret path without printing it', () => {
+    const problems = problemsWith({ ...hosts, CORE_GATE_PATH: 'bad path!' });
+    expect(named(problems)).toEqual(['CORE_GATE_PATH']);
+    expect(problems.join(' ')).not.toContain('bad path!');
+  });
+});
+
 /** The variables a list of problems is about: every problem starts with the variable's name. */
 const named = (problems: string[]) => problems.map((problem) => problem.split(' ')[0]);
 

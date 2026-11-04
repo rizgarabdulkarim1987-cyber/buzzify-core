@@ -63,6 +63,72 @@ describe('proxy in production with both hosts configured', () => {
   });
 });
 
+describe('proxy with a host for each product', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  const GATE = 'gate-test-9911';
+  const SECRET = 'k'.repeat(32);
+
+  async function productProxy() {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PUBLIC_MENU_HOST', 'menu.example.test');
+    vi.stubEnv('STUDIO_HOST', 'hive.example.test');
+    vi.stubEnv('PHARMACY_HOST', 'leaf.example.test');
+    vi.stubEnv('CORE_HOST', 'core.example.test');
+    vi.stubEnv('CORE_GATE_PATH', GATE);
+    vi.stubEnv('BETTER_AUTH_SECRET', SECRET);
+    vi.resetModules();
+    return (await import('@/proxy')).proxy;
+  }
+
+  const request = (host: string, path: string, cookie?: string) =>
+    new NextRequest(`https://${host}${path}`, { headers: { host, ...(cookie ? { cookie } : {}) } });
+
+  it('asks search engines to stay away from every host except the menu host', async () => {
+    const run = await productProxy();
+    expect(run(request('hive.example.test', '/studio')).headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    expect(run(request('leaf.example.test', '/pharmacy')).headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    expect(run(request('menu.example.test', '/atelier/en')).headers.get('x-robots-tag')).toBeNull();
+  });
+
+  it('answers the super admin host with a bare 404 until its secret path is opened', async () => {
+    const run = await productProxy();
+    for (const path of ['/', '/studio', '/api/auth/sign-in/email', `/${GATE}/x`]) {
+      const response = run(request('core.example.test', path));
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get('set-cookie')).toBeNull();
+    }
+  });
+
+  it('the secret path hands out the gate cookie and goes to the Studio; the cookie then opens the host', async () => {
+    const run = await productProxy();
+    const { coreGateToken, CORE_GATE_COOKIE } = await import('@/server/http/core-gate');
+    const knock = run(request('core.example.test', `/${GATE}`));
+    expect(knock.status).toBe(307);
+    expect(new URL(knock.headers.get('location') ?? '').pathname).toBe('/studio');
+    const setCookie = knock.headers.get('set-cookie') ?? '';
+    const token = coreGateToken(GATE, SECRET);
+    expect(setCookie).toContain(`${CORE_GATE_COOKIE}=${token}`);
+    expect(setCookie.toLowerCase()).toMatch(/httponly/);
+    expect(setCookie.toLowerCase()).toMatch(/secure/);
+    expect(setCookie.toLowerCase()).toMatch(/samesite=lax/);
+    expect(setCookie).not.toContain(GATE);
+
+    const opened = run(request('core.example.test', '/studio', `${CORE_GATE_COOKIE}=${token}`));
+    expect(opened.status).toBe(200);
+    expect(run(request('core.example.test', '/studio', `${CORE_GATE_COOKIE}=wrong`)).status).toBe(404);
+  });
+
+  it('keeps the host closed when there is no auth secret to sign the cookie with', async () => {
+    const run = await productProxy();
+    vi.stubEnv('BETTER_AUTH_SECRET', '');
+    expect(run(request('core.example.test', `/${GATE}`)).status).toBe(404);
+  });
+});
+
 describe('the proxy matcher', () => {
   const runs = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
 

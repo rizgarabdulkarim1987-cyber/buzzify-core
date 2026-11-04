@@ -61,11 +61,47 @@ const hostSchema = z.object({
   PUBLIC_MENU_ORIGIN: z.preprocess(unset, httpUrl.default('http://127.0.0.1:3100')),
   /** Where `/` on the public host sends visitors. */
   PUBLIC_ROOT_REDIRECT: z.preprocess(unset, httpUrl.default('https://buzzify.me')),
+  /** The pharmacy's own host. Unset: the Studio host still serves the pharmacy. */
+  PHARMACY_HOST: host,
+  /** The super admin's host. Unset: the Studio host still serves the super admin's pages. */
+  CORE_HOST: host,
+  /** The super admin host's secret path. Set: the host answers 404 until the path is opened. Kept out of the repository. */
+  CORE_GATE_PATH: z.preprocess(
+    (value) => {
+      const text = unset(value);
+      return typeof text === 'string' ? text.trim().replace(/^\/+|\/+$/g, '') : text;
+    },
+    z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{8,64}$/, 'must be 8 to 64 letters, digits, - or _ (it is the secret part of the address)')
+      .nullish()
+      .transform((value) => value ?? null),
+  ),
+  /** The main domain: it and its `www.` send visitors to the company site. */
+  APEX_HOST: host,
+  /** Old hosts that only redirect, comma separated. */
+  LEGACY_HOSTS: z.preprocess(
+    unset,
+    z
+      .string()
+      .optional()
+      .transform((value) =>
+        (value ?? '')
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+  ),
 });
 
 export interface HostEnv {
   publicHost: string | null;
   studioHost: string | null;
+  pharmacyHost: string | null;
+  coreHost: string | null;
+  coreGatePath: string | null;
+  apexHost: string | null;
+  legacyHosts: string[];
   /** No trailing slash. */
   publicOrigin: string;
   rootRedirect: string;
@@ -77,6 +113,11 @@ export function parseHostEnv(source: Source): HostEnv {
   return {
     publicHost: parsed.PUBLIC_MENU_HOST,
     studioHost: parsed.STUDIO_HOST,
+    pharmacyHost: parsed.PHARMACY_HOST,
+    coreHost: parsed.CORE_HOST,
+    coreGatePath: parsed.CORE_GATE_PATH,
+    apexHost: parsed.APEX_HOST,
+    legacyHosts: parsed.LEGACY_HOSTS,
     publicOrigin: parsed.PUBLIC_MENU_ORIGIN.replace(/\/+$/, ''),
     rootRedirect: parsed.PUBLIC_ROOT_REDIRECT,
   };
@@ -160,6 +201,8 @@ export interface AuthEnv {
   /** The origin the Studio is served on, no trailing slash. Emailed links are built on it. */
   baseUrl: string;
   production: boolean;
+  /** The pharmacy and super admin hosts, when set: further hosts sign-in answers on. */
+  extraHosts?: string[];
 }
 
 /**
@@ -187,6 +230,11 @@ export function parseAuthEnv(source: Source): AuthEnv {
     secret: parsed.BETTER_AUTH_SECRET ?? DEVELOPMENT_SECRET,
     baseUrl: (parsed.BETTER_AUTH_URL ?? DEVELOPMENT_URL).replace(/\/+$/, ''),
     production,
+    // A malformed host is the production check's business; sign-in simply ignores it.
+    extraHosts: (() => {
+      const result = hostSchema.pick({ PHARMACY_HOST: true, CORE_HOST: true }).safeParse(source);
+      return result.success ? [result.data.PHARMACY_HOST, result.data.CORE_HOST].filter((host): host is string => !!host) : [];
+    })(),
   };
 }
 
@@ -373,6 +421,11 @@ const CHECKED_VARIABLES = [
   'EMAIL_FROM',
   'PUBLIC_MENU_HOST',
   'STUDIO_HOST',
+  'PHARMACY_HOST',
+  'CORE_HOST',
+  'CORE_GATE_PATH',
+  'APEX_HOST',
+  'LEGACY_HOSTS',
   'PUBLIC_MENU_ORIGIN',
   'PUBLIC_ROOT_REDIRECT',
   'R2_ACCOUNT_ID',
@@ -588,6 +641,31 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   // The proxy gives the Studio host first claim, so a shared host would make every menu there a 404.
   if (publicHost && publicHost === studioHost && clean('STUDIO_HOST')) {
     report('STUDIO_HOST', 'must differ from PUBLIC_MENU_HOST; one host cannot serve both');
+  }
+  // Each product host answers only its own product, so two products cannot share a name.
+  const pharmacyHost = text('PHARMACY_HOST')?.toLowerCase();
+  const coreHost = text('CORE_HOST')?.toLowerCase();
+  if (pharmacyHost && clean('PHARMACY_HOST') && [publicHost, studioHost, coreHost].includes(pharmacyHost)) {
+    report('PHARMACY_HOST', 'must differ from PUBLIC_MENU_HOST, STUDIO_HOST and CORE_HOST');
+  }
+  if (coreHost && clean('CORE_HOST') && [publicHost, studioHost, pharmacyHost].includes(coreHost)) {
+    report('CORE_HOST', 'must differ from PUBLIC_MENU_HOST, STUDIO_HOST and PHARMACY_HOST');
+  }
+  // The main domain and the old hosts only redirect; one that is also a live host would redirect that host away or loop.
+  const liveHosts = [publicHost, studioHost, pharmacyHost, coreHost].filter((name): name is string => !!name);
+  const apexHost = text('APEX_HOST')?.toLowerCase();
+  if (apexHost && clean('APEX_HOST') && liveHosts.includes(apexHost)) {
+    report('APEX_HOST', 'must differ from PUBLIC_MENU_HOST, STUDIO_HOST, PHARMACY_HOST and CORE_HOST; it only redirects');
+  }
+  const legacy = (text('LEGACY_HOSTS') ?? '').split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
+  if (legacy.some((name) => !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(name))) {
+    report('LEGACY_HOSTS', 'must be host names separated by commas, such as old.example.com, without https:// or a path');
+  } else if (legacy.some((name) => liveHosts.includes(name))) {
+    report('LEGACY_HOSTS', 'must not repeat a live host (PUBLIC_MENU_HOST, STUDIO_HOST, PHARMACY_HOST, CORE_HOST); it would redirect to itself');
+  }
+  // A super admin host with no secret path would show its sign-in page to anyone who finds the name.
+  if (coreHost && !text('CORE_GATE_PATH') && clean('CORE_GATE_PATH')) {
+    report('CORE_GATE_PATH', 'is not set (the secret part of the super admin address, such as 8 to 64 random letters and digits)');
   }
 
   // In the order of CHECKED_VARIABLES; anything else a schema might name follows, so no problem is ever dropped.
