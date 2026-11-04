@@ -11,6 +11,7 @@ import { describeFailure } from '@/studio/errors';
 import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { InviteLinkNote, type IssuedInvitation } from '@/studio/shell/InviteLinkNote';
+import type { SpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { DataTable } from '@/studio/ui/DataTable';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
@@ -124,7 +125,7 @@ export function PeopleManager({
   people: Page<PersonRow>;
   invitations: Page<InvitationRow>;
   /** The project the screen is in: the businesses to pick from are its own. */
-  space?: 'food' | 'pharmacy' | 'retail' | 'platform';
+  space?: SpaceId;
 }) {
   const t = useT();
   const { locale } = useLocale();

@@ -1021,7 +1021,7 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   // The platform's pharmacy list (`platform.settings`): it names no restaurant, so A's people are refused it outright.
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
   // The retail list and a shop's Retail tab (`platform.settings`): refused outright to A's people, even naming B.
-  'retail.list': [c('the retail list', () => ({}), ONLY_FORBIDDEN)],
+  'retail.list': [c('the retail list', () => ({ space: 'supermarket' }), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'pos.setCaptainApproval': [c("switching B's captain approval", (w) => ({ restaurantId: w.b.restaurantId, enabled: true }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],

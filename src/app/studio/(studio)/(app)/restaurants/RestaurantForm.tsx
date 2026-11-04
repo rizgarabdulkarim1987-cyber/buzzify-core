@@ -24,7 +24,7 @@ import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms'
 import { useT } from '@/studio/i18n';
 import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { MediaPicker } from '@/studio/media/MediaPicker';
-import { businessPath, sectorOfSpace } from '@/studio/spaces';
+import { businessPath, sectorOfSpace, type BusinessSpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
@@ -364,13 +364,14 @@ export function CreateRestaurantForm({
   planNames?: Record<PlanTier, string> | null;
   initialSector?: BusinessSector;
   /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
-  space?: 'food' | 'pharmacy' | 'retail';
+  space?: BusinessSpaceId;
 }) {
   const baseT = useT();
   const router = useRouter();
   const [sector, setSector] = useState<BusinessSector>(space ? (sectorOfSpace(space) ?? 'FOOD') : initialSector);
-  // In the words of the sector chosen: a new retail shop names no restaurant.
-  const t = spaceT(baseT, spaceOfSector(sector));
+  // In the words of the space, else of the sector chosen: a new retail shop names no restaurant, a new supermarket no other product.
+  const wordsOf = space ?? spaceOfSector(sector);
+  const t = spaceT(baseT, wordsOf);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -400,7 +401,8 @@ export function CreateRestaurantForm({
       t,
       onSuccess: ({ restaurantId }) => {
         toast.success(t('restaurants.form.created'));
-        router.push(businessPath(sector, restaurantId));
+        // Opened in the space it was made in: a shop made in a Retail product's space is that product.
+        router.push(businessPath(wordsOf, restaurantId));
       },
     },
   );

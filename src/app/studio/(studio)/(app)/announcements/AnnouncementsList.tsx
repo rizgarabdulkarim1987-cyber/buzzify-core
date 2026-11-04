@@ -4,11 +4,12 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { listAnnouncements } from '@/server/studio/queries/announcements';
 import { getStudioTranslator } from '@/studio/messages';
 import { spaceT } from '@/studio/space-words';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { AnnouncementsAdmin } from './AnnouncementsAdmin';
 
 /** The Buzzify team's announcements, for Super Admins (anyone else gets the not-found page). */
-export async function AnnouncementsList({ space }: { space: 'food' | 'pharmacy' | 'retail' }) {
+export async function AnnouncementsList({ space }: { space: BusinessSpaceId }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   const t = spaceT(getStudioTranslator(actor.locale), space);

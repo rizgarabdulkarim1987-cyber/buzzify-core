@@ -1,5 +1,6 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
+import products from './products/ckb';
 
 const retail: Messages = {
   'retail.choose.title': 'فرۆشگایەک هەڵبژێرە',
@@ -140,6 +141,7 @@ const retail: Messages = {
   'retail.as.error.text.deleteHasTillHistory': 'ئەم هەژمارە مێژووی لە بەرهەمێکی تردا هەیە، بۆیە تەنها ناچالاک دەمێنێتەوە',
   'retail.as.restaurants.branches.emptyBody': 'ئەگەر دوکانەکە زیاتر لە شوێنێکی هەیە، لقێک زیاد بکە.',
   'retail.as.media.picker.intro': 'لە کتێبخانەی ئەم دوکانە و کتێبخانە هاوبەشەکە.',
+  ...products,
 };
 
 export default retail;

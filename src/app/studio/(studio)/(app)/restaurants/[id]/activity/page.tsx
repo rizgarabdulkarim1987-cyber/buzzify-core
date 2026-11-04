@@ -42,7 +42,7 @@ export default async function RestaurantActivityPage({
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   const restaurant = await loadRestaurant(id);
-  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector));
+  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector, restaurant.retailActivity));
   const raw = (await searchParams).page;
   const requested = Number(Array.isArray(raw) ? raw[0] : raw);
   const page = Number.isInteger(requested) && requested >= 1 && requested <= 100_000 ? requested : 1;

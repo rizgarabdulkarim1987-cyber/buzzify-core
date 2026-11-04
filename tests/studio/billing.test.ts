@@ -215,7 +215,7 @@ describe('products and prices', () => {
     ]);
     expect(dataOf(await readAt(new Date(), billingOverview, { space: 'pharmacy' })).applications.map((app) => [app.id, app.status])).toEqual([['pharmacy', 'DISABLED']]);
     // The Retail space sells Retail alone; its plans are app plans too, so no FOOD plan code is priced for it.
-    const retail = dataOf(await readAt(new Date(), billingOverview, { space: 'retail' }));
+    const retail = dataOf(await readAt(new Date(), billingOverview, { space: 'supermarket' }));
     expect(retail.applications.map((app) => [app.id, app.status])).toEqual([['retail', 'DISABLED']]);
     expect(retail.applications[0]!.plans).toEqual([]);
     const menu = overview.applications[0]!;
@@ -868,7 +868,7 @@ describe('billing.restaurants', () => {
     const food = dataOf(await readAt(new Date(), billingRestaurants, {}));
     expect(food.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
     expect(food.rows.map((row) => row.name)).not.toContain('Shop billing');
-    const retail = dataOf(await readAt(new Date(), billingRestaurants, { space: 'retail' }));
+    const retail = dataOf(await readAt(new Date(), billingRestaurants, { space: 'supermarket' }));
     expect(retail.applications.map((app) => app.id)).toEqual(['retail']);
     expect(retail.rows.map((row) => [row.name, row.products.map((product) => product.applicationId)])).toEqual([['Shop billing', ['retail']]]);
   });

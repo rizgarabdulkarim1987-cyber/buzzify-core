@@ -11,7 +11,10 @@ import {
   Megaphone,
   Pill,
   Settings,
+  Shirt,
   ShoppingBag,
+  ShoppingCart,
+  Smartphone,
   Store,
   UserRound,
   Users,
@@ -28,6 +31,7 @@ import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { isNavItemActive, type NavIcon, type NavItem } from '@/studio/nav';
 import { navigateAway } from '@/studio/navigate';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { cx } from '@/studio/ui/cx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
 import { JumpTo } from './JumpTo';
@@ -47,6 +51,9 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   store: Store,
   pharmacy: Pill,
   retail: ShoppingBag,
+  supermarket: ShoppingCart,
+  electronics: Smartphone,
+  clothing: Shirt,
 };
 
 /** A navigation item as the layout hands it over: its label already in the person's language. */
@@ -76,7 +83,7 @@ const linkClass = (current: boolean) =>
       : 'text-muted hover:bg-hover hover:text-text',
   );
 
-export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: 'food' | 'pharmacy' | 'retail' } }) {
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: BusinessSpaceId } }) {
   const t = useT();
   const pathname = usePathname();
 

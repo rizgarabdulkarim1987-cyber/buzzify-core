@@ -28,12 +28,13 @@ const dataOf = <T>(result: ActionResult<T>): T => {
 const ask = <I, O>(actor: Actor, def: QueryDef<I, O>, input: unknown = {}) => runQuery(prisma(), actor, def, input);
 const act = <I, O>(actor: Actor, def: ActionDef<I, O>, input: unknown) => runAction(prisma(), actor, def, input, { ip: '203.0.113.9', userAgent: 'vitest spaces' });
 const codeOf = (result: ActionResult<unknown>) => (result.ok ? 'OK' : result.error.code);
-const SPACES_OF_DATA: BusinessSpace[] = ['food', 'pharmacy', 'retail'];
+const SPACES_OF_DATA: BusinessSpace[] = ['food', 'pharmacy', 'supermarket'];
 
 let admin: Actor;
 let cafe: { id: string };
 let clinic: { id: string };
 let shop: { id: string };
+let gadgets: { id: string };
 
 async function person(id: string, name: string, memberships: Array<[string, 'OWNER']> = [], superAdmin = false): Promise<Actor> {
   await prisma().user.create({ data: { id, name, email: `${id}@example.com`, isSuperAdmin: superAdmin, twoFactorEnabled: superAdmin } });
@@ -53,7 +54,9 @@ beforeEach(async () => {
   await seedApplications(prisma());
   cafe = await prisma().restaurant.create({ data: { name: 'Cafe Alpha' } });
   clinic = await prisma().restaurant.create({ data: { name: 'Clinic Beta', sector: 'PHARMACY' } });
+  // A shop from before the three products (no link, as the test shop was) is a supermarket; another is an Electronics shop.
   shop = await prisma().restaurant.create({ data: { name: 'Shop Gamma', sector: 'RETAIL' } });
+  gadgets = await prisma().restaurant.create({ data: { name: 'Volt Gadgets', sector: 'RETAIL', retailLink: { create: { activity: 'ELECTRONICS' } } } });
   admin = await person('admin', 'Sam Admin', [], true);
   await person('food-owner', 'Fay Food', [[cafe.id, 'OWNER']]);
   await person('pharm-owner', 'Pat Pharm', [[clinic.id, 'OWNER']]);
@@ -177,11 +180,33 @@ describe('activity, overview and search by space', () => {
   });
 });
 
-describe('the Retail space', () => {
+describe('the Retail product spaces', () => {
+  it('keeps each product to its own shops: the Supermarket never sees an Electronics shop, nor the other way round', async () => {
+    const names = async (space: BusinessSpace) => dataOf(await ask(admin, restaurantQueries.listRestaurants, { space })).rows.map((row) => row.name);
+    expect(await names('supermarket')).toEqual(['Shop Gamma']);
+    expect(await names('electronics')).toEqual(['Volt Gadgets']);
+    expect(await names('clothing')).toEqual([]);
+    expect(dataOf(await ask(admin, searchQueries.jump, { q: 'o', space: 'supermarket' })).restaurants.map((row) => row.name)).not.toContain('Volt Gadgets');
+    expect(dataOf(await ask(admin, overviewQueries.overview, { space: 'electronics' })).restaurants.ACTIVE).toBe(1);
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: gadgets.id, status: 'SUSPENDED', space: 'supermarket' }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: shop.id, status: 'SUSPENDED', space: 'electronics' }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: gadgets.id, status: 'SUSPENDED', space: 'electronics' }))).toBe('OK');
+    // The three share the one Retail product and its plans for now.
+    for (const space of ['supermarket', 'electronics', 'clothing'] as const) {
+      expect(dataOf(await ask(admin, billingQueries.billingOverview, { space })).applications.map((app) => app.id)).toEqual(['retail']);
+    }
+  });
+
+  it('keeps the announcements of the old Retail space in the Supermarket', async () => {
+    await prisma().announcement.create({ data: { titles: { en: 'Old retail news' }, bodies: {}, space: 'retail' } });
+    expect(dataOf(await ask(admin, announcementQueries.listAnnouncements, { space: 'supermarket' })).map((row) => row.titles.en)).toEqual(['Old retail news']);
+    expect(dataOf(await ask(admin, announcementQueries.listAnnouncements, { space: 'electronics' }))).toEqual([]);
+  });
+
   it('lists and bills a retail shop there alone; Menu and Cashier and the Pharmacy never see it', async () => {
     const lists = await Promise.all(SPACES_OF_DATA.map(async (space) => dataOf(await ask(admin, restaurantQueries.listRestaurants, { space })).rows.map((row) => row.name)));
     expect(lists).toEqual([['Cafe Alpha'], ['Clinic Beta'], ['Shop Gamma']]);
-    const retail = dataOf(await ask(admin, billingQueries.billingRestaurants, { space: 'retail' }));
+    const retail = dataOf(await ask(admin, billingQueries.billingRestaurants, { space: 'supermarket' }));
     expect(retail.rows.map((row) => row.name)).toEqual(['Shop Gamma']);
     expect(retail.applications.map((app) => app.id)).toEqual(['retail']);
     for (const space of ['food', 'pharmacy'] as const) {
@@ -189,37 +214,37 @@ describe('the Retail space', () => {
       expect(other.rows.map((row) => row.name)).not.toContain('Shop Gamma');
       expect(other.applications.map((app) => app.id)).not.toContain('retail');
     }
-    expect(dataOf(await ask(admin, billingQueries.billingOverview, { space: 'retail' })).applications.map((app) => app.id)).toEqual(['retail']);
+    expect(dataOf(await ask(admin, billingQueries.billingOverview, { space: 'supermarket' })).applications.map((app) => app.id)).toEqual(['retail']);
     expect(dataOf(await ask(admin, billingQueries.restaurantBilling, { restaurantId: shop.id })).applications.map((app) => app.id)).toEqual(['retail']);
   });
 
   it('counts, searches, picks and lists the people of its shops only', async () => {
-    expect(dataOf(await ask(admin, overviewQueries.overview, { space: 'retail' })).restaurants.ACTIVE).toBe(1);
-    expect(dataOf(await ask(admin, searchQueries.jump, { q: 'a', space: 'retail' })).restaurants.map((row) => row.name)).toEqual(['Shop Gamma']);
+    expect(dataOf(await ask(admin, overviewQueries.overview, { space: 'supermarket' })).restaurants.ACTIVE).toBe(1);
+    expect(dataOf(await ask(admin, searchQueries.jump, { q: 'a', space: 'supermarket' })).restaurants.map((row) => row.name)).toEqual(['Shop Gamma']);
     for (const space of ['food', 'pharmacy'] as const) {
       expect(dataOf(await ask(admin, searchQueries.jump, { q: 'a', space })).restaurants.map((row) => row.name)).not.toContain('Shop Gamma');
       expect(dataOf(await ask(admin, peopleQueries.listPeople, { space })).rows.map((row) => row.userId)).not.toContain('shop-owner');
     }
-    expect(dataOf(await ask(admin, searchQueries.searchRestaurants, { q: '', space: 'retail' })).rows.map((row) => row.name)).toEqual(['Shop Gamma']);
-    expect(dataOf(await ask(admin, peopleQueries.listPeople, { space: 'retail' })).rows.map((row) => row.userId)).toEqual(['shop-owner']);
-    expect(dataOf(await ask(admin, peopleQueries.listInvitations, { space: 'retail' })).rows.map((row) => row.email)).toEqual(['c@x.test']);
+    expect(dataOf(await ask(admin, searchQueries.searchRestaurants, { q: '', space: 'supermarket' })).rows.map((row) => row.name)).toEqual(['Shop Gamma']);
+    expect(dataOf(await ask(admin, peopleQueries.listPeople, { space: 'supermarket' })).rows.map((row) => row.userId)).toEqual(['shop-owner']);
+    expect(dataOf(await ask(admin, peopleQueries.listInvitations, { space: 'supermarket' })).rows.map((row) => row.email)).toEqual(['c@x.test']);
   });
 
   it('keeps its own announcements, and none of the others', async () => {
-    dataOf(await act(admin, announcementActions.createAnnouncement, { titles: { en: 'Retail news' }, bodies: { en: 'Body' }, space: 'retail' }));
+    dataOf(await act(admin, announcementActions.createAnnouncement, { titles: { en: 'Supermarket news' }, bodies: { en: 'Body' }, space: 'supermarket' }));
     const lists = await Promise.all(SPACES_OF_DATA.map(async (space) => dataOf(await ask(admin, announcementQueries.listAnnouncements, { space })).map((row) => row.titles.en)));
-    expect(lists).toEqual([[], [], ['Retail news']]);
+    expect(lists).toEqual([[], [], ['Supermarket news']]);
   });
 
   it('refuses a write through the wrong space as not found, and writes nothing', async () => {
     for (const space of ['food', 'pharmacy'] as const) {
       expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: shop.id, status: 'SUSPENDED', space }))).toBe('NOT_FOUND');
     }
-    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: cafe.id, status: 'SUSPENDED', space: 'retail' }))).toBe('NOT_FOUND');
-    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: clinic.id, status: 'SUSPENDED', space: 'retail' }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: cafe.id, status: 'SUSPENDED', space: 'supermarket' }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: clinic.id, status: 'SUSPENDED', space: 'supermarket' }))).toBe('NOT_FOUND');
     const statuses = await prisma().restaurant.findMany({ select: { status: true } });
     expect(statuses.every((row) => row.status === 'ACTIVE')).toBe(true);
-    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: shop.id, status: 'SUSPENDED', space: 'retail' }))).toBe('OK');
+    expect(codeOf(await act(admin, restaurantActions.setRestaurantStatus, { restaurantId: shop.id, status: 'SUSPENDED', space: 'supermarket' }))).toBe('OK');
     expect((await prisma().restaurant.findUniqueOrThrow({ where: { id: shop.id } })).status).toBe('SUSPENDED');
   });
 });
@@ -229,7 +254,7 @@ describe('every audit row is in exactly one space', () => {
     const retailPlan = await prisma().appPlan.create({ data: { applicationId: 'retail', code: 'shop', name: { en: 'Shop', ar: 'Shop', ckb: 'Shop' } } });
     const pharmacyPlan = await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'starter', name: { en: 'Starter', ar: 'Starter', ckb: 'Starter' } } });
     const notes = await Promise.all(
-      (['food', 'pharmacy', 'retail'] as const).map((space) => prisma().announcement.create({ data: { titles: {}, bodies: {}, space }, select: { id: true } })),
+      (['food', 'pharmacy', 'supermarket'] as const).map((space) => prisma().announcement.create({ data: { titles: {}, bodies: {}, space }, select: { id: true } })),
     );
     await prisma().auditLog.createMany({
       data: [
@@ -253,8 +278,9 @@ describe('every audit row is in exactly one space', () => {
   });
 
   it('shows Retail its own activity in the log and on its overview', async () => {
-    const retail = dataOf(await ask(admin, activityQueries.listActivity, { space: 'retail' }));
+    const retail = dataOf(await ask(admin, activityQueries.listActivity, { space: 'supermarket' }));
     expect(retail.rows.map((row) => row.entityId)).toEqual([shop.id]);
-    expect(dataOf(await ask(admin, overviewQueries.overview, { space: 'retail' })).recentActivity?.map((row) => row.entityId)).toEqual([shop.id]);
+    expect(dataOf(await ask(admin, overviewQueries.overview, { space: 'supermarket' })).recentActivity?.map((row) => row.entityId)).toEqual([shop.id]);
+    expect(dataOf(await ask(admin, activityQueries.listActivity, { space: 'electronics' })).rows).toEqual([]);
   });
 });
