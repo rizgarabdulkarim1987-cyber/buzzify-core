@@ -1,10 +1,13 @@
-import { ArrowLeftRight, Lock, PackageOpen, SearchX, History, Search } from 'lucide-react';
+import { ArrowLeftRight, Download, History, Lock, PackageOpen, Plus, Search, SearchX, Upload } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { StockBlocked } from '@/app/pharmacy/_ui/StockBlocked';
-import { StockList } from '@/app/pharmacy/_ui/StockList';
+import { StockList, StockListHead } from '@/app/pharmacy/_ui/StockList';
+import { filterQuery, parseStockFilter, STOCK_FILTERS, type StockFilter } from '@/app/pharmacy/_ui/stock-logic';
 import { transfersWaiting } from '@/app/pharmacy/_ui/transfers-counts';
+import { formatNumber } from '@/lib/pos-format';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { getPhBranches, getPhPlaces } from '@/server/pharmacy/actor';
 import { balances } from '@/server/pharmacy/queries/stock';
@@ -12,51 +15,70 @@ import { inTransit as inTransitQuery } from '@/server/pharmacy/queries/transfers
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
-import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
-import { Field } from '@/studio/ui/Field';
-import { Input } from '@/studio/ui/Input';
-import { PageHeader } from '@/studio/ui/PageHeader';
 import { catalogAccess, roleMay } from '../catalog/access';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pharmacy.stock.title') };
 }
 
-const PAGE_SIZE = 25;
-type Params = { q?: string; stock?: string; low?: string; product?: string; cursor?: string };
+/** The most rows one page carries (the query's maximum); the rest are behind "Next". */
+const PAGE_SIZE = 100;
+type Params = { q?: string; filter?: string; stock?: string; product?: string; cursor?: string };
 const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
+/** The redesign's 44px controls (`--ph-*`), kept here: the Sell screen's are in a client module. */
+const TOUCH = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-sm font-semibold [&_svg]:size-4 [&_svg]:shrink-0';
+const BTN = `${TOUCH} border border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas`;
+const PRIMARY = `${TOUCH} bg-ph-g8 px-4 text-ph-on-green hover:bg-ph-g9`;
+const QUIET = 'inline-flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-card [&_svg]:size-4 [&_svg]:shrink-0';
+
 /**
- * Stock by product: the totals of each branch shown and the batches in the order they should be sold. Everyone on the
- * staff may look; changing stock follows the role, the pharmacy's state and having one branch chosen, and the page says
- * why the controls are missing. A support actor and a role without the screen get a sentence, not an empty page.
+ * Stock by product: a count, the actions the role allows, a search and four filter chips over one card that scrolls on its
+ * own, a 52px row per product that opens on the totals of each branch and the batches in the order they should be sold.
+ * Everyone on the staff may look; changing stock follows the role, the pharmacy's state and having one branch chosen, and
+ * the page says why the controls are missing. A support actor and a role without the screen get a sentence, not an empty page.
  */
 export default async function StockPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [raw, access, locale, places] = await Promise.all([searchParams, catalogAccess(), requestStudioLocale(), getPhPlaces()]);
   const t = getStudioTranslator(locale);
-  const sp: Params = { q: one(raw.q)?.slice(0, 100), stock: one(raw.stock), low: one(raw.low), product: one(raw.product), cursor: one(raw.cursor) };
+  // `?low=1` was the old checkbox: it still means the Low chip.
+  const filter: StockFilter = one(raw.low) === '1' && one(raw.filter) === undefined ? 'low' : parseStockFilter(one(raw.filter));
+  const sp: Params = {
+    q: one(raw.q)?.slice(0, 100),
+    ...(filter !== 'all' ? { filter } : {}),
+    stock: one(raw.stock),
+    product: one(raw.product),
+    cursor: one(raw.cursor),
+  };
   const { actor } = access;
-  const header = <PageHeader className="max-sm:px-4" title={t('pharmacy.stock.title')} description={t('pharmacy.stock.intro')} />;
+  const title = (count?: ReactNode) => (
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h1 className="break-words text-[26px] font-bold leading-8 tracking-tight text-ph-text" dir="auto">
+        {t('pharmacy.stock.title')}
+      </h1>
+      {count}
+    </div>
+  );
 
   if (actor.role === null || !roleMay(actor, 'catalog.view')) {
     return (
-      <>
-        {header}
-        <div data-testid="stock-forbidden" className="px-4 pb-10 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-4 px-4 py-5 sm:px-8">
+        {title()}
+        <div data-testid="stock-forbidden">
           <EmptyState icon={<Lock />} title={t('pharmacy.stock.forbidden.title')} body={t(actor.role === null ? 'pharmacy.stock.forbidden.support' : 'pharmacy.stock.forbidden.role')} />
         </div>
-      </>
+      </div>
     );
   }
 
   const q = sp.q?.trim() ?? '';
-  const filtered = q !== '' || sp.stock === '1' || sp.low === '1' || Boolean(sp.product);
+  const filtered = q !== '' || filter !== 'all' || sp.stock === '1' || Boolean(sp.product);
   const page = await query(balances, {
     ...access.placeInput,
     ...(q !== '' ? { search: q } : {}),
     ...(sp.stock === '1' ? { onlyWithStock: true } : {}),
-    ...(sp.low === '1' ? { lowStock: true } : {}),
+    ...filterQuery(filter),
     ...(sp.product ? { productId: sp.product } : {}),
     ...(sp.cursor ? { cursor: sp.cursor } : {}),
     pageSize: PAGE_SIZE,
@@ -83,6 +105,9 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const branchNames = Object.fromEntries([...everyBranch, ...branches].map((b) => [b.id, b.name]));
   const adjust = access.writable('stock.adjust');
   const adjustBranchId = adjust.ok ? access.place.branchId : null;
+  const canAdd = access.writable('catalog.manage').ok;
+  const canImport = access.writable('import.apply').ok;
+  const canExport = roleMay(actor, 'catalog.manage') || roleMay(actor, 'report.view');
   const links = (over: Partial<Params>) => {
     const next = new URLSearchParams();
     const merged = { ...sp, ...over };
@@ -93,63 +118,108 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const canSeeMovements = roleMay(actor, 'report.view');
 
   return (
-    <>
-      {header}
-      <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 sm:px-8">
-        {!adjust.ok && <StockBlocked reason={adjust.reason} t={t} />}
-        {adjust.ok && adjustBranchId === null && (
-          <p data-testid="stock-pick-branch" className="flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
-            <Lock aria-hidden className="mt-px size-4 shrink-0 text-muted" />
-            <span className="min-w-0">{t('pharmacy.stock.pickBranch')}</span>
-          </p>
+    <div className="flex min-h-0 min-w-0 flex-col gap-3 px-4 py-5 sm:px-8 md:flex-1">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        {title(
+          <span data-testid="stock-count" className="text-sm font-medium text-ph-muted tabular-nums">
+            {t('pharmacy.stock.count', { count: formatNumber(page.total) })}
+          </span>,
         )}
-        <OfflineNotice />
-
-        <form method="get" action="/pharmacy/stock" role="search" className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-          <div className="flex min-w-0 flex-col gap-3">
-            <Field label={t('pharmacy.stock.search.label')} hint={t('pharmacy.stock.search.hint')}>
-              <div className="relative">
-                <Search aria-hidden className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-                <Input name="q" type="search" dir="auto" autoComplete="off" enterKeyHint="search" defaultValue={q} className="min-h-11 ps-8" />
-              </div>
-            </Field>
-            <div className="flex flex-wrap gap-x-6 gap-y-1">
-              <label className="inline-flex min-h-11 items-center gap-2.5 text-sm text-text">
-                <input type="checkbox" name="stock" value="1" defaultChecked={sp.stock === '1'} className="size-5" />
-                {t('pharmacy.stock.filter.withStock')}
-              </label>
-              <label className="inline-flex min-h-11 items-center gap-2.5 text-sm text-text">
-                <input type="checkbox" name="low" value="1" defaultChecked={sp.low === '1'} className="size-5" />
-                {t('pharmacy.stock.filter.low')}
-              </label>
-            </div>
-            {sp.product && <input type="hidden" name="product" value={sp.product} />}
-          </div>
+        {(canImport || canExport || canAdd) && (
           <div className="flex flex-wrap items-center gap-2">
-            <button type="submit" className={buttonClasses('primary', 'lg', 'min-h-11')}>
-              <Search aria-hidden />
-              {t('pharmacy.stock.filter.apply')}
-            </button>
-            {filtered && (
-              <Link href="/pharmacy/stock" className={buttonClasses('ghost', 'lg', 'min-h-11')}>
-                {t('pharmacy.stock.filter.clear')}
+            {canImport && (
+              <Link href="/pharmacy/catalog/import" className={BTN}>
+                <Upload aria-hidden />
+                {t('pharmacy.stock.import')}
+              </Link>
+            )}
+            {canExport && (
+              <a href="/pharmacy/catalog/export?format=xlsx" download className={BTN}>
+                <Download aria-hidden />
+                {t('pharmacy.stock.export')}
+              </a>
+            )}
+            {canAdd && (
+              <Link href="/pharmacy/catalog/new" data-testid="stock-new-product" className={PRIMARY}>
+                <Plus aria-hidden />
+                {t('pharmacy.stock.new')}
               </Link>
             )}
           </div>
-        </form>
-
-        {sp.product && (
-          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text">
-            <span>{t('pharmacy.stock.filter.product')}</span>
-            <Link href={links({ product: undefined, cursor: undefined })} className="inline-flex min-h-11 items-center rounded-md px-2 font-medium underline underline-offset-2 hover:bg-hover">
-              {t('pharmacy.stock.filter.productClear')}
-            </Link>
-          </p>
         )}
-        {mayTransfer && waiting && (
-          <p>
-            <Link href="/pharmacy/stock/transfers" data-testid="stock-transfers-link" className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
-              <ArrowLeftRight aria-hidden className="size-4 shrink-0" />
+      </div>
+
+      {!adjust.ok && <StockBlocked reason={adjust.reason} t={t} />}
+      {adjust.ok && adjustBranchId === null && (
+        <p data-testid="stock-pick-branch" className="flex items-start gap-2.5 rounded-ph-xl border border-ph-line bg-ph-card px-3 py-2.5 text-sm text-ph-text">
+          <Lock aria-hidden className="mt-px size-4 shrink-0 text-ph-muted" />
+          <span className="min-w-0">{t('pharmacy.stock.pickBranch')}</span>
+        </p>
+      )}
+      <OfflineNotice />
+
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+        <form method="get" action="/pharmacy/stock" role="search" className="flex min-w-0 flex-[1_1_18rem] items-center gap-2">
+          <label className="relative flex min-w-0 flex-1">
+            <span className="sr-only">{t('pharmacy.stock.search.label')}</span>
+            <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ph-muted" />
+            <input
+              name="q"
+              type="search"
+              dir="auto"
+              autoComplete="off"
+              enterKeyHint="search"
+              defaultValue={q}
+              placeholder={t('pharmacy.stock.search.hint')}
+              className="min-h-11 w-full min-w-0 rounded-ph-xl border border-ph-line bg-ph-card ps-9 pe-3 text-base text-ph-text placeholder:text-ph-muted focus:border-ph-accent"
+            />
+          </label>
+          {filter !== 'all' && <input type="hidden" name="filter" value={filter} />}
+          {sp.stock === '1' && <input type="hidden" name="stock" value="1" />}
+          {sp.product && <input type="hidden" name="product" value={sp.product} />}
+          <button type="submit" className={BTN} aria-label={t('pharmacy.stock.filter.apply')}>
+            <Search aria-hidden />
+            <span className="max-sm:sr-only">{t('pharmacy.stock.filter.apply')}</span>
+          </button>
+        </form>
+        <nav aria-label={t('pharmacy.stock.chips')} className="flex min-w-0 flex-wrap items-center gap-2">
+          {STOCK_FILTERS.map((chip) => {
+            const active = chip === filter;
+            return (
+              <Link
+                key={chip}
+                href={links({ filter: chip === 'all' ? undefined : chip, cursor: undefined })}
+                data-testid={`stock-filter-${chip}`}
+                {...(active ? { 'aria-current': 'page' as const } : {})}
+                className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-semibold ${
+                  active ? 'border-transparent bg-ph-g8 text-ph-on-green' : 'border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas'
+                }`}
+              >
+                {t(`pharmacy.stock.chip.${chip}`)}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      {(sp.product || (mayTransfer && waiting) || canSeeMovements || filtered) && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ph-text">
+          {sp.product && (
+            <>
+              <span>{t('pharmacy.stock.filter.product')}</span>
+              <Link href={links({ product: undefined, cursor: undefined })} className={QUIET}>
+                {t('pharmacy.stock.filter.productClear')}
+              </Link>
+            </>
+          )}
+          {filtered && (
+            <Link href="/pharmacy/stock" className={QUIET}>
+              {t('pharmacy.stock.filter.clear')}
+            </Link>
+          )}
+          {mayTransfer && waiting && (
+            <Link href="/pharmacy/stock/transfers" data-testid="stock-transfers-link" className={QUIET}>
+              <ArrowLeftRight aria-hidden />
               {t('pharmacy.transfers.stockLink')}
               {waiting.send + waiting.receive > 0 && (
                 <span data-testid="stock-transfers-count" className="tabular-nums">
@@ -158,19 +228,19 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                 </span>
               )}
             </Link>
-          </p>
-        )}
-        {canSeeMovements && (
-          <p>
-            <Link href="/pharmacy/stock/movements" className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
-              <History aria-hidden className="size-4 shrink-0" />
+          )}
+          {canSeeMovements && (
+            <Link href="/pharmacy/stock/movements" className={QUIET}>
+              <History aria-hidden />
               {t('pharmacy.stock.movementsLink')}
             </Link>
-          </p>
-        )}
+          )}
+        </div>
+      )}
 
+      <section data-testid="stock-card" aria-label={t('pharmacy.stock.title')} className="relative flex min-w-0 flex-col rounded-ph-2xl bg-ph-card md:min-h-0 md:flex-1 md:overflow-y-auto">
         {page.items.length === 0 ? (
-          <div data-testid="stock-empty">
+          <div data-testid="stock-empty" className="p-4">
             <EmptyState
               icon={filtered ? <SearchX /> : <PackageOpen />}
               title={t(filtered ? 'pharmacy.stock.empty.filtered' : 'pharmacy.stock.empty.title')}
@@ -178,33 +248,36 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             />
           </div>
         ) : (
-          <StockList
-            items={page.items}
-            t={t}
-            locale={locale}
-            today={utcToday()}
-            branchNames={branchNames}
-            showCost={access.showCost}
-            adjustBranchId={adjustBranchId}
-            {...(mayTransfer ? { inTransit } : {})}
-          />
+          <>
+            <StockListHead t={t} />
+            <StockList
+              items={page.items}
+              t={t}
+              locale={locale}
+              today={utcToday()}
+              branchNames={branchNames}
+              showCost={access.showCost}
+              adjustBranchId={adjustBranchId}
+              {...(mayTransfer ? { inTransit } : {})}
+            />
+          </>
         )}
 
         {(page.nextCursor || sp.cursor) && (
-          <nav aria-label={t('pharmacy.stock.title')} className="flex flex-wrap items-center gap-2">
+          <nav aria-label={t('pharmacy.stock.title')} className="flex flex-wrap items-center gap-2 p-3">
             {sp.cursor && (
-              <Link href={links({ cursor: undefined })} className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+              <Link href={links({ cursor: undefined })} className={BTN}>
                 {t('pharmacy.stock.first')}
               </Link>
             )}
             {page.nextCursor && (
-              <Link href={links({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+              <Link href={links({ cursor: page.nextCursor })} rel="next" className={BTN}>
                 {t('pharmacy.stock.next')}
               </Link>
             )}
           </nav>
         )}
-      </div>
-    </>
+      </section>
+    </div>
   );
 }

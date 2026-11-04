@@ -105,6 +105,10 @@ const product = (over: Partial<ProductBalance> = {}): ProductBalance => ({
   strength: '500 mg',
   form: 'tablet',
   active: true,
+  genericName: 'Paracetamol',
+  barcode: '6001234567890',
+  baseUnit: 'tablet',
+  price: { amountMinor: '250', currency: 'IQD' },
   branches: [{ ...bucket(), minQty: 0 }],
   batches: [batch()],
   ...over,
@@ -173,8 +177,12 @@ describe('the stock list', () => {
     }
     expect(row.textContent).toContain('Panadol');
     expect(row.textContent).toContain('500 mg · tablet');
-    // Low: sellable 8 is under the minimum 20, said in words.
-    expect(row.querySelector('[data-chip="low"]')?.textContent).toBe(en('pharmacy.stock.lowBadge'));
+    // Low: sellable 8 is under the minimum 20, said in words with an icon, on the row itself.
+    const pill = row.querySelector('summary [data-state="low"]');
+    expect(pill?.textContent).toBe(en('pharmacy.stock.state.low'));
+    expect(pill?.querySelector('svg')).toBeTruthy();
+    // The sellable quantity and the base unit are on the row; the generic name stands under the trade name.
+    expect(row.querySelector('summary [data-testid="stock-qty"]')?.textContent).toBe('8');
     const lots = [...container.querySelectorAll('[data-testid="batch-lot"]')].map((el) => el.textContent);
     expect(lots).toEqual(['FIRST', 'SECOND']);
     const expiries = [...container.querySelectorAll('[data-testid="batch-expiry"]')].map((el) => el.textContent!.replace(/[⁦⁩]/g, ''));
@@ -261,14 +269,19 @@ describe('the stock list', () => {
     }
   });
 
-  it('cannot scroll sideways at 375px: no nowrap, no fixed widths, rows that wrap', () => {
+  it('cannot scroll sideways at 375px: a one-line row that cuts the name, and a panel where everything wraps', () => {
     const longName = 'Paracetamol باراسيتامول پاراسێتامۆڵ 500 mg '.repeat(4).slice(0, 120);
     mount(createElement(StockList, listProps({ items: [product({ tradeName: longName })] })));
-    // Buttons keep the shared nowrap (their labels are one or two words); everything else must be free to wrap.
+    // The 52px row is one line by design: its name is cut there (min-w-0 cells, never a fixed width) and shown whole
+    // in the opened panel. Buttons keep the shared nowrap; everything else in the panel must be free to wrap.
+    const summary = container.querySelector('[data-testid="stock-row"] summary')!;
+    expect(summary.querySelector('[data-testid="stock-name"]')!.className).toMatch(/\btruncate\b/);
+    for (const el of summary.querySelectorAll('*')) expect(el.getAttribute('class') ?? '').not.toMatch(/\b(overflow-x-scroll|overflow-x-auto|min-w-\[|w-\[\d+px\])/);
     for (const el of container.querySelectorAll('*:not(button)')) {
+      if (summary.contains(el)) continue;
       expect(el.getAttribute('class') ?? '').not.toMatch(/\b(whitespace-nowrap|truncate|overflow-x-scroll|overflow-x-auto|min-w-\[|w-\[\d+px\])/);
     }
-    const name = [...container.querySelectorAll('span[dir="auto"]')].find((el) => el.textContent === longName)!;
+    const name = [...container.querySelectorAll('span[dir="auto"]')].find((el) => el.textContent === longName && !summary.contains(el))!;
     expect(name.className).toMatch(/\bbreak-words\b/);
     expect(container.querySelectorAll('dl.flex-wrap').length).toBeGreaterThan(0);
   });

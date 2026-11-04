@@ -103,6 +103,51 @@ async function seedStock(shop: TestPharmacy, tag: string): Promise<{ productName
   }
 }
 
+/** An 80-letter Arabic trade name with no space in it: the worst case for a row that must not push the page sideways. */
+const LONG_ARABIC = 'باراسيتامولمسكنللألموخافضللحرارة'.repeat(3).slice(0, 80);
+
+/**
+ * A big catalogue in the first branch: 1,000 products with no stock (out), one with an 80-letter Arabic name (out), one
+ * below its minimum (low) and one whose stock expires in 30 days (expiring).
+ */
+async function seedMany(shop: TestPharmacy, tag: string): Promise<{ low: string; soon: string }> {
+  const client = db();
+  try {
+    const plain = (tradeName: string) => ({
+      restaurantId: shop.id,
+      tradeName,
+      identityKey: `${tradeName}|${shop.id}`,
+      searchText: searchTextOf({ tradeName, genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }),
+    });
+    await client.phProduct.createMany({ data: [...Array.from({ length: 1000 }, (_, i) => plain(`Bulk ${tag} ${String(i).padStart(4, '0')}`)), plain(LONG_ARABIC)] });
+    const low = `Lowish ${tag}`;
+    const soon = `Soonish ${tag}`;
+    const scoped = scopedClient(client, { restaurantId: shop.id, allBranches: true });
+    for (const [name, days, qty, min] of [
+      [low, 400, 2, 10],
+      [soon, 30, 5, 0],
+    ] as const) {
+      const product = await client.phProduct.create({ data: plain(name), select: { id: true } });
+      if (min > 0) await client.phProductBranch.create({ data: { restaurantId: shop.id, branchId: shop.branchIds[0]!, productId: product.id, minQty: min } });
+      const batch = await client.phBatch.create({ data: { restaurantId: shop.id, productId: product.id, lot: 'L1', expiryDate: new Date(`${dateIn(days)}T00:00:00.000Z`) }, select: { id: true } });
+      await scoped.$transaction(async (tx) => {
+        await applyMovement(tx, { restaurantId: shop.id, branchId: shop.branchIds[0]!, batchId: batch.id, userId: 'seed', type: 'RECEIPT', deltas: { available: qty }, reason: '' });
+      });
+    }
+    return { low, soon };
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+/** Neither the document nor `<main>` scrolls (the list scrolls inside its card). */
+const frameScrolls = (page: Page) =>
+  page.evaluate(() => {
+    const doc = document.documentElement;
+    const main = document.querySelector('main');
+    return { page: doc.scrollHeight > window.innerHeight, main: main ? main.scrollHeight > main.clientHeight + 1 : true };
+  });
+
 async function makeCashier(userId: string, restaurantId: string): Promise<void> {
   const client = db();
   try {
@@ -247,6 +292,72 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(till.locator('[data-cost]')).toHaveCount(0);
     await till.goto('/pharmacy/stock/movements');
     await expect(till.getByTestId('movements-forbidden')).toContainText('You cannot see this page');
+    await till.context().close();
+  });
+
+  // Pharmacy redesign, task 8 ------------------------------------------------------------------------------------------------
+
+  test('a 1,000-product list scrolls inside its card with 52px rows; filter chips filter; an 80-letter Arabic name never pushes the page sideways', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned('Many');
+    const { low, soon } = await seedMany(shop, randomUUID().slice(0, 6));
+    const page = await freshPage(browser, { width: 1280, height: 800 });
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/stock');
+    await expect(page.getByTestId('stock-count')).toContainText('1,003');
+    const card = page.getByTestId('stock-card');
+    await expect(card).toBeVisible();
+    expect(await frameScrolls(page), '1280px').toEqual({ page: false, main: false });
+    expect(await card.evaluate((el) => el.scrollHeight > el.clientHeight + 1), 'the card scrolls').toBe(true);
+    for (const row of (await page.getByTestId('stock-row').all()).slice(0, 8)) {
+      const height = await row.evaluate((el) => el.getBoundingClientRect().height);
+      expect(Math.abs(height - 52), `row height ${height}`).toBeLessThanOrEqual(1);
+    }
+
+    // The chips are links that set ?filter=.
+    await page.getByTestId('stock-filter-low').click();
+    await expect(page).toHaveURL(/[?&]filter=low/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-filter-low')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    await expect(page.getByTestId('stock-row')).toContainText(low);
+    await expect(page.getByTestId('stock-row').locator('[data-state="low"]')).toBeVisible();
+    await page.getByTestId('stock-filter-expiring').click();
+    await expect(page).toHaveURL(/[?&]filter=expiring/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    await expect(page.getByTestId('stock-row')).toContainText(soon);
+    await page.getByTestId('stock-filter-out').click();
+    await expect(page).toHaveURL(/[?&]filter=out/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-count')).toContainText('1,001');
+    await expect(page.getByTestId('stock-row').first().locator('[data-state="out"]')).toBeVisible();
+    await page.getByTestId('stock-filter-all').click();
+    await expect(page).not.toHaveURL(/filter=/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-count')).toContainText('1,003');
+
+    // The owner may add a product from here.
+    await expect(page.getByTestId('stock-new-product')).toHaveAttribute('href', '/pharmacy/catalog/new');
+
+    // The 80-letter name, alone, on a phone: no sideways scroll, and the row keeps its height.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto(`/pharmacy/stock?q=${encodeURIComponent(LONG_ARABIC.slice(0, 12))}`);
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth === window.innerWidth), 'no sideways scroll at 375px').toBe(true);
+    await expect(page.getByTestId('stock-row')).toBeVisible();
+    const phoneRow = await page.getByTestId('stock-row').evaluate((el) => el.getBoundingClientRect().height);
+    expect(Math.abs(phoneRow - 52), `phone row height ${phoneRow}`).toBeLessThanOrEqual(1);
+    await page.context().close();
+  });
+
+  test('a role without catalog.manage has no "New product"', async ({ browser }) => {
+    const { shop } = await owned('NoNew');
+    await seedStock(shop, randomUUID().slice(0, 6));
+    const cashier = await createStudioUser({ label: 'ph-stock-cashier', name: 'Stock Cashier' });
+    people.push(cashier.email);
+    await makeCashier(cashier.userId, shop.id);
+    const till = await freshPage(browser);
+    await signInAndChoose(till, cashier, shop, 1);
+    await till.goto('/pharmacy/stock');
+    await expect(till.getByTestId('stock-row').first()).toBeVisible();
+    await expect(till.getByTestId('stock-new-product')).toHaveCount(0);
     await till.context().close();
   });
 

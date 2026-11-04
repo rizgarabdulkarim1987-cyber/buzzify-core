@@ -35,8 +35,8 @@ export function StockChip({ kind, t }: { kind: BatchChip; t: Translate }) {
   return (
     <span
       data-chip={kind}
-      className={`inline-flex min-h-6 items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-xs font-medium [&_svg]:size-3.5 [&_svg]:shrink-0 ${
-        LOUD.has(kind) ? 'border-transparent bg-danger-wash text-danger' : 'border-line-strong bg-surface text-text'
+      className={`inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium [&_svg]:size-3.5 [&_svg]:shrink-0 ${
+        LOUD.has(kind) ? 'border-transparent bg-ph-red-wash text-ph-red' : 'border-ph-line bg-ph-card text-ph-text'
       }`}
     >
       {ICONS[kind]}
