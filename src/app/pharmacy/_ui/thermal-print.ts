@@ -1,3 +1,4 @@
+import { readBridgeUrl } from '@/app/pos/_ui/print/bridge-url';
 import { kickDrawer, printDoc, type PrintOptions, type PrintResult } from '@/app/pos/_ui/print/print-client';
 import { DEFAULT_RECEIPT_PRINTER, receiptPrinter, type ReceiptPrinterSettings, type WorkstationSettings } from '@/server/domain/pharmacy/print-settings';
 import type { ReceiptModel } from '@/server/domain/pharmacy/receipt';
@@ -71,4 +72,25 @@ export function printerOfDraft(draft: PrinterDraft): { ok: true; value: ReceiptP
   if (draft.address.trim() === '') return { ok: true, value: undefined };
   const parsed = receiptPrinter.safeParse({ transport: draft.transport, address: draft.transport === 'FILE' ? `${SHARE}${draft.address.trim()}` : draft.address.trim(), paperWidth: Number(draft.paperWidth), cut: draft.cut, drawerPin: draft.drawerPin === 'none' ? null : Number(draft.drawerPin), drawerOnCash: draft.drawerOnCash });
   return parsed.success ? { ok: true, value: parsed.data } : { ok: false };
+}
+
+// The printers the bridge found on this PC --------------------------------------------------------------------------------------
+
+export interface BridgePrinter {
+  name: string;
+  shareName: string;
+  shared: boolean;
+  port: string;
+}
+
+/** The Windows printers on this PC, as the bridge lists them; empty when the bridge is not running (the form then asks for the name by hand). */
+export async function listBridgePrinters(opts: Pick<Opts, 'fetchImpl' | 'bridgeUrl'> = {}): Promise<BridgePrinter[]> {
+  try {
+    const response = await (opts.fetchImpl ?? fetch)(`${opts.bridgeUrl ?? readBridgeUrl()}/printers`);
+    if (!response.ok) return [];
+    const body = (await response.json()) as { printers?: unknown };
+    return Array.isArray(body.printers) ? (body.printers as BridgePrinter[]) : [];
+  } catch {
+    return [];
+  }
 }

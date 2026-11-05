@@ -2,7 +2,7 @@ import { createServer } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseTarget, printerAddressAllowed, targetOf } from '@/server/domain/pos/bridge-protocol';
 // @ts-expect-error the bridge is plain ESM JavaScript that ships without types
-import { startBridge } from '../../print-bridge/bridge.mjs';
+import { originAllowed, startBridge } from '../../print-bridge/bridge.mjs';
 
 type Bridge = { close(): Promise<void>; port: number };
 const open: Bridge[] = [];
@@ -111,5 +111,43 @@ describe('the bridge', () => {
     expect(res.status).toBe(200);
     expect([...Buffer.concat(received)]).toEqual([0x1b, 0x40, 0x41]);
     await new Promise<void>((resolve) => printer.close(() => resolve()));
+  });
+});
+
+describe('which origins may use the bridge', () => {
+  it('knows the product hosts without being told, and any host it is told about', () => {
+    for (const origin of ['https://leaf-2x.buzzify.tech', 'https://hive-4q.buzzify.tech', 'https://buzzify.tech', 'https://studio.buzzify-menu.online']) expect(originAllowed(origin, []), origin).toBe(true);
+    expect(originAllowed('https://studio.example', ['https://studio.example'])).toBe(true);
+  });
+
+  it('refuses look-alikes, plain http, other ports and other hosts', () => {
+    for (const origin of ['https://evil.example', 'https://buzzify.tech.evil.example', 'https://evilbuzzify.tech', 'http://leaf-2x.buzzify.tech', 'https://leaf-2x.buzzify.tech:8443', 'null', '']) expect(originAllowed(origin, []), origin).toBe(false);
+  });
+});
+
+describe('the printers on this PC', () => {
+  const printers = [{ name: 'XP80', shareName: 'XP80', shared: true, port: 'USB001' }];
+  const listed = async (origin: string | null) => {
+    const b: Bridge = await startBridge({ port: 0, allowedOrigins: [], send: async () => undefined, listPrinters: async () => printers });
+    open.push(b);
+    return fetch(`http://127.0.0.1:${b.port}/printers`, { headers: origin ? { origin } : {} });
+  };
+
+  it('lists them for a product page', async () => {
+    const res = await listed('https://leaf-2x.buzzify.tech');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, printers });
+  });
+
+  it('does not tell any other origin or a call with no origin', async () => {
+    expect((await listed('https://evil.example')).status).toBe(403);
+    expect((await listed(null)).status).toBe(403);
+  });
+
+  it('answers a page that is allowed with the header Chrome asks of a public page reaching this PC', async () => {
+    const b: Bridge = await startBridge({ port: 0, allowedOrigins: [], send: async () => undefined });
+    open.push(b);
+    const pre = await fetch(`http://127.0.0.1:${b.port}/print`, { method: 'OPTIONS', headers: { origin: 'https://leaf-2x.buzzify.tech' } });
+    expect(pre.headers.get('access-control-allow-private-network')).toBe('true');
   });
 });

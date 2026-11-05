@@ -2,11 +2,43 @@
 // It takes ESC/POS bytes from the till's page and forwards them to a network printer (port 9100) or a printer shared in
 // Windows. It uses only Node's own modules.
 import { createServer } from 'node:http';
+import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { Socket } from 'node:net';
 import { pathToFileURL } from 'node:url';
 
 const MAX_BODY = 8 * 1024 * 1024;
+
+/** The product's own hosts: the bridge answers these without being told (a customer never types an address). Any other page must be named with --origin. */
+const PRODUCT_HOSTS = /^https:\/\/(?:[a-z0-9-]+\.)*(?:buzzify\.tech|buzzify-menu\.online)$/;
+
+export function originAllowed(origin, allowedOrigins = []) {
+  return typeof origin === 'string' && (allowedOrigins.includes(origin) || PRODUCT_HOSTS.test(origin));
+}
+
+/** Printers that are not paper printers: they are never offered. */
+const VIRTUAL = /pdf|xps|onenote|fax|anydesk|teamviewer|virtual|microsoft print|send to/i;
+
+/** The Windows printers of this PC (name, share name, whether shared, port), real ones only. Empty where PowerShell is not available. */
+export function defaultListPrinters() {
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Get-Printer | Select-Object Name,ShareName,Shared,PortName | ConvertTo-Json -Compress'],
+      { timeout: 8000, windowsHide: true },
+      (error, stdout) => {
+        if (error) return resolve([]);
+        try {
+          const parsed = JSON.parse(stdout);
+          const rows = Array.isArray(parsed) ? parsed : [parsed];
+          resolve(rows.filter((r) => r && !VIRTUAL.test(String(r.Name))).map((r) => ({ name: String(r.Name), shareName: String(r.ShareName ?? ''), shared: r.Shared === true, port: String(r.PortName ?? '') })));
+        } catch {
+          resolve([]);
+        }
+      },
+    );
+  });
+}
 
 /** Mirrors src/server/domain/pos/bridge-protocol.ts. */
 export function parseTarget(target) {
@@ -43,16 +75,18 @@ export async function defaultSend(target, bytes) {
   });
 }
 
-export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSend, extraPorts = [] } = {}) {
+export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSend, extraPorts = [], listPrinters = defaultListPrinters } = {}) {
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
-    const allowed = typeof origin === 'string' && allowedOrigins.includes(origin);
+    const allowed = originAllowed(origin, allowedOrigins);
+    if (typeof origin === 'string' && !allowed) console.log(`refused origin: ${origin}`);
     const reply = (status, body) => {
       const headers = { 'content-type': 'application/json' };
       if (allowed) {
         headers['access-control-allow-origin'] = origin;
         headers['access-control-allow-methods'] = 'POST, GET, OPTIONS';
         headers['access-control-allow-headers'] = 'content-type';
+        headers['access-control-allow-private-network'] = 'true';
         headers['vary'] = 'origin';
       }
       res.writeHead(status, headers);
@@ -60,6 +94,10 @@ export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSe
     };
     if (req.method === 'OPTIONS') return reply(allowed ? 204 : 403);
     if (req.method === 'GET' && req.url === '/health') return reply(200, { ok: true });
+    if (req.method === 'GET' && req.url === '/printers') {
+      if (!allowed) return reply(403, { ok: false, error: 'origin not allowed' });
+      return reply(200, { ok: true, printers: await listPrinters() });
+    }
     if (req.method !== 'POST' || req.url !== '/print') return reply(404, { ok: false, error: 'not found' });
     if (!allowed) return reply(403, { ok: false, error: 'origin not allowed' });
     let size = 0;
@@ -105,10 +143,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     else if (process.argv[i] === '--port') port = Number(process.argv[++i]);
     else if (process.argv[i] === '--printer-port') extraPorts.push(Number(process.argv[++i]));
   }
-  if (origins.length === 0) {
-    console.error('Usage: node bridge.mjs --origin https://your-till-address [--port 9101]');
-    process.exit(1);
-  }
   const running = await startBridge({ port, allowedOrigins: origins, extraPorts });
-  console.log(`Buzzify print bridge listening on http://127.0.0.1:${running.port} for ${origins.join(', ')}`);
+  console.log(`Buzzify print bridge listening on http://127.0.0.1:${running.port} for the Buzzify hosts${origins.length > 0 ? ` and ${origins.join(', ')}` : ''}`);
 }

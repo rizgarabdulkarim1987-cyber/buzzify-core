@@ -2,7 +2,13 @@
 
 A web page cannot talk to a printer directly. This program runs on the till PC and forwards the till's print jobs to the printer. It works with any ESC/POS thermal printer (Epson, Star, Xprinter, Rongta, Bixolon and others) because it passes raw bytes through.
 
-## Install
+## Quick install (recommended)
+
+On each till PC, once: copy this folder to the PC and double-click **install.cmd**. It installs Node.js if it is missing (through Windows' own package manager), copies the bridge to `%LOCALAPPDATA%\BuzzifyPrintBridge`, starts it with Windows and starts it now. No administrator rights are needed.
+
+The bridge already knows the Buzzify hosts (`*.buzzify.tech` and `*.buzzify-menu.online`), so there is no address to type. Another address can still be added with `--origin https://...`. The pharmacy's Print settings then lists the printers it finds on the PC. A printer must be shared in Windows (Printer properties, Sharing) to be used: the list tells you when it is not.
+
+## Install by hand
 
 1. Install Node.js 20 or newer on the till PC.
 2. Copy this folder to the PC.

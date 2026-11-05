@@ -23,7 +23,7 @@ import { settle } from '@/studio/settle';
 import { Field } from '@/studio/ui/Field';
 import { LabelView } from './LabelView';
 import { labelCss, pageCss } from './print-logic';
-import { draftOfPrinter, openThermalDrawer, printerOfDraft, printThermalTest, type PrinterDraft } from './thermal-print';
+import { draftOfPrinter, listBridgePrinters, openThermalDrawer, printerOfDraft, printThermalTest, type BridgePrinter, type PrinterDraft } from './thermal-print';
 import { phDate } from './ph-date';
 import { phMessage } from './ph-failure';
 import { FIELD, FieldInput, FieldSelect, Note, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
@@ -67,6 +67,8 @@ export function PrintSettingsForm({ print, version: startVersion, editable, writ
   const [what, setWhat] = useState<'a4' | 'label' | null>(null);
   const [printFailed, setPrintFailed] = useState(false);
   const [bridge, setBridge] = useState<'unknown' | 'up' | 'down'>('unknown');
+  const [found, setFound] = useState<BridgePrinter[]>([]);
+  const [pickedUnshared, setPickedUnshared] = useState<string | null>(null);
   const [thermalNote, setThermalNote] = useState<'idle' | 'printing' | 'ok' | 'bridge' | 'printer' | 'drawer'>('idle');
 
   const current = settingsOf(draft);
@@ -104,12 +106,22 @@ export function PrintSettingsForm({ print, version: startVersion, editable, writ
 
   const checkBridge = () => {
     setBridge('unknown');
-    void bridgeAlive().then((up) => setBridge(up ? 'up' : 'down'));
+    void bridgeAlive().then((up) => {
+      setBridge(up ? 'up' : 'down');
+      if (up) void listBridgePrinters().then(setFound);
+      else setFound([]);
+    });
   };
   useEffect(() => {
     let cancelled = false;
     void bridgeAlive().then((up) => {
-      if (!cancelled) setBridge(up ? 'up' : 'down');
+      if (cancelled) return;
+      setBridge(up ? 'up' : 'down');
+      if (up) {
+        void listBridgePrinters().then((list) => {
+          if (!cancelled) setFound(list);
+        });
+      }
     });
     return () => {
       cancelled = true;
@@ -124,6 +136,13 @@ export function PrintSettingsForm({ print, version: startVersion, editable, writ
     setThermalNote('printing');
     const result = what === 'test' ? await printThermalTest(thermalSettings) : await openThermalDrawer(thermalSettings);
     setThermalNote(result.ok ? (what === 'drawer' ? 'drawer' : 'ok') : result.reason === 'printer' ? 'printer' : 'bridge');
+  };
+  const chosen = found.find((p) => p.shared && p.shareName === draft.printer.address.trim());
+  const pickFound = (name: string) => {
+    const printer = found.find((p) => p.name === name);
+    if (!printer) return;
+    setPickedUnshared(printer.shared ? null : printer.name);
+    changePrinter({ transport: 'FILE', address: printer.shared ? printer.shareName : '' });
   };
   const changePrinter = (patch: Partial<PrinterDraft>) => change({ printer: { ...draft.printer, ...patch } });
   const thermalDone = thermalNote === 'ok' || thermalNote === 'drawer';
@@ -210,6 +229,20 @@ export function PrintSettingsForm({ print, version: startVersion, editable, writ
               <option value="FILE">{t('pharmacy.print.thermal.shared')}</option>
             </FieldSelect>
           </Field>
+          {found.length > 0 && (
+            <Field label={t('pharmacy.print.thermal.found')} className="sm:col-span-2" {...(pickedUnshared ? { error: t('pharmacy.print.thermal.notShared') } : {})}>
+              <FieldSelect className={`${FIELD} pe-8`} value={pickedUnshared ?? chosen?.name ?? ''} onChange={(event) => pickFound(event.target.value)} data-testid="thermal-found">
+                <option value="" disabled>
+                  {t('pharmacy.print.thermal.pick')}
+                </option>
+                {found.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
+              </FieldSelect>
+            </Field>
+          )}
           <Field label={t('pharmacy.print.thermal.address')} hint={t(draft.printer.transport === 'NETWORK' ? 'pharmacy.print.thermal.addressNetwork' : 'pharmacy.print.thermal.addressShared')} {...(thermalBad ? { error: t('pharmacy.print.thermal.addressBad') } : {})}>
             <FieldInput dir="ltr" className={FIELD} value={draft.printer.address} onChange={(event) => changePrinter({ address: event.target.value })} autoComplete="off" placeholder={draft.printer.transport === 'NETWORK' ? '192.168.1.50:9100' : 'XP80'} data-testid="thermal-address" />
           </Field>

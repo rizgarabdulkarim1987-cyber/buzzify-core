@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { draftOfPrinter, openThermalDrawer, printerOf, printerOfDraft, printThermal, thermalDrawerPlan } from '@/app/pharmacy/_ui/thermal-print';
+import { draftOfPrinter, listBridgePrinters, openThermalDrawer, printerOf, printerOfDraft, printThermal, thermalDrawerPlan } from '@/app/pharmacy/_ui/thermal-print';
 import { buildReceipt, type StoredSale } from '@/server/domain/pharmacy/receipt';
 import { DEFAULT_WORKSTATION, type WorkstationSettings } from '@/server/domain/pharmacy/print-settings';
 
@@ -113,5 +113,19 @@ describe('printer draft of the settings form', () => {
   it('round-trips a stored printer', () => {
     const stored = ws().receiptPrinter;
     expect(printerOfDraft(draftOfPrinter(stored))).toEqual({ ok: true, value: stored });
+  });
+});
+
+describe('listBridgePrinters', () => {
+  const rows = [{ name: 'XP80', shareName: 'XP80', shared: true, port: 'USB001' }, { name: 'Office', shareName: '', shared: false, port: 'IP_1' }];
+  const answer = (body: unknown, ok = true) => (async () => ({ ok, json: async () => body })) as unknown as typeof fetch;
+
+  it('returns the printers the bridge found', async () => {
+    expect(await listBridgePrinters({ fetchImpl: answer({ ok: true, printers: rows }), bridgeUrl: 'http://127.0.0.1:9101' })).toEqual(rows);
+  });
+  it('returns an empty list when the bridge is down, refuses, or answers nonsense', async () => {
+    expect(await listBridgePrinters({ fetchImpl: (async () => { throw new Error('down'); }) as unknown as typeof fetch })).toEqual([]);
+    expect(await listBridgePrinters({ fetchImpl: answer({}, false) })).toEqual([]);
+    expect(await listBridgePrinters({ fetchImpl: answer({ ok: true, printers: 'x' }) })).toEqual([]);
   });
 });
