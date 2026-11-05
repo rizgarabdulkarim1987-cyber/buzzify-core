@@ -23,6 +23,11 @@ export interface OpenReceipt {
 export interface ReceiptsState {
   receipts: OpenReceipt[];
   active: number;
+  /**
+   * The cashier's receipt whose hold is being sent or got no answer (its key): frozen like a receipt being paid until the hold
+   * lands, is refused, or the cashier lets it go. Memory only: never written to the device.
+   */
+  holding?: string | null;
 }
 
 export type ReceiptsAction =

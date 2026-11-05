@@ -39,7 +39,7 @@ export function ReceiptCopy({ sale, onClose }: { sale: SaleResult; onClose: () =
     const result = await settle(() => reprintReceipt({ saleId: sale.id, width: '80', locale, clientKey }));
     if (!result.ok) {
       if (!outcomeUnknown(result.error)) key.current = null;
-      setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
+      setProblem(outcomeUnknown(result.error) ? t('pharmacy.cashier.copy.unknown') : phMessage(t, locale, result.error, 'pharmacy.sell'));
       return;
     }
     setCopy(result.data as ReceiptResult);

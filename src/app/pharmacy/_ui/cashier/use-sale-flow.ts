@@ -192,6 +192,11 @@ export function useSaleFlow(opts: {
       await resend(r, r.attempt, onAccount?.customerName ?? '');
       return;
     }
+    // A receipt whose hold is being sent (or got no answer) is never sold: it may already be held.
+    if (mirrorRef.current.holding === r.key) {
+      setProblem({ receiptKey: r.key, text: t('pharmacy.cashier.hold.sending') });
+      return;
+    }
     const rxId = prescriptionKept(r.prescriptionId, rxLinesOf(r.cart));
     const sig = saleSignature(r.cart, currency, draft, amountMinor, r.fromHoldId, rxId);
     // One key pair per attempt: a retry of the same sale (same cart, payment, hold and prescription) sends the same keys, so the

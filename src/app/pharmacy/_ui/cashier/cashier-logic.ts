@@ -20,7 +20,7 @@ export interface CashierPulse {
   usdRate: number;
 }
 
-export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction } | { type: 'load'; state: ReceiptsState };
+export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction } | { type: 'load'; state: ReceiptsState } | { type: 'holding'; receiptKey: string | null };
 
 /**
  * Whether the action would change a FROZEN receipt: the active receipt has a sale attempt (being sent, or its outcome unknown), and
@@ -28,6 +28,7 @@ export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction 
  * only the sale's own outcome (`attempt`, `refused`, `sold`) may change it. Other receipts stay editable.
  */
 export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean {
+  if (state.holding && heldTarget(state, action) === state.holding) return true;
   const current = state.receipts[state.active];
   if (!current || current.done || current.attempt === null) return false;
   if (action.type === 'line' || action.type === 'cart' || action.type === 'replace' || action.type === 'done') return true;
@@ -35,11 +36,47 @@ export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean
 }
 
 /**
+ * The receipt an action would change, as far as a hold in flight cares: by key for the keyed actions, the closed tab, else the
+ * active receipt. A new sale attempt counts (a held cart is never paid while its hold is open); dropping one does not.
+ */
+function heldTarget(state: ReceiptsState, action: CashierAction): string | undefined {
+  switch (action.type) {
+    case 'prescription':
+    case 'reset':
+      return action.receiptKey;
+    case 'attempt':
+      return action.attempt ? action.receiptKey : undefined;
+    case 'close':
+      return state.receipts[action.index]?.key;
+    case 'line':
+    case 'cart':
+    case 'replace':
+    case 'done':
+      return state.receipts[state.active]?.key;
+    case 'customer':
+      return action.customerId !== state.receipts[state.active]?.customerId ? state.receipts[state.active]?.key : undefined;
+    default:
+      return undefined;
+  }
+}
+
+/** What to say when a change is refused: the receipt is being held, or it is being paid. */
+export const frozenWhy = (state: ReceiptsState): string =>
+  state.holding && state.holding === state.receipts[state.active]?.key ? 'pharmacy.cashier.hold.sending' : 'pharmacy.cashier.frozen';
+
+/**
  * A cart change goes to the active receipt; on a paid (done) receipt it starts a fresh one instead of reusing the paid lines. A
  * change to a frozen receipt is ignored. As on the old sale screen, a receipt emptied line by line is no longer the held cart it
  * came from, and a prescription is let go once no line needs one (it belongs to those lines, never to another sale).
  */
 export function cashierReducer(state: ReceiptsState, action: CashierAction): ReceiptsState {
+  if (action.type === 'holding') return state.holding === action.receiptKey ? state : { ...state, holding: action.receiptKey };
+  const next = changeReceipts(state, action);
+  // The receipts' own reducer builds new states without the hold in flight: it stays until the hold flow lets it go.
+  return next === state || !state.holding || next.holding === state.holding ? next : { ...next, holding: state.holding };
+}
+
+function changeReceipts(state: ReceiptsState, action: Exclude<CashierAction, { type: 'holding' }>): ReceiptsState {
   if (action.type === 'load') return action.state;
   if (frozenEdit(state, action)) return state;
   if (action.type !== 'line') return receiptsReducer(state, action);

@@ -1,4 +1,4 @@
-import type { PhRole } from '@/server/domain/pharmacy/permissions';
+import { canPh, type PhRole } from '@/server/domain/pharmacy/permissions';
 import { phNav, type PhNavKey } from '../nav';
 import { blockedLines, type CartState, type Estimate } from '../sell-logic';
 import { MAX_RECEIPTS, type OpenReceipt, type ReceiptsState } from '../sell-receipts';
@@ -57,7 +57,7 @@ export function resumePlace(state: ReceiptsState, holdId: string): 'active' | 'n
 /** Where an item handed in from another screen lands: the active receipt, or (frozen by its sale) a new one; `'full'` when none can open. */
 export function handInPlace(state: ReceiptsState): 'active' | 'new' | 'full' {
   const r = state.receipts[state.active];
-  if (!r || r.done || r.attempt === null) return 'active';
+  if (!r || r.done || (r.attempt === null && state.holding !== r.key)) return 'active';
   return state.receipts.length < MAX_RECEIPTS ? 'new' : 'full';
 }
 
@@ -74,12 +74,13 @@ export interface CashierOp {
  * a customer paying debt, cash paid in or out and closing the shift (both on the shift screen). An entry shows only when the nav
  * lets this role open its screen. The prototype's "open the drawer without a sale" has no screen yet and is left out.
  */
-const OPS: readonly { key: CashierOpKey; nav: PhNavKey }[] = [
+const OPS: readonly { key: CashierOpKey; nav: PhNavKey; shift?: true }[] = [
   { key: 'sales', nav: 'sales' },
   { key: 'returns', nav: 'returns' },
   { key: 'debt', nav: 'customers' },
-  { key: 'cash', nav: 'shifts' },
-  { key: 'closeShift', nav: 'shifts' },
+  // The shift screen also opens for reports; paying cash in or out and closing the shift need a person who works a shift.
+  { key: 'cash', nav: 'shifts', shift: true },
+  { key: 'closeShift', nav: 'shifts', shift: true },
 ];
 
 export function cashierOps(role: PhRole | null): CashierOp[] {
@@ -88,6 +89,6 @@ export function cashierOps(role: PhRole | null): CashierOp[] {
   const allowed = new Map([...primary, ...more].map((item) => [item.key, item.href]));
   return OPS.flatMap((op) => {
     const href = allowed.get(op.nav);
-    return href ? [{ key: op.key, href }] : [];
+    return href && (!op.shift || canPh(role, 'shift.use')) ? [{ key: op.key, href }] : [];
   });
 }

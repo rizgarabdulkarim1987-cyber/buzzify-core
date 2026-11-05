@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleX, LayoutGrid, List, Pause, Percent, Printer, Undo2 } from 'lucide-react';
+import { CircleX, LayoutGrid, List, Pause, Percent, Printer, Undo2, Unlock } from 'lucide-react';
 import { useT } from '@/studio/i18n';
 import { Note, Num, PH_BTN } from '../sell-parts';
 import { ArmedButton } from './ArmedButton';
@@ -23,9 +23,11 @@ export function CashierToolbar({
   canHold,
   holding,
   heldCount,
+  heldMore,
   canDiscount,
   onOpen,
   onHold,
+  onRelease,
 }: {
   flow: WorkFlow | null;
   canDiscard: boolean;
@@ -35,9 +37,13 @@ export function CashierToolbar({
   canHold: boolean;
   holding: boolean;
   heldCount: number | null;
+  /** More held receipts than counted. */
+  heldMore: boolean;
   canDiscount: boolean;
   onOpen: (flow: 'copy' | 'ops' | 'held' | 'discount') => void;
   onHold: () => void;
+  /** Given while the active receipt's hold got no answer: lets it go (two taps). */
+  onRelease?: () => void;
 }) {
   const t = useT();
   return (
@@ -65,9 +71,13 @@ export function CashierToolbar({
         </span>
         <small className={KEY}>F8</small>
       </button>
+      {onRelease && <ArmedButton testId="tool-hold-release" icon={<Unlock aria-hidden className="size-4" />} label={t('pharmacy.cashier.hold.release')} armedLabel={t('pharmacy.cashier.hold.releaseArmed')} onConfirm={onRelease} />}
       <button type="button" className={PH_BTN} data-testid="tool-held" aria-pressed={flow === 'held'} onClick={() => onOpen('held')}>
         <List aria-hidden className="size-4" />
-        {t('pharmacy.cashier.tools.held')} (<span data-testid="held-count"><Num>{heldCount ?? 0}</Num></span>)
+        {t('pharmacy.cashier.tools.held')} (<span data-testid="held-count"><Num>{heldCount ?? 0}</Num>
+          {heldMore && '+'}
+        </span>
+        )
       </button>
       {canDiscount && (
         <button type="button" className={TOOL} data-testid="tool-discount" aria-pressed={flow === 'discount'} onClick={() => onOpen('discount')}>

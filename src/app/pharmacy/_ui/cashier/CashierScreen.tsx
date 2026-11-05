@@ -13,7 +13,7 @@ import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { cashierReducer, frozenEdit, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
+import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { CashierToolbar, LeaveNote } from './CashierToolbar';
 import { cashierOps } from './flows-logic';
 import { OtherFlow } from './OtherFlow';
@@ -94,10 +94,12 @@ export function CashierScreen(props: CashierScreenProps) {
   const padAt = `${receipt.key}:${selected}`;
   const pad = padState.at === padAt ? padState.text : '';
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
+  // The active receipt's hold is being sent or got no answer: frozen like a receipt being paid (`frozenEdit`), and never paid.
+  const heldHere = state.holding === receipt.key;
   /** A change to the active receipt; refused and said while that receipt is frozen by its sale (`frozenEdit`). True when made. */
   const edit = (action: CashierAction): boolean => {
     if (frozenEdit(mirror.current, action)) {
-      setMessage({ tone: 'danger', text: t('pharmacy.cashier.frozen') });
+      setMessage({ tone: 'danger', text: t(frozenWhy(mirror.current)) });
       return false;
     }
     dispatch(action);
@@ -121,10 +123,7 @@ export function CashierScreen(props: CashierScreenProps) {
   // Scans, Enter, a picked suggestion and items handed in from other screens all land through one path (`useAdding`) ----------
   const ready = shift !== null && loaded;
   const focusField = () => searchBox.current?.focus();
-  const used = () => {
-    setQuery('');
-    focusField();
-  };
+  const used = () => void (setQuery(''), focusField());
   const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField });
   useHandIn({ currency, ready, add: addItem, lookupFailed, say, setNotSent });
   const holds = useHoldFlow({ currency, enabled: ready, mirror, apply, say, setNotSent, done: sale.close });
@@ -204,12 +203,13 @@ export function CashierScreen(props: CashierScreenProps) {
     else if (key.kind === 'cash' || key.kind === 'credit') {
       // The flow opens in the work panel; nothing is sent until it is confirmed. Nothing to pay for (or no credit permission): the key keeps its browser meaning.
       if (receipt.done || receipt.cart.lines.length === 0 || (key.kind === 'credit' && !props.perms.credit)) return false;
-      sale.open(key.kind);
+      if (heldHere) setMessage({ tone: 'danger', text: t('pharmacy.cashier.hold.sending') });
+      else sale.open(key.kind);
     } else if (key.kind === 'hold') return holds.hold();
     else if (key.kind === 'discount') {
       if (!props.perms.discount || receipt.done || receipt.cart.lines.length === 0) return false;
       // A receipt being paid keeps its discount: saying so is the key's answer.
-      if (receipt.attempt) setMessage({ tone: 'danger', text: t('pharmacy.cashier.frozen') });
+      if (receipt.attempt || heldHere) setMessage({ tone: 'danger', text: t(frozenWhy(mirror.current)) });
       else sale.open('discount');
     } else return false;
     return true;
@@ -243,20 +243,17 @@ export function CashierScreen(props: CashierScreenProps) {
     say({ tone: 'success', text: t('pharmacy.cashier.tools.discarded') });
     focusField();
   };
+  // The recorded prescription goes on its receipt unless that receipt froze meanwhile (said); only its own open form closes.
   const rxSaved = (key: string, saved: { id: string; number: string }) => {
     setRxNumbers((all) => ({ ...all, [saved.id]: saved.number }));
-    apply({ type: 'prescription', receiptKey: key, prescriptionId: saved.id });
-    sale.close();
-    say(null);
+    const action: CashierAction = { type: 'prescription', receiptKey: key, prescriptionId: saved.id };
+    const free = !frozenEdit(mirror.current, action) && mirror.current.receipts.some((r) => r.key === key && !r.done && r.attempt === null);
+    if (free) apply(action);
+    say(free ? null : { tone: 'danger', text: t(frozenWhy(mirror.current)) });
+    if (free && sale.flow === 'rx' && receipt.key === key) sale.close();
   };
-  const closeFlow = () => {
-    sale.close();
-    focusField();
-  };
-  const find = (name: string) => {
-    setQuery(name);
-    searchBox.current?.focus();
-  };
+  const closeFlow = () => void (sale.close(), focusField());
+  const find = (name: string) => void (setQuery(name), focusField());
 
   // Render ---------------------------------------------------------------------------------------------------------------
   if (!shift) {
@@ -268,8 +265,9 @@ export function CashierScreen(props: CashierScreenProps) {
       <h1 className="sr-only">{t('pharmacy.cashier.title')}</h1>
       <header className="flex min-w-0 flex-col gap-2">
         {pulse && <PulseStrip pulse={pulse} currency={currency} onFind={find} />}
-        <CashierToolbar flow={sale.flow} canDiscard={!receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt} onDiscard={discard} canReprint={sale.last !== null} canOps={ops.length > 0}
-          canHold={!receipt.done && receipt.cart.lines.length > 0} holding={holds.holding} heldCount={holds.count} canDiscount={props.perms.discount && !receipt.done && receipt.cart.lines.length > 0} onOpen={sale.open} onHold={() => void holds.hold()} />
+        <CashierToolbar flow={sale.flow} canDiscard={!receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onDiscard={discard} canReprint={sale.last !== null} canOps={ops.length > 0}
+          canHold={!receipt.done && receipt.cart.lines.length > 0} holding={holds.holding} heldCount={holds.count} heldMore={holds.more}
+          canDiscount={props.perms.discount && !receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onOpen={sale.open} onHold={() => void holds.hold()} onRelease={heldHere && !holds.holding ? holds.release : undefined} />
       </header>
       {leave.leaveTo && <LeaveNote onStay={leave.stay} onGo={leave.go} />}
       {(!online || notSent) && (
@@ -305,12 +303,12 @@ export function CashierScreen(props: CashierScreenProps) {
               searchBox.current?.focus();
             }, canEnter: pad !== '' }}
           flow={sale.flow}
-          payable={!receipt.done && receipt.cart.lines.length > 0}
+          payable={!receipt.done && receipt.cart.lines.length > 0 && !heldHere}
           onPay={(f) => run({ kind: f })}
         >
           <WorkPanel sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
             other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} />}
-            idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => apply({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
+            idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
           />
         </SideColumn>
 

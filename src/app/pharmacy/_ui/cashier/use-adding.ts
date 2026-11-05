@@ -8,7 +8,7 @@ import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { phMessage } from '../ph-failure';
 import { emptyCart, isAddable, normalizeDigits, scanOutcome, type AddableItem, type Currency } from '../sell-logic';
 import { MAX_RECEIPTS, type ReceiptsState } from '../sell-receipts';
-import { addActionFor, addedKey, cashierReducer, frozenEdit, type CashierAction, type ScanUnitPref } from './cashier-logic';
+import { addActionFor, addedKey, cashierReducer, frozenEdit, frozenWhy, type CashierAction, type ScanUnitPref } from './cashier-logic';
 import { handInPlace } from './flows-logic';
 import { useScanQueue } from './use-scan-queue';
 
@@ -63,7 +63,8 @@ export function useAdding(o: {
     const action: CashierAction = { type: 'line', action: handIn ? { type: 'add', item, unitId: handIn.unitId, qty: handIn.qty } : addActionFor(item, hasSelection ? 'default' : scanUnit) };
     if (frozenEdit(cur, action)) {
       if (!handIn || handInPlace(cur) !== 'new') {
-        say({ tone: 'danger', text: handIn ? t('pharmacy.cashier.handIn.frozen', { name: item.tradeName, max: MAX_RECEIPTS }) : t('pharmacy.cashier.frozenScan', { name: item.tradeName }) });
+        const why = frozenWhy(cur);
+        say({ tone: 'danger', text: handIn ? t('pharmacy.cashier.handIn.frozen', { name: item.tradeName, max: MAX_RECEIPTS }) : why === 'pharmacy.cashier.frozen' ? t('pharmacy.cashier.frozenScan', { name: item.tradeName }) : t(why) });
         return false;
       }
       cur = cashierReducer(cur, { type: 'open' });

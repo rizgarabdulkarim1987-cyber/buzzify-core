@@ -27,11 +27,15 @@ export interface HeldState {
 export interface HoldFlow {
   /** How many receipts are held in this branch (as last read); null before the first answer. */
   count: number | null;
+  /** There are more held receipts than the count (the list is one page). */
+  more: boolean;
   held: HeldState;
   /** A hold is being sent. */
   holding: boolean;
   /** F8 / the Hold button: holds the active receipt. False when there is nothing to hold (the key keeps its browser meaning). */
   hold: () => boolean;
+  /** Lets go of the receipt whose hold got no answer: it may be held already, and it may be sold or changed from now on. */
+  release: () => void;
   load: () => Promise<void>;
   resume: (id: string) => Promise<void>;
   discard: (id: string) => Promise<void>;
@@ -41,7 +45,9 @@ export interface HoldFlow {
  * Holding receipts on the server, the old sale screen's way: `holdSale` with a key made for THAT cart (`holdSignature`), so the same
  * cart held again after a lost answer sends the same key and is held once; a second press while one is being sent does nothing. A
  * held receipt's tab is freed (a fresh empty receipt in its place); a receipt that came from a hold drops that hold once held again.
- * A receipt with a sale in flight is never held. The held list is the old `listHolds`; a hold resumes into the active receipt when
+ * A receipt with a sale in flight is never held. The receipt being held is frozen (`holding` on the receipts: no edit, no sale) from
+ * the press until the hold lands or is refused; after a lost answer it stays frozen until it is held again (same key) or the
+ * cashier lets it go (`release`), so a cart that may already be held is never sold or changed without the cashier saying so. The held list is the old `listHolds`; a hold resumes into the active receipt when
  * it is empty or paid, else into a new one, with `fromHoldId` and its lines fitted to today's products (lines that cannot be sold
  * as held are kept and marked). A hold already open on a receipt is switched to, not opened twice.
  */
@@ -63,6 +69,8 @@ export function useHoldFlow(o: {
   const [count, setCount] = useState<number | null>(null);
   const [holding, setHolding] = useState(false);
   const lock = useRef(false);
+  const listBusy = useRef(false);
+  const [more, setMore] = useState(false);
   const attempts = useRef(new Map<string, KeyedAttempt>());
   const failure = (error: StudioFailure, unknownKey?: string) => (unknownKey && outcomeUnknown(error) ? t(unknownKey) : phMessage(t, locale, error, 'pharmacy.sell'));
 
@@ -76,6 +84,7 @@ export function useHoldFlow(o: {
     const data = result.data as { items: HoldSummary[]; hasMore?: boolean };
     setHeld((h) => ({ ...h, items: data.items, hasMore: data.hasMore === true, problem: null }));
     setCount(data.items.length);
+    setMore(data.hasMore === true);
   };
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the count of held receipts is read from the server once the screen is ready
@@ -90,6 +99,12 @@ export function useHoldFlow(o: {
     const block = holdBlockKey(r);
     if (block === 'nothing') return false;
     if (lock.current) return true;
+    // One hold at a time: another receipt whose hold got no answer is held again or let go first.
+    const other = cur.holding && cur.holding !== r.key ? cur.receipts.findIndex((x) => x.key === cur.holding) : -1;
+    if (other >= 0) {
+      say({ tone: 'danger', text: t('pharmacy.cashier.hold.otherPending', { n: other + 1 }) });
+      return true;
+    }
     if (block) {
       say({ tone: 'danger', text: t(block) });
       return true;
@@ -104,14 +119,19 @@ export function useHoldFlow(o: {
     attempts.current.set(r.key, attempt);
     lock.current = true;
     setHolding(true);
+    apply({ type: 'holding', receiptKey: r.key });
     void (async () => {
       const result = await settle(() => holdSale(req));
       if (!result.ok) {
         lock.current = false;
         setHolding(false);
         if (result.error.message === NETWORK_FAILURE) setNotSent(true);
-        // A lost answer keeps the key (the hold may be recorded); a refusal is a definite "no": the next try is a new hold.
-        if (!outcomeUnknown(result.error)) attempts.current.delete(r.key);
+        // A lost answer keeps the key and the freeze (the hold may be recorded); a refusal is a definite "no": the receipt is free
+        // again and the next try is a new hold.
+        if (!outcomeUnknown(result.error)) {
+          attempts.current.delete(r.key);
+          apply({ type: 'holding', receiptKey: null });
+        }
         say({ tone: 'danger', text: failure(result.error, 'pharmacy.sell.offline.holdUnknown') });
         return;
       }
@@ -120,15 +140,39 @@ export function useHoldFlow(o: {
       if (r.fromHoldId) await settle(() => discardHold({ saleId: r.fromHoldId }));
       lock.current = false;
       setHolding(false);
-      apply({ type: 'reset', receiptKey: r.key });
-      say({ tone: 'success', text: t('pharmacy.sell.held', { time: phDateTime((result.data as HoldResult).heldUntil, locale) }) });
+      apply({ type: 'holding', receiptKey: null });
+      // The receipt is freed only while it is still the cart that was held (it was frozen, so it should be).
+      const now = mirror.current.receipts.find((x) => x.key === r.key && !x.done);
+      const time = phDateTime((result.data as HoldResult).heldUntil, locale);
+      if (!now || holdSignature(now.cart, currency) !== sig) {
+        say({ tone: 'info', text: t('pharmacy.cashier.hold.changed', { time }) });
+      } else {
+        apply({ type: 'reset', receiptKey: r.key });
+        say({ tone: 'success', text: t('pharmacy.sell.held', { time }) });
+      }
       void load();
     })();
     return true;
   };
 
+  const release = () => {
+    const key = mirror.current.holding;
+    if (!key || lock.current) return;
+    attempts.current.delete(key);
+    apply({ type: 'holding', receiptKey: null });
+    say({ tone: 'info', text: t('pharmacy.cashier.hold.released') });
+  };
+
   const resume = async (id: string) => {
-    if (held.busyId) return;
+    if (listBusy.current) return;
+    listBusy.current = true;
+    try {
+      await resumeNow(id);
+    } finally {
+      listBusy.current = false;
+    }
+  };
+  const resumeNow = async (id: string) => {
     const problem = (text: string) => setHeld((h) => ({ ...h, busyId: null, problem: text }));
     const place = resumePlace(mirror.current, id);
     if (typeof place === 'object') {
@@ -148,8 +192,14 @@ export function useHoldFlow(o: {
     if (cart.lines.length === 0) return problem(t('pharmacy.sell.holds.nothing'));
     // The receipts may have changed while the hold was read: the place is decided again.
     const now = resumePlace(mirror.current, id);
-    if (now === 'full' || typeof now === 'object') return problem(t('pharmacy.cashier.tabs.max', { max: MAX_RECEIPTS }));
+    if (now === 'full') return problem(t('pharmacy.cashier.tabs.max', { max: MAX_RECEIPTS }));
     setHeld((h) => ({ ...h, busyId: null }));
+    if (typeof now === 'object') {
+      o.done();
+      apply({ type: 'switch', index: now.switchTo });
+      say({ tone: 'info', text: t('pharmacy.cashier.held.alreadyOpen', { n: now.switchTo + 1 }) });
+      return;
+    }
     o.done();
     if (now === 'new') apply({ type: 'open' });
     apply({ type: 'replace', receipt: { ...newReceipt(), cart, fromHoldId: id } });
@@ -161,12 +211,14 @@ export function useHoldFlow(o: {
   };
 
   const discard = async (id: string) => {
-    if (held.busyId) return;
+    if (listBusy.current) return;
+    listBusy.current = true;
     setHeld((h) => ({ ...h, busyId: id, problem: null }));
     const result = await settle(() => discardHold({ saleId: id }));
+    listBusy.current = false;
     setHeld((h) => ({ ...h, busyId: null, problem: result.ok ? null : failure(result.error) }));
     if (result.ok) await load();
   };
 
-  return { count, held, holding, hold, load, resume, discard };
+  return { count, more, held, holding, hold, release, load, resume, discard };
 }

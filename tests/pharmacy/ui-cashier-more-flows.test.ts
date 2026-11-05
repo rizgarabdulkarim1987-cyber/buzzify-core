@@ -201,6 +201,25 @@ describe('receipts: prescription, reset, empty receipt (pure)', () => {
   });
 });
 
+describe('a receipt being held is frozen (pure)', () => {
+  const held = () => ({ receipts: [{ ...newReceipt(), key: 'a', cart: cartOf(), prescriptionId: 'rx-1' }, { ...newReceipt(), key: 'b', cart: cartOf() }], active: 0, holding: 'a' });
+  it('refuses every change to the receipt whose hold is being sent, and nothing else', () => {
+    const s = held();
+    expect(cashierLogic.frozenEdit(s, { type: 'line', action: { type: 'remove', key: s.receipts[0]!.cart.lines[0]!.key } })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'customer', customerId: 'c1' })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'prescription', receiptKey: 'a', prescriptionId: null })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'reset', receiptKey: 'a' })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'close', index: 0 })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'reset', receiptKey: 'b' })).toBe(false);
+    expect(cashierLogic.frozenEdit(s, { type: 'switch', index: 1 })).toBe(false);
+    expect(cashierLogic.cashierReducer(s, { type: 'reset', receiptKey: 'a' })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'holding', receiptKey: null }).holding).toBeNull();
+  });
+  it('sends handed-in items to a new receipt while the active one is being held', () => {
+    expect(flows.handInPlace(held())).toBe('new');
+  });
+});
+
 describe('where items land (pure)', () => {
   const base = (over: Partial<OpenReceipt>[]) => ({ receipts: over.map((r, i) => ({ ...newReceipt(), key: `k${i}`, cart: cartOf(), ...r })), active: 0 });
 
@@ -222,6 +241,9 @@ describe('where items land (pure)', () => {
   it('offers the operations a role may open, as the nav allows them', () => {
     expect(flows.cashierOps(null)).toEqual([]);
     expect(flows.cashierOps('CASHIER').map((o) => o.key)).toEqual(['sales', 'cash', 'closeShift']);
+    // The shift screen opens for reports too; cash in or out and closing the shift are only for those who work a shift.
+    expect(flows.cashierOps('ACCOUNTANT').map((o) => o.key)).not.toContain('cash');
+    expect(flows.cashierOps('ACCOUNTANT').map((o) => o.key)).not.toContain('closeShift');
     expect(flows.cashierOps('OWNER').map((o) => [o.key, o.href])).toEqual([
       ['sales', '/pharmacy/sales'],
       ['returns', '/pharmacy/returns'],
@@ -345,6 +367,74 @@ describe('hold (F8)', () => {
   });
 });
 
+describe('a receipt while its hold is sent', () => {
+  it('refuses edits and Pay, sends handed-in items to a new receipt, and frees only the held receipt', async () => {
+    const answer = deferred<unknown>();
+    sales.holdSale.mockReturnValue(answer.promise);
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [sellItem({ productId: 'p2', tradeName: 'Brufen' })] } });
+    screenWith([{}]);
+    await flush();
+    press({ key: 'F8' });
+    expect((byTest('pay-cash') as HTMLButtonElement).disabled).toBe(true);
+    expect(press({ key: 'F2' }).defaultPrevented).toBe(true);
+    expect(flowOf()).not.toBe('cash');
+    expect(message()).toContain('being held');
+    press({ key: 'ArrowDown' });
+    press({ key: '+' });
+    expect(stored().receipts[0]!.cart.lines[0]!.qty).toBe(3);
+    expect(byTest('tool-discount')).toBeNull();
+    expect((byTest('tool-discard') as HTMLButtonElement).disabled).toBe(true);
+    act(() => addToCart({ unitId: 'strip', qty: 1 }));
+    await flush();
+    expect(stored().receipts).toHaveLength(2);
+    expect(stored().receipts[1]!.cart.lines.map((l) => l.productId)).toEqual(['p2']);
+    await act(async () => answer.resolve({ ok: true, data: { id: 'h1', heldUntil: '2026-11-06T08:30:00Z' } }));
+    await flush();
+    const s = stored();
+    expect(s.receipts[0]!.cart.lines).toHaveLength(0);
+    expect(s.receipts[1]!.cart.lines.map((l) => l.productId)).toEqual(['p2']);
+    expect(sales.holdSale).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays frozen after a lost answer until it is held again or let go on purpose', async () => {
+    sales.holdSale.mockRejectedValueOnce(new TypeError('fetch failed'));
+    screenWith([{}]);
+    await flush();
+    press({ key: 'F8' });
+    await flush();
+    expect(stored().receipts[0]!.cart.lines).toHaveLength(1);
+    expect(press({ key: 'F2' }).defaultPrevented).toBe(true);
+    expect(flowOf()).not.toBe('cash');
+    const release = byTest('tool-hold-release');
+    expect(release).not.toBeNull();
+    click(release);
+    expect(byTest('tool-hold-release')!.textContent!.toLowerCase()).toContain('again');
+    expect(press({ key: 'F2' }).defaultPrevented).toBe(true);
+    expect(flowOf()).not.toBe('cash');
+    click(byTest('tool-hold-release'));
+    expect(byTest('tool-hold-release')).toBeNull();
+    press({ key: 'F2' });
+    expect(flowOf()).toBe('cash');
+    expect(sales.holdSale).toHaveBeenCalledTimes(1);
+  });
+
+  it('is free again after a definite refusal', async () => {
+    sales.holdSale.mockResolvedValueOnce({ ok: false, error: { code: 'FORBIDDEN', message: 'no' } });
+    screenWith([{}]);
+    await flush();
+    press({ key: 'F8' });
+    await flush();
+    expect(byTest('tool-hold-release')).toBeNull();
+    press({ key: 'F2' });
+    expect(flowOf()).toBe('cash');
+  });
+
+  it('never offers the receipt discount on a receipt whose sale is in flight', () => {
+    screenWith([{ attempt: ATTEMPT }]);
+    expect(byTest('tool-discount')).toBeNull();
+  });
+});
+
 describe('the held list', () => {
   const resumed = (over: Record<string, unknown> = {}) => ({
     ok: true,
@@ -396,6 +486,13 @@ describe('the held list', () => {
     await flush();
     expect(sales.resumeHold).toHaveBeenCalledTimes(1);
     expect(stored().active).toBe(0);
+  });
+
+  it('says there are more held receipts than it counted', async () => {
+    sales.listHolds.mockResolvedValue({ ok: true, data: { items: [HOLD('h1'), HOLD('h2')], hasMore: true } });
+    screenWith([{}]);
+    await flush();
+    expect(byTest('held-count')!.textContent).toBe('2+');
   });
 
   it('discards a hold only on the second tap', async () => {
