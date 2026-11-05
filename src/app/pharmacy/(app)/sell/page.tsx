@@ -1,7 +1,9 @@
 import { Lock, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { DoctorSlot } from '@/app/pharmacy/_ui/DoctorSlot';
 import { SellWorkspace } from '@/app/pharmacy/_ui/SellWorkspace';
+import { LOOK_COOKIE, lookOf } from '@/app/pharmacy/_ui/sell-look';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
 import { current } from '@/server/pharmacy/queries/shifts';
@@ -54,8 +56,11 @@ export default async function SellPage() {
     ? { id: now.shift.id, currency: now.shift.currency, openingFloatMinor: now.shift.openingFloatMinor, openedAt: now.shift.openedAt }
     : null;
 
+  const look = lookOf((await cookies()).get(LOOK_COOKIE)?.value);
+
   return (
     <SellWorkspace
+      look={look}
       restaurantId={placeInput.restaurantId}
       branchId={place.branchId}
       userId={actor.userId}

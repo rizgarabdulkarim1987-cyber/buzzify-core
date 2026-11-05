@@ -42,6 +42,8 @@ import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { Field } from '@/studio/ui/Field';
+import { SellLookPicker } from './SellLookPicker';
+import type { SellLook } from './sell-look';
 import { OpenShiftPanel, type OpenShift } from './OpenShiftPanel';
 import { phMessage } from './ph-failure';
 import { AskDialog, HoldsDialog, PayDialog, ReceiptDialog } from './SellDialogs';
@@ -110,6 +112,8 @@ export interface SellWorkspaceProps {
   aside?: ReactNode;
   /** The phone's counterpart (the AI Doctor's floating button): floats above the phone's pay bar below `lg:`. */
   phoneAside?: ReactNode;
+  /** This device's look of the screen (a cookie the page reads); Classic when none. */
+  look?: SellLook;
 }
 
 type View =
@@ -149,7 +153,7 @@ function expirySoon(expiryDate: string): boolean {
  * says the sale may or may not have been recorded. A definite refusal drops the attempt. A sale is never queued.
  */
 export function SellWorkspace(props: SellWorkspaceProps) {
-  const { restaurantId, branchId, userId, settings, perms, aside, phoneAside } = props;
+  const { restaurantId, branchId, userId, settings, perms, aside, phoneAside, look = 'classic' } = props;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -732,7 +736,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="sell-workspace">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="sell-workspace" data-look={look}>
       <h1 className="sr-only">{t('pharmacy.sell.title')}</h1>
       <div className="flex min-h-0 min-w-0 flex-1">
         {/* The start-side column for the AI Doctor, only on screens wide enough to keep the search and results roomy (2xl, 1536px
@@ -740,10 +744,11 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         <aside className="hidden min-h-0 w-[340px] shrink-0 flex-col gap-2.5 overflow-y-auto py-3 ps-3 sm:ps-6 2xl:flex 2xl:empty:hidden" data-testid="sell-doctor-slot">
           {aside}
         </aside>
-        <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${phoneAside ? 'pb-20 lg:pb-0' : ''} lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden`}>
+        <div className={`ph-sell-main min-h-0 min-w-0 flex-1 overflow-y-auto ${phoneAside ? 'pb-20 lg:pb-0' : ''} lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden`}>
           {/* Search and results: a size container, so the results go to two columns only when this column itself is wide. */}
-          <div className={`@container flex min-w-0 flex-col gap-3 px-3 pb-3 pt-3 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:pe-3 ${phoneAside ? 'lg:pb-20 2xl:pb-6' : 'lg:pb-6'}`} data-testid="sell-results-column">
-            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
+          <div className={`ph-sell-results-col @container flex min-w-0 flex-col gap-3 px-3 pb-3 pt-3 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:pe-3 ${phoneAside ? 'lg:pb-20 2xl:pb-6' : 'lg:pb-6'}`} data-testid="sell-results-column">
+            <div className="flex items-center gap-x-4 gap-y-1">
+            <p className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
               <span className="inline-flex items-center gap-1.5 font-semibold text-ph-text">
                 <CircleCheck aria-hidden className="size-4 text-ph-g6" />
                 {t('pharmacy.sell.shift.openNow', { currency })}
@@ -755,6 +760,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                 <Num>{phDateTime(shift.openedAt, locale)}</Num>
               </span>
             </p>
+            <SellLookPicker current={look} />
+            </div>
 
             {showOffline && (
               <Note look="ph" icon={<CloudOff aria-hidden />} tone="danger" role="alert" testId="sell-offline">
@@ -843,7 +850,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
           </div>
 
           {/* Cart, then (on a desktop) the pay bar under it */}
-          <div className="flex min-w-0 flex-col gap-3 px-3 pb-3 sm:px-6 lg:min-h-0 lg:pb-4 lg:ps-3 lg:pt-3">
+          <div className="ph-sell-cart-col flex min-w-0 flex-col gap-3 px-3 pb-3 sm:px-6 lg:min-h-0 lg:pb-4 lg:ps-3 lg:pt-3">
             <section aria-labelledby="cart-title" className="flex min-w-0 flex-col gap-3 rounded-[22px] bg-ph-card p-4 lg:min-h-0 lg:overflow-y-auto" data-testid="cart">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="cart-title" className="flex items-center gap-2 text-base font-bold text-ph-text">
@@ -871,7 +878,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                   {t('pharmacy.sell.cart.empty')}
                 </p>
               ) : (
-                <ul className="flex flex-col divide-y divide-ph-line" data-testid="cart-lines">
+                <ul className="ph-cart-lines flex flex-col divide-y divide-ph-line" data-testid="cart-lines">
                   {cart.lines.map((line) => (
                     <CartRow
                       key={line.key}
@@ -1049,11 +1056,11 @@ function ResultList({
   onDone?: () => void;
 }) {
   return (
-    <ul className="grid min-w-0 gap-2 @xl:grid-cols-2" data-testid="result-list">
+    <ul className="ph-results grid min-w-0 gap-2 @xl:grid-cols-2" data-testid="result-list">
       {items.map((item) => {
         const ok = addable(item);
         return (
-          <li key={item.productId} data-testid="result" className="flex min-w-0 flex-col gap-2 rounded-[18px] bg-ph-card p-3.5">
+          <li key={item.productId} data-testid="result" className="ph-result flex min-w-0 flex-col gap-2 rounded-[18px] bg-ph-card p-3.5">
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="break-words text-base font-semibold text-ph-text" dir="auto">
                 {item.tradeName}
@@ -1105,7 +1112,7 @@ function ResultList({
                 ))}
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="ph-result-units flex flex-wrap gap-2">
               {item.units.map((unit) => {
                 const priced = unit.priceMinor !== null;
                 return (
