@@ -150,7 +150,7 @@
 
 **Interfaces:**
 - Consumes: `receiptsReducer`, `receiptsKey`/`parseReceipts`/`serializeReceipts`, `cashierKeyOf`, `pulse` result type, the props `SellWorkspace` takes today (`restaurantId`, `branchId`, `userId`, `shift`, `settings`, `perms`).
-- Produces: `CashierScreen(props: SellWorkspaceProps)` (same props as the old workspace plus `pulse`), keeps the existing `aside` and `phoneAside` AI Doctor slots (rendered only when the Doctor is enabled, never taking space from the table); grid `"side main"` in RTL with side column 370px; `ReceiptTabs` shows number, running total (`estimateCart`), item count, a `＋` button, X per tab; `PulseStrip` shows the six chips from the prototype; clicking a warning chip puts that product's name in the search field.
+- Produces: `CashierScreen(props: SellWorkspaceProps)` (same props as the old workspace plus `pulse`), has NO AI Doctor on it (owner decision: the Doctor is not on the cashier screen; the `aside` and `phoneAside` slots and the `DoctorSlot` import are dropped from the sell page); grid `"side main"` in RTL with side column 370px; `ReceiptTabs` shows number, running total (`estimateCart`), item count, a `＋` button, X per tab; `PulseStrip` shows the six chips from the prototype; clicking a warning chip puts that product's name in the search field.
 
 - [ ] **Step 1: Write failing tests**: tabs render one per receipt with totals; `＋` at 6 receipts is absent; X is disabled on a receipt with items; Alt+2 switches; the side column is the first grid child; no element with `role="dialog"`.
 - [ ] **Step 2: Run** `npx vitest run tests/pharmacy/ui-cashier-frame.test.ts`. Expected: FAIL.
@@ -226,7 +226,7 @@
 ### Task 11: Swap the sell route and remove the old screen
 
 **Files:**
-- Modify: `src/app/pharmacy/(app)/sell/page.tsx` (render `CashierScreen`, pass `pulse` and `usdRate`)
+- Modify: `src/app/pharmacy/(app)/sell/page.tsx` (render `CashierScreen`, pass `pulse` and `usdRate`; remove the `DoctorSlot` usage and the `doctorEnabledThisRequest` call from this page only, the Doctor keeps its own page and nav item)
 - Delete: `SellWorkspace.tsx`, `SellDialogs.tsx`, `SellLookPicker.tsx` and `sell-look` only if nothing else imports it (check with graphify/grep first)
 - Modify: `tests/pharmacy/ui-sell.test.ts`, `ui-rx-credit-logic.test.ts`, `ui-shifts-returns.test.ts` (migrate to the new components; none may be deleted without an equivalent)
 - Create: `docs`-level parity checklist in the PR description
