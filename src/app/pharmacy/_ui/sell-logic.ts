@@ -553,11 +553,15 @@ export type Shortcut = 'search' | 'pay' | 'hold' | 'escape' | 'addTop';
  * the search or closes the dialog, Enter in the search box adds the top result. Keys with Ctrl, Alt or Meta are the
  * browser's; a key held down (repeat) never fires twice; a key that someone already handled (`defaultPrevented`, as a
  * scanner's closing Enter is) and a key pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing.
+ * Nor does any key while a modal sheet is open over the screen (`modalOpen`, the Doctor sheet on a phone): the sheet owns
+ * the keys, and Escape must close it rather than clear the search behind it.
  */
 export function shortcutOf(
   event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean },
   inSearch: boolean,
+  modalOpen = false,
 ): Shortcut | null {
+  if (modalOpen) return null;
   if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented) return null;
   if (event.isComposing || event.keyCode === 229) return null;
   switch (event.key) {

@@ -527,7 +527,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const inSearch = event.target === searchBox.current;
-      const key = shortcutOf(event, inSearch);
+      const key = shortcutOf(event, inSearch, document.querySelector('dialog[open]') !== null);
       if (!key || key === 'addTop' || !shift) return;
       if (dialogOpen) return;
       event.preventDefault();

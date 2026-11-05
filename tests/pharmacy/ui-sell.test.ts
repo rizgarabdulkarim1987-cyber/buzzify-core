@@ -328,6 +328,11 @@ describe('keys', () => {
     expect(shortcutOf(press('F8', { repeat: true }), false)).toBeNull();
     expect(shortcutOf(press('a'), true)).toBeNull();
   });
+
+  it('means nothing while another modal sheet is open (the Doctor sheet keeps its own Escape)', () => {
+    for (const key of ['F2', 'F4', 'F8', 'Escape', 'Enter']) expect(shortcutOf(press(key), true, true)).toBeNull();
+    expect(shortcutOf(press('Escape'), false, false)).toBe('escape');
+  });
 });
 
 describe('the draft on the device', () => {
