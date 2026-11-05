@@ -832,7 +832,13 @@ test.describe('Pharmacy transfers @desktop', () => {
     await expect(page.getByTestId('transfer-view')).toBeVisible();
     await expect(page.getByTestId('transfer-sent-line')).toHaveCount(500);
     expect(await scrollsSideways(page)).toBe(false);
-    await page.getByTestId('transfer-receive').click();
+    // 500 lines take a while to hydrate: a click before React attaches its handler is lost, so retry
+    // until the button reports the panel open (it toggles, so click only while it is still closed).
+    const receive = page.getByTestId('transfer-receive');
+    await expect(async () => {
+      if ((await receive.getAttribute('aria-expanded')) !== 'true') await receive.click();
+      await expect(receive).toHaveAttribute('aria-expanded', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(page.getByTestId('receive-line')).toHaveCount(500);
     expect(await scrollsSideways(page)).toBe(false);
     await expect(page.getByTestId('receive-summary')).toContainText('5');
