@@ -120,7 +120,7 @@ Layout A. Keypad on the physical right. Unit as a converting button. No popups. 
 - **Returns.** Return mode is a return against an original sale (lookup, same batch and price, quantity cap), routed to the existing returns logic. A return without an original sale needs pharmacist or owner approval. Contents of "all operations" route to existing screens.
 - **Keys.** In the search field the scanner wins; `*`, `/`, `+`, `-` act as hotkeys only when focus is not in a text field, except `*` and `/` on an empty search field. Alt+1..6 is best effort where the browser reserves it; Alt+Arrow and clicking always work.
 - **Locales.** Arabic wording in the prototype is final; Kurdish and English are straight translations by the builder, placed in `src/studio/messages/pharmacy/`.
-- **Chips.** Near-expiry and low-stock are computed on the server. Low stock uses the product's existing reorder level; 5 packets is only the fallback. Near-expiry window is 90 days unless the pharmacy already has a setting.
+- **Chips.** Near-expiry and low-stock are computed on the server. Low stock is exactly the rule the nav badge already uses (available < the product's reorder level; products without a reorder level are not counted), so the chip and the badge never disagree (ruling 2026-11-05, replaces the earlier 5-packet fallback). Near-expiry window is 90 days unless the pharmacy already has a setting.
 - **Server-side gating.** Cost, profit and price edit are enforced on the server, not only hidden in the UI. The prototype's role dropdown is simulation only; the real role comes from the session.
 
 ## Left to the builder

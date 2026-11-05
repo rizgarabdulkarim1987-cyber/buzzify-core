@@ -134,7 +134,7 @@
 
 **Interfaces:**
 - Produces: `export const pulse` (a studio `query` like the others in `queries/shifts.ts`) taking `placeInput`, requiring `shift.use`, returning `{ shiftNetMinor: string; receiptsDone: number; drawerCashMinor: string; nearExpiry: { count: number; firstProductName: string | null; firstProductId: string | null }; lowStock: { count: number; firstProductName: string | null; firstProductId: string | null }; usdRate: number }`.
-- Near-expiry window 90 days (setting if one already exists); low stock uses the product's existing reorder level, fallback 5 packets.
+- Near-expiry window 90 days (setting if one already exists); low stock uses the product's existing reorder level, same rule as the nav badge (`lowStockRows`), no fallback.
 
 - [ ] **Step 1: Write failing tests** (follow the data-test style used for other pharmacy queries in `tests/pharmacy/`): net equals cash + credit + card − returns for the open shift; a batch expiring in 89 days counts, 91 does not; a product at its reorder level counts as low; no open shift returns zeros; another branch's data never counts; actor without `shift.use` is refused.
 - [ ] **Step 2: Run** `npx vitest run tests/pharmacy/pulse.test.ts`. Expected: FAIL.
