@@ -2977,6 +2977,8 @@ const pharmacy: Messages = {
   'pharmacy.settings.save': 'پاشەکەوتکردن',
   'pharmacy.settings.saving': 'پاشەکەوتکردن…',
   'pharmacy.settings.saved': 'پاشەکەوتکرا.',
+  'pharmacy.settings.links.print': 'چاپکەری پسوولە و دڵۆپەی پارە',
+  'pharmacy.settings.links.printHint': 'چاپکەری گەرمی، کاغەز، بڕین، پینی دڵۆپە، چاپی تاقیکردنەوە، ورقەی A4 و لەیبڵ.',
   'pharmacy.nav.assistant': 'یاریدەدەر',
   'pharmacy.assistant.title': 'یاریدەدەر',
   'pharmacy.assistant.intro': 'لەبارەی کۆگا و بەسەرچوون و دابینکەران و قازانجەوە بپرسە. هەموو وەڵامێک لە ژمارەکانی خۆتەوە دێت و لە خشتەکانی خوارەوەی دەردەکەوێت.',

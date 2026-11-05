@@ -2983,6 +2983,8 @@ const pharmacy: Messages = {
   'pharmacy.settings.save': 'Save',
   'pharmacy.settings.saving': 'Saving…',
   'pharmacy.settings.saved': 'Saved.',
+  'pharmacy.settings.links.print': 'Receipt printer and cash drawer',
+  'pharmacy.settings.links.printHint': 'Thermal printer, paper, cut, drawer pin, test print, A4 sheets and labels.',
   'pharmacy.nav.assistant': 'Assistant',
   'pharmacy.assistant.title': 'Assistant',
   'pharmacy.assistant.intro': 'Ask about your stock, expiry, suppliers and margins. Every answer comes from your own figures, shown in tables below it.',

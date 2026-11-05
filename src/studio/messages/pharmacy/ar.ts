@@ -2995,6 +2995,8 @@ const pharmacy: Messages = {
   'pharmacy.settings.save': 'حفظ',
   'pharmacy.settings.saving': 'جارٍ الحفظ…',
   'pharmacy.settings.saved': 'تم الحفظ.',
+  'pharmacy.settings.links.print': 'طابعة الإيصالات ودرج النقود',
+  'pharmacy.settings.links.printHint': 'الطابعة الحرارية والورق والقص ودبوس الدرج والطباعة التجريبية وأوراق A4 والملصقات.',
   'pharmacy.nav.assistant': 'المساعد',
   'pharmacy.assistant.title': 'المساعد',
   'pharmacy.assistant.intro': 'اسأل عن مخزونك وتواريخ الصلاحية والموردين والهوامش. كل إجابة تأتي من أرقامك أنت، وتظهر في جداول تحتها.',
