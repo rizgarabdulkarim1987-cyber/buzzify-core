@@ -247,9 +247,9 @@ describe('the old single-cart draft', () => {
   };
   const ATTEMPT = { sig: 's', key: 'sale-key-12345', paymentKey: 'pay-key-12345', method: 'CASH', amountMinor: '4500', reference: '', fromHoldId: null };
 
-  it('is migrated only when no sale was in flight', () => {
+  it('is migrated whenever it is a valid cart, with or without a sale in flight', () => {
     expect(logic.migratableDraft(legacy())).toBe(legacy());
-    expect(logic.migratableDraft(legacy(ATTEMPT))).toBeNull();
+    expect(logic.migratableDraft(legacy(ATTEMPT))).toBe(legacy(ATTEMPT));
     expect(logic.migratableDraft('not json')).toBeNull();
     expect(logic.migratableDraft(null)).toBeNull();
   });
@@ -263,7 +263,8 @@ describe('the old single-cart draft', () => {
     const kept = logic.restoreReceipts(own, legacy());
     expect(kept.migrated).toBe(false);
     expect(kept.state.receipts).toHaveLength(2);
-    expect(logic.restoreReceipts(null, legacy(ATTEMPT)).migrated).toBe(false);
+    expect(logic.restoreReceipts(null, legacy(ATTEMPT)).migrated).toBe(true);
+    expect(logic.restoreReceipts(null, legacy(ATTEMPT)).state.receipts[0]!.attempt).toEqual(ATTEMPT);
   });
 
   it('the screen moves it into the tabs and deletes the old key so it cannot come back', () => {
@@ -275,10 +276,11 @@ describe('the old single-cart draft', () => {
     expect(byTest('cashier-restored')).not.toBeNull();
   });
 
-  it('leaves a draft with a sale in flight to the old screen', () => {
+  it('moves a draft with a sale in flight too, keeping the attempt on receipt 1', () => {
     window.localStorage.setItem(LEGACY, legacy(ATTEMPT));
     mount(screen());
-    expect(tabs()[0]!.textContent).toContain('Empty');
-    expect(window.localStorage.getItem(LEGACY)).not.toBeNull();
+    expect(tabs()[0]!.textContent).toContain('4,500');
+    expect(window.localStorage.getItem(LEGACY)).toBeNull();
+    expect(byTest('attempt-unknown')).not.toBeNull();
   });
 });

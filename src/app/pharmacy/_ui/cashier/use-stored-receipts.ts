@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type Dispatch } from 'react';
+import { useCallback, useEffect, useState, type Dispatch } from 'react';
 import { draftKey, type Currency } from '../sell-logic';
 import { receiptsKey, serializeReceipts, type ReceiptsState } from '../sell-receipts';
 import { restoreReceipts, type CashierAction } from './cashier-logic';
@@ -40,5 +40,16 @@ export function useStoredReceipts(ids: { restaurantId: string; branchId: string;
       /* the receipts on the device are a convenience */
     }
   }, [shiftOpen, loaded, state, storeKey]);
-  return { loaded, restored };
+  /** Writes the receipts at once, ahead of the next render: a sale's attempt is on the device BEFORE the sale is sent. */
+  const save = useCallback(
+    (next: ReceiptsState) => {
+      try {
+        window.localStorage.setItem(storeKey, serializeReceipts(next));
+      } catch {
+        /* the receipts on the device are a convenience */
+      }
+    },
+    [storeKey],
+  );
+  return { loaded, restored, save };
 }

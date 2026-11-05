@@ -33,12 +33,11 @@ export function cashierReducer(state: ReceiptsState, action: CashierAction): Rec
 }
 
 /**
- * The old (v2) single-cart draft, when it may move into the receipts: a valid cart with NO sale in flight. A draft whose
- * attempt is set is left where it is: its keys belong to a sale that may have been recorded, which the old screen settles.
+ * The old (v2) single-cart draft, when it may move into the receipts: any valid cart. A sale in flight moves with it (the
+ * attempt lands on receipt 1), so a retry here sends the keys the old screen sent and the server records the sale once.
  */
 export function migratableDraft(raw: string | null): string | null {
-  const draft = parseDraft(raw);
-  return draft && draft.attempt === null ? raw : null;
+  return parseDraft(raw) ? raw : null;
 }
 
 /** What the device kept: the stored receipts, else the old draft as receipt 1 (`migrated`: the caller deletes the old key). */

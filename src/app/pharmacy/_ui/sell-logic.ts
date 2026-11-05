@@ -726,7 +726,8 @@ export const isLine = (l: unknown): l is CartLine => {
   );
 };
 
-const isAttempt = (a: unknown): a is SaleAttempt => {
+/** A stored sale attempt that can be sent again as it was (its keys and payment); anything else reads as no attempt. */
+export const isAttempt = (a: unknown): a is SaleAttempt => {
   const x = a as SaleAttempt;
   return (
     !!x &&

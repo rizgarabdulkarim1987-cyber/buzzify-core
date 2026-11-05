@@ -29,7 +29,7 @@ const line = (key: string): CartLine => ({
   batchReason: '',
 });
 const cartWith = (...keys: string[]): CartState => ({ ...emptyCart(), lines: keys.map(line), seq: keys.length });
-const receipt = (key: string, over: Partial<OpenReceipt> = {}): OpenReceipt => ({ key, cart: cartWith(`${key}-l`), customerId: null, fromHoldId: null, prescriptionId: null, done: false, ...over });
+const receipt = (key: string, over: Partial<OpenReceipt> = {}): OpenReceipt => ({ key, cart: cartWith(`${key}-l`), customerId: null, fromHoldId: null, prescriptionId: null, done: false, attempt: null, ...over });
 const state = (receipts: OpenReceipt[], active = 0): ReceiptsState => ({ receipts, active });
 const raw = (obj: unknown) => JSON.stringify(obj);
 
