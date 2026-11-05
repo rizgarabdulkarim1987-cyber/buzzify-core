@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { thermalDrawerPlan, openThermalDrawer, printThermal, printerOf } from '@/app/pharmacy/_ui/thermal-print';
+import { draftOfPrinter, openThermalDrawer, printerOf, printerOfDraft, printThermal, thermalDrawerPlan } from '@/app/pharmacy/_ui/thermal-print';
 import { buildReceipt, type StoredSale } from '@/server/domain/pharmacy/receipt';
 import { DEFAULT_WORKSTATION, type WorkstationSettings } from '@/server/domain/pharmacy/print-settings';
 
@@ -81,5 +81,31 @@ describe('openThermalDrawer', () => {
     expect(await openThermalDrawer(ws(), { fetchImpl: f.impl, bridgeUrl: 'http://127.0.0.1:9101' })).toEqual({ ok: true });
     expect(f.calls[0].bytes).toEqual(KICK);
     expect(await openThermalDrawer(ws({ drawerPin: null }), { fetchImpl: f.impl })).toMatchObject({ ok: false });
+  });
+});
+
+describe('printer draft of the settings form', () => {
+  it('starts from the defaults, with an empty address, when the workstation has no printer', () => {
+    expect(draftOfPrinter(undefined)).toEqual({ transport: 'NETWORK', address: '', paperWidth: '80', cut: true, drawerPin: '2', drawerOnCash: true });
+  });
+  it('an empty address means "no thermal printer": the key is left out', () => {
+    expect(printerOfDraft({ ...draftOfPrinter(undefined) })).toEqual({ ok: true, value: undefined });
+  });
+  it('a good address becomes the stored printer, numbers and nulls included', () => {
+    const draft = { ...draftOfPrinter(undefined), address: ' 192.168.1.50:9100 ', paperWidth: '58' as const, drawerPin: 'none' as const };
+    expect(printerOfDraft(draft)).toEqual({ ok: true, value: { transport: 'NETWORK', address: '192.168.1.50:9100', paperWidth: 58, cut: true, drawerPin: null, drawerOnCash: true } });
+  });
+  it('a bad address is refused', () => {
+    expect(printerOfDraft({ ...draftOfPrinter(undefined), address: '8.8.8.8:9100' })).toEqual({ ok: false });
+  });
+  it('a printer shared on this PC is typed as its share name only', () => {
+    const draft = { ...draftOfPrinter(undefined), transport: 'FILE' as const, address: 'XP80' };
+    const out = printerOfDraft(draft);
+    expect(out).toMatchObject({ ok: true, value: { transport: 'FILE', address: String.raw`\\localhost\XP80` } });
+    expect(draftOfPrinter(out.ok ? out.value : undefined).address).toBe('XP80');
+  });
+  it('round-trips a stored printer', () => {
+    const stored = ws().receiptPrinter;
+    expect(printerOfDraft(draftOfPrinter(stored))).toEqual({ ok: true, value: stored });
   });
 });

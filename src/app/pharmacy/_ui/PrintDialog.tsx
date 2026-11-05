@@ -9,6 +9,8 @@ import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
+import { ThermalNote } from './ThermalNote';
+import { useThermal, useThermalJob } from './use-thermal';
 import { isolate } from './WriteBlocked';
 import { FIELD, FieldSelect, Note, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
 import { keyFor, outcomeUnknown, type KeyedAttempt } from './sell-logic';
@@ -34,6 +36,8 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
   const [printFailed, setPrintFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const reprintKey = useRef<KeyedAttempt | null>(null);
+  const thermal = useThermalJob(useThermal());
+  const { run: runThermal, reset: resetThermal } = thermal;
   const kind = target?.kind;
   const id = target?.id;
 
@@ -44,6 +48,7 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
     setReceipt(null);
     setProblem(null);
     setPrintFailed(false);
+    resetThermal();
     const load = kind === 'sale' ? () => saleReceipt({ saleId: id, width, locale }) : () => returnSlip({ returnId: id, width, locale });
     void settle(load).then((result) => {
       if (cancelled) return;
@@ -57,6 +62,15 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
   }, [id, kind, width, locale]);
 
   const print = () => {
+    setPrintFailed(false);
+    if (thermal.enabled && receipt) {
+      void runThermal(receipt.model);
+      return;
+    }
+    browserPrint();
+  };
+
+  const browserPrint = () => {
     setPrintFailed(false);
     try {
       const win = frame.current?.contentWindow;
@@ -79,7 +93,9 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
     setBusy(false);
     if (result.ok) {
       reprintKey.current = null;
-      setReceipt(result.data as ReceiptResult);
+      const copy = result.data as ReceiptResult;
+      setReceipt(copy);
+      if (thermal.enabled) void runThermal(copy.model);
     } else {
       if (!outcomeUnknown(result.error)) reprintKey.current = null;
       setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
@@ -99,7 +115,13 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
             <RotateCcw aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.reprint')}
           </button>
-          <button type="button" className={TOUCH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt}>
+          {thermal.enabled && (
+            <button type="button" className={TOUCH_BTN} data-testid="receipt-print-browser" onClick={browserPrint} disabled={!receipt}>
+              <Printer aria-hidden className="size-4" />
+              {t('pharmacy.print.thermal.browser')}
+            </button>
+          )}
+          <button type="button" className={TOUCH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt || thermal.state === 'printing'}>
             <Printer aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.print')}
           </button>
@@ -138,6 +160,7 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
         {receipt && (
           <iframe ref={frame} title={t('pharmacy.sell.receipt.preview')} data-testid="receipt-frame" sandbox="allow-same-origin allow-modals" srcDoc={receipt.html} className="h-72 w-full rounded-md border border-line bg-white" />
         )}
+        <ThermalNote state={thermal.state} />
         {printFailed && (
           <Note icon={<Printer aria-hidden />} tone="danger" role="alert" testId="print-failed">
             {t('pharmacy.sell.receipt.printFailed')}

@@ -1,5 +1,5 @@
 import { kickDrawer, printDoc, type PrintOptions, type PrintResult } from '@/app/pos/_ui/print/print-client';
-import type { WorkstationSettings } from '@/server/domain/pharmacy/print-settings';
+import { DEFAULT_RECEIPT_PRINTER, receiptPrinter, type ReceiptPrinterSettings, type WorkstationSettings } from '@/server/domain/pharmacy/print-settings';
 import type { ReceiptModel } from '@/server/domain/pharmacy/receipt';
 import { receiptPaperDoc, tookCash } from '@/server/domain/pharmacy/receipt-paper';
 import type { PrinterView } from '@/server/pos/printers';
@@ -45,4 +45,30 @@ export async function printThermalTest(ws: WorkstationSettings, opts: Opts = {})
   const printer = printerOf(ws);
   if (!printer) return NONE;
   return printDoc({ rows: [{ kind: 'text', align: 'center', left: 'Buzzify Pharmacy', size: 2, bold: true }, { kind: 'text', align: 'center', left: `${printer.paperWidth} mm` }, { kind: 'rule' }, { kind: 'text', align: 'start', left: 'Test', right: '123,456' }, { kind: 'gap' }] }, printer, { ...opts, drawer: false });
+}
+
+// The settings form's draft ---------------------------------------------------------------------------------------------------
+
+export interface PrinterDraft {
+  transport: 'NETWORK' | 'FILE';
+  address: string;
+  paperWidth: '58' | '80';
+  cut: boolean;
+  drawerPin: 'none' | '2' | '5';
+  drawerOnCash: boolean;
+}
+
+/** A printer shared on this PC is always reached as the PC's own share; the person types only its name. */
+const SHARE = '\\\\localhost\\';
+
+export function draftOfPrinter(stored: ReceiptPrinterSettings | undefined): PrinterDraft {
+  const p = stored ?? DEFAULT_RECEIPT_PRINTER;
+  return { transport: p.transport, address: p.transport === 'FILE' ? p.address.slice(SHARE.length) : p.address, paperWidth: String(p.paperWidth) as '58' | '80', cut: p.cut, drawerPin: p.drawerPin === null ? 'none' : (String(p.drawerPin) as '2' | '5'), drawerOnCash: p.drawerOnCash };
+}
+
+/** The draft as stored settings: an empty address is "no thermal printer" (value undefined); a bad one is refused. */
+export function printerOfDraft(draft: PrinterDraft): { ok: true; value: ReceiptPrinterSettings | undefined } | { ok: false } {
+  if (draft.address.trim() === '') return { ok: true, value: undefined };
+  const parsed = receiptPrinter.safeParse({ transport: draft.transport, address: draft.transport === 'FILE' ? `${SHARE}${draft.address.trim()}` : draft.address.trim(), paperWidth: Number(draft.paperWidth), cut: draft.cut, drawerPin: draft.drawerPin === 'none' ? null : Number(draft.drawerPin), drawerOnCash: draft.drawerOnCash });
+  return parsed.success ? { ok: true, value: parsed.data } : { ok: false };
 }
