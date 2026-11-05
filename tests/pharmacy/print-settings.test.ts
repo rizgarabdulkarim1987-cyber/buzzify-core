@@ -44,6 +44,19 @@ describe('print settings', () => {
     expect(Object.keys(second.print.workstations).sort()).toEqual(['Counter 1', 'Counter 2']);
   });
 
+  it('saves a workstation with a thermal receipt printer and reads it back', async () => {
+    const got = dataOf(await ask(w.owner, printQueries.get, at())) as View;
+    const wanted = { ...DEFAULT_WORKSTATION, receiptPrinter: { transport: 'FILE' as const, address: String.raw`\\localhost\XP80`, paperWidth: 80 as const, cut: true, drawerPin: 2 as const, drawerOnCash: true } };
+    const saved = await act(w.owner, printActions.set, { ...at(), workstation: 'XP80', settings: wanted, version: got.version });
+    expect(codeOf(saved)).toBe('OK');
+    const reread = dataOf(await ask(w.cashier, printQueries.get, at())) as View;
+    expect(reread.print.workstations['XP80']).toEqual(wanted);
+    // The audit guard refuses any field named like an address: the audit keeps the printer's other values only.
+    const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.print.settings.set', restaurantId: w.a.id } });
+    expect(JSON.stringify(audit.changes)).toContain('drawerPin');
+    expect(JSON.stringify(audit.changes)).not.toContain('localhost');
+  });
+
   it('refuses unknown keys, out-of-range numbers, unknown sizes and a 21st workstation, and changes nothing', async () => {
     const got = dataOf(await ask(w.owner, printQueries.get, at())) as View;
     const bad: unknown[] = [
