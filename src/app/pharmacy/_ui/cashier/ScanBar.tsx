@@ -1,23 +1,28 @@
 'use client';
 
 import { Barcode, Info, Repeat2 } from 'lucide-react';
-import type { ReactNode, Ref } from 'react';
+import type { Ref } from 'react';
 import { useT } from '@/studio/i18n';
+import { formatMinor, unitOf, type CartLine, type Currency } from '../sell-logic';
+import { Num } from '../sell-parts';
+import type { ScanUnitPref } from './cashier-logic';
 
 const BTN = 'inline-flex min-h-12 min-w-11 items-center justify-center gap-2 rounded-ph-xl border px-3 text-sm font-semibold';
 
 /**
  * The scan / search field with the unit button and the inquiry button beside it. Enter adds the top result (a scanner's own
  * closing Enter was taken before it gets here). The unit button CONVERTS (a button, never a dropdown): it shows the unit and
- * price it would act on; the screen decides what a press does. The inquiry button only shows its mode (the panel is a later task).
+ * price it would act on (the selected line's unit, else the unit the next item starts in); the screen decides what a press does.
+ * The inquiry button shows and turns inquiry mode (F7).
  */
 export function ScanBar({
   inputRef,
   query,
   onQuery,
   onEnter,
-  unitLabel,
-  unitPrice,
+  line,
+  scanUnit,
+  currency,
   onUnit,
   inquiry,
   onInquiry,
@@ -27,8 +32,10 @@ export function ScanBar({
   query: string;
   onQuery: (text: string) => void;
   onEnter: () => void;
-  unitLabel: string;
-  unitPrice: ReactNode;
+  /** The selected line (its unit is what the button converts), else null. */
+  line: CartLine | null;
+  scanUnit: ScanUnitPref;
+  currency: Currency;
   onUnit: () => void;
   inquiry: boolean;
   onInquiry: () => void;
@@ -36,6 +43,7 @@ export function ScanBar({
   suggest: { open: boolean; listId: string; activeId: string | undefined; onMove: (delta: 1 | -1) => void };
 }) {
   const t = useT();
+  const unit = line ? unitOf(line) : null;
   return (
     <div className="flex min-w-0 flex-wrap items-stretch gap-2" data-testid="scan-bar">
       <div className="relative min-w-0 flex-1 basis-64">
@@ -75,10 +83,18 @@ export function ScanBar({
         <Repeat2 aria-hidden className="size-5 shrink-0" />
         <span className="flex min-w-0 flex-col items-start leading-tight">
           <span className="max-w-32 truncate" data-testid="unit-label">
-            {unitLabel}
+            {unit ? unit.label : t(`pharmacy.cashier.unit.pref.${scanUnit}`)}
           </span>
           <span className="text-xs font-normal tabular-nums text-ph-muted" data-testid="unit-price">
-            {unitPrice}
+            {!unit ? (
+              t('pharmacy.cashier.unit.next')
+            ) : unit.priceMinor === null ? (
+              t('pharmacy.sell.chip.noPrice')
+            ) : (
+              <>
+                <Num>{formatMinor(BigInt(unit.priceMinor), currency)}</Num> {currency}
+              </>
+            )}
           </span>
         </span>
       </button>

@@ -21,6 +21,8 @@ export interface ReturnWorkspaceProps {
   data: Returnable;
   /** Whether the person has an open shift in this branch in the sale's currency (the refund is posted into it). */
   shiftOk: boolean;
+  /** Given by the cashier's return mode: it shows the finished return (and prints its slip) itself, instead of this page's view. */
+  onDone?: (result: ReturnResult) => void;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface ReturnWorkspaceProps {
  * (`ph.returns.preview`), never worked out here; the return itself judges again. The method is limited to those the sale
  * was paid with. One key per request: a retry after a dropped connection repeats it, a changed request gets a new one.
  */
-export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
+export function ReturnWorkspace({ data, shiftOk, onDone }: ReturnWorkspaceProps) {
   const t = useT();
   const { locale } = useLocale();
   const failure = useReturnFailure();
@@ -128,7 +130,8 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
       return;
     }
     attempt.current = null;
-    setDone(result.data as ReturnResult);
+    if (onDone) onDone(result.data as ReturnResult);
+    else setDone(result.data as ReturnResult);
   };
 
   return (

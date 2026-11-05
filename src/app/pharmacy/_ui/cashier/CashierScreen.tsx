@@ -8,14 +8,16 @@ import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
 import { RxCartPanel } from '../SellRx';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { estimateCart, formatMinor, overSellable, unitOf, type Currency } from '../sell-logic';
-import { Note, Num } from '../sell-parts';
+import { estimateCart, overSellable, unitOf, type Currency } from '../sell-logic';
+import { Note } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
 import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { CashierToolbar, LeaveNote } from './CashierToolbar';
 import { cashierOps } from './flows-logic';
+import { InquiryPanel } from './InquiryPanel';
+import { LinePanels } from './LinePanels';
 import { OtherFlow } from './OtherFlow';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
@@ -28,6 +30,7 @@ import { useAdding, type Message } from './use-adding';
 import { useHandIn } from './use-handin';
 import { useHoldFlow } from './use-hold-flow';
 import { useLeaveGuard } from './use-leave-guard';
+import { usePanels } from './use-panels';
 import { useRxCheck } from './use-rx-check';
 import { useStoredReceipts } from './use-stored-receipts';
 import { useSaleFlow } from './use-sale-flow';
@@ -43,6 +46,8 @@ export interface CashierScreenProps extends SellScreenProps {
   canEditPrice?: boolean;
   /** The person's pharmacy role: which "all operations" entries they may open (as the nav allows). None without it. */
   role?: PhRole | null;
+  /** return.approve: return mode sends returns (the server refuses anyone else); without it, it says who can. */
+  canReturn?: boolean;
 }
 
 /**
@@ -52,10 +57,12 @@ export interface CashierScreenProps extends SellScreenProps {
  * no motion. Up to MAX_RECEIPTS receipts are open at once and kept on this device per pharmacy, branch, person and currency.
  * Every flow is the work panel under the pay buttons (`WorkPanel`): paying (`useSaleFlow`), the discount, hold and the held list
  * (`useHoldFlow`), the prescription, all operations and the copy of the last receipt, opened from the toolbar row or their keys.
- * Items handed in from other screens land like scans (`useHandIn`); leaving with lines asks first (`useLeaveGuard`).
+ * Items handed in from other screens land like scans (`useHandIn`); leaving with lines asks first (`useLeaveGuard`). Inquiry mode
+ * (F7) shows a scanned item instead of adding it; the panels under the lines show the selected line's batches, details and
+ * substitutes (`usePanels`); return mode is a work-panel flow against an original sale (`ReturnFlow`).
  */
 export function CashierScreen(props: CashierScreenProps) {
-  const { restaurantId, branchId, userId, settings, pulse, canSeeCost = false, canEditPrice = false } = props;
+  const { restaurantId, branchId, userId, settings, pulse, canSeeCost = false, canEditPrice = false, canReturn = false } = props;
   const t = useT();
   const online = useOnline();
   const [shift, setShift] = useState<OpenShift | null>(props.shift);
@@ -67,7 +74,6 @@ export function CashierScreen(props: CashierScreenProps) {
   const [selections, setSelections] = useState<Record<string, string | null>>({});
   // The unit the next scanned item starts in while no line is selected: one preference for the whole screen, not per receipt.
   const [scanUnit, setScanUnit] = useState<ScanUnitPref>('default');
-  const [inquiry, setInquiry] = useState(false);
   const [padState, setPadState] = useState<{ at: string; text: string }>({ at: '', text: '' });
   const [customers, setCustomers] = useState<Record<string, PickedCustomer | null>>({});
   // The numbers of the prescriptions recorded (or checked) in this session, by id: memory only, never on the device.
@@ -124,7 +130,9 @@ export function CashierScreen(props: CashierScreenProps) {
   const ready = shift !== null && loaded;
   const focusField = () => searchBox.current?.focus();
   const used = () => void (setQuery(''), focusField());
-  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField });
+  const panels = usePanels({ mirror, apply, say, addItem: (item, handIn) => addItem(item, handIn) });
+  const { inquiry } = panels;
+  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField, inquire: inquiry.on ? inquiry.show : null });
   useHandIn({ currency, ready, add: addItem, lookupFailed, say, setNotSent });
   const holds = useHoldFlow({ currency, enabled: ready, mirror, apply, say, setNotSent, done: sale.close });
   const leave = useLeaveGuard(anyLines);
@@ -144,7 +152,8 @@ export function CashierScreen(props: CashierScreenProps) {
   const rows: Suggestion[] = listOpen && sugg.status === 'ready' ? sugg.rows : [];
   const activeIndex = activeAt.q === query ? activeAt.index : -1;
   const pick = (row: Suggestion) => {
-    if (addItem(row.item)) setQuery('');
+    if (inquiry.on) inquiry.show(row.item);
+    if (inquiry.on || addItem(row.item)) setQuery('');
     searchBox.current?.focus();
   };
 
@@ -199,7 +208,7 @@ export function CashierScreen(props: CashierScreenProps) {
         if (edit({ type: 'line', action: { type: 'unit', ...effect.set } })) setMessage(null);
       } else if ('none' in effect) setMessage({ tone: 'info', text: t('pharmacy.cashier.unit.none') });
       else setScanUnit(nextScanUnitPref);
-    } else if (key.kind === 'inquiry') setInquiry((on) => !on);
+    } else if (key.kind === 'inquiry') inquiry.toggle();
     else if (key.kind === 'cash' || key.kind === 'credit') {
       // The flow opens in the work panel; nothing is sent until it is confirmed. Nothing to pay for (or no credit permission): the key keeps its browser meaning.
       if (receipt.done || receipt.cart.lines.length === 0 || (key.kind === 'credit' && !props.perms.credit)) return false;
@@ -307,7 +316,7 @@ export function CashierScreen(props: CashierScreenProps) {
           onPay={(f) => run({ kind: f })}
         >
           <WorkPanel sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
-            other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} />}
+            other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} />}
             idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
           />
         </SideColumn>
@@ -332,25 +341,14 @@ export function CashierScreen(props: CashierScreenProps) {
               else void addTop();
             }}
             suggest={{ open: rows.length > 0, listId, activeId: activeIndex >= 0 ? suggestionId(listId, activeIndex) : undefined, onMove: (d) => setActiveAt({ q: query, index: moveSuggestion(rows, activeIndex, d) }) }}
-            unitLabel={selectedLine ? unitOf(selectedLine).label : t(`pharmacy.cashier.unit.pref.${scanUnit}`)}
-            unitPrice={
-              selectedLine ? (
-                unitOf(selectedLine).priceMinor === null ? (
-                  t('pharmacy.sell.chip.noPrice')
-                ) : (
-                  <>
-                    <Num>{formatMinor(BigInt(unitOf(selectedLine).priceMinor!), currency)}</Num> {currency}
-                  </>
-                )
-              ) : (
-                t('pharmacy.cashier.unit.next')
-              )
-            }
+            line={selectedLine}
+            scanUnit={scanUnit}
+            currency={currency}
             onUnit={() => {
               run({ kind: 'unit' });
               searchBox.current?.focus();
             }}
-            inquiry={inquiry}
+            inquiry={inquiry.on}
             onInquiry={() => run({ kind: 'inquiry' })}
           />
           <Suggestions state={listOpen ? sugg : { status: 'idle' }} query={query} currency={currency} listId={listId} active={activeIndex} onPick={pick} />
@@ -359,6 +357,7 @@ export function CashierScreen(props: CashierScreenProps) {
               {message.text}
             </Note>
           )}
+          {inquiry.on && <InquiryPanel item={inquiry.item} currency={currency} onAdd={inquiry.add} onShow={inquiry.show} />}
           {receipt.cart.lines.length === 0 ? (
             <div className="min-h-[210px] min-w-0 rounded-ph-xl border border-ph-line bg-ph-card" data-testid="cashier-lines">
               <p className="px-4 py-8 text-center text-sm text-ph-muted">{t('pharmacy.cashier.lines.empty')}</p>
@@ -378,6 +377,7 @@ export function CashierScreen(props: CashierScreenProps) {
               canEditPrice={canEditPrice}
             />
           )}
+          <LinePanels line={selectedLine} currency={currency} canSeeCost={canSeeCost} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
         </section>
       </div>
     </div>

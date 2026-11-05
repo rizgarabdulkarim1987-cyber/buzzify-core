@@ -6,7 +6,7 @@ import type { SellItem } from '@/server/pharmacy/sell-search';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { phMessage } from '../ph-failure';
-import { emptyCart, isAddable, normalizeDigits, scanOutcome, type AddableItem, type Currency } from '../sell-logic';
+import { emptyCart, isAddable, normalizeDigits, scanOutcome, type AddableItem, type Currency, type ScanItem } from '../sell-logic';
 import { MAX_RECEIPTS, type ReceiptsState } from '../sell-receipts';
 import { addActionFor, addedKey, cashierReducer, frozenEdit, frozenWhy, type CashierAction, type ScanUnitPref } from './cashier-logic';
 import { handInPlace } from './flows-logic';
@@ -41,6 +41,8 @@ export function useAdding(o: {
   /** The typed text was used: the field is emptied and focused again. */
   used: () => void;
   focus: () => void;
+  /** Inquiry mode (F7): a scanned or typed item is SHOWN through this instead of added, even one that cannot be sold. */
+  inquire?: ((item: ScanItem) => void) | null;
 }) {
   const { currency, mirror: mirrorRef, picks, select, scanUnit, dispatch, say, setNotSent } = o;
   const t = useT();
@@ -85,6 +87,11 @@ export function useAdding(o: {
   /** A scanned or typed barcode: the one exact match is added; blocked, unknown and several matches are said. True when added. */
   const takeBarcode = (code: string, items: SellItem[]): boolean => {
     const outcome = scanOutcome(code, items);
+    if (o.inquire && (outcome.kind === 'add' || outcome.kind === 'blocked')) {
+      o.inquire(outcome.item);
+      say(null);
+      return true;
+    }
     if (outcome.kind === 'add') return addItem(outcome.item);
     if (outcome.kind === 'blocked') say({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
     else say({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
@@ -117,12 +124,17 @@ export function useAdding(o: {
       if (takeBarcode(q, (result.data as { items: SellItem[] }).items)) o.used();
       return;
     }
-    const top = (result.data as { items: SellItem[] }).items.find(isAddable);
+    const items = (result.data as { items: SellItem[] }).items;
+    const top = o.inquire ? items[0] : items.find(isAddable);
     if (!top) {
       say({ tone: 'danger', text: t('pharmacy.sell.empty', { q }) });
       return;
     }
-    if (addItem(top)) o.used();
+    if (o.inquire) {
+      o.inquire(top);
+      say(null);
+      o.used();
+    } else if (addItem(top)) o.used();
     else o.focus();
   };
 

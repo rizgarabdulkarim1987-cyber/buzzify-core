@@ -23,8 +23,8 @@ import {
 
 /** The payment flows of the work panel. */
 export type PayFlow = 'cash' | 'credit';
-/** Every flow of the work panel: the two payments, the receipt discount, the held receipts, the prescription, all operations and the copy of the last receipt. */
-export type WorkFlow = PayFlow | 'discount' | 'held' | 'rx' | 'ops' | 'copy';
+/** Every flow of the work panel: the two payments, the receipt discount, the held receipts, the prescription, all operations, the copy of the last receipt and a return. */
+export type WorkFlow = PayFlow | 'discount' | 'held' | 'rx' | 'ops' | 'copy' | 'return';
 export const isPayFlow = (flow: WorkFlow | null): flow is PayFlow => flow === 'cash' || flow === 'credit';
 
 /** The receipt's lines as the prescription rules read them. */

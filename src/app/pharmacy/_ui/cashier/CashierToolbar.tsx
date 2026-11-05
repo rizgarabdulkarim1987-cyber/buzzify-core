@@ -11,7 +11,8 @@ const KEY = 'text-[11px] font-normal text-ph-muted';
 
 /**
  * The toolbar row of layout A, under the header: discard the receipt's data (two taps), print a copy of the last receipt (only once
- * a sale was made on this screen), all operations, hold (F8), the held receipts with their count, and the receipt discount (F9).
+ * a sale was made on this screen), all operations, hold (F8), the held receipts with their count, the receipt discount (F9) and, at
+ * the far end, return mode (a return against an original sale).
  * Every button opens its flow inline in the work panel or acts at once; none opens a dialog.
  */
 export function CashierToolbar({
@@ -40,7 +41,7 @@ export function CashierToolbar({
   /** More held receipts than counted. */
   heldMore: boolean;
   canDiscount: boolean;
-  onOpen: (flow: 'copy' | 'ops' | 'held' | 'discount') => void;
+  onOpen: (flow: 'copy' | 'ops' | 'held' | 'discount' | 'return') => void;
   onHold: () => void;
   /** Given while the active receipt's hold got no answer: lets it go (two taps). */
   onRelease?: () => void;
@@ -88,6 +89,11 @@ export function CashierToolbar({
           <small className={KEY}>F9</small>
         </button>
       )}
+      <span className="flex-1" />
+      <button type="button" className={PH_BTN} data-testid="tool-return" aria-pressed={flow === 'return'} onClick={() => onOpen('return')}>
+        <Undo2 aria-hidden className="size-4" />
+        {t('pharmacy.cashier.tools.return')}
+      </button>
     </div>
   );
 }

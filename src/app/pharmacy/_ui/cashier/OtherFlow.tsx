@@ -10,11 +10,12 @@ import type { CashierOp } from './flows-logic';
 import { HeldList } from './HeldList';
 import { OpsPanel } from './OpsPanel';
 import { ReceiptCopy } from './ReceiptCopy';
+import { ReturnFlow } from './ReturnFlow';
 import { RxFlow } from './RxFlow';
 import { rxLinesOf, type WorkFlow } from './sale-flow-logic';
 import type { HoldFlow } from './use-hold-flow';
 
-/** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy. */
+/** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy, a return. */
 export function OtherFlow({
   flow,
   receipt,
@@ -29,6 +30,7 @@ export function OtherFlow({
   place,
   onRxSaved,
   close,
+  canReturn,
 }: {
   flow: WorkFlow | null;
   receipt: OpenReceipt;
@@ -44,6 +46,8 @@ export function OtherFlow({
   place: { restaurantId: string; branchId: string };
   onRxSaved: (receiptKey: string, saved: { id: string; number: string }) => void;
   close: () => void;
+  /** return.approve: the server refuses a return from anyone else. */
+  canReturn: boolean;
 }) {
   const line = (action: Extract<CashierAction, { type: 'line' }>['action']) => edit({ type: 'line', action });
   if (flow === 'discount') {
@@ -63,6 +67,7 @@ export function OtherFlow({
   }
   if (flow === 'held') return <HeldList holds={holds} />;
   if (flow === 'ops') return <OpsPanel ops={ops} />;
+  if (flow === 'return') return <ReturnFlow canReturn={canReturn} shiftCurrency={currency} />;
   if (flow === 'copy' && last) return <ReceiptCopy key={last.id} sale={last} onClose={close} />;
   if (flow === 'rx') {
     const key = receipt.key;
