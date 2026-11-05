@@ -2,10 +2,10 @@ import { canPh } from '@/server/domain/pharmacy/permissions';
 import type { PhActor } from '../actor';
 
 /**
- * Flipped to true by the task that adds the /pharmacy/doctor page. While false the Doctor's nav item stays hidden for
- * everyone, so no link points at a page that does not exist yet.
+ * True since the /pharmacy/doctor page, the Home card and the Sell panel exist (plan Task 8). Set it back to false to hide the
+ * Doctor's nav item, slots and page from everyone without touching the access rule (the action keeps its own check).
  */
-export const DOCTOR_UI_READY = false;
+export const DOCTOR_UI_READY = true;
 
 export type DoctorAccessReason = 'OK' | 'NO_ACTOR' | 'NOT_IN_PLAN' | 'NO_PERMISSION' | 'SWITCH_OFF';
 

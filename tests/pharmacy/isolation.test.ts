@@ -671,6 +671,8 @@ const CASES: Record<string, Case> = {
   // budget, so a call in one's own branch is refused by the Doctor's own access rule (FORBIDDEN) and writes nothing: both outcomes are
   // harmless; the paths that answer are proven in doctor-action.test.ts and doctor-service.test.ts.
   'ph.doctor.ask': { body: (ids, n) => ({ mode: 'COMPLAINT', text: 'Mild headache since this morning', branchId: n === 1 ? ids.b1 : ids.b2 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // The Doctor page's earlier questions (Task 8): read through the branch-scoped client, own rows (the owner's: the pharmacy's); real rows below.
+  'ph.doctor.history': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -831,7 +833,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers the AI Doctor definition with a sweep case of its own', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.doctor.'));
-    expect(names.sort()).toEqual(['ph.doctor.ask']);
+    expect(names.sort()).toEqual(['ph.doctor.ask', 'ph.doctor.history']);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 
@@ -849,6 +851,40 @@ describe('the pharmacy isolation sweep', () => {
     expect(managerRows).not.toContain(b.doctorLog1);
     // Naming the other business's or branch's row outright finds nothing.
     expect(await phScopedClient(prisma(), manager).phDoctorLog.findMany({ where: { id: { in: [a.doctorLog2, b.doctorLog1, b.doctorLog2] } } })).toEqual([]);
+  });
+
+  it('has real Doctor history to guard: the owner sees the business’s rows of every branch, a manager only their own, and nobody another business’s', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    const def = DEFINITIONS.get('ph.doctor.history')!;
+    const mineText = `manager-own-question-${Date.now().toString(36)}`;
+    const own = await prisma().phDoctorLog.create({
+      data: { restaurantId: a.restaurantId, branchId: a.b1, staffId: managerA1.userId, mode: 'COMPLAINT', questionText: mineText, answer: { summary: 'seed' }, model: 'seed', inputTokens: 1, outputTokens: 1, outcome: 'ANSWERED' },
+      select: { id: true },
+    });
+    try {
+      const owner = json(await run(def, ownerA, { restaurantId: a.restaurantId }));
+      expect(owner).toContain(a.doctorLog1);
+      expect(owner).toContain(a.doctorLog2);
+      expect(owner, 'the owner sees a staff member’s question').toContain(own.id);
+      expect(owner).not.toContain(b.doctorLog1);
+      expect(owner).not.toContain(b.doctorLog2);
+      expect(owner, 'no answer, model or tokens leave the log').not.toMatch(/"answer"|"model"|"inputTokens"|"staffId"/);
+      // The owner on one branch: that branch only.
+      const ownerB1 = json(await run(def, ownerA, { restaurantId: a.restaurantId, branchId: a.b1 }));
+      expect(ownerB1).toContain(a.doctorLog1);
+      expect(ownerB1).not.toContain(a.doctorLog2);
+      const manager = json(await run(def, managerA1, { restaurantId: a.restaurantId }));
+      expect(manager).toContain(own.id);
+      expect(manager).toContain(mineText);
+      expect(manager, 'a manager does not see the owner’s questions in their own branch').not.toContain(a.doctorLog1);
+      expect(manager, 'nor their text').not.toContain('"headache"');
+      expect(manager, 'nor another branch’s').not.toContain(a.doctorLog2);
+      expect(manager).not.toContain(b.doctorLog1);
+      // The other business's owner never sees it.
+      expect(json(await run(def, world.ownerB, { restaurantId: b.restaurantId }))).not.toContain(own.id);
+    } finally {
+      await prisma().phDoctorLog.delete({ where: { id: own.id } });
+    }
   });
 
   it('covers every phase 6 transfer definition', () => {

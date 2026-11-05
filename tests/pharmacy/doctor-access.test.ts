@@ -35,8 +35,36 @@ describe('doctorAccess', () => {
     expect(doctorAccess({ actor: who, aiBudgetMinor: budget })).toEqual({ allowed, reason });
   });
 
-  it('keeps the nav item hidden while the UI is not ready', () => {
-    expect(DOCTOR_UI_READY).toBe(false);
-    expect(doctorEnabledFor({ actor: actor({ aiDoctor: true }), aiBudgetMinor: BUDGET })).toBe(false);
+  it('shows the nav item and slots now that the UI exists, only to people with access', () => {
+    expect(DOCTOR_UI_READY).toBe(true);
+    expect(doctorEnabledFor({ actor: actor({ aiDoctor: true }), aiBudgetMinor: BUDGET })).toBe(true);
+    expect(doctorEnabledFor({ actor: actor({ aiDoctor: false }), aiBudgetMinor: BUDGET })).toBe(false);
+    expect(doctorEnabledFor({ actor: actor({ role: 'OWNER', viaMembership: true }), aiBudgetMinor: 0 })).toBe(false);
+  });
+});
+
+describe('doctorNavEnabled', () => {
+  /** A database whose plan read is counted: a person the plan cannot change the answer for must not cost a read. */
+  const db = (budget: number) => {
+    const reads = { n: 0 };
+    const d = {
+      subscription: {
+        findMany: async () => {
+          reads.n += 1;
+          return [{ planCode: 'p', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: new Date(Date.now() + 86_400_000), graceDays: 0 }];
+        },
+      },
+      appPlan: { findUnique: async () => ({ limits: { aiMonthlyBudgetMinor: budget } }) },
+    };
+    return { d, reads };
+  };
+
+  it('reads no plan for a person who could not use the Doctor whatever the plan says', async () => {
+    const { doctorNavEnabled } = await import('@/server/pharmacy/doctor/nav');
+    for (const who of [actor({ aiDoctor: false }), actor({ role: 'CASHIER' as PhRole, aiDoctor: true }), actor({ role: null, support: { grantId: 'g', scopes: new Set(), expiresAt: new Date() } })]) {
+      const { d, reads } = db(BUDGET);
+      expect(await doctorNavEnabled(who, new Date(), d as never)).toBe(false);
+      expect(reads.n, `${who.role} costs no read`).toBe(0);
+    }
   });
 });
