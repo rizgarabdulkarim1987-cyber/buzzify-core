@@ -1,12 +1,17 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { readPlans } from '@/server/data/plans';
+import { customerLinks, customerMessage, type CustomerLink } from '@/server/domain/customer-links';
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
+import { hostEnv } from '@/server/env';
+import { cashierSubscriptionOf } from '@/server/pos/subscription';
 import type { Permission } from '@/server/domain/permissions';
+import { DEFAULT_RETAIL_ACTIVITY } from '@/server/domain/retail/activity';
 import { BUSINESS_SECTORS, formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { restaurantActivityRows } from '@/server/studio/services/activity';
+import { businessSpace, restaurantsInSpace } from '@/server/studio/services/space-scope';
 import { profileOf, seesAgencyNotes } from '@/server/studio/services/restaurants';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
 import type { AssetVariants } from '@/server/media/process';
@@ -42,6 +47,7 @@ export const listRestaurants = defineQuery({
     city: z.string().trim().max(200).optional(),
     type: z.enum(RESTAURANT_TYPES).optional(),
     sector: z.enum(BUSINESS_SECTORS).optional(),
+    space: businessSpace,
     status: z.enum(RESTAURANT_STATUSES).optional(),
     plan: z.enum(PLAN_TIERS).optional(),
     createdFrom: dateField.optional(),
@@ -53,7 +59,10 @@ export const listRestaurants = defineQuery({
   }),
   target: () => PLATFORM,
   run: async (ctx, input) => {
-    const scope: Prisma.RestaurantWhereInput = ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } };
+    // Everything the reader sees is cut to their reach, and for a Super Admin to the sector of the space they are in.
+    const scope: Prisma.RestaurantWhereInput = {
+      AND: [ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } }, restaurantsInSpace(ctx.scope, input.space)],
+    };
 
     const search = input.q ?? '';
     const clientNumber = parseClientId(search);
@@ -145,7 +154,7 @@ export const getRestaurant = defineQuery({
     const restaurantId = restaurantOf(ctx);
     const row = await ctx.db.restaurant.findUnique({
       where: { id: restaurantId },
-      include: { _count: { select: { menus: true, branches: true } } },
+      include: { _count: { select: { menus: true, branches: true } }, retailLink: { select: { activity: true } } },
     });
     if (!row) throw new StudioError('NOT_FOUND');
     const profile = profileOf(row);
@@ -161,6 +170,8 @@ export const getRestaurant = defineQuery({
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
       sector: row.sector,
+      /** A retail shop's product (its space); a supermarket when it has no link; null for any other business. */
+      retailActivity: row.sector === 'RETAIL' ? (row.retailLink?.activity ?? DEFAULT_RETAIL_ACTIVITY) : null,
       status: row.status,
       plan: row.plan,
       logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,
@@ -181,6 +192,38 @@ export const getRestaurant = defineQuery({
         media: can('media.manage'),
       },
     };
+  },
+});
+
+/**
+ * The addresses to send a new customer, and the message to paste, for the Super Admin's "Customer links" card. The email
+ * in the message is the owner's, or the address of the owner invitation still waiting; empty if there is neither. No
+ * password, and never the super admin's own host.
+ */
+export const restaurantCustomerLinks = defineQuery({
+  name: 'restaurants.customerLinks',
+  permission: 'view',
+  input: z.object({ restaurantId: idField }),
+  target: (i) => atRestaurant(i.restaurantId),
+  run: async (ctx) => {
+    if (!ctx.actor.isSuperAdmin) return { links: [] as CustomerLink[], message: '' };
+    const restaurantId = restaurantOf(ctx);
+    const [restaurant, menus, cashier, owner, invitation] = await Promise.all([
+      ctx.db.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } }),
+      ctx.db.menu.findMany({ where: { restaurantId, status: { not: 'ARCHIVED' } }, orderBy: { createdAt: 'asc' }, select: { name: true, slug: true } }),
+      cashierSubscriptionOf(ctx.db, restaurantId),
+      ctx.db.membership.findFirst({ where: { restaurantId, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { email: true } } } }),
+      ctx.db.invitation.findFirst({ where: { restaurantId, role: 'OWNER', acceptedAt: null, revokedAt: null }, orderBy: { id: 'desc' }, select: { email: true } }),
+    ]);
+    if (!restaurant) throw new StudioError('NOT_FOUND');
+    const { studioHost, pharmacyHost, publicOrigin } = hostEnv();
+    const links = customerLinks({
+      sector: restaurant.sector,
+      hasCashier: cashier !== null && cashier.state !== 'EXPIRED' && cashier.state !== 'CANCELLED',
+      menus,
+      hosts: { studioHost, pharmacyHost, publicOrigin },
+    });
+    return { links, message: customerMessage(links, owner?.user.email ?? invitation?.email ?? '') };
   },
 });
 

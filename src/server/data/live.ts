@@ -12,8 +12,8 @@ export async function loadOverlay(client: AnyDb | ScopedDb, menuId: string): Pro
   const db = delegates(client);
   // One query at a time, so a transaction (one connection) can be passed too.
   const products = await db.product.findMany({
-    where: { menuId, OR: [{ isAvailable: false }, { isHidden: true }, { stockCount: { not: null } }] },
-    select: { id: true, isAvailable: true, isHidden: true, stockCount: true },
+    where: { menuId, OR: [{ isAvailable: false }, { isHidden: true }, { stockCount: { not: null } }, { dropEndsAt: { not: null } }] },
+    select: { id: true, isAvailable: true, isHidden: true, stockCount: true, dropStartsAt: true, dropEndsAt: true },
   });
   const options = await db.modifierOption.findMany({
     where: { menuId, isAvailable: false },
@@ -21,7 +21,15 @@ export async function loadOverlay(client: AnyDb | ScopedDb, menuId: string): Pro
   });
   return {
     products: Object.fromEntries(
-      products.map((p) => [p.id, { isAvailable: p.isAvailable, isHidden: p.isHidden, stockCount: p.stockCount }]),
+      products.map((p) => [
+        p.id,
+        {
+          isAvailable: p.isAvailable,
+          isHidden: p.isHidden,
+          stockCount: p.stockCount,
+          ...(p.dropStartsAt && p.dropEndsAt ? { dropStartsAt: p.dropStartsAt.toISOString(), dropEndsAt: p.dropEndsAt.toISOString() } : {}),
+        },
+      ]),
     ),
     options: Object.fromEntries(options.map((o) => [o.id, { isAvailable: o.isAvailable }])),
   };

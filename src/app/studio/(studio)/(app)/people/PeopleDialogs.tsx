@@ -13,7 +13,7 @@ import {
 } from '@/app/studio/_actions/people';
 import type { PersonRow } from '@/server/studio/services/people';
 import { useT } from '@/studio/i18n';
-import { findRestaurantOptions } from '@/studio/pickers';
+import { findRestaurantOptionsIn } from '@/studio/pickers';
 import { useRefuse } from '@/studio/refuse';
 import type { IssuedInvitation } from '@/studio/shell/InviteLinkNote';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -22,6 +22,7 @@ import { Input } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 import { Picker, type PickerOption } from '@/studio/ui/Picker';
 import { Select } from '@/studio/ui/Select';
+import type { SpaceId } from '@/studio/spaces';
 
 const EMAIL_INPUT = { type: 'email', dir: 'ltr', autoComplete: 'off', className: 'rtl:text-right' } as const;
 
@@ -82,10 +83,12 @@ export function InviteOwnerDialog({
   open,
   onOpenChange,
   onIssued,
+  space,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onIssued: (issued: IssuedInvitation) => void;
+  space: SpaceId;
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -108,7 +111,7 @@ export function InviteOwnerDialog({
         if (restaurantId === '') missing.restaurantId = t('error.text.restaurantChoose');
         if (email === '') missing.email = t('error.text.emailInvalid');
         if (Object.keys(missing).length > 0) return { fields: missing };
-        const result = await inviteOwner({ restaurantId, email });
+        const result = await inviteOwner({ restaurantId, email, ...(space === 'platform' ? {} : { space }) });
         if (!result.ok) return refuse(result, ['restaurantId', 'email']);
         onIssued({ email: email.toLowerCase(), url: result.data.url });
         setRestaurant(null);
@@ -118,7 +121,7 @@ export function InviteOwnerDialog({
       {(errors) => (
         <>
           <Field label={t('people.owner.restaurant')} error={errors.restaurantId}>
-            <Picker name="restaurantId" value={restaurant} onChange={setRestaurant} search={findRestaurantOptions} placeholder={t('people.owner.pick')} />
+            <Picker name="restaurantId" value={restaurant} onChange={setRestaurant} search={findRestaurantOptionsIn[space]} placeholder={t('people.owner.pick')} />
           </Field>
           <Field label={t('people.staff.email')} error={errors.email}>
             <Input name="email" {...EMAIL_INPUT} />
@@ -137,11 +140,13 @@ export function PersonDialogs({
   action,
   onClose,
   onDone,
+  space,
 }: {
   person: PersonRow | null;
   action: PersonAction | null;
   onClose: () => void;
   onDone: () => void;
+  space: SpaceId;
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -172,14 +177,14 @@ export function PersonDialogs({
         onConfirm={async (form) => {
           const restaurantId = typed(form, 'restaurantId');
           if (restaurantId === '') return { fields: { restaurantId: t('error.text.restaurantChoose') } };
-          const result = await assignDesigner({ userId: person?.userId ?? '', restaurantId });
+          const result = await assignDesigner({ userId: person?.userId ?? '', restaurantId, ...(space === 'platform' ? {} : { space }) });
           if (!result.ok) return refuse(result, ['restaurantId', 'userId']);
           return done(t('people.assign.done'));
         }}
       >
         {(errors) => (
           <Field label={t('people.assign.restaurant')} error={errors.restaurantId ?? errors.userId}>
-            <Picker name="restaurantId" value={restaurant} onChange={setRestaurant} search={findRestaurantOptions} placeholder={t('people.owner.pick')} />
+            <Picker name="restaurantId" value={restaurant} onChange={setRestaurant} search={findRestaurantOptionsIn[space]} placeholder={t('people.owner.pick')} />
           </Field>
         )}
       </ConfirmDialog>

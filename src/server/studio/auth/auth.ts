@@ -12,6 +12,7 @@ import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/emai
 import { authEnv, type AuthEnv } from '@/server/env';
 import { getPlatformSettings } from '@/server/studio/services/settings';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
+import { authHostOptions, onStudioHost } from './hosts';
 import { pinSignIn } from './pin-plugin';
 import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
@@ -28,6 +29,12 @@ export interface Recipient {
 function localeOf(user: object): Locale {
   const value = (user as { locale?: unknown }).locale;
   return typeof value === 'string' && isLocale(value) ? value : 'en';
+}
+
+/** An account made for Buzzify Retail whose owner has not yet set a password (and so proven the address). */
+function isUnclaimedRetailIdentity(user: object): boolean {
+  const { identityOnly, emailVerified } = user as { identityOnly?: unknown; emailVerified?: unknown };
+  return identityOnly === true && emailVerified !== true;
 }
 
 /** The sender name from the platform settings; none when they cannot be read, so a mail never waits on a setting. */
@@ -140,12 +147,14 @@ const emailChangeNeedsSession = {
  *
  * It is a factory because tests build one on the test database; the application uses `getAuth()`.
  */
-export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
+export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv(), options: { nextCookies?: boolean } = {}) {
   const { secret, baseUrl, production } = config;
+  const hostOptions = authHostOptions(config);
+  const withNextCookies = options.nextCookies ?? true;
 
   return betterAuth({
     appName: 'Buzzify Core',
-    baseURL: baseUrl,
+    baseURL: hostOptions.baseURL,
     secret,
     database: prismaAdapter(prisma, { provider: 'postgresql' }),
 
@@ -160,10 +169,22 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       sendResetPassword: async ({ user, token }) => {
         // A deactivated person cannot sign in whatever their password, so there is nothing for a reset to give back.
         if ((user as { deactivatedAt?: unknown }).deactivatedAt) return;
-        sendAfterResponse(user, 'reset', { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
+        // An account Buzzify Retail asked for has no password yet: its first link is "set your password", not "reset".
+        const template = isUnclaimedRetailIdentity(user) ? 'retailIdentity' : 'reset';
+        sendAfterResponse(user, template, { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
       },
       // The password is already changed and the sessions already ended, so a mail failure must not fail the reset.
       onPasswordReset: async ({ user }) => {
+        // Only the owner of the address could open the link: the address is proven. (Better Auth 1.7.10's reset also
+        // creates the credential of an account that had none, as one made for Buzzify Retail has not.)
+        if (!user.emailVerified) {
+          try {
+            await prisma.user.updateMany({ where: { id: user.id, emailVerified: false }, data: { emailVerified: true } });
+          } catch (error) {
+            // The password is set either way; a later reset proves the address again. The error's name only.
+            console.error(`[auth] The address was not marked verified: ${error instanceof Error ? error.name : 'unknown error'}`);
+          }
+        }
         sendAfterResponse(user, 'passwordChanged', {});
       },
     },
@@ -171,7 +192,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     // Sent when someone changes their address: to the new one, once the old one has confirmed.
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        sendAfterResponse(user, 'verifyNewEmail', { url });
+        sendAfterResponse(user, 'verifyNewEmail', { url: onStudioHost(url, baseUrl) });
       },
     },
 
@@ -181,12 +202,13 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
         isPlatformOwner: { type: 'boolean', required: false, defaultValue: false, input: false },
         locale: { type: 'string', required: false, defaultValue: 'en', input: false },
         deactivatedAt: { type: 'date', required: false, input: false },
+        identityOnly: { type: 'boolean', required: false, defaultValue: false, input: false },
       },
       changeEmail: {
         enabled: true,
         // To the old address, which must confirm before the new one is asked to verify.
         sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
-          sendAfterResponse(user, 'changeEmailConfirm', { newEmail, url });
+          sendAfterResponse(user, 'changeEmailConfirm', { newEmail, url: onStudioHost(url, baseUrl) });
         },
       },
     },
@@ -199,7 +221,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     // Better Auth's limiter covers requests that arrive over HTTP only; the Server Actions use checkRateLimit.
     rateLimit: { enabled: true, storage: 'database' },
 
-    trustedOrigins: [baseUrl, ...(production ? [] : ['http://localhost:3100', 'http://127.0.0.1:3100'])],
+    trustedOrigins: hostOptions.trustedOrigins,
 
     // `disabledPaths` hides the HTTP route (404); `disableSignUp` also refuses `auth.api.signUpEmail`.
     disabledPaths: ['/sign-up/email'],
@@ -220,8 +242,13 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       },
     },
 
-    // nextCookies must come last: it warns when another plugin follows it.
-    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }), pinSignIn(prisma), nextCookies()],
+    // nextCookies must come last: it warns when another plugin follows it. Left out for `serverAuthFor`.
+    plugins: [
+      emailChangeNeedsSession,
+      twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }),
+      pinSignIn(prisma),
+      ...(withNextCookies ? [nextCookies()] : []),
+    ],
   });
 }
 
@@ -235,6 +262,22 @@ export function authFor(prisma: PrismaClient): Auth {
   if (!auth) {
     auth = createAuth(prisma);
     instances.set(prisma, auth);
+  }
+  return auth;
+}
+
+const serverInstances = new WeakMap<PrismaClient, Auth>();
+
+/**
+ * The same auth (same database, secret, plugins, hooks and cookie names) without Better Auth's Next cookie plugin: for a
+ * Route Handler that checks a person's password or code for another server (Buzzify Retail's own sign-in form) and must
+ * not hand that server a Studio session cookie. Its answers' cookies are only in `returnHeaders`, for the caller to read.
+ */
+export function serverAuthFor(prisma: PrismaClient): Auth {
+  let auth = serverInstances.get(prisma);
+  if (!auth) {
+    auth = createAuth(prisma, authEnv(), { nextCookies: false }) as unknown as Auth;
+    serverInstances.set(prisma, auth);
   }
   return auth;
 }

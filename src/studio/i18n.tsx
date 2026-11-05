@@ -4,6 +4,8 @@ import { Direction } from 'radix-ui';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { createTranslator, type Messages, type Translate } from '@/lib/i18n';
 import { direction, type Locale } from '@/lib/locale';
+import { spaceT } from './space-words';
+import type { SpaceId } from './spaces';
 
 interface StudioI18n {
   locale: Locale;
@@ -28,6 +30,16 @@ export function StudioI18nProvider({ locale, messages, children }: { locale: Loc
       <Direction.Provider dir={value.dir}>{children}</Direction.Provider>
     </Context>
   );
+}
+
+/**
+ * Speaks the words of one space to every client component inside it (`spaceT`): the Retail space's shared screens name
+ * no restaurant, menu or till. A server component in the space translates with `spaceT` itself.
+ */
+export function SpaceWords({ space, children }: { space: SpaceId; children: ReactNode }) {
+  const parent = useStudioI18n();
+  const value = useMemo<StudioI18n>(() => ({ ...parent, t: spaceT(parent.t, space) }), [parent, space]);
+  return <Context value={value}>{children}</Context>;
 }
 
 function useStudioI18n(): StudioI18n {

@@ -1,35 +1,51 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { delegates } from '@/server/data/tenant-db';
 import { pharmacyLimitsSchema } from '@/server/domain/pharmacy/limits';
+import { retailLimitsSchema } from '@/server/domain/retail/limits';
+import { bumpRetailForPlan } from '@/server/retail/outbox';
 import { defineAction } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 
 /**
- * The pharmacy plans (`AppPlan`): what each one is called and the limits it sets. Only the platform owner holds
+ * The pharmacy and Retail plans (`AppPlan`): what each one is called and the limits it sets. Only the platform owner holds
  * `plans.manage`, so only they make or change a plan; the target is the platform, so anyone else is refused before any
  * row is read. A plan is changed with the version the person opened it at and refused, naming who changed it, if it has
  * moved on. No prices are written here: they are the billing screens' (`billing.setPrices`).
  */
 
 const PLATFORM = { kind: 'platform' } as const;
-const APPLICATION = 'pharmacy';
 
 const nameText = z.string().trim().min(1, 'Enter a name').max(80, 'Use at most 80 characters');
 const version = z.number().int().positive();
 
-const appPlanInput = z.object({
+const planFields = {
   code: z
     .string()
     .trim()
     .regex(/^[a-z][a-z0-9_-]{1,39}$/, 'Use 2 to 40 lower-case letters, digits, dashes or underscores, starting with a letter'),
   name: z.object({ en: nameText, ar: nameText, ckb: nameText }),
-  limits: pharmacyLimitsSchema,
   sortOrder: z.number('Enter a whole number').int('Enter a whole number').min(0, 'Use 0 or more').max(1000, 'Use at most 1,000').default(0),
   active: z.boolean().default(true),
   /** Absent to make a new plan; the version the person opened an existing one at to change it. */
   version: version.optional(),
-});
+};
+
+/** The products that sell `AppPlan`s. Absent means the pharmacy, which keeps the calls from before Retail working. */
+const withDefaultApplication = (value: unknown) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && (value as { applicationId?: unknown }).applicationId === undefined
+    ? { ...value, applicationId: 'pharmacy' }
+    : value;
+
+/** Each product's own limits: a pharmacy-shaped object is not a Retail plan's and the reverse. */
+const appPlanInput = z.preprocess(
+  withDefaultApplication,
+  z.discriminatedUnion('applicationId', [
+    z.object({ applicationId: z.literal('pharmacy'), limits: pharmacyLimitsSchema, ...planFields }),
+    z.object({ applicationId: z.literal('retail'), limits: retailLimitsSchema, ...planFields }),
+  ]),
+);
 
 type Changes = Record<string, { before: unknown; after: unknown }>;
 
@@ -38,6 +54,9 @@ const NAME_LOCALES = ['en', 'ar', 'ckb'] as const;
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002';
 }
+
+/** What a Retail plan puts in its shops' snapshots for Retails: its English name and its limits (and whether it is on sale, see `deactivate`). */
+const SNAPSHOT_FIELDS = ['name', 'limits', 'active'];
 
 const taken = () => new StudioError('CONFLICT', 'A plan with this code already exists', { code: 'Use another code: this one is taken' });
 
@@ -48,6 +67,7 @@ export const upsert = defineAction({
   target: () => PLATFORM,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
+      const APPLICATION = input.applicationId;
       if (!(await tx.application.findUnique({ where: { id: APPLICATION }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
       const existing = await tx.appPlan.findUnique({
         where: { applicationId_code: { applicationId: APPLICATION, code: input.code } },
@@ -61,6 +81,8 @@ export const upsert = defineAction({
             data: { applicationId: APPLICATION, code: input.code, ...data },
             select: { id: true, version: true },
           });
+          // Nothing is subscribed to a new code as a rule; a subscription left on a code whose plan was missing gets its limits now.
+          if (APPLICATION === 'retail') await bumpRetailForPlan(delegates(tx), input.code);
           ctx.audit({
             action: 'app_plan.created',
             entityType: 'AppPlan',
@@ -85,7 +107,7 @@ export const upsert = defineAction({
       const was = (existing.name ?? {}) as Record<string, unknown>;
       // Compared per language: the stored JSON keeps its keys in its own order.
       if (NAME_LOCALES.some((locale) => was[locale] !== input.name[locale])) changes.name = { before: existing.name, after: input.name };
-      const wasLimits = pharmacyLimitsSchema.safeParse(existing.limits);
+      const wasLimits = (input.applicationId === 'retail' ? retailLimitsSchema : pharmacyLimitsSchema).safeParse(existing.limits);
       if (!wasLimits.success || JSON.stringify(wasLimits.data) !== JSON.stringify(input.limits)) {
         changes.limits = { before: existing.limits, after: input.limits };
       }
@@ -99,6 +121,8 @@ export const upsert = defineAction({
         { id: existing.id, version: input.version, data: data as Prisma.AppPlanUpdateInput, entityType: 'AppPlan' },
         tx,
       );
+      // Every linked shop on a Retail plan carries its name and limits: a change to them is queued for each, in this transaction.
+      if (APPLICATION === 'retail' && SNAPSHOT_FIELDS.some((field) => field in changes)) await bumpRetailForPlan(delegates(tx), input.code);
       if (Object.keys(changes).length > 0) {
         ctx.audit({ action: 'app_plan.updated', entityType: 'AppPlan', entityId: existing.id, changes });
       }
@@ -109,15 +133,20 @@ export const upsert = defineAction({
 export const deactivate = defineAction({
   name: 'appPlans.deactivate',
   permission: 'plans.manage',
-  input: z.object({ code: z.string().trim().min(1).max(40), version }),
+  input: z.preprocess(
+    withDefaultApplication,
+    z.object({ applicationId: z.enum(['pharmacy', 'retail']), code: z.string().trim().min(1).max(40), version }),
+  ),
   target: () => PLATFORM,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
-      const existing = await tx.appPlan.findUnique({ where: { applicationId_code: { applicationId: APPLICATION, code: input.code } } });
+      const existing = await tx.appPlan.findUnique({ where: { applicationId_code: { applicationId: input.applicationId, code: input.code } } });
       if (!existing) throw new StudioError('NOT_FOUND');
       if (!existing.active && existing.version === input.version) return { id: existing.id, version: existing.version };
       // Taken off sale only: subscriptions already on the plan keep it and its limits.
       await updateWithVersion(tx.appPlan, { id: existing.id, version: input.version, data: { active: false }, entityType: 'AppPlan' }, tx);
+      // Taking a Retail plan off sale changes what its shops may buy: their snapshots are queued again (carry-over from B3).
+      if (input.applicationId === 'retail' && existing.active) await bumpRetailForPlan(delegates(tx), input.code);
       if (existing.active) {
         ctx.audit({ action: 'app_plan.deactivated', entityType: 'AppPlan', entityId: existing.id, changes: { active: { before: true, after: false } } });
       }

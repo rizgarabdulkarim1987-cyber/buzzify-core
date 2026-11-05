@@ -1,5 +1,8 @@
 # Going live on Hostinger (buzzify-menu.online)
 
+> The live site now runs on the VPS (`.github/workflows/deploy.yml`). The move to `buzzify.tech` is in
+> `docs/deploy/buzzify-tech.md`; this page describes the older shared-hosting setup.
+
 Public menus are served at `https://buzzify-menu.online/<menu-address>` and the Studio at
 `https://studio.buzzify-menu.online/studio`. Both are the same Node.js app on the Hostinger website
 `buzzify-menu.online`; `studio.buzzify-menu.online` is an alias (parked domain) of it. The database is Neon
@@ -160,6 +163,76 @@ not let the first run happen on production.
 4. **After the deploy:** add the cron job above, then open Restaurants and check a restaurant's subscriptions.
 
 Never run migrations against the production address from a computer by hand for this release.
+
+## Buzzify Retail link (optional, with the owner's approval)
+
+"Linking Buzzify Retail" in `docs/deploy/production.md` explains the link: what each side sends, the secrets and how to
+change them. On this site:
+
+**Before the merge.** The release that brings the link adds migrations, and the Hostinger build runs
+`prisma migrate deploy` on production. One of them (`ALTER TYPE ... ADD VALUE 'RETAIL'`) cannot be undone. Take a fresh
+Neon snapshot of `production`, rehearse on a branch as in "The production migration for billing" above, and merge only in
+a window the owner approved.
+
+**The settings** (hPanel, Node.js, Environment variables; type each value yourself, never in a chat or the repository).
+Leave `RETAIL_URL` out and the link stays off: the build check ignores the others. With it, the build stops until the three
+secrets are right. Each value is the same as its twin in Retails:
+
+| Here | In Retails | Value |
+|---|---|---|
+| `RETAIL_URL` | `APP_URL` | Retails' address, written identically on both sides: `https://`, lowercase, no path, no trailing slash, no port |
+| `RETAIL_URL_SUPERMARKET` | one of `PACK_HOSTS` | Optional. The Supermarket's own Retails address (planned `https://supermarket.buzzify.tech`), written by the same rules as `RETAIL_URL`. Unset: `RETAIL_URL` |
+| `RETAIL_URL_ELECTRONICS` | one of `PACK_HOSTS` | Optional. Electronics' own address (planned `https://electronics.buzzify.tech`). Unset: `RETAIL_URL` |
+| `RETAIL_URL_CLOTHING` | one of `PACK_HOSTS` | Optional. Clothing's own address (planned `https://clothing.buzzify.tech`). Unset: `RETAIL_URL` |
+| `RETAIL_SYNC_SECRET` | `CORE_SYNC_SECRET` | `openssl rand -base64 32` |
+| `RETAIL_CALLER_SECRET` | `CORE_OUT_SECRET` | `openssl rand -base64 32` |
+| `RETAIL_CALLER_SECRET_PREVIOUS` | | empty, except while `RETAIL_CALLER_SECRET` is being changed |
+| `RETAIL_HANDOFF_SECRET` | `CORE_HANDOFF_SECRET` | `openssl rand -base64 32` |
+| | `CORE_BASE_URL` | `https://studio.buzzify-menu.online`, the Studio address. Not `buzzify-menu.online`: there `/api/retail/...` is a 404, which Retails reads as "no AI key" |
+
+Each secret differs from the others and from `CRON_SECRET` and `BETTER_AUTH_SECRET`. A changed variable needs a new build.
+
+**The three Retail products.** One Retails app serves Supermarket, Electronics and Clothing, so there is one set of
+secrets and every call from the Studio goes to `RETAIL_URL`. Each product may have its own address
+(`RETAIL_URL_SUPERMARKET`, `RETAIL_URL_ELECTRONICS`, `RETAIL_URL_CLOTHING`): an owner opening Retails is sent to the
+address of their shop's product, and a sign-in may return to `RETAIL_URL` or any of these addresses, compared exactly,
+and to no other. Set a product address only once Retails serves it (its host is in Retails' `PACK_HOSTS`). A product
+address without `RETAIL_URL` stops the build; so does one not written like `RETAIL_URL` (`https://`, lowercase, no path,
+no trailing slash, no port).
+
+**Before the merge of the three products** (`20261104100000_retail_activity`). That migration is additive: it creates the
+enum type `RetailActivity` (`SUPERMARKET`, `ELECTRONICS`, `CLOTHING`) and adds the column `RetailLink.activity`,
+`NOT NULL DEFAULT 'SUPERMARKET'`. No row is changed or removed: every existing retail shop (the test shop "Rizgar"
+among them) reads as a Supermarket. Take a fresh Neon snapshot of `production` before the merge all the same.
+
+**Two more cron jobs** (hPanel -> Advanced -> Cron Jobs -> Custom), with the same `CRON_SECRET` and header as the jobs
+above:
+
+```bash
+# every minute (* * * * *), never more often: Retails allows 120 calls a minute from the Studio
+curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/retail-sync
+# every hour (0 * * * *)
+curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/retail-reconcile
+```
+
+They answer `{"disabled":true}` while `RETAIL_URL` is not set, so they can be added before the link is switched on. Do
+not add a second retail-sync job.
+
+**Access logs.** Sign-in tokens pass in the query string of `/api/retail/v1/handoff` here and of
+`/api/core/v1/handoff/start` and `/api/core/v1/handoff/callback` on Retails. If Hostinger, Cloudflare or another proxy in
+front of either site keeps access logs with query strings, turn that off for those paths (or for the site), and never
+share such logs.
+
+**Not ready to merge yet.** See "Before merging" in `docs/deploy/production.md`: the end-to-end run with the real Retails
+has not been done, `tests/e2e/studio-retail.spec.ts` has never passed, and a rebase onto `main` needs a retail Super Admin
+space.
+
+**After the deploy.** On the billing screens, make the retail plans and their prices (each plan must allow at least as many
+branches as the shops on it have), then turn the `retail` product on (it starts off). Create a retail business, start its trial, and once its owner has accepted the invitation its Retail tab
+shows **synced** within a minute. A shop that shows **failed** (Retails refused it) is not retried automatically: fix the
+cause, then press **Resync** on that tab (the next change to the shop also sends it again). A shop Retails could not be reached for over
+about 15 hours also shows **failed**; the daily reconcile re-queues it, Resync does it at once. After restoring the
+Studio's database from a backup, press Resync on each retail shop.
 
 ## Neon from the command line
 

@@ -6,10 +6,15 @@ import {
   CreditCard,
   Images,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Megaphone,
   Pill,
   Settings,
+  Shirt,
+  ShoppingBag,
+  ShoppingCart,
+  Smartphone,
   Store,
   UserRound,
   Users,
@@ -26,6 +31,7 @@ import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { isNavItemActive, type NavIcon, type NavItem } from '@/studio/nav';
 import { navigateAway } from '@/studio/navigate';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { cx } from '@/studio/ui/cx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
 import { JumpTo } from './JumpTo';
@@ -44,6 +50,10 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   settings: Settings,
   store: Store,
   pharmacy: Pill,
+  retail: ShoppingBag,
+  supermarket: ShoppingCart,
+  electronics: Smartphone,
+  clothing: Shirt,
 };
 
 /** A navigation item as the layout hands it over: its label already in the person's language. */
@@ -65,7 +75,15 @@ function initials(name: string): string {
  * The Studio's frame on the reading direction's start side: the product's name, Jump to (the button and Ctrl+K), the areas
  * the person may use (the current one marked with the amber edge), the language switch, and the person's own menu.
  */
-export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: SidebarUser }) {
+const linkClass = (current: boolean) =>
+  cx(
+    'relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-base transition-colors duration-150',
+    current
+      ? 'bg-raised font-medium text-text before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-accent'
+      : 'text-muted hover:bg-hover hover:text-text',
+  );
+
+export function Sidebar({ items, user, space }: { items: readonly SidebarItem[]; user: SidebarUser; space?: { name: string; business?: BusinessSpaceId } }) {
   const t = useT();
   const pathname = usePathname();
 
@@ -77,8 +95,21 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
         </Link>
       </div>
 
+      {space && (
+        <div className="flex flex-col gap-0.5 px-3 pb-2">
+          <Link
+            href="/studio"
+            className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-muted transition-colors hover:bg-hover hover:text-text"
+          >
+            <LayoutGrid aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{t('hub.allProjects')}</span>
+          </Link>
+          <p className="truncate px-2.5 pt-1 text-xs font-medium uppercase tracking-wide text-muted">{space.name}</p>
+        </div>
+      )}
+
       <div className="px-3 pb-2">
-        <JumpTo />
+        <JumpTo {...(space?.business ? { space: space.business } : {})} />
       </div>
 
       <nav aria-label={t('nav.label')} className="flex-1 overflow-y-auto px-3 py-2">
@@ -88,19 +119,18 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
             const current = isNavItemActive(item, pathname);
             return (
               <li key={`${item.key}:${item.href}`}>
-                <Link
-                  href={item.href}
-                  aria-current={current ? 'page' : undefined}
-                  className={cx(
-                    'relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-base transition-colors duration-150',
-                    current
-                      ? 'bg-raised font-medium text-text before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-accent'
-                      : 'text-muted hover:bg-hover hover:text-text',
-                  )}
-                >
-                  <Icon aria-hidden className={cx('size-4 shrink-0', current ? 'text-text' : 'text-muted')} />
-                  <span className="truncate">{item.label}</span>
-                </Link>
+                {item.plain ? (
+                  // A Route Handler that redirects (Open Retails): a plain link, so no prefetch ever runs it.
+                  <a href={item.href} className={linkClass(false)}>
+                    <Icon aria-hidden className="size-4 shrink-0 text-muted" />
+                    <span className="truncate">{item.label}</span>
+                  </a>
+                ) : (
+                  <Link href={item.href} aria-current={current ? 'page' : undefined} className={linkClass(current)}>
+                    <Icon aria-hidden className={cx('size-4 shrink-0', current ? 'text-text' : 'text-muted')} />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                )}
               </li>
             );
           })}
@@ -115,7 +145,7 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
   );
 }
 
-function UserMenu({ user }: { user: SidebarUser }) {
+export function UserMenu({ user }: { user: SidebarUser }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();

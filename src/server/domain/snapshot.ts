@@ -20,6 +20,7 @@ import {
   type CatalogPromotion,
   type Locale,
 } from './types';
+import { OCCASION_MOODS } from '@/lib/occasion-moods';
 import { SHOWCASE_KINDS, SHOWCASE_SLOTS, type CatalogOccasion, type CatalogShowcaseCard } from './showcase';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
@@ -51,7 +52,7 @@ export interface SnapshotGroup extends Omit<CatalogGroup, 'options'> {
  * A product as published: whether it is available, hidden or in stock changes without a publish. `serves` arrived with
  * the sales tools and is left out for a dish for one, so menus published before keep their hash.
  */
-export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 'stockCount' | 'groups' | 'serves'> & {
+export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 'stockCount' | 'dropEndsAt' | 'groups' | 'serves'> & {
   groups: SnapshotGroup[];
   serves?: number;
 };
@@ -87,7 +88,7 @@ export interface MenuSnapshot {
 
 /** What changes without a publish: sold-out and hidden products, stock, and sold-out options. */
 export interface LiveOverlay {
-  products: Record<string, { isAvailable: boolean; isHidden: boolean; stockCount: number | null }>;
+  products: Record<string, { isAvailable: boolean; isHidden: boolean; stockCount: number | null; dropStartsAt?: string; dropEndsAt?: string }>;
   options: Record<string, { isAvailable: boolean }>;
 }
 
@@ -244,6 +245,7 @@ const snapshotOccasion = z.object({
   startsOn: z.string(),
   endsOn: z.string(),
   isActive: z.boolean(),
+  mood: z.enum(OCCASION_MOODS).optional(),
   translations,
 });
 
@@ -356,7 +358,7 @@ function freezeBundle(bundle: Bundle): SnapshotBundle {
 }
 
 function freezeProduct(product: CatalogProduct): SnapshotProduct {
-  const frozen = omit(product, 'isAvailable', 'isHidden', 'stockCount', 'serves');
+  const frozen = omit(product, 'isAvailable', 'isHidden', 'stockCount', 'dropEndsAt', 'serves');
   return {
     ...frozen,
     ...(product.serves !== null ? { serves: product.serves } : {}),
@@ -453,13 +455,14 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
     products: catalog.products
       .filter((p) => isShown(p.id))
       .map<CatalogProduct>((p) => {
-        const { isAvailable, isHidden, stockCount } = live(p.id);
+        const { isAvailable, isHidden, stockCount, dropEndsAt } = live(p.id) as LiveOverlay['products'][string];
         return {
           ...p,
           serves: p.serves ?? null,
           isAvailable,
           isHidden,
           stockCount,
+          ...(dropEndsAt !== undefined ? { dropEndsAt } : {}),
           groups: p.groups.map((group) => ({
             ...group,
             options: group.options.map((o) => ({ ...o, isAvailable: overlay.options[o.id]?.isAvailable ?? true })),

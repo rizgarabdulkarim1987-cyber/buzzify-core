@@ -90,7 +90,7 @@ test.describe('revisions @desktop', () => {
     await page.goto(`/studio/menus/${menu.menuId}/revisions`);
     const pending = page.getByRole('region', { name: en('revisions.pendingTitle') });
     await expect(pending).toContainText('9:00');
-    await page.goto('/studio');
+    await page.goto('/studio/overview');
     await expect(page.getByRole('region', { name: en('overview.scheduled.title') })).toContainText(menu.name);
     await page.goto(`/studio/menus/${menu.menuId}/revisions`);
     await pending.getByRole('button', { name: en('revisions.cancelSchedule') }).click();

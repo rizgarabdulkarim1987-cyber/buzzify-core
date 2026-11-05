@@ -133,6 +133,7 @@ type ScanIssue = {
 const RX_DROP_CODES = ['PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_USED', 'RX_EXPIRED', 'RX_DATE_FUTURE', 'PATIENT_REQUIRED', 'DUPLICATE_PRESCRIPTION'];
 
 const SEARCH_DELAY_MS = 140;
+const SHELF_SIZE = 24;
 const SOON_DAYS = 90;
 const MAX_ISSUES = 50;
 
@@ -165,6 +166,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<View>({ kind: 'idle' });
   const [searching, setSearching] = useState(false);
+  /** What the branch has on its shelves, offered while the box is empty (null until read). */
+  const [shelf, setShelf] = useState<SellItem[] | null>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const searchSeq = useRef(0);
   const latest = useRef<{ q: string; items: SellItem[] } | null>(null);
@@ -370,6 +373,19 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     typingPause.current = timer;
     return () => clearTimeout(timer);
   }, [query, runSearch]);
+
+  // The shelf: read when the box is empty (on arrival, and again after a search is cleared, so the stock shown is current).
+  const idle = view.kind === 'idle';
+  useEffect(() => {
+    if (!idle) return;
+    let live = true;
+    void settle(() => sellSearch({ q: '', browse: true, limit: SHELF_SIZE, currency })).then((result) => {
+      if (live && result.ok) setShelf((result.data as { items: SellItem[] }).items);
+    });
+    return () => {
+      live = false;
+    };
+  }, [idle, currency]);
 
   // Adding ---------------------------------------------------------------------------------------------------------------
   const addable = isAddable;
@@ -828,6 +844,12 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                     {t('pharmacy.sell.idle')}
                   </p>
                 )}
+                {view.kind === 'idle' && !searching && shelf !== null && shelf.length > 0 && (
+                  <section aria-label={t('pharmacy.sell.shelf.title')} className="flex min-w-0 flex-col gap-2" data-testid="sell-shelf">
+                    <h2 className="text-sm font-semibold text-ph-muted">{t('pharmacy.sell.shelf.title')}</h2>
+                    <ResultList items={shelf} currency={currency} onAdd={add} addable={addable} t={t} />
+                  </section>
+                )}
                 {view.kind === 'error' && (
                   <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="search-error">
                     {view.message}
@@ -1056,63 +1078,73 @@ function ResultList({
   onDone?: () => void;
 }) {
   return (
-    <ul className="ph-results grid min-w-0 gap-2 @xl:grid-cols-2" data-testid="result-list">
+    <ul className="ph-results grid min-w-0 gap-2 @xl:grid-cols-2 @4xl:grid-cols-3" data-testid="result-list">
       {items.map((item) => {
         const ok = addable(item);
+        // The biggest priced unit (the box) is the one most sales start from: it is the filled button, the smaller ones are outlined.
+        const main = item.units.filter((u) => u.priceMinor !== null).sort((x, y) => y.baseQty - x.baseQty)[0]?.id;
+        const detail = [item.strength, item.form, item.packLabel].filter((part) => part.trim() !== '').join(' · ');
+        const flagged = item.rxLevel === 'RX' || (item.rxLevel === 'RESTRICTED' && !item.notSellable) || item.notSellable || item.noPrice || (item.sellableQty <= 0 && !item.notSellable);
         return (
           <li key={item.productId} data-testid="result" className="ph-result flex min-w-0 flex-col gap-2 rounded-[18px] bg-ph-card p-3.5">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="break-words text-base font-semibold text-ph-text" dir="auto">
-                {item.tradeName}
-              </p>
-              <p className="break-words text-sm text-ph-muted" dir="auto">
-                {[item.strength, item.form, item.packLabel].filter((p) => p.trim() !== '').join(' · ')}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {item.rxLevel === 'RX' && (
-                <Chip icon={<Pill aria-hidden />} look="ph" testId="chip-rx">
-                  {t('pharmacy.sell.chip.rx')}
-                </Chip>
-              )}
-              {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} look="ph" testId="chip-controlled">
-                  {t('pharmacy.sell.chip.controlled')}
-                </Chip>
-              )}
-              {item.notSellable && (
-                <Chip icon={<ShieldAlert aria-hidden />} tone="danger" look="ph" testId="chip-notSellable">
-                  {t('pharmacy.sell.chip.notSellable')}
-                </Chip>
-              )}
-              {item.noPrice && (
-                <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="chip-noPrice">
-                  {t('pharmacy.sell.chip.noPrice')}
-                </Chip>
-              )}
-              {item.sellableQty <= 0 && !item.notSellable && (
-                <Chip icon={<PackageX aria-hidden />} tone="danger" look="ph" testId="chip-outOfStock">
-                  {t('pharmacy.sell.chip.outOfStock')}
-                </Chip>
-              )}
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <p className="break-words text-base font-semibold leading-snug text-ph-text" dir="auto">
+                  {item.tradeName}
+                </p>
+                {detail !== '' && (
+                  <p className="break-words text-sm text-ph-muted" dir="auto">
+                    {detail}
+                  </p>
+                )}
+              </div>
               {item.sellableQty > 0 && (
-                <span className="text-sm text-ph-text" data-testid="sellable-qty">
+                <span className="shrink-0 rounded-ph-xl bg-ph-g1 px-2 py-1 text-xs font-semibold tabular-nums text-ph-g6" data-testid="sellable-qty">
                   {t('pharmacy.sell.sellable')}: <Num>{item.sellableQty}</Num>
                 </span>
               )}
             </div>
+            {flagged && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {item.rxLevel === 'RX' && (
+                  <Chip icon={<Pill aria-hidden />} look="ph" testId="chip-rx">
+                    {t('pharmacy.sell.chip.rx')}
+                  </Chip>
+                )}
+                {item.rxLevel === 'RESTRICTED' && !item.notSellable && (
+                  <Chip icon={<ShieldAlert aria-hidden />} look="ph" testId="chip-controlled">
+                    {t('pharmacy.sell.chip.controlled')}
+                  </Chip>
+                )}
+                {item.notSellable && (
+                  <Chip icon={<ShieldAlert aria-hidden />} tone="danger" look="ph" testId="chip-notSellable">
+                    {t('pharmacy.sell.chip.notSellable')}
+                  </Chip>
+                )}
+                {item.noPrice && (
+                  <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="chip-noPrice">
+                    {t('pharmacy.sell.chip.noPrice')}
+                  </Chip>
+                )}
+                {item.sellableQty <= 0 && !item.notSellable && (
+                  <Chip icon={<PackageX aria-hidden />} tone="danger" look="ph" testId="chip-outOfStock">
+                    {t('pharmacy.sell.chip.outOfStock')}
+                  </Chip>
+                )}
+              </div>
+            )}
             {item.batches.length > 0 && (
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ph-muted" data-testid="batch-strip">
                 <CalendarClock aria-hidden className="size-3.5 shrink-0" />
                 {item.batches.slice(0, 3).map((b) => (
-                  <span key={b.batchId} className={expirySoon(b.expiryDate) ? 'font-semibold text-ph-amber-ink' : ''}>
+                  <span key={b.batchId} className={`tabular-nums ${expirySoon(b.expiryDate) ? 'font-semibold text-ph-amber-ink' : ''}`}>
                     <Num>{b.lot}</Num> · <Num>{b.expiryDate.slice(0, 7)}</Num> · <Num>{b.available}</Num>
                     {expirySoon(b.expiryDate) ? ` · ${t('pharmacy.sell.chip.soon')}` : ''}
                   </span>
                 ))}
               </p>
             )}
-            <div className="ph-result-units flex flex-wrap gap-2">
+            <div className="ph-result-units mt-auto flex flex-wrap gap-2">
               {item.units.map((unit) => {
                 const priced = unit.priceMinor !== null;
                 return (
@@ -1125,11 +1157,17 @@ function ResultList({
                       onAdd(item, unit.id);
                       onDone?.();
                     }}
-                    className={`${PH_BTN} flex-1 basis-28`}
+                    className={`flex min-h-14 min-w-0 flex-1 basis-28 flex-col items-center justify-center gap-0.5 rounded-ph-xl px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-45 ${
+                      unit.id === main ? 'bg-ph-g8 text-ph-on-green hover:bg-ph-g9' : 'border border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas'
+                    }`}
                   >
-                    <Plus aria-hidden className="size-4" />
-                    <span dir="auto">{unit.label}</span>
-                    <span className="font-semibold">{priced ? <Num>{formatMinor(BigInt(unit.priceMinor!), currency)}</Num> : t('pharmacy.sell.chip.noPrice')}</span>
+                    <span className="flex max-w-full items-center gap-1 text-xs font-medium">
+                      <Plus aria-hidden className="size-3.5 shrink-0" />
+                      <span className="truncate" dir="auto">
+                        {unit.label}
+                      </span>
+                    </span>
+                    <span className="text-md font-semibold tabular-nums">{priced ? <Num>{formatMinor(BigInt(unit.priceMinor!), currency)}</Num> : t('pharmacy.sell.chip.noPrice')}</span>
                   </button>
                 );
               })}

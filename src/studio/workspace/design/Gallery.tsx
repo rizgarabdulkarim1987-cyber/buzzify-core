@@ -4,12 +4,21 @@ import { Box, Check, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { FONT_PAIR_VARIABLES } from '@/lib/font-pairs';
 import { BUSINESS_TYPES, STYLE_TAGS, TEMPLATES, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
+import { isPremiumTemplate } from '@/lib/templates/premium';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import { useT } from '@/studio/i18n';
+import { LockMark } from '@/studio/plans/UpgradeHint';
 import { MENU_STYLES, menuStyleById, type MenuStyle } from '@/studio/styles/catalog';
 import { STYLE_CATEGORIES, type StyleCategory } from '@/studio/styles/categories';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { cx } from '@/studio/ui/cx';
 import { face } from '@/studio/workspace/brand/FontPairPicker';
+
+/** What the restaurant's plan says about the premium templates, for the cards' mark. */
+export interface GalleryPlan {
+  premiumTemplates: boolean;
+  upgrade: UpgradeInfo;
+}
 
 /** A style that is not a template yet: `soon:<catalog id>`. It can be previewed as a mockup but never applied. */
 export type SoonSelection = `soon:${string}`;
@@ -41,7 +50,7 @@ export function businessOf(restaurantType: string): BusinessType | 'all' {
  * A preset's card: its real thumbnail (a screenshot of the renderer with demo content, `public/templates/{id}.webp`)
  * over a sample drawn from its palette and type, which shows while the picture loads or when it is missing.
  */
-function TemplateCard({ preset, selected, current, onSelect }: { preset: TemplatePreset; selected: boolean; current: boolean; onSelect: () => void }) {
+function TemplateCard({ preset, selected, current, onSelect, plan }: { preset: TemplatePreset; selected: boolean; current: boolean; onSelect: () => void; plan: GalleryPlan }) {
   const t = useT();
   const [thumb, setThumb] = useState(true);
   const { palette } = preset;
@@ -97,6 +106,12 @@ function TemplateCard({ preset, selected, current, onSelect }: { preset: Templat
               <Box aria-hidden className="size-3" />
               {t('design.badge.3d')}
             </span>
+            {isPremiumTemplate(preset.id) && (
+              <span className="inline-flex items-center gap-1 rounded border border-line px-1.5 py-px" title={t('design.badge.premiumHint')}>
+                {!plan.premiumTemplates && !current && <LockMark feature="design.premiumTemplates" info={plan.upgrade} />}
+                {t('design.badge.premium')}
+              </span>
+            )}
             {preset.tags.map((tag) => (
               <span key={tag}>{t(`design.style.${tag}`)}</span>
             ))}
@@ -183,7 +198,9 @@ export function Gallery({
   selected,
   onSelect,
   canSeeStyles,
+  plan,
 }: {
+  plan: GalleryPlan;
   restaurantType: string;
   current: GallerySelection;
   selected: GallerySelection;
@@ -273,7 +290,7 @@ export function Gallery({
           visibleStyles.map((style) => {
             const templateId = templateForStyle(style.id);
             return templateId ? (
-              <TemplateCard key={style.id} preset={TEMPLATES[templateId]} selected={selected === templateId} current={current === templateId} onSelect={() => onSelect(templateId)} />
+              <TemplateCard key={style.id} preset={TEMPLATES[templateId]} selected={selected === templateId} current={current === templateId} onSelect={() => onSelect(templateId)} plan={plan} />
             ) : (
               <SoonCard key={style.id} style={style} selected={selected === soonSelection(style)} onSelect={() => onSelect(soonSelection(style))} />
             );
@@ -282,7 +299,7 @@ export function Gallery({
           <>
             {business === 'all' && styles.size === 0 && <ClassicCard selected={selected === 'classic'} current={current === 'classic'} onSelect={() => onSelect('classic')} />}
             {presets.map((preset) => (
-              <TemplateCard key={preset.id} preset={preset} selected={selected === preset.id} current={current === preset.id} onSelect={() => onSelect(preset.id)} />
+              <TemplateCard key={preset.id} preset={preset} selected={selected === preset.id} current={current === preset.id} onSelect={() => onSelect(preset.id)} plan={plan} />
             ))}
           </>
         )}

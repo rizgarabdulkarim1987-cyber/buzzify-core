@@ -4,9 +4,11 @@ import { ArrowDown, ArrowUp, CalendarDays, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { deleteOccasion, deleteShowcaseCard, reorderShowcaseCards, saveOccasion, saveShowcaseCard } from '@/app/studio/_actions/sales';
 import type { Locale } from '@/lib/locale';
+import { OCCASION_MOODS, type OccasionMood } from '@/lib/occasion-moods';
 import { formatPriceInput, parsePriceInput } from '@/lib/money-input';
 import { localDate } from '@/server/domain/offers';
 import { SHOWCASE_KINDS, SHOWCASE_SLOTS, type ShowcaseKind, type ShowcaseSlot } from '@/server/domain/showcase';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import type { SalesRules, ShowcaseHiddenReason } from '@/server/studio/services/sales';
 import { formatDate } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
@@ -19,6 +21,7 @@ import { Field } from '@/studio/ui/Field';
 import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Switch } from '@/studio/ui/Switch';
 import { formatMoney, PRICE_PROBLEM_KEYS, type Names } from '../content/shared';
 import { TranslationFields } from '../content/TranslationFields';
@@ -56,6 +59,9 @@ interface OccasionDraft {
   names: Names;
   startsOn: string;
   endsOn: string;
+  mood: OccasionMood | null;
+  /** The mood the occasion had when it was opened: kept as it is even where the plan no longer gives a new one. */
+  savedMood: OccasionMood | null;
   isActive: boolean;
 }
 
@@ -99,8 +105,9 @@ const cardInput = (card: Card) => ({
  * package for N, or an open buffet), each of which may hang on a dated occasion such as Eid.
  */
 /** `canEdit`: the person holds `content.edit`, which every showcase action needs; without it the page only lists. */
-export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rules: SalesRules; canEdit: boolean }) {
+export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rules: SalesRules & { upgrade: UpgradeInfo }; canEdit: boolean }) {
   const readOnly = !canEdit;
+  const canGiveMood = rules.upgrade.allowed.includes('guest.occasionMoods');
   const t = useT();
   const { locale } = useLocale();
   const name = useNamer(rules.defaultLocale);
@@ -190,9 +197,9 @@ export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rul
 
   const submitOccasion = () => {
     if (!occasionDraft) return;
-    const { occasionId, version, names, startsOn, endsOn, isActive } = occasionDraft;
+    const { occasionId, version, names, startsOn, endsOn, mood, isActive } = occasionDraft;
     void save(
-      () => saveOccasion({ menuId, ...(occasionId ? { occasionId, version } : {}), names, startsOn, endsOn, isActive }),
+      () => saveOccasion({ menuId, ...(occasionId ? { occasionId, version } : {}), names, startsOn, endsOn, mood, isActive }),
       () => setOccasionDraft(null),
     );
   };
@@ -248,7 +255,7 @@ export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rul
         hint={t('sales.showcase.occasionsHint')}
         action={
           !readOnly && (
-            <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} onClick={() => openOccasion({ names: {}, startsOn: today, endsOn: today, isActive: true })}>
+            <Button size="sm" variant="secondary" icon={<Plus aria-hidden />} onClick={() => openOccasion({ names: {}, startsOn: today, endsOn: today, mood: null, savedMood: null, isActive: true })}>
               {t('sales.showcase.addOccasion')}
             </Button>
           )
@@ -271,7 +278,7 @@ export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rul
                   editLabel={t('sales.showcase.occasion.editOne', { name: name(occasion.names) })}
                   deleteLabel={t('sales.showcase.occasion.deleteOne', { name: name(occasion.names) })}
                   onEdit={() =>
-                    openOccasion({ occasionId: occasion.id, version: occasion.version, names: occasion.names, startsOn: occasion.startsOn, endsOn: occasion.endsOn, isActive: occasion.isActive })
+                    openOccasion({ occasionId: occasion.id, version: occasion.version, names: occasion.names, startsOn: occasion.startsOn, endsOn: occasion.endsOn, mood: occasion.mood, savedMood: occasion.mood, isActive: occasion.isActive })
                   }
                   onDelete={() => setDeletingOccasion(occasion)}
                   readOnly={readOnly}
@@ -389,6 +396,21 @@ export function ShowcaseEditor({ menuId, rules, canEdit }: { menuId: string; rul
                 <Input type="date" value={occasionDraft.endsOn} dir="ltr" onChange={(event) => changeOccasion({ endsOn: event.target.value })} />
               </Field>
             </div>
+            <Field label={t('sales.showcase.occasion.mood')} hint={t('sales.showcase.occasion.moodHint')}>
+              <Select
+                options={[
+                  { value: '', label: t('sales.showcase.occasion.mood.NONE') },
+                  ...OCCASION_MOODS.map((mood) => ({
+                    value: mood,
+                    label: t(`sales.showcase.occasion.mood.${mood}`),
+                    disabled: !canGiveMood && mood !== occasionDraft.savedMood,
+                  })),
+                ]}
+                value={occasionDraft.mood ?? ''}
+                onChange={(event) => changeOccasion({ mood: OCCASION_MOODS.find((mood) => mood === event.target.value) ?? null })}
+              />
+            </Field>
+            {!canGiveMood && <UpgradeHint feature="guest.occasionMoods" info={rules.upgrade} />}
             <label className="flex items-center justify-between gap-4">
               <span className="text-sm text-text">{t('sales.active')}</span>
               <Switch aria-label={t('sales.active')} checked={occasionDraft.isActive} onCheckedChange={(isActive) => changeOccasion({ isActive })} />

@@ -1,15 +1,23 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getPosAccess } from '@/server/pos/actor';
+import { retailConfig } from '@/server/retail/config';
+import { retailStartUrl } from '@/server/retail/entry';
 import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/invoke';
 import { activeAnnouncements } from '@/server/studio/queries/announcements';
 import { myRestaurants } from '@/server/studio/queries/account';
+import { myRetailShops } from '@/server/studio/queries/retail';
 import { getStudioTranslator } from '@/studio/messages';
-import { isOwnerOnly, posNavItem, visibleNav } from '@/studio/nav';
+import { isOwnerOnly, isRetailOnly, openRetailNavItem, posNavItem, retailOnlyRedirect, spaceNav, visibleNav } from '@/studio/nav';
 import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
+import { BrandLogo } from '@/studio/shell/BrandLogo';
+import { RetailOnlyNotice } from '@/studio/shell/RetailOnlyNotice';
 import { Sidebar, type SidebarItem } from '@/studio/shell/Sidebar';
+import { SpaceShell, type SpaceNavigation } from '@/studio/shell/SpaceShell';
+import { spaceT } from '@/studio/space-words';
+import { SPACES } from '@/studio/spaces';
 
 /** The person's role as the sidebar names it: Super Admin, else their role in their restaurants. */
 function roleKey(actor: Actor): string {
@@ -20,24 +28,76 @@ function roleKey(actor: Actor): string {
 /**
  * Every signed-in page sits in this frame. Nobody signed in goes to sign-in; a Super Admin without two-factor goes to
  * set it up (that page is outside this layout, so the redirect cannot loop). The navigation shows only the areas the
- * person may use, in their language.
+ * person may use, in their language. A Super Admin works in closed spaces, one per project: the project icons at
+ * `/studio`, and inside a space only that project's pages (`src/studio/spaces.ts`); the frame picks the space from the
+ * address in the browser (SpaceShell).
+ * An account made for Buzzify Retail never sees a Studio page: whatever Studio address it opened, it goes straight into
+ * Buzzify Retail (`retailOnlyRedirect`). Only while the link is off does it get one neutral note, with no Studio frame.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   if (actor.isSuperAdmin && !actor.twoFactorEnabled) redirect(TWO_FACTOR_SETUP_PATH);
+  const toRetail = retailOnlyRedirect(actor, retailStartUrl());
+  if (toRetail) redirect(toRetail);
 
   const t = getStudioTranslator(actor.locale);
+  if (isRetailOnly(actor)) {
+    // The link is off, so there is nowhere to send them: a note in the Buzzify frame, no sidebar and no Studio name.
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <header className="flex h-16 items-center px-8">
+          <BrandLogo height={16} />
+        </header>
+        <main id="main" className="min-w-0 flex-1">
+          <RetailOnlyNotice t={t} />
+        </main>
+        <BrandFooter />
+      </div>
+    );
+  }
+  const user = { name: actor.name, email: actor.email, role: t(roleKey(actor)) };
+
+  if (actor.isSuperAdmin) {
+    // The Cashier item shows only to a person whose restaurant has the till open: it belongs to Menu and Cashier alone.
+    const pos = await getPosAccess();
+    const tillOpen = Boolean(pos.actor && pos.gate?.open);
+    const spaces: SpaceNavigation[] = SPACES.map((space) => {
+      const navItems = space.id === 'food' && tillOpen ? [...spaceNav(space.id), posNavItem()] : spaceNav(space.id);
+      // In the space's own words: a Retail product's list is its own ("Supermarkets"), never another product's.
+      const st = spaceT(t, space.id);
+      return {
+        id: space.id,
+        name: st(space.nameKey),
+        items: navItems.map(({ labelKey, label, scope, ...item }) => ({ ...item, label: label ?? st(labelKey) })),
+      };
+    });
+    return (
+      <SpaceShell
+        spaces={spaces}
+        user={user}
+        skipLabel={t('common.skipToContent')}
+        announcements={<AnnouncementBar userId={actor.userId} initial={await query(activeAnnouncements, {})} />}
+        footer={<BrandFooter />}
+      >
+        {children}
+      </SpaceShell>
+    );
+  }
+
   const owned = isOwnerOnly(actor)
     ? (await query(myRestaurants, {})).map((restaurant) => ({
         id: restaurant.id,
         name: restaurant.name,
         menuIds: restaurant.menus.map((menu) => menu.id),
+        sector: restaurant.sector,
       }))
     : [];
   // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.
   const pos = await getPosAccess();
-  const navItems = pos.actor && pos.gate?.open ? [...visibleNav(actor, owned), posNavItem()] : visibleNav(actor, owned);
+  // An owner of Buzzify Retail shops gets "Open Retails" while the link is on (never a Super Admin: Retails has its own admin).
+  const openRetail = !actor.isSuperAdmin && retailConfig().enabled ? openRetailNavItem(actor, await query(myRetailShops, {})) : null;
+  const navItems = [...visibleNav(actor, owned), ...(pos?.actor && pos.gate?.open ? [posNavItem()] : []), ...(openRetail ? [openRetail] : [])];
   const items: SidebarItem[] = navItems.map(({ labelKey, label, scope, ...item }) => ({
     ...item,
     label: label ?? (scope ? `${t(labelKey)} · ${scope}` : t(labelKey)),
@@ -51,7 +111,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       >
         {t('common.skipToContent')}
       </a>
-      <Sidebar items={items} user={{ name: actor.name, email: actor.email, role: t(roleKey(actor)) }} />
+      <Sidebar items={items} user={user} />
       <div className="flex min-w-0 flex-1 flex-col">
         <AnnouncementBar userId={actor.userId} initial={await query(activeAnnouncements, {})} />
         <main id="main" className="min-w-0 flex-1">

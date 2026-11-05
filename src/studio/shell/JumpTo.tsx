@@ -3,7 +3,9 @@
 import { Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { jump } from '@/app/studio/_actions/search';
-import { useT } from '@/studio/i18n';
+import { SpaceWords, useT } from '@/studio/i18n';
+import { spaceT } from '@/studio/space-words';
+import { businessPath, type BusinessSpaceId } from '@/studio/spaces';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
 import { isJumpShortcut } from './jump-shortcut';
 
@@ -16,8 +18,9 @@ const MAX_TYPED = 80;
  * result opens the restaurant's profile or the menu's page. When it closes, focus goes back where it was (the button, when
  * the shortcut was pressed with nothing focused).
  */
-export function JumpTo() {
-  const t = useT();
+export function JumpTo({ space }: { space?: BusinessSpaceId }) {
+  // In the words of the space: Retail's Jump to finds shops, never restaurants or menus.
+  const t = spaceT(useT(), space);
   const [open, setOpen] = useState(false);
   // The shortcut's name depends on the platform, which only the browser knows: the server (and hydration) says Ctrl.
   const mac = useSyncExternalStore(
@@ -66,7 +69,7 @@ export function JumpTo() {
 
   const search = useCallback(
     async (typed: string): Promise<CommandGroup[]> => {
-      const result = await jump({ q: typed.slice(0, MAX_TYPED) });
+      const result = await jump({ q: typed.slice(0, MAX_TYPED), ...(space ? { space } : {}) });
       if (!result.ok) throw new Error(result.error.code);
       const { restaurants, menus } = result.data;
       const groups: CommandGroup[] = [];
@@ -77,7 +80,7 @@ export function JumpTo() {
             id: `restaurant:${restaurant.id}`,
             label: restaurant.name,
             detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
-            href: `/studio/restaurants/${restaurant.id}`,
+            href: businessPath(space ?? 'food', restaurant.id),
           })),
         });
       }
@@ -94,7 +97,7 @@ export function JumpTo() {
       }
       return groups;
     },
-    [t],
+    [t, space],
   );
 
   const keys = mac ? '⌘K' : 'Ctrl K';
@@ -116,7 +119,9 @@ export function JumpTo() {
           {keys}
         </kbd>
       </button>
-      <CommandPalette open={open} onOpenChange={setOpen} search={search} />
+      <SpaceWords space={space ?? 'food'}>
+        <CommandPalette open={open} onOpenChange={setOpen} search={search} />
+      </SpaceWords>
     </>
   );
 }

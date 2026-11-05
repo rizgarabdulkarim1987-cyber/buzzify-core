@@ -24,6 +24,7 @@ import {
   isUniqueViolation,
   menuName,
   menuSlugs,
+  MENUS_FOOD_ONLY,
   newMenuInput,
   requireSlugAvailable,
   slugField,
@@ -85,8 +86,10 @@ export const createMenu = defineAction({
     // The menu's rows need a client scoped to it, so the transaction is scoped to the id it is about to get.
     const menuId = ctx.newId();
     await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
-      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true, logoAssetId: true } });
+      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true, logoAssetId: true, sector: true } });
       if (!restaurant) throw new StudioError('NOT_FOUND');
+      // Menus are a food business's product; a pharmacy or retail shop has none.
+      if (restaurant.sector !== 'FOOD') throw new StudioError('CONFLICT', MENUS_FOOD_ONLY);
       await requireSlugAvailable(tx, input.slug, null);
       try {
         await tx.menu.create({

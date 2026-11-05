@@ -94,6 +94,8 @@ export interface RequestDetail extends RequestSummary {
   /** The table's live order a decision would join, with the version the caller must pass; null when the table is free. */
   liveOrderId: string | null;
   liveOrderVersion: number | null;
+  /** The guest ticked "use my reward" with a full stamp card: the reward's text for the cashier to give by hand; null when they did not. */
+  reward: string | null;
 }
 
 type LineRow = {
@@ -140,6 +142,7 @@ type DetailRow = {
   rejectReason: string;
   requiresCaptain: boolean;
   captainApprovedAt: Date | null;
+  redeemReward: boolean;
   lines: LineRow[];
 };
 
@@ -148,7 +151,7 @@ export function awaitingCaptain(row: { status: string; requiresCaptain: boolean;
   return row.status === 'PENDING' && row.requiresCaptain && row.captainApprovedAt === null;
 }
 
-function detailOf(row: DetailRow, live: { id: string; version: number } | undefined, now: Date): RequestDetail {
+function detailOf(row: DetailRow, live: { id: string; version: number } | undefined, now: Date, reward: string): RequestDetail {
   const lines = row.lines.map(lineView);
   return {
     id: row.id,
@@ -167,7 +170,13 @@ function detailOf(row: DetailRow, live: { id: string; version: number } | undefi
     lines,
     liveOrderId: live?.id ?? null,
     liveOrderVersion: live?.version ?? null,
+    reward: row.redeemReward ? reward : null,
   };
+}
+
+/** The reward's text the restaurant set for its stamp card. */
+async function rewardText(db: AnyDb, restaurantId: string): Promise<string> {
+  return (await db.posSettings.findFirst({ where: { restaurantId }, select: { loyaltyReward: true } }))?.loyaltyReward ?? '';
 }
 
 export async function readRequest(db: AnyDb, restaurantId: string, id: string, now: Date = new Date()): Promise<RequestDetail> {
@@ -177,7 +186,7 @@ export async function readRequest(db: AnyDb, restaurantId: string, id: string, n
     where: { restaurantId, tableId: row.tableId, status: { notIn: [...LOCKED_STATUSES] } },
     select: { id: true, version: true },
   });
-  return detailOf(row, live ?? undefined, now);
+  return detailOf(row, live ?? undefined, now, row.redeemReward ? await rewardText(db, restaurantId) : '');
 }
 
 /** Every waiting request with its lines and the live order of its table, in a fixed number of queries. Oldest first. */
@@ -194,7 +203,8 @@ export async function listPendingDetails(db: AnyDb, restaurantId: string, now: D
       })
     : [];
   const byTable = new Map(live.map((order) => [order.tableId as string, order]));
-  return rows.map((row) => detailOf(row, byTable.get(row.tableId), now));
+  const reward = rows.some((row) => row.redeemReward) ? await rewardText(db, restaurantId) : '';
+  return rows.map((row) => detailOf(row, byTable.get(row.tableId), now, reward));
 }
 
 /**

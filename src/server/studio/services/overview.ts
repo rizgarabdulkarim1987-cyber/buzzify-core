@@ -3,6 +3,7 @@ import { MENU_STATUSES, type MenuStatus } from '@/server/domain/menu-status';
 import { RESTAURANT_STATUSES, type RestaurantStatus } from '@/server/domain/restaurant-profile';
 import type { ActorScope } from '@/server/studio/framework/query';
 import { recentActivityRows, type AuditRow } from './activity';
+import { menusInSpace, restaurantsInSpace, sectorRestaurantIds, type BusinessSpace } from './space-scope';
 
 /**
  * What the Overview counts, within the reader's restaurants: restaurants and menus by status, menus whose draft differs
@@ -49,12 +50,17 @@ function zeroed<K extends string>(keys: readonly K[]): Record<K, number> {
   return Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, number>;
 }
 
-export async function loadOverview(db: PrismaClient, scope: ActorScope, options: { activity: boolean; now?: Date }): Promise<OverviewData> {
-  const restaurantWhere: Prisma.RestaurantWhereInput = scope.kind === 'all' ? {} : { id: { in: scope.ids } };
-  const menuWhere: Prisma.MenuWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
+export async function loadOverview(db: PrismaClient, scope: ActorScope, options: { activity: boolean; now?: Date; space?: BusinessSpace }): Promise<OverviewData> {
+  // A Super Admin in a space counts that space's businesses only; the others count what they hold, as ever.
+  const space = options.space ?? 'food';
+  const restaurantWhere: Prisma.RestaurantWhereInput = scope.kind === 'all' ? restaurantsInSpace(scope, space) : { id: { in: scope.ids } };
+  const menuWhere: Prisma.MenuWhereInput = scope.kind === 'all' ? menusInSpace(scope, space) : { restaurantId: { in: scope.ids } };
   const since = new Date((options.now ?? new Date()).getTime() - 7 * DAY_MS);
 
-  const mediaWhere: Prisma.MediaAssetWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
+  // The shared library belongs to Menu and Cashier; a media file keeps a plain restaurant id, so a space's files are those of its businesses.
+  const spaceIds = scope.kind === 'all' ? await sectorRestaurantIds(db, space) : [];
+  const mediaWhere: Prisma.MediaAssetWhereInput =
+    scope.kind !== 'all' ? { restaurantId: { in: scope.ids } } : space === 'food' ? { OR: [{ restaurantId: null }, { restaurantId: { in: spaceIds } }] } : { restaurantId: { in: spaceIds } };
   const [restaurantCounts, menuCounts, unpublished, scheduled, views, recentActivity, storage] = await Promise.all([
     db.restaurant.groupBy({ by: ['status'], where: restaurantWhere, _count: { _all: true } }),
     db.menu.groupBy({ by: ['status'], where: menuWhere, _count: { _all: true } }),
@@ -72,7 +78,7 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
       select: { number: true, goLiveAt: true, menu: { select: { id: true, name: true, restaurant: { select: { name: true } } } } },
     }),
     db.analyticsEvent.count({ where: { type: 'MENU_VIEW', occurredAt: { gte: since }, menu: menuWhere } }),
-    options.activity ? recentActivityRows(db, RECENT_ACTIVITY_LIMIT) : null,
+    options.activity ? recentActivityRows(db, RECENT_ACTIVITY_LIMIT, scope.kind === 'all' ? space : undefined) : null,
     db.mediaAsset.aggregate({ where: mediaWhere, _sum: { storedBytes: true } }),
   ]);
 

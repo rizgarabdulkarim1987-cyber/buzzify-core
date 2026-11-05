@@ -65,9 +65,11 @@ export function effectiveMode(requested: VisualMode, env: SceneEnvironment): Vis
  * template's own 3D scene. A video is the heaviest thing on the page, so data saver gets its poster. Reduced motion
  * always gets a still, and a file that fails gives way to the template's motion.
  */
-export type ScenePlan = 'poster' | 'motion' | '3d' | 'model' | 'video' | 'videoStill' | 'lottie';
+export type ScenePlan = 'poster' | 'motion' | '3d' | 'model' | 'video' | 'videoStill' | 'lottie' | 'image';
 
 export function scenePlan(requested: VisualMode, media: SceneMedia['kind'] | null, env: SceneEnvironment & { failed: boolean }): ScenePlan {
+  // A picture is already a still: it needs no idle page, no WebGL and no permission from reduced motion or data saver.
+  if (media === 'image') return env.failed ? 'poster' : 'image';
   const still: ScenePlan = media === 'video' ? 'videoStill' : 'poster';
   if (env.reducedMotion || requested === 'static') return still;
   if (env.failed) return 'motion';

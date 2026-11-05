@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { signIn } from '@/app/studio/_actions/session';
 import { TWO_FACTOR_PATH } from '@/server/studio/framework/paths';
+import { withNext } from '@/studio/auth-entry';
 import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { navigateAway } from '@/studio/navigate';
@@ -13,7 +14,7 @@ import { Input, PasswordInput } from '@/studio/ui/Input';
 
 /** Where to go once the password is right: the second step (carrying `next` along), or `next`, or the Studio. */
 function destination(answer: string, next: string | null): string {
-  if (answer === TWO_FACTOR_PATH) return next ? `${TWO_FACTOR_PATH}?next=${encodeURIComponent(next)}` : TWO_FACTOR_PATH;
+  if (answer === TWO_FACTOR_PATH) return withNext(TWO_FACTOR_PATH, next);
   return next ?? answer;
 }
 
@@ -46,7 +47,7 @@ export function SignInForm({ next }: { next: string | null }) {
         label={t('auth.signIn.password')}
         error={form.fieldError('password')}
         aside={
-          <Link href="/studio/forgot" className="text-sm text-muted underline-offset-2 hover:text-text hover:underline">
+          <Link href={withNext('/studio/forgot', next)} className="text-sm text-muted underline-offset-2 hover:text-text hover:underline">
             {t('auth.signIn.forgot')}
           </Link>
         }

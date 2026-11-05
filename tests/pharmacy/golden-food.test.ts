@@ -144,6 +144,14 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.pharmacies',
       icon: 'pharmacy'
     },
+    // Added deliberately on 2026-11-01 (feat(retail): Retail section, sync status, AI switch and Resync in Studio): the
+    // Super Admin's one new item. The FOOD owner's and the designer's navigation below are unchanged.
+    {
+      key: 'retail',
+      href: '/studio/retail',
+      labelKey: 'nav.retail',
+      icon: 'retail'
+    },
     {
       key: 'menus',
       href: '/studio/menus',

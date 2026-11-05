@@ -118,7 +118,7 @@ describe('pharmacy plans', () => {
     dataOf(await run(owner, billing.setPrices, prices('starter')));
     dataOf(await run(owner, billing.startTrial, trial('starter')));
     expect(await prisma().subscription.findFirstOrThrow({ where: { restaurantId: id } })).toMatchObject({ applicationId: 'pharmacy', planCode: 'starter', status: 'TRIAL' });
-    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, {}));
+    const overview = dataOf(await runQuery(prisma(), owner, billingOverview, { space: 'pharmacy' }));
     expect(overview.applications.find((a) => a.id === 'pharmacy')?.plans.map((p) => p.code)).toEqual(['starter']);
   });
 

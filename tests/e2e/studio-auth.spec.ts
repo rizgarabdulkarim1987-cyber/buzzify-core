@@ -77,7 +77,7 @@ test.describe('Studio sign-in @desktop', () => {
     await page.getByLabel('Authentication code').fill(totp(admin.secret));
     await page.getByRole('button', { name: 'Verify' }).click();
     await expect(page).toHaveURL(/\/studio$/);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Welcome, ${admin.name}`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Choose a project');
 
     // The menu opens once the page has hydrated, which a loaded machine may still be doing after the full page load.
     const signOut = page.getByRole('menuitem', { name: 'Sign out' });

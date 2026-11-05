@@ -25,6 +25,40 @@ function problemsWith(changes: Record<string, string | undefined>): string[] {
   return result.ok ? [] : result.problems;
 }
 
+describe('the product hosts', () => {
+  const hosts = { PHARMACY_HOST: 'leaf.buzzify.me', CORE_HOST: 'core.buzzify.me', CORE_GATE_PATH: 'gate-path-12345', APEX_HOST: 'buzzify.me' };
+
+  it('accepts a configuration with distinct product hosts and a secret path', () =>
+    expect(problemsWith(hosts)).toEqual([]));
+
+  it('stops the build when the pharmacy or core host repeats another host', () => {
+    expect(named(problemsWith({ ...hosts, PHARMACY_HOST: 'studio.buzzify.me' }))).toEqual(['PHARMACY_HOST']);
+    expect(named(problemsWith({ ...hosts, CORE_HOST: 'menu.buzzify.me' }))).toEqual(['CORE_HOST']);
+    // Two products on one name: both settings are named.
+    expect(named(problemsWith({ ...hosts, CORE_HOST: 'leaf.buzzify.me' }))).toEqual(['PHARMACY_HOST', 'CORE_HOST']);
+  });
+
+  it('stops the build when the apex or a legacy host repeats a live host, which would redirect it in a loop', () => {
+    expect(named(problemsWith({ ...hosts, APEX_HOST: 'menu.buzzify.me' }))).toEqual(['APEX_HOST']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.buzzify.me, studio.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'leaf.buzzify.me' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
+  it('names a legacy host written with a scheme or a path', () => {
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'https://old.example.test' }))).toEqual(['LEGACY_HOSTS']);
+    expect(named(problemsWith({ ...hosts, LEGACY_HOSTS: 'old.example.test/x' }))).toEqual(['LEGACY_HOSTS']);
+  });
+
+  it('refuses a super admin host without its secret path', () =>
+    expect(named(problemsWith({ ...hosts, CORE_GATE_PATH: undefined }))).toEqual(['CORE_GATE_PATH']));
+
+  it('names a badly formed secret path without printing it', () => {
+    const problems = problemsWith({ ...hosts, CORE_GATE_PATH: 'bad path!' });
+    expect(named(problems)).toEqual(['CORE_GATE_PATH']);
+    expect(problems.join(' ')).not.toContain('bad path!');
+  });
+});
+
 /** The variables a list of problems is about: every problem starts with the variable's name. */
 const named = (problems: string[]) => problems.map((problem) => problem.split(' ')[0]);
 
@@ -164,6 +198,96 @@ describe('checkProductionEnv', () => {
     expect(named(problemsWith({ PUBLIC_MENU_ORIGIN: 'https://www.buzzify.me' }))).toEqual(['PUBLIC_MENU_ORIGIN']);
     // One host cannot be both: the Studio would answer for it and every menu there would be a 404.
     expect(named(problemsWith({ STUDIO_HOST: 'menu.buzzify.me', BETTER_AUTH_URL: 'https://menu.buzzify.me' }))).toEqual(['STUDIO_HOST']);
+  });
+
+  describe('the Buzzify Retail link', () => {
+    const retail = {
+      RETAIL_URL: 'https://retail.buzzify.me',
+      RETAIL_SYNC_SECRET: 'made-up-sync-secret-of-32-characters!',
+      RETAIL_CALLER_SECRET: 'made-up-caller-secret-of-32-characters',
+      RETAIL_HANDOFF_SECRET: 'made-up-handoff-secret-of-32-characters',
+    };
+
+    it('is optional: without RETAIL_URL nothing about it is a problem, even stray secrets', () => {
+      expect(problemsWith({})).toEqual([]);
+      expect(problemsWith({ RETAIL_SYNC_SECRET: 'short', RETAIL_HANDOFF_SECRET: complete.CRON_SECRET })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: '  ' })).toEqual([]);
+    });
+
+    it('accepts a complete link, with or without the previous caller secret, and a trailing slash on the URL', () => {
+      expect(problemsWith(retail)).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: 'made-up-previous-caller-secret-32ch' })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: 'https://retail.buzzify.me/' })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL: 'https://retail.buzzify.me:8443' })).toEqual([]);
+    });
+
+    it('with RETAIL_URL set, needs the three shared secrets (the placeholder counts as none)', () => {
+      expect(named(problemsWith({ RETAIL_URL: retail.RETAIL_URL }))).toEqual(['RETAIL_SYNC_SECRET', 'RETAIL_CALLER_SECRET', 'RETAIL_HANDOFF_SECRET']);
+      const placeholder = 'generate with: openssl rand -base64 32';
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET: placeholder }))).toEqual(['RETAIL_CALLER_SECRET']);
+      // Each problem names the Retails twin to copy the value from.
+      expect(problemsWith({ ...retail, RETAIL_HANDOFF_SECRET: undefined })[0]).toContain('CORE_HANDOFF_SECRET');
+    });
+
+    it('requires https and a bare origin written as Retails writes its APP_URL', () => {
+      for (const bad of [
+        'http://retail.buzzify.me',
+        'retail.buzzify.me',
+        'ftp://retail.buzzify.me',
+        'https://retail.buzzify.me/app',
+        'https://retail.buzzify.me/?a=1',
+        'https://retail.buzzify.me/#x',
+        'https://user:pw@retail.buzzify.me',
+        'https://Retail.Buzzify.me',
+        'https://retail.buzzify.me:443',
+      ]) {
+        expect(named(problemsWith({ ...retail, RETAIL_URL: bad })), bad).toEqual(['RETAIL_URL']);
+      }
+    });
+
+    it('accepts each Retail product address, optional, by the same rules as RETAIL_URL, and only with RETAIL_URL', () => {
+      const products = {
+        RETAIL_URL_SUPERMARKET: 'https://supermarket.buzzify.tech',
+        RETAIL_URL_ELECTRONICS: 'https://electronics.buzzify.tech',
+        RETAIL_URL_CLOTHING: 'https://clothing.buzzify.tech/',
+      };
+      expect(problemsWith({ ...retail, ...products })).toEqual([]);
+      expect(problemsWith({ ...retail, RETAIL_URL_ELECTRONICS: products.RETAIL_URL_ELECTRONICS })).toEqual([]);
+      for (const bad of ['http://electronics.buzzify.tech', 'electronics.buzzify.tech', 'https://electronics.buzzify.tech/app', 'https://Electronics.buzzify.tech', 'https://electronics.buzzify.tech:443']) {
+        expect(named(problemsWith({ ...retail, RETAIL_URL_ELECTRONICS: bad })), bad).toEqual(['RETAIL_URL_ELECTRONICS']);
+      }
+      // A product address alone switches nothing on, and says so rather than being ignored.
+      expect(named(problemsWith({ RETAIL_URL_CLOTHING: products.RETAIL_URL_CLOTHING }))).toEqual(['RETAIL_URL_CLOTHING']);
+      expect(problemsWith({ RETAIL_URL_CLOTHING: products.RETAIL_URL_CLOTHING })[0]).toContain('RETAIL_URL is not');
+    });
+
+    it('refuses a secret under 16 characters, including the optional previous one', () => {
+      expect(named(problemsWith({ ...retail, RETAIL_SYNC_SECRET: 'x'.repeat(15) }))).toEqual(['RETAIL_SYNC_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: 'x'.repeat(15) }))).toEqual(['RETAIL_CALLER_SECRET_PREVIOUS']);
+      expect(problemsWith({ ...retail, RETAIL_SYNC_SECRET: 'x'.repeat(16) })).toEqual([]);
+    });
+
+    it('refuses one value for two jobs: among the four, or shared with CRON_SECRET or BETTER_AUTH_SECRET', () => {
+      expect(named(problemsWith({ ...retail, RETAIL_HANDOFF_SECRET: retail.RETAIL_SYNC_SECRET }))).toEqual(['RETAIL_HANDOFF_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET_PREVIOUS: retail.RETAIL_CALLER_SECRET }))).toEqual(['RETAIL_CALLER_SECRET_PREVIOUS']);
+      expect(named(problemsWith({ ...retail, RETAIL_SYNC_SECRET: complete.CRON_SECRET }))).toEqual(['RETAIL_SYNC_SECRET']);
+      expect(named(problemsWith({ ...retail, RETAIL_CALLER_SECRET: complete.BETTER_AUTH_SECRET }))).toEqual(['RETAIL_CALLER_SECRET']);
+    });
+
+    it('never repeats a value in its problems', () => {
+      const result = checkProductionEnv({
+        ...complete,
+        RETAIL_URL: 'http://hunter2.example.com/hunter2',
+        RETAIL_SYNC_SECRET: 'hunter2',
+        RETAIL_CALLER_SECRET: complete.CRON_SECRET,
+        RETAIL_HANDOFF_SECRET: 'hunter2-handoff-secret-value',
+        RETAIL_CALLER_SECRET_PREVIOUS: 'hunter2-handoff-secret-value',
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.problems.join('\n')).not.toMatch(/hunter2|made-up-cron/);
+      expect(named(result.problems)).toEqual(['RETAIL_URL', 'RETAIL_SYNC_SECRET', 'RETAIL_CALLER_SECRET', 'RETAIL_HANDOFF_SECRET']);
+    });
   });
 
   it('names each variable once and never repeats a value', () => {

@@ -1,3 +1,4 @@
+import type { OccasionMood } from '@/lib/occasion-moods';
 import { isOfferLive, localDate } from './offers';
 import type { TranslationMap } from './types';
 
@@ -21,6 +22,8 @@ export interface CatalogOccasion {
   startsOn: string;
   endsOn: string;
   isActive: boolean;
+  /** Tints the menu while the occasion is live (plan feature `guest.occasionMoods`); left out for none. */
+  mood?: OccasionMood;
   translations: TranslationMap; // name
 }
 

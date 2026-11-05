@@ -624,6 +624,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's saved design, in B", (w) => ({ menuId: w.b.menuId, id: w.b.designTemplateId })),
     c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, id: w.b.designTemplateId })),
   ],
+  'menus.setSeasonEffect': [
+    c("B's menu, in B", (w) => ({ menuId: w.b.menuId, effect: null })),
+    c("B's menu, through A", (w) => ({ menuId: w.b.menuId, effect: 'snow' })),
+  ],
   'design.poweredBy': [c('B', (w) => ({ restaurantId: w.b.restaurantId, show: false }))],
   'brand.suggestFromLogo': [
     c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
@@ -675,6 +679,13 @@ const SWEPT: Record<string, Case[]> = {
   'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
   'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
   'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
+  // Stories: B's menu and B's picture through A's session.
+  'menus.saveStory': [
+    c("a story on B's menu", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, productId: null, captions: {}, isActive: true })),
+    c("B's picture on A's story", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, productId: null, captions: {}, isActive: true })),
+  ],
+  'menus.deleteStory': [c("B's story, in B", (w) => ({ menuId: w.b.menuId, storyId: 'nope' }))],
+  'menus.stories': [c("B's stories", (w) => ({ menuId: w.b.menuId }))],
   // The wheel: B's menu through A's session.
   'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
   // The dish counts switch: B's menu through A's session.
@@ -720,6 +731,11 @@ const SWEPT: Record<string, Case[]> = {
     c("B's logo, through A", (w) => ({ restaurantId: w.a.restaurantId, version: 1, name: 'Shared Alpha Kitchen', type: 'RESTAURANT', logoAssetId: w.b.assetId })),
   ],
   'restaurants.setStatus': [c('B', (w) => ({ restaurantId: w.b.restaurantId, status: 'SUSPENDED' }))],
+  // A linked retail shop's AI switch and resync, in B (B is no retail shop, so it would be not found even with the permission)
+  'retail.setAiIntake': [c("B's AI switch", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, reason: 'Planted' }))],
+  'retail.resync': [c("B's snapshot", (w) => ({ restaurantId: w.b.restaurantId }))],
+  // A retail shop's Retail tab, read for B (B is no retail shop; the sweep also checks it is refused to A's people)
+  'retail.detail': [c("B's retail tab", (w) => ({ restaurantId: w.b.restaurantId }))],
   'restaurants.delete': [c('B', (w) => ({ restaurantId: w.b.restaurantId, confirmName: w.b.restaurantName }))],
   'restaurants.createBranch': [c('in B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted' }))],
   'restaurants.updateBranch': [
@@ -824,6 +840,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
   ],
   'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'availability.setDrop': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, startsAt: null, endsAt: null })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, startsAt: null, endsAt: null })),
+  ],
   'availability.setStock': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, stockCount: 1 })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, stockCount: 1 })),
@@ -1000,6 +1020,8 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'pos.overview': [c('the cashier overview', () => ({}), ONLY_FORBIDDEN)],
   // The platform's pharmacy list (`platform.settings`): it names no restaurant, so A's people are refused it outright.
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
+  // The retail list and a shop's Retail tab (`platform.settings`): refused outright to A's people, even naming B.
+  'retail.list': [c('the retail list', () => ({ space: 'supermarket' }), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'pos.setCaptainApproval': [c("switching B's captain approval", (w) => ({ restaurantId: w.b.restaurantId, enabled: true }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
@@ -1098,6 +1120,8 @@ const SELF: Record<string, Case[]> = {
   'account.endSession': [c("B's owner's session", (w) => ({ sessionId: w.b.ownerSessionId }), { kind: 'self', code: 'NOT_FOUND' })],
   'account.endOtherSessions': [c('the other sessions', () => ({}), { kind: 'self', code: 'OK' })],
   'account.myRestaurants': [c('my restaurants', () => ({}), { kind: 'self', code: 'OK' })],
+  // The shops the person owns, keyed by their own OWNER memberships (`self` target, no permission).
+  'retail.myShops': [c('my retail shops', () => ({}), { kind: 'self', code: 'OK' })],
   'account.listMySessions': [c('my sessions', () => ({}), { kind: 'self', code: 'OK' })],
 };
 

@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@/generated/prisma/client';
+import { LOYALTY } from '@/server/domain/pos/loyalty-rules';
 import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
@@ -29,6 +30,10 @@ export interface PosSettingsView {
   invoiceFooter: string;
   requireApproval: boolean;
   captainApproval: boolean;
+  /** The stamp card (`loyalty.stampCard`): the switch, the stamps that fill a card, and the reward's text. */
+  loyaltyEnabled: boolean;
+  loyaltyStampsRequired: number;
+  loyaltyReward: string;
   catalogMenuId: string | null;
   version: number;
 }
@@ -58,6 +63,9 @@ export const POS_SETTINGS_DEFAULTS: PosSettingsView = {
   invoiceFooter: '',
   requireApproval: true,
   captainApproval: false,
+  loyaltyEnabled: false,
+  loyaltyStampsRequired: LOYALTY.defaultStamps,
+  loyaltyReward: '',
   catalogMenuId: null,
   version: 0,
 };
@@ -84,6 +92,9 @@ type Row = {
   invoiceFooter: string;
   requireApproval: boolean;
   captainApproval: boolean;
+  loyaltyEnabled: boolean;
+  loyaltyStampsRequired: number;
+  loyaltyReward: string;
   catalogMenuId: string | null;
   version: number;
 };
@@ -111,6 +122,9 @@ function view(row: Row): PosSettingsView {
     invoiceFooter: row.invoiceFooter,
     requireApproval: row.requireApproval,
     captainApproval: row.captainApproval,
+    loyaltyEnabled: row.loyaltyEnabled,
+    loyaltyStampsRequired: row.loyaltyStampsRequired,
+    loyaltyReward: row.loyaltyReward,
     catalogMenuId: row.catalogMenuId,
     version: row.version,
   };

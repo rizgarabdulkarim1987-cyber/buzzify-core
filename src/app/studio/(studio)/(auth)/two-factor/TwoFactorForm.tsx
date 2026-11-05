@@ -11,8 +11,11 @@ import { Field } from '@/studio/ui/Field';
 import { FormError } from '@/studio/ui/FormError';
 import { Input } from '@/studio/ui/Input';
 
-/** The code from the authenticator app, or, after "Use a recovery code instead", one of the ten recovery codes. */
-export function TwoFactorForm({ next }: { next: string | null }) {
+/**
+ * The code from the authenticator app, or, after "Use a recovery code instead", one of the ten recovery codes. `intro`
+ * is the line on the app's code (the page picks the Studio's or the neutral one); `signInHref` the way back to sign in.
+ */
+export function TwoFactorForm({ next, intro, signInHref }: { next: string | null; intro: string; signInHref: string }) {
   const t = useT();
   const [recovery, setRecovery] = useState(false);
   const form = useActionForm((values) => verifyTwoFactor({ code: values.code ?? '' }), {
@@ -25,13 +28,13 @@ export function TwoFactorForm({ next }: { next: string | null }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-base text-muted">{recovery ? t('auth.twoFactor.recoveryIntro') : t('auth.twoFactor.intro')}</p>
+      <p className="text-base text-muted">{recovery ? t('auth.twoFactor.recoveryIntro') : intro}</p>
       <form key={recovery ? 'recovery' : 'app'} {...form.props} className="flex flex-col gap-5">
         <FormError form={form} fields={['code']}>
           {ended && (
             <>
               {' '}
-              <Link href="/studio/sign-in" className="font-medium underline underline-offset-2">
+              <Link href={signInHref} className="font-medium underline underline-offset-2">
                 {t('auth.backToSignIn')}
               </Link>
             </>

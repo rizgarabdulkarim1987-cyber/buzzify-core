@@ -12,6 +12,9 @@ import type { Actor } from '@/server/studio/auth/actor';
 import { StudioError, type ErrorCode } from '@/server/studio/framework/result';
 import { readReservedSlugs } from './settings';
 
+/** Menus belong to food businesses; a pharmacy or retail shop has none. */
+export const MENUS_FOOD_ONLY = 'Menus are only for food businesses';
+
 /**
  * Menus as the Studio makes and changes them: what it accepts for a new menu, how a slug is checked and claimed, and
  * what a new menu starts with. The actions run these on the transaction of a menu or restaurant target (or the scope of

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { query } from '@/server/studio/framework/invoke';
 import { billingOverview, restaurantBilling } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
+import { spaceOfSector } from '@/studio/space-words';
 import { loadRestaurant, tabMetadata } from '../load';
 import { RestaurantBilling } from './RestaurantBilling';
 
@@ -19,7 +20,8 @@ export default async function RestaurantBillingPage({ params }: { params: Promis
   const restaurant = await loadRestaurant(id);
   const [view, overview, plans] = await Promise.all([
     query(restaurantBilling, { restaurantId: restaurant.id }),
-    query(billingOverview, {}),
+    // The prices of the business's own project's products (a retail shop's are Retail's, not the Menu's and the Cashier's).
+    query(billingOverview, { space: spaceOfSector(restaurant.sector, restaurant.retailActivity) }),
     query(getPlans, {}),
   ]);
   const planNames = Object.fromEntries(Object.entries(plans.plans).map(([code, plan]) => [code, plan.names]));

@@ -28,6 +28,8 @@ export function testPrisma(): PrismaClient {
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   // Shared library assets belong to no restaurant, so no cascade removes them.
   await prisma.mediaAsset.deleteMany();
+  await prisma.retailOutbox.deleteMany();
+  await prisma.retailLink.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.subscriptionEvent.deleteMany();
   await prisma.subscription.deleteMany();

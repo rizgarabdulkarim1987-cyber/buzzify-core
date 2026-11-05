@@ -107,7 +107,7 @@ test.describe('Studio accessibility @desktop', () => {
       const atelier = await menuBySlug('atelier');
       const page = await signedIn(browser, locale);
       for (const [path, heading] of [
-        ['/studio', t('overview.welcome', { name: superAdmin(superAdminFile(locale)).name })],
+        ['/studio/overview', t('overview.welcome', { name: superAdmin(superAdminFile(locale)).name })],
         ['/studio/restaurants', t('restaurants.title')],
         ['/studio/menus', t('menus.title')],
         [`/studio/menus/${atelier.id}`, atelier.name],

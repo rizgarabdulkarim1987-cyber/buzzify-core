@@ -7,5 +7,6 @@ export const SALES_PAGES: ReadonlyArray<{ key: string; path: string; labelKey: s
   { key: 'sets', path: '/sets', labelKey: 'sales.page.sets' },
   { key: 'offers', path: '/offers', labelKey: 'sales.page.offers' },
   { key: 'showcase', path: '/showcase', labelKey: 'sales.page.showcase' },
+  { key: 'stories', path: '/stories', labelKey: 'sales.page.stories' },
   { key: 'settings', path: '/settings', labelKey: 'sales.page.settings' },
 ];

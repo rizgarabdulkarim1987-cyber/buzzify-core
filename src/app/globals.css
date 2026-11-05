@@ -323,3 +323,44 @@ html.explore-snap {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Living photos (plan feature `guest.livingPhotos`): the open dish's photo leans toward the pointer and catches a
+ * sheen. Only the one photo of the open dish gets a transform; reduced motion never renders the wrapper at all.
+ */
+.living-photo {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+  transform: perspective(900px) rotateX(var(--lp-rx, 0deg)) rotateY(var(--lp-ry, 0deg));
+  transition: transform 160ms ease-out;
+}
+.living-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent calc(var(--lp-x, -30%) - 14%), rgb(255 255 255 / 0.16) var(--lp-x, -30%), transparent calc(var(--lp-x, -30%) + 14%));
+  opacity: 0.9;
+  animation: living-sheen 1.4s ease-out 1 both;
+}
+@keyframes living-sheen {
+  from {
+    transform: translateX(-60%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translateX(60%);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-photo,
+  .living-photo::after {
+    transform: none;
+    animation: none;
+  }
+}

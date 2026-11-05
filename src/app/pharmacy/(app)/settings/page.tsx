@@ -1,4 +1,4 @@
-import { ChevronRight, ClipboardCheck, Lock, Stethoscope } from 'lucide-react';
+import { ChevronRight, ClipboardCheck, Lock, Printer, Stethoscope } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { phGate } from '@/app/pharmacy/_ui/ph-gate';
@@ -70,6 +70,19 @@ export default async function SettingsPage() {
             </ul>
           </nav>
         )}
+        <nav aria-labelledby="set-print-h" className="flex min-w-0 max-w-2xl flex-col gap-2" data-testid="settings-print-links">
+          <h2 id="set-print-h" className="text-lg font-semibold text-text">
+            {t('pharmacy.print.settings.title')}
+          </h2>
+          <Link href="/pharmacy/print/settings" data-testid="settings-link-print" className="flex min-h-14 min-w-0 items-center gap-3 rounded-[22px] bg-ph-card px-4 py-2 hover:bg-ph-canvas">
+            <Printer aria-hidden className="size-5 shrink-0 text-ph-g6" />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="font-semibold text-ph-text">{t('pharmacy.settings.links.print')}</span>
+              <span className="text-sm text-ph-muted">{t('pharmacy.settings.links.printHint')}</span>
+            </span>
+            <ChevronRight aria-hidden className="size-4 shrink-0 text-ph-muted rtl:rotate-180" />
+          </Link>
+        </nav>
         <PharmacySettings
           initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, version: controlled.version }}
           editable={owner && writable.ok}

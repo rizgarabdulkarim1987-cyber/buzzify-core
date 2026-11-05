@@ -1,3 +1,4 @@
+import { FEATURES } from '@/server/domain/entitlements';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
 import * as plans from '@/server/studio/actions/plans';
@@ -26,6 +27,8 @@ const failureOf = (result: ActionResult<unknown>) => {
 };
 
 const PROFILE = { name: 'Zhamitos', type: 'RESTAURANT' };
+
+const LIVE_FEATURE_COUNT = FEATURES.filter((feature) => feature.status === 'live').length;
 
 describe('plans', () => {
   const prisma = () => getPrisma();
@@ -103,7 +106,7 @@ describe('plans', () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'PRO', extras: {}, note: 'Deal' });
     const asOwner = dataOf(await read(owner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
     expect(asOwner).toMatchObject({ plan: 'PRO', note: 'Deal', canEdit: true });
-    expect(asOwner.features.map((f) => f.key)).toHaveLength(19);
+    expect(asOwner.features.map((f) => f.key)).toHaveLength(LIVE_FEATURE_COUNT);
     expect(asOwner.features.find((f) => f.key === 'immersive.explore')).toMatchObject({ allowed: true, inPlan: true, extra: null, lowestPlan: 'BASIC' });
     expect(dataOf(await read(otherAdmin, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: 'Deal', canEdit: false });
     expect(dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: null, canEdit: false });

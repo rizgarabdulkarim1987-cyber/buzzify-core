@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaKind } from '@/generated/prisma/client';
+import { PREMIUM_TEMPLATE_IDS } from '@/lib/templates/premium';
 import { entitlementsFor } from '@/server/data/plans';
 import { getPrisma } from '@/server/data/prisma';
 import { tenantInfo } from '@/server/data/public-menu';
@@ -151,11 +152,17 @@ describe('choosing a scene file', () => {
     expect((await state()).sceneMedia).toMatchObject({ kind: 'lottie', width: 512, height: 512, url: expect.stringMatching(/original\.json$/) });
   });
 
-  it("refuses another restaurant's file, a picture, or one that does not exist", async () => {
-    for (const assetId of [await asset(b.restaurant.id, 'MODEL'), await asset(a.restaurant.id, 'IMAGE'), 'missing']) {
+  it("refuses another restaurant's file, a vector graphic, or one that does not exist", async () => {
+    for (const assetId of [await asset(b.restaurant.id, 'MODEL'), await asset(a.restaurant.id, 'SVG'), 'missing']) {
       expect(failureOf(await update({ sceneAsset: { assetId } })).code).toBe('NOT_FOUND');
     }
     expect((await overrides()).sceneAsset).toBeUndefined();
+  });
+
+  it('takes a photo from the library as the background (design.backgroundImage)', async () => {
+    const photo = await asset(a.restaurant.id, 'IMAGE');
+    dataOf(await update({ sceneAsset: { assetId: photo } }));
+    expect((await overrides()).sceneAsset).toEqual({ assetId: photo });
   });
 
   it('leaves with the look: changing template or resetting removes it, and a saved design keeps it', async () => {
@@ -248,6 +255,31 @@ describe('a plan without the file’s feature (spec 2026-10-18-scene-files-plans
     expect((await overrides()).sceneAsset).toEqual({ assetId: lottie });
   });
 
+  it('project 2: a picture needs design.backgroundImage, a preset design.motionPresets, a premium template design.premiumTemplates', async () => {
+    await onPlan('BASIC');
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'IMAGE') } }))).toMatchObject({
+      code: 'UPGRADE_REQUIRED',
+      upgrade: { feature: 'design.backgroundImage', plan: 'PRO' },
+    });
+    expect(failureOf(await update({ motionPreset: 'lively' }))).toMatchObject({ code: 'UPGRADE_REQUIRED', upgrade: { feature: 'design.motionPresets', plan: 'PRO' } });
+    dataOf(await update({ motionPreset: 'still' }));
+    expect((await overrides()).motionPreset).toBe('still');
+    const premium = PREMIUM_TEMPLATE_IDS[0];
+    expect(failureOf(await apply({ kind: 'preset', templateId: premium }))).toMatchObject({ code: 'UPGRADE_REQUIRED', upgrade: { feature: 'design.premiumTemplates', plan: 'PRO' } });
+
+    await onPlan('PRO');
+    const photo = await asset(a.restaurant.id, 'IMAGE');
+    dataOf(await apply({ kind: 'preset', templateId: premium }));
+    dataOf(await update({ sceneAsset: { assetId: photo }, motionPreset: 'lively' }));
+    expect(await overrides()).toMatchObject({ sceneAsset: { assetId: photo }, motionPreset: 'lively' });
+
+    // A downgrade keeps what is stored and refuses nothing the menu already has.
+    await onPlan('BASIC');
+    dataOf(await update({ sceneAsset: { assetId: photo }, motionPreset: 'lively', paletteId: 'smoke' }));
+    expect(await overrides()).toMatchObject({ motionPreset: 'lively', paletteId: 'smoke' });
+    dataOf(await apply({ kind: 'preset', templateId: premium }));
+  });
+
   it('refuses a Lottie file on Basic, and still answers another restaurant’s file with NOT_FOUND', async () => {
     await onPlan('BASIC');
     expect(failureOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'LOTTIE') } }))).toMatchObject({
@@ -275,9 +307,21 @@ describe('a plan without the file’s feature (spec 2026-10-18-scene-files-plans
 
   it('tells the Design tab which kinds the plan allows and that the stored file is locked', async () => {
     dataOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO') } }));
-    expect((await state()).plan).toEqual({ sceneKinds: ['model', 'video', 'lottie'], lockedScene: null, upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }) });
+    expect((await state()).plan).toEqual({
+      sceneKinds: ['model', 'video', 'lottie', 'image'],
+      lockedScene: null,
+      motionPresets: ['still', 'calm', 'lively', 'showtime'],
+      premiumTemplates: true,
+      upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }),
+    });
     await onPlan('PRO');
-    expect((await state()).plan).toEqual({ sceneKinds: ['lottie'], lockedScene: 'design.backgroundVideo', upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }) });
+    expect((await state()).plan).toEqual({
+      sceneKinds: ['lottie', 'image'],
+      lockedScene: 'design.backgroundVideo',
+      motionPresets: ['still', 'calm', 'lively', 'showtime'],
+      premiumTemplates: true,
+      upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }),
+    });
     // The live preview still gets the file itself.
     expect((await state()).sceneMedia).toMatchObject({ kind: 'video' });
   });

@@ -74,7 +74,8 @@ export function validateForPublish(snapshot: MenuSnapshot): PublishIssue[] {
     if (product.media.length === 0) issues.push({ code: 'NO_IMAGE', severity: 'warn', entity });
     // A library photo that could not be resolved (its asset is gone, or belongs elsewhere) would show nothing.
     for (const entry of product.media) {
-      if ((entry as { kind?: unknown } | null)?.kind === 'asset') issues.push({ code: 'MISSING_ASSET', severity: 'block', entity });
+      const kind = (entry as { kind?: unknown } | null)?.kind;
+      if (kind === 'asset' || kind === 'model') issues.push({ code: 'MISSING_ASSET', severity: 'block', entity });
     }
     for (const locale of menu.locales) {
       if (!hasName(product.translations, locale)) {

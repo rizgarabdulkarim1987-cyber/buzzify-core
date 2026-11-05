@@ -16,6 +16,8 @@ import { getCustomer } from '@/app/pharmacy/_actions/customers';
 import { creditPreview, creditView } from './credit-logic';
 import { CustomerPicker, type PickedCustomer } from './CustomerPicker';
 import { phMessage } from './ph-failure';
+import { ThermalNote } from './ThermalNote';
+import { useThermal, useThermalJob } from './use-thermal';
 import { isolate } from './WriteBlocked';
 import { Num, Note, PH_BTN, PH_FIELD, PH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import { cashShortcuts, formatMinor, plainMinor as plain, keyFor, outcomeUnknown, paymentPreview, plainMinor, type Currency, type KeyedAttempt, type PayDraft, type PayMethod } from './sell-logic';
@@ -411,6 +413,9 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
   const [busy, setBusy] = useState(false);
   const reprintKey = useRef<KeyedAttempt | null>(null);
   const saleId = sale?.id ?? null;
+  const thermal = useThermalJob(useThermal());
+  const { run: runThermal, reset: resetThermal } = thermal;
+  const autoPrinted = useRef<string | null>(null);
 
   useEffect(() => {
     if (!saleId) return;
@@ -430,8 +435,31 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the receipt is read again only for another sale or width
   }, [saleId, width, locale]);
 
+  useEffect(() => {
+    resetThermal();
+  }, [saleId, resetThermal]);
+
+  // The first print of a sale goes to the thermal printer by itself (once per sale; a width change or a re-render does not print again).
+  useEffect(() => {
+    if (!saleId || !receipt || !thermal.enabled || autoPrinted.current === saleId || receipt.copyNumber > 0) return;
+    autoPrinted.current = saleId;
+    void runThermal(receipt.model, { drawer: true });
+  }, [saleId, receipt, thermal.enabled, runThermal]);
+
   const print = () => {
     setPrintFailed(false);
+    // A press of Print by hand is a second print of this sale: it never opens the drawer, and it ends the automatic print.
+    if (saleId) autoPrinted.current = saleId;
+    if (thermal.enabled && receipt) {
+      void runThermal(receipt.model);
+      return;
+    }
+    browserPrint();
+  };
+
+  const browserPrint = () => {
+    setPrintFailed(false);
+    if (saleId) autoPrinted.current = saleId;
     try {
       const target = frame.current?.contentWindow;
       if (!target) throw new Error('no frame');
@@ -454,7 +482,9 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
     setBusy(false);
     if (result.ok) {
       reprintKey.current = null;
-      setReceipt(result.data as ReceiptResult);
+      const copy = result.data as ReceiptResult;
+      setReceipt(copy);
+      if (thermal.enabled) void runThermal(copy.model);
     } else {
       if (!outcomeUnknown(result.error)) reprintKey.current = null;
       setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
@@ -481,7 +511,13 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
             <RotateCcw aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.reprint')}
           </button>
-          <button type="button" className={PH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt}>
+          {thermal.enabled && (
+            <button type="button" className={PH_BTN} data-testid="receipt-print-browser" onClick={browserPrint} disabled={!receipt}>
+              <Printer aria-hidden className="size-4" />
+              {t('pharmacy.print.thermal.browser')}
+            </button>
+          )}
+          <button type="button" className={PH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt || thermal.state === 'printing'}>
             <Printer aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.print')}
           </button>
@@ -552,6 +588,7 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
               className="h-72 w-full rounded-ph-xl border border-ph-line bg-white"
             />
           )}
+          <ThermalNote state={thermal.state} look="ph" />
           {printFailed && (
             <Note look="ph" icon={<Printer aria-hidden />} tone="danger" role="alert" testId="print-failed">
               {t('pharmacy.sell.receipt.printFailed')}

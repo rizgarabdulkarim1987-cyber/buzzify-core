@@ -3,13 +3,15 @@
 import { Radio } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { setOptionAvailability, setProductAvailability, setProductStock } from '@/app/studio/_actions/availability';
+import { setOptionAvailability, setProductAvailability, setProductDrop, setProductStock } from '@/app/studio/_actions/availability';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { AvailabilityBoard as Board } from '@/server/studio/services/availability';
 import { describeFailure } from '@/studio/errors';
 import { numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Alert } from '@/studio/ui/Alert';
+import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { Input } from '@/studio/ui/Input';
@@ -86,6 +88,70 @@ function StockField({ menuId, product, productName }: { menuId: string; product:
   );
 }
 
+/** An ISO instant as a `datetime-local` value in the browser's own time zone (empty for none). */
+function toLocalInput(iso: string | null): string {
+  if (iso === null) return '';
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * A limited drop: the dish is on the menu only between two times, set in the browser's own time zone and saved live. Clearing
+ * takes the window away and the dish is an ordinary one again.
+ */
+function DropField({ menuId, product, productName }: { menuId: string; product: Product; productName: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const [from, setFrom] = useState(toLocalInput(product.dropStartsAt));
+  const [to, setTo] = useState(toLocalInput(product.dropEndsAt));
+  const [saved, setSaved] = useState(product.dropEndsAt !== null);
+  const [pending, startTransition] = useTransition();
+
+  const send = (startsAt: string | null, endsAt: string | null, done: () => void) =>
+    startTransition(async () => {
+      const result = await setProductDrop({ menuId, productId: product.id, startsAt, endsAt });
+      if (result.ok) done();
+      else toast.error(describeFailure(t, locale, result.error).message);
+    });
+
+  const set = () => {
+    if (from === '' || to === '') {
+      toast.error(t('availability.drop.incomplete'));
+      return;
+    }
+    send(new Date(from).toISOString(), new Date(to).toISOString(), () => setSaved(true));
+  };
+  const clear = () =>
+    send(null, null, () => {
+      setFrom('');
+      setTo('');
+      setSaved(false);
+    });
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text">
+      <span className="font-medium">{t('availability.drop')}</span>
+      <label className="flex items-center gap-2">
+        {t('availability.drop.from')}
+        <Input type="datetime-local" value={from} disabled={pending} aria-label={t('availability.drop.fromLabel', { name: productName })} onChange={(event) => setFrom(event.target.value)} className="h-8 w-52" />
+      </label>
+      <label className="flex items-center gap-2">
+        {t('availability.drop.to')}
+        <Input type="datetime-local" value={to} disabled={pending} aria-label={t('availability.drop.toLabel', { name: productName })} onChange={(event) => setTo(event.target.value)} className="h-8 w-52" />
+      </label>
+      <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={set}>
+        {t('availability.drop.set')}
+      </Button>
+      {saved && (
+        <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={clear}>
+          {t('availability.drop.clear')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * The Availability tab (spec 10.3): sold out and hidden for each product, sold out for each option, live at once. A
  * switch moves when pressed and goes back, with a message, if the change is refused.
@@ -127,6 +193,7 @@ export function AvailabilityBoard({ menuId, board }: { menuId: string; board: Bo
   return (
     <div className="flex max-w-4xl flex-col gap-5 px-8 pb-10 pt-6">
       <Alert>{t('availability.live')}</Alert>
+      {!board.drops.allowed && <UpgradeHint feature="selling.limitedDrops" info={board.drops.upgrade} />}
 
       <div role="group" aria-label={t('availability.filter')} className="inline-flex w-fit rounded-md border border-line p-0.5">
         {(['all', 'soldOut', 'hidden'] as const).map((key) => (
@@ -186,6 +253,7 @@ export function AvailabilityBoard({ menuId, board }: { menuId: string; board: Bo
                         />
                       </label>
                     </div>
+                    {(board.drops.allowed || product.dropEndsAt !== null) && <DropField menuId={menuId} product={product} productName={productName} />}
                     {product.groups.some((group) => group.options.length > 0) && (
                       <ul className="flex flex-col gap-1.5 border-s border-line ps-4">
                         {product.groups.flatMap((group) =>

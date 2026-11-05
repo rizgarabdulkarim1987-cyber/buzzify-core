@@ -14,7 +14,10 @@ import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
 import { releaseHeldRequestsIn } from '@/server/pos/customer-orders';
+import { readPlans, entitlementsFor } from '@/server/data/plans';
 import { delegates } from '@/server/data/tenant-db';
+import { LOYALTY } from '@/server/domain/pos/loyalty-rules';
+import { requireFeature } from '@/server/studio/framework/plan';
 import {
   changePosStaffRole as changeRole,
   deactivateIn,
@@ -68,6 +71,10 @@ export const updatePosSettings = defineAction({
     idleMinutes: z.number().int().min(0).max(240),
     requireApproval: z.boolean(),
     captainApproval: z.boolean().default(false),
+    // The stamp card: the switch, the stamps that fill it, and the reward's text (one text for every language).
+    loyaltyEnabled: z.boolean().default(false),
+    loyaltyStampsRequired: z.number().int().min(LOYALTY.minStamps).max(LOYALTY.maxStamps).default(LOYALTY.defaultStamps),
+    loyaltyReward: z.string().trim().max(LOYALTY.maxReward, `Use at most ${LOYALTY.maxReward} characters`).default(''),
     // The payable total rounds to a multiple of this many dinars; 0 switches rounding off.
     roundingStep: z.union([z.literal(0), z.literal(250), z.literal(500), z.literal(1000)]).default(0),
     usdEnabled: z.boolean().default(false),
@@ -78,12 +85,19 @@ export const updatePosSettings = defineAction({
     invoiceTaxNumber: z.string().trim().max(120, 'Use at most 120 characters').default(''),
     invoiceFooter: z.string().trim().max(120, 'Use at most 120 characters').default(''),
     version: z.number().int().min(0),
-  }).refine((input) => !input.usdEnabled || input.usdRate > 0, { message: 'Enter the dollar rate', path: ['usdRate'] }),
+  })
+    .refine((input) => !input.usdEnabled || input.usdRate > 0, { message: 'Enter the dollar rate', path: ['usdRate'] })
+    .refine((input) => !input.loyaltyEnabled || input.loyaltyReward !== '', { message: 'Enter the reward', path: ['loyaltyReward'] }),
   target: () => TILL,
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
     return ctx.transaction(async (tx) => {
       const { id, before, after } = await savePosSettings(tx, restaurantId, input);
+      // Switching the stamp card on needs a plan that has it; an existing switch stays stored when a plan loses it.
+      if (after.loyaltyEnabled && !before.loyaltyEnabled) {
+        const db = delegates(tx);
+        requireFeature({ entitlements: await entitlementsFor(db, restaurantId), plans: await readPlans(db) }, 'loyalty.stampCard');
+      }
       ctx.audit({ action: 'pos.settings.update', entityType: 'PosSettings', entityId: id, changes: settingsChanges(before, after) });
       // Switching captain approval off releases the orders still held for the captain.
       if (before.captainApproval && !after.captainApproval) {

@@ -12,7 +12,7 @@ import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
 import type { CatalogOccasion, CatalogPromotion, CatalogShowcaseCard } from '@/server/domain/types';
 import { SCENE_KINDS } from '@/server/media/kinds';
-import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
+import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, modelAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
 import { sceneMediaOf } from '@/server/media/scene';
 import { getStorage } from '@/server/storage/storage';
@@ -221,20 +221,23 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   // Library photos become the URLs guests load, so the revision never needs the library again.
   const seo = seoMap(menu.seo);
   const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
+  const productModels = catalog.products.flatMap((product) => modelAssetIds(product.media));
   const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
   const brandAssets = brandAssetIds(brand);
   const sceneAssets = sceneAssetIds(brand);
-  if (productAssets.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
+  if (productAssets.length + productModels.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
     return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
   // Scene files apart from pictures, so a photo, logo or search image can never resolve to one.
   const scenes = await loadAssets(db, menu.restaurantId, sceneAssets, SCENE_KINDS);
+  // A dish's model likewise: only a library model of this restaurant resolves, never a picture picked as one.
+  const models = await loadAssets(db, menu.restaurantId, productModels, ['MODEL']);
   const mediaUrl = (key: string) => getStorage().publicUrl(key);
   catalog.products = catalog.products.map((product) => ({
     ...product,
-    media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
+    media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl, models),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
   return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog });
@@ -596,7 +599,7 @@ function promotionRow(p: CatalogPromotion) {
 
 /** An occasion's own columns, as a snapshot holds them. */
 function occasionRow(o: CatalogOccasion) {
-  return { startsOn: o.startsOn, endsOn: o.endsOn, isActive: o.isActive, translations: json(o.translations) };
+  return { startsOn: o.startsOn, endsOn: o.endsOn, isActive: o.isActive, mood: o.mood ?? null, translations: json(o.translations) };
 }
 
 /** A showcase card's own columns, as a snapshot holds them (its menu, ids and references are the caller's). */

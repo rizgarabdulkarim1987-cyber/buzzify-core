@@ -2,6 +2,7 @@ import type { Palette } from '@/lib/brand';
 import type { FontPairId } from '@/lib/font-pairs';
 import type { Locale } from '@/lib/locale';
 import type { WorkingHours } from '@/server/domain/restaurant-profile';
+import type { MotionPresetId } from './motion-presets';
 
 /**
  * The template presets' vocabulary (spec `2026-10-18-template-studio-design.md`, section 4): what a preset is, what a
@@ -368,7 +369,9 @@ export type SceneMedia =
       /** The still shown before the video plays, and instead of it with reduced motion or data saver. */
       poster: { url: string; srcset: string; placeholder: string };
     }
-  | { kind: 'lottie'; assetId: string; url: string; width: number; height: number };
+  | { kind: 'lottie'; assetId: string; url: string; width: number; height: number }
+  /** A picture from the library, drawn covering the background (`design.backgroundImage`). */
+  | { kind: 'image'; assetId: string; url: string; width: number; height: number; srcset: string; placeholder: string };
 
 /** What a business changed from its template: only what it changed. Stored on `BrandConfig.design`. */
 export interface DesignOverrides {
@@ -378,6 +381,8 @@ export interface DesignOverrides {
   type?: Partial<DesignType>;
   layout?: Partial<DesignLayout>;
   scene?: Partial<SceneSettings>;
+  /** A named bundle of motion settings, under the hand-set `scene` values (see `motion-presets.ts`). */
+  motionPreset?: MotionPresetId;
   /** A library file drawn as the background instead of the template's own scene. Part of the look. */
   sceneAsset?: SceneAssetChoice;
   /** Products to feature, by slug (ids change when a revision is restored or a menu duplicated; slugs do not). */

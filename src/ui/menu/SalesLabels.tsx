@@ -1,5 +1,6 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { localDigits } from '@/lib/digits';
 import type { MenuOfferView, MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
@@ -20,12 +21,34 @@ export function useCountsLabel(product: Pick<MenuProductView, 'counts'>): string
   return product.counts ? dishCountsText(product.counts, t, (value) => formatCount(value, locale, tenant.numeralSystem)) : null;
 }
 
+const everyMinute = (notify: () => void) => {
+  const timer = window.setInterval(notify, 60_000);
+  return () => window.clearInterval(timer);
+};
+
+/**
+ * "Limited · ends in 3 hours" for a dish inside its limited-drop window, counted to the minute from the real end the
+ * restaurant set; null before the page is on screen (the server has no clock to agree with) and once the end has passed.
+ */
+export function useDropLabel(endsAt: string | undefined): string | null {
+  const { t, locale, tenant } = useApp();
+  const minute = useSyncExternalStore(everyMinute, () => Math.floor(Date.now() / 60_000), () => 0);
+  if (!endsAt || minute === 0) return null;
+  const minutes = Math.ceil((Date.parse(endsAt) - minute * 60_000) / 60_000);
+  if (minutes <= 0) return null;
+  const relative = new Intl.RelativeTimeFormat(`${locale}-u-nu-${tenant.numeralSystem}`, { numeric: 'always' });
+  const when = minutes >= 2880 ? relative.format(Math.floor(minutes / 1440), 'day') : minutes >= 60 ? relative.format(Math.floor(minutes / 60), 'hour') : relative.format(minutes, 'minute');
+  return t('menu.drop', { when });
+}
+
 /** The dish's sales labels, as quiet pills beside its other badges. */
-export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice' | 'counts'> }) {
+export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice' | 'counts' | 'dropEndsAt'> }) {
   const { t, tenant } = useApp();
   const counts = useCountsLabel(product);
+  const drop = useDropLabel(product.dropEndsAt);
   return (
     <>
+      {drop && <span className={`${PILL} border-accent bg-accent/10 font-medium text-accent`}>{drop}</span>}
       {product.special && <span className={`${PILL} border-accent/55 text-accent`}>{product.special}</span>}
       {product.regularPrice !== undefined && product.percentOff && (
         <span className={`${PILL} border-accent bg-accent font-medium tabular-nums text-on-accent`}>
@@ -39,8 +62,8 @@ export function SalesPills({ product }: { product: Pick<MenuProductView, 'specia
 }
 
 /** Whether the dish has any sales label to show. */
-export function hasSalesPills(product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'regularPrice' | 'counts'>): boolean {
-  return Boolean(product.special || product.mostOrdered || product.regularPrice !== undefined || product.counts);
+export function hasSalesPills(product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'regularPrice' | 'counts' | 'dropEndsAt'>): boolean {
+  return Boolean(product.special || product.mostOrdered || product.regularPrice !== undefined || product.counts || product.dropEndsAt);
 }
 
 /**

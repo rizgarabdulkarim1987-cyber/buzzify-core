@@ -19,7 +19,7 @@ export function normalizeEmail(raw: string): string {
 }
 
 /** Prisma's unique-constraint violation, however many layers wrapped it on the way up. */
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
   for (let e = error, depth = 0; e && typeof e === 'object' && depth < 5; e = (e as { cause?: unknown }).cause, depth += 1) {
     if ((e as { code?: unknown }).code === 'P2002') return true;
   }

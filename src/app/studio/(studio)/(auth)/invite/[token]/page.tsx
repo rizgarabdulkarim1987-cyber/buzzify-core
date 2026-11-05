@@ -6,6 +6,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { AuthPanel } from '@/studio/shell/AuthPanel';
 import { Alert } from '@/studio/ui/Alert';
+import { AuthPageFrame } from '../../frame';
 import { InviteFlow } from './InviteFlow';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,10 +25,16 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
   if (!view.ok) {
     return (
-      <AuthPanel title={t('auth.invite.title')}>
-        <Alert tone="danger">{describeFailure(t, locale, view.error).message}</Alert>
-      </AuthPanel>
+      <AuthPageFrame>
+        <AuthPanel title={t('auth.invite.title')}>
+          <Alert tone="danger">{describeFailure(t, locale, view.error).message}</Alert>
+        </AuthPanel>
+      </AuthPageFrame>
     );
   }
-  return <InviteFlow token={token} view={view.data} signedInEmail={actor?.email ?? null} />;
+  return (
+    <AuthPageFrame>
+      <InviteFlow token={token} view={view.data} signedInEmail={actor?.email ?? null} />
+    </AuthPageFrame>
+  );
 }

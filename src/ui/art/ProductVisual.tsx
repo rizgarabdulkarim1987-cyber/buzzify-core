@@ -39,7 +39,8 @@ function LibraryPhoto({ image, sizes, priority, placeholder }: { image: ImageIte
 }
 
 export function ProductVisual({ media, name, slug, className = '', priority = false, sizes = '96px', placeholder = false }: Props) {
-  const first = media[0];
+  // A dish's own 3D model has no picture of itself: the first thing a guest can see is the first item that does.
+  const first = media.find((item) => item.kind !== 'model3d' || item.poster !== undefined);
   const frame = `relative block overflow-hidden bg-raised ${className}`;
 
   if (!first) return <span className={frame} aria-hidden="true" />;
@@ -62,6 +63,7 @@ export function ProductVisual({ media, name, slug, className = '', priority = fa
   }
 
   const source = first.kind === 'image' ? first.url : first.poster;
+  if (source === undefined) return <span className={frame} aria-hidden="true" />;
   const sameOrigin = source.startsWith('/');
   return (
     <span className={frame}>

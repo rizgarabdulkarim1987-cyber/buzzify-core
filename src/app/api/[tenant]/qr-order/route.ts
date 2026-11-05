@@ -24,6 +24,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ tenant: st
             lines: input.cart.lines,
             bundleCount: input.cart.bundles.length,
             note: input.note,
+            ...(input.card ? { card: input.card } : {}),
           },
           now,
         );

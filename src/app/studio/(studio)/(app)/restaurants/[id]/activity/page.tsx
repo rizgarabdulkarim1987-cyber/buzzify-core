@@ -7,6 +7,7 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { restaurantActivity } from '@/server/studio/queries/restaurants';
 import { formatDateTime } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { isolated } from '@/studio/ui/isolate';
 import { Pagination } from '@/studio/ui/Pagination';
@@ -40,8 +41,8 @@ export default async function RestaurantActivityPage({
   const { id } = await params;
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
   const restaurant = await loadRestaurant(id);
+  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector, restaurant.retailActivity));
   const raw = (await searchParams).page;
   const requested = Number(Array.isArray(raw) ? raw[0] : raw);
   const page = Number.isInteger(requested) && requested >= 1 && requested <= 100_000 ? requested : 1;

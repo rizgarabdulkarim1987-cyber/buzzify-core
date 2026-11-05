@@ -4,6 +4,7 @@ import { BODY_MAX, TITLE_MAX } from '@/lib/announcements';
 import { LOCALES } from '@/lib/locale';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
+import { businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * Announcements from the Buzzify team to every till and Studio user. Only Super Admins hold `platform.settings`, and a
@@ -47,12 +48,12 @@ function prepare(input: Content) {
 export const createAnnouncement = defineAction({
   name: 'announcement.create',
   permission: 'platform.settings',
-  input: z.object(content),
+  input: z.object({ ...content, space: businessSpace }),
   target: () => PLATFORM,
-  run: (ctx, input) => {
+  run: (ctx, { space, ...input }) => {
     const data = prepare(input);
     return ctx.transaction(async (tx) => {
-      const row = await tx.announcement.create({ data: { ...data, createdById: ctx.actor.userId }, select: { id: true } });
+      const row = await tx.announcement.create({ data: { ...data, space, createdById: ctx.actor.userId }, select: { id: true } });
       ctx.audit({ action: 'announcement.created', entityType: 'Announcement', entityId: row.id });
       return { id: row.id };
     });

@@ -11,6 +11,7 @@ import {
   emptyWorkingHours,
   PH_CURRENCIES,
   type PhCurrency,
+  RETAIL_BRANCH_NAME_MAX,
   readWorkingHours,
   RESTAURANT_TYPES,
   SOCIAL_NETWORKS,
@@ -21,7 +22,9 @@ import {
 } from '@/server/domain/restaurant-profile';
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
 import { MediaPicker } from '@/studio/media/MediaPicker';
+import { businessPath, sectorOfSpace, type BusinessSpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
@@ -115,14 +118,17 @@ function ProfileFields({
   initial,
   withNotes,
   showType = true,
+  sector = 'FOOD',
 }: {
   form: ActionForm<unknown>;
   initial: ProfileValues;
   withNotes: boolean;
-  /** A pharmacy has no restaurant type. */
+  /** A pharmacy or a retail shop has no restaurant type. */
   showType?: boolean;
+  /** Whose words the fields speak: a retail shop's name no restaurant or guest. */
+  sector?: BusinessSector;
 }) {
-  const t = useT();
+  const t = spaceT(useT(), spaceOfSector(sector));
   const kept = (name: string, fallback: string) => form.value(name) ?? fallback;
   const hoursMessage = Object.entries(form.errors).find(([name]) => name === 'workingHours' || name.startsWith('workingHours.'))?.[1];
   const onlyHoursRefused = hoursMessage !== undefined && Object.keys(form.errors).every((name) => name.startsWith('workingHours'));
@@ -229,8 +235,12 @@ interface BranchRow {
   city: string;
 }
 
-/** What only a pharmacy has to say when it is created: its branches, its currencies and who owns it. */
+/**
+ * What only a pharmacy or a retail shop has to say when it is created: its branches, its currencies and who owns it. A
+ * retail shop caps branch names at what Retails accepts and cannot be created without an owner.
+ */
 function PharmacyFields({
+  retail = false,
   form,
   branches,
   onBranches,
@@ -239,6 +249,7 @@ function PharmacyFields({
   ownerEmail,
   onOwnerEmail,
 }: {
+  retail?: boolean;
   form: ActionForm<unknown>;
   branches: BranchRow[];
   onBranches: (next: BranchRow[]) => void;
@@ -254,14 +265,14 @@ function PharmacyFields({
 
   return (
     <>
-      <Section id="branches" title={t('restaurants.form.branches')} intro={t('restaurants.form.branchesIntro')}>
+      <Section id="branches" title={t('restaurants.form.branches')} intro={t(retail ? 'restaurants.form.retailBranchesIntro' : 'restaurants.form.branchesIntro')}>
         {branches.map((row, index) => (
           <div key={index} className="flex items-start gap-2">
             <Field label={t('restaurants.form.branchName', { n: index + 1 })} hideLabel error={form.fieldError(`branches.${index}.name`)} className="min-w-0 flex-1">
               <Input
                 name={`branches.${index}.name`}
                 autoComplete="off"
-                maxLength={120}
+                maxLength={retail ? RETAIL_BRANCH_NAME_MAX : 120}
                 placeholder={t('restaurants.form.branchName', { n: index + 1 })}
                 value={row.name}
                 onChange={(event) => change(index, { name: event.target.value })}
@@ -297,7 +308,7 @@ function PharmacyFields({
         </div>
       </Section>
 
-      <Section id="currencies" title={t('restaurants.form.currencies')} intro={t('restaurants.form.currenciesIntro')}>
+      <Section id="currencies" title={t('restaurants.form.currencies')} intro={t(retail ? 'restaurants.form.retailCurrenciesIntro' : 'restaurants.form.currenciesIntro')}>
         <fieldset className="flex flex-col gap-2" aria-describedby={currenciesError ? 'currencies-error' : undefined}>
           <legend className="sr-only">{t('restaurants.form.currencies')}</legend>
           {PH_CURRENCIES.map((currency) => (
@@ -319,7 +330,12 @@ function PharmacyFields({
       </Section>
 
       <Section id="owner" title={t('restaurants.form.ownerEmail')}>
-        <Field label={t('restaurants.form.ownerEmail')} hint={t('restaurants.form.ownerEmailHint')} optional error={form.fieldError('ownerEmail')}>
+        <Field
+          label={t('restaurants.form.ownerEmail')}
+          hint={t(retail ? 'restaurants.form.retailOwnerEmailHint' : 'restaurants.form.ownerEmailHint')}
+          optional={!retail}
+          error={form.fieldError('ownerEmail')}
+        >
           <Input
             name="ownerEmail"
             type="email"
@@ -343,22 +359,31 @@ function PharmacyFields({
 export function CreateRestaurantForm({
   planNames = null,
   initialSector = 'FOOD',
+  space,
 }: {
   planNames?: Record<PlanTier, string> | null;
   initialSector?: BusinessSector;
+  /** The Super Admin's space the form is in: it fixes the sector (no switch) and opens the business in that space. */
+  space?: BusinessSpaceId;
 }) {
-  const t = useT();
+  const baseT = useT();
   const router = useRouter();
-  const [sector, setSector] = useState<BusinessSector>(initialSector);
+  const [sector, setSector] = useState<BusinessSector>(space ? (sectorOfSpace(space) ?? 'FOOD') : initialSector);
+  // In the words of the space, else of the sector chosen: a new retail shop names no restaurant, a new supermarket no other product.
+  const wordsOf = space ?? spaceOfSector(sector);
+  const t = spaceT(baseT, wordsOf);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');
-  const pharmacy = sector === 'PHARMACY';
+  const retail = sector === 'RETAIL';
+  // A pharmacy and a retail shop share the branches, currencies and owner fields; neither has a restaurant type or a menu plan.
+  const pharmacy = sector === 'PHARMACY' || retail;
   const form = useActionForm(
     (values) =>
       createRestaurant({
         ...profileOf(values, true),
-        // A pharmacy has no restaurant type and no menu plan.
+        ...(space ? { space } : {}),
+        // A pharmacy or retail shop has no restaurant type and no menu plan.
         ...(pharmacy
           ? {
               type: 'OTHER',
@@ -373,9 +398,11 @@ export function CreateRestaurantForm({
       }),
     {
       keep: KEPT,
+      t,
       onSuccess: ({ restaurantId }) => {
         toast.success(t('restaurants.form.created'));
-        router.push(`/studio/restaurants/${restaurantId}`);
+        // Opened in the space it was made in: a shop made in a Retail product's space is that product.
+        router.push(businessPath(wordsOf, restaurantId));
       },
     },
   );
@@ -383,6 +410,7 @@ export function CreateRestaurantForm({
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
       <div className="grid max-w-2xl gap-4 pb-6 sm:grid-cols-2">
+        {!space && (
         <Field label={t('restaurants.form.sector')} hint={t('restaurants.form.sectorHint')} error={form.fieldError('sector')} className="sm:col-span-2">
           <Select
             name="sector"
@@ -391,15 +419,17 @@ export function CreateRestaurantForm({
             options={BUSINESS_SECTORS.map((value) => ({ value, label: t(`restaurants.sector.${value}`) }))}
           />
         </Field>
+        )}
         {planNames && !pharmacy && (
           <Field label={t('restaurants.form.plan')} hint={t('restaurants.form.planHint')} error={form.errors.plan} className="sm:col-span-2 sm:max-w-xs">
             <Select name="plan" defaultValue="BASIC" options={PLAN_TIERS.map((tier) => ({ value: tier, label: planNames[tier] }))} />
           </Field>
         )}
       </div>
-      <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} />
+      <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} sector={sector} />
       {pharmacy && (
         <PharmacyFields
+          retail={retail}
           form={form}
           branches={branches}
           onBranches={setBranches}
@@ -428,20 +458,24 @@ export function EditRestaurantForm({
   version,
   initial,
   logo: initialLogo = null,
+  sector = 'FOOD',
 }: {
   restaurantId: string;
   version: number;
   initial: ProfileValues;
   /** The restaurant's logo; a new menu starts its brand kit with it. */
   logo?: { assetId: string; thumbUrl: string } | null;
+  /** The business's sector: only a restaurant has a type, and a retail shop is spoken of in Retail's words. */
+  sector?: BusinessSector;
 }) {
-  const t = useT();
+  const t = spaceT(useT(), spaceOfSector(sector));
   const router = useRouter();
   const withNotes = initial.notes !== null;
   const [logo, setLogo] = useState(initialLogo);
   const [picking, setPicking] = useState(false);
   const form = useActionForm((values) => updateRestaurant({ restaurantId, version, ...profileOf(values, withNotes), logoAssetId: logo?.assetId ?? null }), {
     keep: KEPT,
+    t,
     onSuccess: () => {
       toast.success(t('restaurants.form.saved'));
       router.refresh();
@@ -450,7 +484,7 @@ export function EditRestaurantForm({
 
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
-      <ProfileFields form={form} initial={initial} withNotes={withNotes} />
+      <ProfileFields form={form} initial={initial} withNotes={withNotes} showType={sector === 'FOOD'} sector={sector} />
       <Section id="logo" title={t('restaurants.form.logo')} intro={t('restaurants.form.logoIntro')}>
         <div className="flex items-center gap-4">
           {logo ? (

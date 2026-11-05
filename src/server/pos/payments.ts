@@ -1,3 +1,4 @@
+import { settleCards } from './loyalty';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { canTransition } from '@/server/domain/pos/order-state';
 import { partTotals } from '@/server/domain/pos/split';
@@ -143,6 +144,8 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
   });
   if (locked.count !== chosen.length) throw refuse('CONFLICT', 'This line is already paid');
   // Stock: a product with a recipe takes its ingredients out in this same transaction (never refused for lack of stock).
+  // The guest's stamp card: a fully paid order earns its stamp in this same transaction.
+  if (finishes) await settleCards(db, restaurantId, order.id);
   const consumed = await consumeForPayment(db, restaurantId, input.userId, { paymentId: payment.id, lines: live.map((line) => ({ orderLineId: line.id, productId: line.productId, quantity: line.quantity })) });
   return { paymentId: payment.id, method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method, orderId: order.id, number: order.number, change: checked.change, tip: checked.tip?.amount ?? 0, total: totals.total, from: order.status, shiftId, consumed, part, paid: finishes };
 }

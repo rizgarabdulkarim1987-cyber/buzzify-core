@@ -11,6 +11,10 @@ export async function setOptionAvailability(input: unknown) {
   return invoke(availability.setOption, input);
 }
 
+export async function setProductDrop(input: unknown) {
+  return invoke(availability.setDrop, input);
+}
+
 export async function setProductStock(input: unknown) {
   return invoke(availability.setStock, input);
 }

@@ -1,0 +1,36 @@
+name: Deploy
+
+# After every merge to main, ask the VPS to rebuild and restart the "menu" compose project (Studio and the other spaces).
+# The Docker build runs `prisma migrate deploy` against the production database, so give the
+# `production` environment a required reviewer (GitHub, Settings, Environments) and take a database
+# backup before approving a deploy that carries a migration.
+# The SSH key can only run /docker/deploy.sh (setup: docs/deploy/vps-deploy.md in the Buzzify-retails repo), and only for the
+# project name sent below.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-menu
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Deploy over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" menu

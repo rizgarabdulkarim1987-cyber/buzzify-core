@@ -18,6 +18,23 @@ export function sceneMediaOf(asset: ResolvableAsset, mediaUrl: (key: string) => 
     case 'LOTTIE':
       if (!asset.width || !asset.height) return null;
       return { kind: 'lottie', assetId: asset.id, url, width: asset.width, height: asset.height };
+    case 'IMAGE': {
+      const sizes = Object.entries(variants.webp ?? {})
+        .map(([width, key]) => [Number(width), key] as const)
+        .filter(([width]) => Number.isFinite(width))
+        .sort((x, y) => x[0] - y[0]);
+      const widest = sizes.at(-1);
+      if (!widest || !asset.width || !asset.height) return null;
+      return {
+        kind: 'image',
+        assetId: asset.id,
+        url: mediaUrl(widest[1]),
+        width: asset.width,
+        height: asset.height,
+        srcset: sizes.map(([width, key]) => `${mediaUrl(key)} ${width}w`).join(', '),
+        placeholder: asset.placeholder,
+      };
+    }
     case 'VIDEO': {
       const widths = Object.entries(variants.poster?.webp ?? {})
         .map(([width, key]) => [Number(width), key] as const)

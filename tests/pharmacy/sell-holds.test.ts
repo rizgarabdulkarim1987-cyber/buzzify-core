@@ -347,6 +347,33 @@ describe('ph.sell.search by unit ids', () => {
   });
 });
 
+describe('ph.sell.search browse (the shelf)', () => {
+  it('with an empty query lists the active products this branch has stock of, by name, and nothing else', async () => {
+    const w = await world();
+    await stock(w);
+    const late = await product(w, 'Zzz Last');
+    await stock(w, { productId: late.id, lot: 'Z1' });
+    await product(w, 'Aaa Never Received');
+    const archived = await product(w, 'Archived');
+    await stock(w, { productId: archived.id, lot: 'A1' });
+    await prisma().phProduct.update({ where: { id: archived.id }, data: { active: false } });
+    const elsewhere = await product(w, 'Other Branch Only');
+    await stock(w, { productId: elsewhere.id, lot: 'E1', branchId: w.b2 });
+    const shelf = dataOf(await search(w, w.cashier, { q: '', browse: true }));
+    const names = shelf.items.map((i: { tradeName: string }) => i.tradeName);
+    expect(names).toEqual(['Panadol', 'Zzz Last']);
+    expect(names).not.toContain('Aaa Never Received');
+    expect(shelf.items[0].units.length).toBeGreaterThan(0);
+  });
+
+  it('is ignored when the query has text, and an empty query without browse still finds nothing', async () => {
+    const w = await world();
+    await stock(w);
+    expect(dataOf(await search(w, w.cashier, { q: '', browse: false })).items).toEqual([]);
+    expect(dataOf(await search(w, w.cashier, { q: 'zzzz-nothing', browse: true })).items).toEqual([]);
+  });
+});
+
 describe('resuming and discarding', () => {
   it('returns the cart for the screen to edit, to any seller of the branch, and leaves the hold in place', async () => {
     const w = await world();

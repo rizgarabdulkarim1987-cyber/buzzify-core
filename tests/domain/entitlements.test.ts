@@ -20,8 +20,8 @@ const live = (tier: PlanTier) =>
   [...defaultPlans().features[tier]].filter((key) => FEATURES.find((feature) => feature.key === key)!.status === 'live');
 
 describe('the feature catalog', () => {
-  it('lists the eighteen live features first, in the specs’ order', () => {
-    expect(FEATURE_KEYS.slice(0, 18)).toEqual([
+  it('lists the live features first, in the specs’ order', () => {
+    expect(FEATURE_KEYS.slice(0, 35)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
@@ -40,9 +40,26 @@ describe('the feature catalog', () => {
       'menu.about',
       'menu.wheel',
       'menu.dishCounts',
+      'design.premiumTemplates',
+      'design.backgroundImage',
+      'design.motionPresets',
+      'guest.drinkMatch',
+      'guest.moodPicker',
+      'guest.livingPhotos',
+      'guest.occasionMoods',
+      'guest.stories',
+      'immersive.ar',
+      'ordering.tableBasket',
+      'table.callWaiter',
+      'contact.whatsapp',
+      'share.dishCards',
+      'loyalty.stampCard',
+      'display.tvBoard',
+      'selling.limitedDrops',
+      'design.seasonalParticles',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(18);
-    expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(17);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(35);
+    expect(FEATURES.filter((feature) => (feature.status as string) === 'reserved')).toHaveLength(0);
   });
 
   it('knows its own keys and nothing else', () => {
@@ -52,7 +69,7 @@ describe('the feature catalog', () => {
   });
 
   it('starts each live feature where the spec says', () => {
-    expect(live('BASIC')).toEqual(['immersive.explore', 'menu.intro']);
+    expect(live('BASIC')).toEqual(['immersive.explore', 'menu.intro', 'contact.whatsapp']);
     expect(live('PRO')).toEqual([
       'design.fontPairs',
       'design.railStyles',
@@ -69,8 +86,21 @@ describe('the feature catalog', () => {
       'menu.about',
       'menu.wheel',
       'menu.dishCounts',
+      'design.premiumTemplates',
+      'design.backgroundImage',
+      'design.motionPresets',
+      'guest.drinkMatch',
+      'guest.moodPicker',
+      'guest.occasionMoods',
+      'guest.stories',
+      'table.callWaiter',
+      'contact.whatsapp',
+      'share.dishCards',
+      'loyalty.stampCard',
+      'selling.limitedDrops',
+      'design.seasonalParticles',
     ]);
-    expect(live('PREMIUM')).toHaveLength(18);
+    expect(live('PREMIUM')).toHaveLength(35);
   });
 
   it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
@@ -172,7 +202,7 @@ describe('a restaurant’s entitlements', () => {
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 18).filter((key) => key !== 'immersive.explore' && key !== 'menu.intro'));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 35).filter((key) => key !== 'immersive.explore' && key !== 'menu.intro' && key !== 'contact.whatsapp'));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });

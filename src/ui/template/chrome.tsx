@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { localDigits } from '@/lib/digits';
+import type { Mood } from '@/lib/moods';
 import { DIETARY_TAGS, type DietaryTag } from '@/lib/product-tags';
 import type { BusinessInfo, LocalText, Promotion } from '@/lib/templates/types';
 import type { MenuOfferView } from '@/server/data/menu-view';
@@ -117,6 +118,21 @@ export function FilterBar({
           {t('tpl.clearFilters')}
         </button>
       )}
+    </div>
+  );
+}
+
+/** "What are you in the mood for?": one tap puts the matching dishes first in every section (plan feature `guest.moodPicker`). */
+export function MoodPicker({ available, chosen, onChoose }: { available: readonly Mood[]; chosen: Mood | null; onChoose: (mood: Mood | null) => void }) {
+  const { t } = useApp();
+  if (available.length === 0) return null;
+  return (
+    <div role="group" aria-label={t('tpl.mood.title')} className="scroll-hidden flex gap-2 overflow-x-auto px-(--gutter)">
+      {available.map((mood) => (
+        <button key={mood} type="button" aria-pressed={chosen === mood} onClick={() => onChoose(chosen === mood ? null : mood)} className="tpl-chip tpl-filter shrink-0">
+          {t(`tpl.mood.${mood}`)}
+        </button>
+      ))}
     </div>
   );
 }

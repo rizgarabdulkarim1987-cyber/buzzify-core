@@ -80,6 +80,14 @@ describe('what a scene file plays (spec 2026-10-18-template-studio-stage-2-scene
     expect(scenePlan(requested, kind, ok())).toBe(shown);
   });
 
+  it('draws a background picture in every mode, with reduced motion and data saver too, and gives way to the poster if it fails', () => {
+    for (const requested of ['static', 'motion', '3d'] as const) {
+      expect(scenePlan(requested, 'image', ok())).toBe('image');
+      expect(scenePlan(requested, 'image', ok({ reducedMotion: true, saveData: true }))).toBe('image');
+      expect(scenePlan(requested, 'image', ok({ failed: true }))).toBe('poster');
+    }
+  });
+
   it('plays the template scene as before without a file', () => {
     expect(scenePlan('3d', null, ok())).toBe('3d');
     expect(scenePlan('motion', null, ok())).toBe('motion');

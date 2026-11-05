@@ -406,7 +406,8 @@ describe('scene files', () => {
         .rows.map((row) => row.id)
         .sort();
     expect(await ids()).toEqual([picture]);
-    expect(await ids('scene')).toEqual([model, video].sort());
+    // A photo is also a background picture, so the scene family lists it too (spec 2026-10-31, 3.1).
+    expect(await ids('scene')).toEqual([picture, model, video].sort());
     expect(await ids('all')).toEqual([picture, model, video].sort());
 
     const rows = dataOf(await ask(designerOfA, mediaQueries.listMedia, { restaurantId: a.restaurant.id, kinds: 'scene' })).rows;

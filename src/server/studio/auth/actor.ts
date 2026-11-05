@@ -22,6 +22,8 @@ export interface Actor {
   memberships: Array<{ restaurantId: string; role: MemberRole }>;
   /** The restaurant a PIN session is bound to: the till works there, whatever else the person has joined. */
   posRestaurantId?: string;
+  /** Present (true) only for an account made because Buzzify Retail asked for it, until a Studio invitation is accepted. */
+  identityOnly?: true;
 }
 
 /** The actor for a user id, or `null` when there is no such user or the user is deactivated. */
@@ -41,6 +43,7 @@ export async function loadActor(prisma: PrismaClient, userId: string): Promise<A
     locale: isLocale(user.locale) ? user.locale : 'en',
     appearance: parseStoredAppearance(user.appearance),
     memberships: user.memberships,
+    ...(user.identityOnly ? { identityOnly: true as const } : {}),
   };
 }
 

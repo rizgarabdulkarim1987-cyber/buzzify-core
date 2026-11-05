@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '@/ui/AppProviders';
+import { StampCardPanel, useStampCard } from './stamp-card';
+import { BasketParts, useTableBasket } from './table-basket';
 
 const POLL_MS = 5_000;
 
@@ -30,6 +32,11 @@ function scannedHere(slug: string, table: number): boolean {
   } catch {
     return false;
   }
+}
+
+/** The order a guest dismissed, so the table's basket does not bring the same status back. */
+function dismissedKey(slug: string): string {
+  return `buzzify:basket-dismissed:${slug}`;
 }
 
 function writeSent(slug: string, sent: Sent | null): void {
@@ -71,20 +78,25 @@ function Panel({ canSend }: { canSend: boolean }) {
   return (
     <>
       <OrderPanel canSend={canSend} available={available} scanned={scanned} />
-      {available && scanned && !preview && table !== null ? <BillButton table={table} /> : null}
+      {available && scanned && !preview && table !== null ? (
+        <>
+          {tenant.features.callWaiter === true ? <CallButton table={table} kind="WAITER" /> : null}
+          <CallButton table={table} kind="BILL" />
+        </>
+      ) : null}
     </>
   );
 }
 
-/** One button: the waiter brings the bill. Shown only where ordering from the table is open. */
-function BillButton({ table }: { table: number }) {
+/** One button: the waiter brings the bill, or comes to the table. Shown only where ordering from the table is open. */
+function CallButton({ table, kind }: { table: number; kind: 'BILL' | 'WAITER' }) {
   const { t, tenant } = useApp();
   const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'tooMany' | 'failed'>('idle');
   const call = async () => {
     if (state === 'busy') return;
     setState('busy');
     try {
-      const response = await fetch(`/api/${tenant.slug}/bill-call`, {
+      const response = await fetch(`/api/${tenant.slug}/${kind === 'BILL' ? 'bill-call' : 'waiter-call'}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ table }),
@@ -95,9 +107,9 @@ function BillButton({ table }: { table: number }) {
     }
   };
   return (
-    <section className="mt-6" aria-live="polite" data-testid="bill-call">
+    <section className="mt-6" aria-live="polite" data-testid={kind === 'BILL' ? 'bill-call' : 'waiter-call'}>
       {state === 'sent' ? (
-        <p className="rounded-2xl border border-line p-4">{t('qr.billSent')}</p>
+        <p className="rounded-2xl border border-line p-4">{t(kind === 'BILL' ? 'qr.billSent' : 'qr.waiterSent')}</p>
       ) : (
         <>
           {state === 'tooMany' || state === 'failed' ? (
@@ -105,8 +117,8 @@ function BillButton({ table }: { table: number }) {
               {t(state === 'tooMany' ? 'qr.billTooMany' : 'qr.billFailed')}
             </p>
           ) : null}
-          <button type="button" onClick={() => void call()} disabled={state === 'busy'} className="min-h-12 w-full rounded-full border border-line px-6 disabled:opacity-60" data-testid="bill-call-button">
-            {t('qr.bill')}
+          <button type="button" onClick={() => void call()} disabled={state === 'busy'} className="min-h-12 w-full rounded-full border border-line px-6 disabled:opacity-60" data-testid={kind === 'BILL' ? 'bill-call-button' : 'waiter-call-button'}>
+            {t(kind === 'BILL' ? 'qr.bill' : 'qr.waiter')}
           </button>
         </>
       )}
@@ -125,6 +137,29 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const api = `/api/${tenant.slug}/qr-order`;
+  // One basket for the whole table when the plan has it; otherwise this phone orders alone.
+  const shared = tenant.features.tableBasket === true && !preview && table !== null && available && scanned && canSend;
+  const basket = useTableBasket(shared && !sent);
+  const followed = basket.view?.sent?.publicId ?? null;
+  // The guest's stamp card, when the plan and the restaurant have one; it goes with the order so the paid order earns its stamp.
+  const stamp = useStampCard(tenant.features.stampCard === true && !preview && table !== null && available && scanned && canSend, sent?.publicId ?? null);
+  const card = stamp.card && stamp.token ? { card: { token: stamp.token, redeem: stamp.redeem } } : {};
+
+  // Another phone at the table sent the basket: follow the same order.
+  useEffect(() => {
+    if (!followed || sent || table === null) return;
+    try {
+      if (window.sessionStorage.getItem(dismissedKey(tenant.slug)) === followed) return;
+    } catch {
+      // Without storage a dismissed status may come back once.
+    }
+    const next = { publicId: followed, table };
+    writeSent(tenant.slug, next);
+    setPhase('PENDING');
+    setWithCaptain(false);
+    setReason('');
+    setSent(next);
+  }, [followed, sent, table, tenant.slug]);
 
   useEffect(() => {
     if (!sent || phase !== 'PENDING') return;
@@ -163,19 +198,34 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(api, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          table,
-          locale,
-          cart: {
-            lines: cart.lines.map((line) => ({ productId: line.productId, variantId: line.variantId, optionIds: line.optionIds, quantity: line.quantity })),
-            bundles: [],
-          },
-          note,
-        }),
-      });
+      let response: Response;
+      if (shared) {
+        // The guest's own part is written first, so the order holds everything on their phone.
+        if (!(await basket.flush())) {
+          setError(t('qr.failed'));
+          return;
+        }
+        response = await fetch(`/api/${tenant.slug}/table-basket/send`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ table, token: basket.token, locale, note, ...card }),
+        });
+      } else {
+        response = await fetch(api, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            table,
+            locale,
+            cart: {
+              lines: cart.lines.map((line) => ({ productId: line.productId, variantId: line.variantId, optionIds: line.optionIds, quantity: line.quantity })),
+              bundles: [],
+            },
+            note,
+            ...card,
+          }),
+        });
+      }
       if (!response.ok) {
         setError(t(response.status === 429 ? 'qr.tooMany' : 'qr.failed'));
         return;
@@ -194,9 +244,14 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
     } finally {
       setBusy(false);
     }
-  }, [api, busy, cart.lines, locale, note, replaceCart, t, table, tenant.slug]);
+  }, [api, basket, busy, card, cart.lines, locale, note, replaceCart, shared, t, table, tenant.slug]);
 
   const again = () => {
+    try {
+      if (sent) window.sessionStorage.setItem(dismissedKey(tenant.slug), sent.publicId);
+    } catch {
+      // Without storage a dismissed status may come back once.
+    }
     writeSent(tenant.slug, null);
     setSent(null);
   };
@@ -225,12 +280,17 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
 
   if (!canSend || !available || !scanned) return null;
   if (cart.bundles.length > 0) return <p className="mt-8 text-sm text-muted">{t('qr.bundles')}</p>;
+  const others = basket.view?.parts.some((part) => !part.mine) === true;
+  const blocked = basket.view?.parts.some((part) => part.invalid) === true;
+  const nothing = cart.lines.length === 0 && !others;
 
   return (
     <section className="mt-8" aria-labelledby="qr-send-title">
       <h2 id="qr-send-title" className="font-display text-xl">
-        {t('qr.title', { table })}
+        {t(shared ? 'basket.title' : 'qr.title', { table })}
       </h2>
+      {shared ? <p className="mt-1 text-sm text-muted">{t('basket.intro')}</p> : null}
+      {shared && basket.view ? <BasketParts view={basket.view} /> : null}
       <label className="mt-3 block text-sm text-muted" htmlFor="qr-note">
         {t('qr.note')}
       </label>
@@ -243,9 +303,10 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
         rows={2}
         className="mt-1 w-full rounded-xl border border-line bg-transparent p-3"
       />
+      <StampCardPanel stamp={stamp} />
       {error ? <p className="mt-2 text-sm text-accent" role="alert">{error}</p> : null}
-      <button type="button" onClick={() => void send()} disabled={busy} className="mt-4 min-h-12 w-full rounded-full bg-accent px-6 text-lg text-on-accent disabled:opacity-60" data-testid="qr-send">
-        {busy ? t('qr.sending') : t('qr.send')}
+      <button type="button" onClick={() => void send()} disabled={busy || (shared && (nothing || blocked))} className="mt-4 min-h-12 w-full rounded-full bg-accent px-6 text-lg text-on-accent disabled:opacity-60" data-testid="qr-send">
+        {busy ? t('qr.sending') : t(shared ? 'basket.send' : 'qr.send')}
       </button>
     </section>
   );

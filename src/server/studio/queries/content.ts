@@ -10,6 +10,8 @@ import { defineQuery, type QueryContext } from '@/server/studio/framework/query'
 import { StudioError } from '@/server/studio/framework/result';
 import { idField, missingIn, textsOf, type ContentTree, type ProductEditing } from '@/server/studio/services/content';
 import { thumbKey } from '@/server/studio/services/media';
+import { upgradeInfo } from '@/server/studio/services/plans';
+import { allows } from '@/server/domain/entitlements';
 
 /**
  * What the Content tab reads: the menu's categories with their products, and one product as its drawer edits it. Both
@@ -173,6 +175,7 @@ export const product = defineQuery({
       serves: row.serves,
       lowStockThreshold: row.lowStockThreshold,
       media: media.map((value) => ({ value, thumbUrl: thumb(value) })),
+      models: { allowed: ctx.plan !== null && allows(ctx.plan.entitlements, 'immersive.models3d'), upgrade: await upgradeInfo(ctx.db, ctx) },
       variants: row.variants.map((variant) => ({
         id: variant.id,
         version: variant.version,

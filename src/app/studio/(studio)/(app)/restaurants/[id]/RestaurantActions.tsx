@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { deleteRestaurant, setRestaurantStatus } from '@/app/studio/_actions/restaurants';
-import type { RestaurantStatus } from '@/server/domain/restaurant-profile';
+import type { BusinessSector, RestaurantStatus } from '@/server/domain/restaurant-profile';
 import { useT } from '@/studio/i18n';
 import { useRefuse } from '@/studio/refuse';
+import { spaceOfSector, spaceT } from '@/studio/space-words';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
@@ -24,6 +26,12 @@ export interface RestaurantActionsProps {
   menuCount: number;
   canChangeStatus: boolean;
   canDelete: boolean;
+  /** Where the list of this kind of business is: the page to land on after a delete. */
+  listHref?: string;
+  /** The space of the page, which the actions name so they never touch the other project's businesses. */
+  space?: BusinessSpaceId;
+  /** The business's sector, whose project's words the dialogs speak (a retail shop's name no menu or guest). */
+  sector?: BusinessSector;
 }
 
 const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPENDED: 'suspend', ARCHIVED: 'archive' };
@@ -32,8 +40,9 @@ const STATUS_COPY: Record<RestaurantStatus, string> = { ACTIVE: 'restore', SUSPE
  * Suspend, archive, restore and delete, each behind a question: suspending and archiving take every menu of the
  * restaurant off the public pages at once, and deleting cannot be undone. Offers only what the person may do now.
  */
-export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete }: RestaurantActionsProps) {
-  const t = useT();
+export function RestaurantActions({ restaurantId, name, status, menuCount, canChangeStatus, canDelete, listHref = '/studio/restaurants', space, sector }: RestaurantActionsProps) {
+  // The page's space first (a Super Admin's, which names a shop's own product), else the words of the business's sector.
+  const t = spaceT(useT(), space ?? (sector ? spaceOfSector(sector) : undefined));
   const router = useRouter();
   const refuse = useRefuse();
   const [choice, setChoice] = useState<Choice | null>(null);
@@ -86,7 +95,7 @@ export function RestaurantActions({ restaurantId, name, status, menuCount, canCh
         tone={target === 'ACTIVE' ? 'primary' : 'danger'}
         onConfirm={async () => {
           if (!target) return true;
-          const result = await setRestaurantStatus({ restaurantId, status: target });
+          const result = await setRestaurantStatus({ restaurantId, status: target, ...(space ? { space } : {}) });
           if (!result.ok) return refuse(result);
           toast.success(t(`restaurants.statusDone.${target}`));
           router.refresh();
@@ -103,10 +112,10 @@ export function RestaurantActions({ restaurantId, name, status, menuCount, canCh
         body={menuCount > 0 ? t('restaurants.delete.hasMenus') : t('restaurants.delete.body')}
         confirmLabel={t('restaurants.delete.confirm')}
         onConfirm={async (form) => {
-          const result = await deleteRestaurant({ restaurantId, confirmName: String(form.get('confirmName') ?? '') });
+          const result = await deleteRestaurant({ restaurantId, confirmName: String(form.get('confirmName') ?? ''), ...(space ? { space } : {}) });
           if (!result.ok) return refuse(result, ['confirmName']);
           toast.success(t('restaurants.delete.done'));
-          router.push('/studio/restaurants');
+          router.push(listHref);
           return true;
         }}
       >

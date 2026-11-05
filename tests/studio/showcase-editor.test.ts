@@ -76,7 +76,8 @@ const baseRules = {
   pairings: [],
   sets: [],
   offers: [offer('o1', 'Happy hour', null), offer('o2', 'Winter soup', '2999-01-01')],
-  occasions: [{ id: 'e1', version: 1, names: { en: 'Eid' }, startsOn: '2020-01-01', endsOn: '2020-01-03', isActive: true }],
+  occasions: [{ id: 'e1', version: 1, names: { en: 'Eid' }, startsOn: '2020-01-01', endsOn: '2020-01-03', isActive: true, mood: null }],
+  upgrade: { restaurantId: 'r1', restaurantName: 'Cafe', whatsapp: null, isOwner: true, planNames: { BASIC: 'Basic', PRO: 'Pro', PREMIUM: 'Premium' }, allowed: ['guest.occasionMoods'], lowest: {}, planTabHref: '/studio/settings/plan' },
   showcase: [
     card('Second', 'ABOVE_SEARCH', 1),
     card('Below one', 'BELOW_SEARCH', 0),
@@ -197,6 +198,13 @@ describe('the showcase editor', () => {
     await click(button(en('common.save')));
     expect(actions.saveOccasion).toHaveBeenCalledWith(expect.objectContaining({ names: { en: 'Ramadan' }, startsOn: '2026-03-10', endsOn: '2026-03-01' }));
     expect(document.body.textContent).toContain(en('error.text.offerEndsBefore'));
+  });
+
+  it('offers the moods in the occasion dialog, locked on a plan without them', async () => {
+    const moodSelect = () => [...document.querySelectorAll('select')].find((select) => [...select.options].some((o) => o.value === 'RAMADAN'))!;
+    editor({ ...baseRules, upgrade: { ...baseRules.upgrade, allowed: [] } });
+    await click(button(en('sales.showcase.addOccasion')));
+    expect([...moodSelect().options].map((o) => [o.value, o.disabled])).toEqual([['', false], ['RAMADAN', true], ['NEWROZ', true], ['EID', true]]);
   });
 
   it('says in each strip’s hint that guests see its first 8 cards, however many there are', () => {
