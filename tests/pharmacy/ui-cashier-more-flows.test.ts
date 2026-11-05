@@ -220,6 +220,24 @@ describe('a receipt being held is frozen (pure)', () => {
   });
 });
 
+describe('N2: a receipt being paid refuses a prescription change or a reset, and says so', () => {
+  it('counts prescription and reset by key as frozen while the receipt has a sale in flight (pure)', () => {
+    const s = { receipts: [{ ...newReceipt(), key: 'a', cart: cartOf(), attempt: ATTEMPT, prescriptionId: 'rx-1' }, { ...newReceipt(), key: 'b', cart: cartOf() }], active: 1 };
+    expect(cashierLogic.frozenEdit(s, { type: 'prescription', receiptKey: 'a', prescriptionId: null })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'reset', receiptKey: 'a' })).toBe(true);
+    expect(cashierLogic.frozenEdit(s, { type: 'prescription', receiptKey: 'b', prescriptionId: null })).toBe(false);
+    expect(cashierLogic.frozenEdit(s, { type: 'reset', receiptKey: 'b' })).toBe(false);
+  });
+
+  it('shows the refusal when the prescription is detached from a receipt being paid', async () => {
+    screenWith([{ cart: cartOf(1, { rxLevel: 'RX' }), attempt: ATTEMPT, prescriptionId: 'rx-1' }]);
+    await flush();
+    click(byTest('rx-detach'));
+    expect(message()).toContain('F4');
+    expect(stored().receipts[0]!.prescriptionId).toBe('rx-1');
+  });
+});
+
 describe('where items land (pure)', () => {
   const base = (over: Partial<OpenReceipt>[]) => ({ receipts: over.map((r, i) => ({ ...newReceipt(), key: `k${i}`, cart: cartOf(), ...r })), active: 0 });
 

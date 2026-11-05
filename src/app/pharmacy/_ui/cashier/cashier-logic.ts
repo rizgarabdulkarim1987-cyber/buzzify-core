@@ -24,11 +24,17 @@ export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction 
 
 /**
  * Whether the action would change a FROZEN receipt: the active receipt has a sale attempt (being sent, or its outcome unknown), and
- * the action changes its lines, its whole cart or its customer (to another one). A frozen receipt's lines are the lines being paid;
+ * the action changes its lines, its whole cart or its customer (to another one); or a prescription change or a reset names (by key)
+ * any receipt with a sale attempt. A frozen receipt's lines are the lines being paid;
  * only the sale's own outcome (`attempt`, `refused`, `sold`) may change it. Other receipts stay editable.
  */
 export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean {
   if (state.holding && heldTarget(state, action) === state.holding) return true;
+  // By key: the prescription and a reset of a receipt being paid (the receipts reducer ignores them too; refusing here lets the screen say so).
+  if (action.type === 'prescription' || action.type === 'reset') {
+    const target = state.receipts.find((r) => r.key === action.receiptKey);
+    return !!target && !target.done && target.attempt !== null;
+  }
   const current = state.receipts[state.active];
   if (!current || current.done || current.attempt === null) return false;
   if (action.type === 'line' || action.type === 'cart' || action.type === 'replace' || action.type === 'done') return true;
