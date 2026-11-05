@@ -3,9 +3,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
-import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
-import { Input } from '@/studio/ui/Input';
+import { PhCheckbox, PhInput } from './ph-controls';
 import { wholeOf, type LevelDraft } from './product-draft';
 
 /** The most units a product has (the server's limit). */
@@ -33,18 +32,18 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
 
   return (
     <div className="flex flex-col gap-3">
-      <ol className="flex flex-col gap-3">
+      <ol className="flex min-w-0 flex-col divide-y divide-ph-line overflow-hidden rounded-ph-xl border border-ph-line">
         {levels.map((level, index) => {
           const name = index === 0 ? t('pharmacy.catalog.unit.base') : t('pharmacy.catalog.unit.pack', { n: index });
           return (
-            <li key={index} className="flex flex-col gap-3 rounded-md border border-line p-3">
-              <p className="text-sm font-medium text-text">{name}</p>
+            <li key={index} className="flex min-w-0 flex-col gap-3 p-3">
+              <p className="text-sm font-semibold text-ph-text">{name}</p>
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)]">
                 <Field label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.label')}</>} error={index === 0 ? errors.levels : undefined}>
-                  <Input dir="auto" value={level.label} maxLength={40} disabled={disabled} onChange={(e) => update(index, { label: e.target.value })} />
+                  <PhInput dir="auto" value={level.label} maxLength={40} disabled={disabled} onChange={(e) => update(index, { label: e.target.value })} />
                 </Field>
                 <Field label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.baseQty')}</>} error={errors[`levels.${index}.baseQty`]}>
-                  <Input
+                  <PhInput
                     inputMode="numeric"
                     dir="ltr"
                     value={index === 0 ? '1' : level.baseQty}
@@ -55,7 +54,7 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
                 </Field>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <Checkbox
+                <PhCheckbox
                   label={<><span className="sr-only">{name}: </span>{t('pharmacy.catalog.unit.sellable')}</>}
                   checked={level.sellable}
                   disabled={disabled}
@@ -66,6 +65,7 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="min-h-11"
                     icon={<Trash2 aria-hidden />}
                     onClick={() => onChange(levels.filter((_, i) => i !== index), index)}
                   >
@@ -78,13 +78,13 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
         })}
       </ol>
       {levels.length > 1 && top && topQty !== null && levels[0] && (
-        <p className="text-sm text-muted" dir="auto">
+        <p className="text-sm text-ph-muted" dir="auto">
           {t('pharmacy.catalog.unit.summary', { top: top.label || '…', count: topQty, base: levels[0].label || '…' })}
         </p>
       )}
       {!disabled && levels.length < MAX_LEVELS && (
         <div>
-          <Button size="sm" icon={<Plus aria-hidden />} onClick={() => onChange([...levels, { label: '', baseQty: '', sellable: true }])}>
+          <Button size="sm" className="min-h-11" icon={<Plus aria-hidden />} onClick={() => onChange([...levels, { label: '', baseQty: '', sellable: true }])}>
             {t('pharmacy.catalog.unit.add')}
           </Button>
         </div>

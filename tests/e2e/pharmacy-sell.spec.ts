@@ -188,6 +188,25 @@ async function raisePrice(restaurantId: string, productName: string, unitLabel: 
   }
 }
 
+/** The id of one unit (`tablet` or `strip`) of a product, by its trade name. */
+async function unitIdOf(restaurantId: string, productName: string, unitLabel: string): Promise<string> {
+  const client = db();
+  try {
+    const product = await client.phProduct.findFirstOrThrow({ where: { restaurantId, tradeName: productName }, select: { id: true } });
+    return (await client.phProductUnit.findFirstOrThrow({ where: { productId: product.id, label: unitLabel }, select: { id: true } })).id;
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+/** Neither the document nor `<main>` scrolls (the workspace fits the frame; only its own panes scroll). */
+const frameScrolls = (page: Page) =>
+  page.evaluate(() => {
+    const doc = document.documentElement;
+    const main = document.querySelector('main');
+    return { page: doc.scrollHeight > doc.clientHeight + 1, main: main ? main.scrollHeight > main.clientHeight + 1 : true };
+  });
+
 async function openShiftInDb(shop: TestPharmacy, userId: string): Promise<void> {
   const client = db();
   try {
@@ -233,25 +252,32 @@ test.describe('Pharmacy sell @desktop', () => {
   const people: string[] = [];
   /** The platform's kill switch for the pharmacy product: switched on for this run and put back after. */
   let applicationWas: 'ACTIVE' | 'DISABLED' | null = null;
+  /** The shops' plan ('standard') runs with no AI budget here, so the AI Doctor never shows on Sell; put back after. */
+  const plan = { applicationId_code: { applicationId: 'pharmacy', code: 'standard' } } as const;
+  let planLimitsWas: unknown = null;
 
   test.beforeAll(async () => {
     const client = db();
     try {
       applicationWas = (await client.application.findUnique({ where: { id: 'pharmacy' }, select: { status: true } }))?.status ?? null;
       await client.application.update({ where: { id: 'pharmacy' }, data: { status: 'ACTIVE' } });
+      const row = await client.appPlan.findUnique({ where: plan, select: { limits: true } });
+      planLimitsWas = row?.limits ?? null;
+      if (row && row.limits && typeof row.limits === 'object') {
+        await client.appPlan.update({ where: plan, data: { limits: { ...(row.limits as Record<string, unknown>), aiMonthlyBudgetMinor: 0 } } });
+      }
     } finally {
       await client.$disconnect();
     }
   });
 
   test.afterAll(async () => {
-    if (applicationWas) {
-      const client = db();
-      try {
-        await client.application.update({ where: { id: 'pharmacy' }, data: { status: applicationWas } });
-      } finally {
-        await client.$disconnect();
-      }
+    const client = db();
+    try {
+      if (applicationWas) await client.application.update({ where: { id: 'pharmacy' }, data: { status: applicationWas } });
+      if (planLimitsWas !== null) await client.appPlan.update({ where: plan, data: { limits: planLimitsWas as never } });
+    } finally {
+      await client.$disconnect();
     }
     await removeStudioUsers(people.splice(0));
     await removeRestaurants(restaurants.splice(0));
@@ -272,7 +298,9 @@ test.describe('Pharmacy sell @desktop', () => {
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await page.getByRole('navigation').getByRole('link', { name: 'Sell', exact: true }).click();
+    // The desktop rail (inside the frame's <header>), never the phone's bottom bar: both are named "Main navigation", and before
+    // the dev server's stylesheet applies the bar's md:hidden the two can both be in the accessibility tree for a moment.
+    await page.locator('header').getByRole('navigation').getByRole('link', { name: 'Sell', exact: true }).click();
 
     // No shift, no sale: the gate asks for the opening cash first.
     await expect(page.getByTestId('open-shift')).toBeVisible();
@@ -634,4 +662,136 @@ test.describe('Pharmacy sell @desktop', () => {
     expect(await seriousViolations(page), 'pay dialog').toEqual([]);
     await page.context().close();
   });
+
+  // Pharmacy redesign, task 7 ------------------------------------------------------------------------------------------------
+
+  test('`?add=` puts the units in the cart after the saved draft, says an unknown one in words, and the address loses the parameter', async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { shop, owner } = await owned('Add');
+    const names = await seedCatalog(shop, randomUUID().slice(0, 6));
+    const strip = await unitIdOf(shop.id, names.sellable, 'strip');
+    await openShiftInDb(shop, owner.userId);
+    const page = await freshPage(browser);
+    page.on('dialog', (dialog) => void dialog.accept());
+    await signInAndChoose(page, owner, shop, 1);
+
+    await page.goto(`/pharmacy/sell?add=${strip}:2`);
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cart-line')).toContainText(names.sellable);
+    await expect(page.getByTestId('qty-input')).toHaveValue('2');
+    await expect(page.getByTestId('line-total')).toContainText('4,000');
+    await expect(page).toHaveURL(/\/pharmacy\/sell$/);
+
+    // Handed in again with the draft on the device: the draft is read first, so the two are added to it, not replaced by it.
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length)).toBe(1);
+    await page.goto(`/pharmacy/sell?add=${strip}:2`);
+    await expect(page.getByTestId('qty-input')).toHaveValue('4');
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+
+    // A unit that is not here is said in words, without its raw id; nothing is added.
+    const missing = randomUUID();
+    await page.goto(`/pharmacy/sell?add=${missing}:1`);
+    await expect(page.getByTestId('scan-unknown')).toBeVisible();
+    await expect(page.getByTestId('scan-unknown')).not.toContainText(missing);
+    await expect(page.getByTestId('qty-input')).toHaveValue('4');
+    await page.context().close();
+  });
+
+  test('the offline banner and the draft cart survive a reload while the browser says it is offline', async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { shop, owner } = await owned('Draft');
+    const names = await seedCatalog(shop, randomUUID().slice(0, 6));
+    const strip = await unitIdOf(shop.id, names.sellable, 'strip');
+    await openShiftInDb(shop, owner.userId);
+    const page = await freshPage(browser);
+    page.on('dialog', (dialog) => void dialog.accept());
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(`/pharmacy/sell?add=${strip}:3`);
+    await expect(page.getByTestId('qty-input')).toHaveValue('3');
+    await expect(page.getByTestId('sell-offline')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length)).toBe(1);
+
+    // From the next load on, the browser reports no connection (the page itself still loads).
+    await page.context().addInitScript(() => {
+      Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
+    });
+    await page.reload();
+    await expect(page.getByTestId('sell-offline')).toBeVisible();
+    await expect(page.getByTestId('draft-restored')).toBeVisible();
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('qty-input')).toHaveValue('3');
+    await page.context().close();
+  });
+
+  for (const locale of ['en', 'ckb'] as const) {
+    test(`${locale}: the pay bar is in view without the page scrolling at 1280×800 and 375×667, with 44px steppers`, async ({ browser }) => {
+      test.setTimeout(180_000);
+      const shop = await makePharmacy(`Bar ${locale}`);
+      restaurants.push(shop.id);
+      const owner = await createStudioUser({ label: 'ph-sell-owner', name: 'Sell Owner', locale });
+      people.push(owner.email);
+      await assignMember(owner.userId, shop.id, 'OWNER');
+      const names = await seedCatalog(shop, randomUUID().slice(0, 6));
+      const units = [
+        await unitIdOf(shop.id, names.sellable, 'strip'),
+        await unitIdOf(shop.id, names.sellable, 'tablet'),
+        await unitIdOf(shop.id, names.rx, 'strip'),
+        await unitIdOf(shop.id, names.rx, 'tablet'),
+      ];
+      await openShiftInDb(shop, owner.userId);
+      const page = await freshPage(browser, { width: 1280, height: 800 });
+      await signInAndChoose(page, owner, shop, 1);
+      if (locale === 'ckb') await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      // Four lines: more than the phone's cart pane holds, so the cart scrolls inside its pane.
+      await page.goto(`/pharmacy/sell?add=${units.map((u) => `${u}:1`).join(',')}`);
+      await expect(page.getByTestId('cart-line')).toHaveCount(4);
+      // The AI Doctor's column is there, and takes no room while its slot renders nothing (this run's plan has no AI budget; with
+      // one, the Doctor shows: tests/e2e/pharmacy-doctor.spec.ts).
+      await expect(page.getByTestId('sell-doctor-slot')).toHaveCount(1);
+      await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
+      await expect(page.getByTestId('doctor-panel')).toHaveCount(0);
+      await expect(page.getByTestId('doctor-fab')).toHaveCount(0);
+
+      for (const [width, height, payId] of [
+        [1280, 800, 'pay-open'],
+        [375, 667, 'pay-open-bar'],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        const pay = page.getByTestId(payId);
+        await expect(pay, `${width}px`).toBeInViewport({ ratio: 1 });
+        expect((await pay.boundingBox())!.height, `pay at ${width}px`).toBeGreaterThanOrEqual(56);
+        expect(await frameScrolls(page), `${width}px`).toEqual({ page: false, main: false });
+        expect(await scrollsSideways(page), `sideways at ${width}px`).toBe(false);
+        // Every row's stepper, not just the first.
+        for (const id of ['qty-less', 'qty-more']) {
+          const buttons = await page.getByTestId(id).all();
+          expect(buttons, `${id} at ${width}px`).toHaveLength(4);
+          for (const [row, button] of buttons.entries()) {
+            const box = (await button.boundingBox())!;
+            expect(Math.min(box.width, box.height), `${id} row ${row + 1} at ${width}px`).toBeGreaterThanOrEqual(44);
+          }
+        }
+        // The last line is reached by scrolling the cart's own pane; the pay bar stays where it was.
+        await page.getByTestId('cart-line').last().scrollIntoViewIfNeeded();
+        await expect(pay, `${width}px after scrolling the cart`).toBeInViewport({ ratio: 1 });
+        expect(await frameScrolls(page), `${width}px after scrolling the cart`).toEqual({ page: false, main: false });
+      }
+
+      // Keyboard focus is visible: the amber ring on the scan field and on a pharmacy field (the invoice discount).
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.getByTestId('sell-search').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Shift+Tab');
+      const ring = (testId: string, inner = false) =>
+        page.getByTestId(testId).evaluate((el, deep) => {
+          const target = (deep ? el.querySelector('input') : el) as HTMLElement;
+          const style = getComputedStyle(target);
+          return { focused: target.matches(':focus-visible'), outline: style.outlineStyle, width: style.outlineWidth, colour: style.outlineColor };
+        }, inner);
+      expect(await ring('sell-search')).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
+      await page.getByTestId('invoice-discount').locator('input').focus();
+      expect(await ring('invoice-discount', true)).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
+      await page.context().close();
+    });
+  }
 });

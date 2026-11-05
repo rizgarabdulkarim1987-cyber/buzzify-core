@@ -87,14 +87,22 @@ export function daysToExpiry(batch: Pick<ExpiryBatch, 'expiryDate'>, today: stri
  */
 export function expiryBand(batch: ExpiryBatch, today: string): ExpiryBand {
   if (isExpired(batch, today)) return 'expired';
-  let days = daysToExpiry(batch, today);
-  if (batch.expiryPrecision === 'MONTH') {
-    const { year, month } = parts(batch.expiryDate);
-    days = Math.min(days, dayNumber(iso(year, month, 1)) - dayNumber(today));
-  }
+  const days = urgencyDays(batch, today);
   if (days <= 30) return 'd30';
   if (days <= 60) return 'd60';
   if (days <= 90) return 'd90';
   if (days <= 180) return 'd180';
   return 'ok';
+}
+
+/**
+ * The days a batch is alerted by, the number behind `expiryBand`: below 0 once expired (days since, as `daysToExpiry`),
+ * else the days left, where a MONTH batch counts to the START of its last month and stays at 0 through that month. The
+ * days shown to people stay `daysToExpiry` (to the last day it may be sold); the colour and the group follow this.
+ */
+export function urgencyDays(batch: ExpiryBatch, today: string): number {
+  const days = daysToExpiry(batch, today);
+  if (days < 0 || batch.expiryPrecision !== 'MONTH') return days;
+  const { year, month } = parts(batch.expiryDate);
+  return Math.max(0, Math.min(days, dayNumber(iso(year, month, 1)) - dayNumber(today)));
 }

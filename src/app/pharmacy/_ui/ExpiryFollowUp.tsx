@@ -9,13 +9,13 @@ import type { ExpiryStatus } from '@/server/pharmacy/expiry';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
-import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
 import { digitsOf } from './count-draft';
 import { phMessage } from './ph-failure';
+import { PH_BTN, PH_PRIMARY } from './sell-parts';
 import { useOnline } from './use-online';
 
 /** The same list as the server's (a type import only, so no server code reaches the browser). */
@@ -88,7 +88,7 @@ export function ExpiryFollowUp({ batchId, lot, userId, current, left }: ExpiryFo
 
   return (
     <details data-testid="expiry-followup" className="min-w-0">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
+      <summary className={`${PH_BTN} w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
         <ClipboardPen aria-hidden className="size-4 shrink-0" />
         {t('pharmacy.expiry.follow.open')}
         <span className="sr-only" dir="ltr">
@@ -96,7 +96,7 @@ export function ExpiryFollowUp({ batchId, lot, userId, current, left }: ExpiryFo
           {lot}
         </span>
       </summary>
-      <form onSubmit={(event) => void submit(event)} className="mt-2 grid gap-3 rounded-md border border-line bg-surface p-3 md:grid-cols-2">
+      <form onSubmit={(event) => void submit(event)} className="mt-2 grid gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas p-3 md:grid-cols-2">
         <Field label={t('pharmacy.expiry.status.label')} {...(problem?.fields.status ? { error: problem.fields.status } : {})}>
           <Select
             className="[&_select]:min-h-11"
@@ -134,27 +134,27 @@ export function ExpiryFollowUp({ batchId, lot, userId, current, left }: ExpiryFo
           </Field>
         </div>
         {label && (
-          <p data-testid="expiry-label-only" className="flex items-start gap-2.5 text-sm text-muted md:col-span-2">
+          <p data-testid="expiry-label-only" className="flex items-start gap-2.5 text-sm text-ph-muted md:col-span-2">
             <Info aria-hidden className="mt-px size-4 shrink-0" />
             <span className="min-w-0">{t('pharmacy.expiry.labels')}</span>
           </p>
         )}
         {problem && (
-          <p role="alert" data-testid="expiry-error" className="flex items-start gap-2.5 rounded-md bg-danger-wash px-3 py-2.5 text-sm text-danger md:col-span-2">
+          <p role="alert" data-testid="expiry-error" className="flex items-start gap-2.5 rounded-ph-xl bg-ph-red-wash px-3 py-2.5 text-sm text-ph-red md:col-span-2">
             <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
             <span className="min-w-0">{problem.message}</span>
           </p>
         )}
         {done && (
-          <p role="status" data-testid="expiry-saved" className="flex items-start gap-2.5 rounded-md bg-success-wash px-3 py-2.5 text-sm text-success md:col-span-2">
+          <p role="status" data-testid="expiry-saved" className="flex items-start gap-2.5 rounded-ph-xl bg-ph-g1 px-3 py-2.5 text-sm text-ph-g6 md:col-span-2">
             <CircleCheck aria-hidden className="mt-px size-4 shrink-0" />
             <span className="min-w-0">{done}</span>
           </p>
         )}
         <div className="md:col-span-2">
-          <Button type="submit" size="lg" className="min-h-11" disabled={busy || !online}>
+          <button type="submit" className={PH_PRIMARY} disabled={busy || !online}>
             {t('pharmacy.expiry.save')}
-          </Button>
+          </button>
         </div>
       </form>
     </details>

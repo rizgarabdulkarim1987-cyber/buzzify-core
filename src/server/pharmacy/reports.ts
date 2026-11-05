@@ -416,3 +416,12 @@ export async function discountsReport(scoped: ScopedClient, ph: PhActor, place: 
   };
 }
 
+/** One row per Baghdad day and currency of the sold sales (`SOLD`) completed in [start, end): their count and total (the home dashboard's series). */
+export async function soldByDay(scoped: ScopedClient, scope: Scope, start: Date, end: Date): Promise<Array<{ day: string; cur: Currency; n: number; total: bigint }>> {
+  return scoped.$queryRaw<Array<{ day: string; cur: Currency; n: number; total: bigint }>>(Prisma.sql`
+    SELECT ${dayOf(Prisma.sql`s."completedAt"`)} AS "day", s."currency"::text AS "cur", COUNT(*)::int AS "n", SUM(s."totalMinor")::bigint AS "total"
+    FROM "PhSale" s
+    WHERE s."restaurantId" = ${scope.restaurantId} AND s."branchId" = ANY(${scope.branchIds}::text[]) AND s."status"::text IN ${SOLD}
+      AND s."completedAt" >= ${stamp(start)} AND s."completedAt" < ${stamp(end)}
+    GROUP BY 1, 2`);
+}

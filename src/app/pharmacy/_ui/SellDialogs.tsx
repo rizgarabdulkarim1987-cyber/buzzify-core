@@ -19,7 +19,7 @@ import { phMessage } from './ph-failure';
 import { ThermalNote } from './ThermalNote';
 import { useThermal, useThermalJob } from './use-thermal';
 import { isolate } from './WriteBlocked';
-import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
+import { Num, Note, PH_BTN, PH_FIELD, PH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import { cashShortcuts, formatMinor, plainMinor as plain, keyFor, outcomeUnknown, paymentPreview, plainMinor, type Currency, type KeyedAttempt, type PayDraft, type PayMethod } from './sell-logic';
 
 // Pay -----------------------------------------------------------------------------------------------------------------
@@ -129,15 +129,15 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
       title={t('pharmacy.sell.pay.title')}
       description={
         <span data-testid="pay-total">
-          {t('pharmacy.sell.pay.total')}: <strong className="text-text"><Num>{formatMinor(totalMinor, currency)}</Num> {currency}</strong> · {t('pharmacy.sell.estimate')}
+          {t('pharmacy.sell.pay.total')}: <strong className="text-ph-text"><Num>{formatMinor(totalMinor, currency)}</Num> {currency}</strong> · {t('pharmacy.sell.estimate')}
         </span>
       }
       footer={
         <>
-          <button type="button" className={TOUCH_BTN} onClick={() => onOpenChange(false)} disabled={busy}>
+          <button type="button" className={PH_BTN} onClick={() => onOpenChange(false)} disabled={busy}>
             {t('pharmacy.sell.pay.cancel')}
           </button>
-          <button type="submit" form={form} data-testid="pay-confirm" className={TOUCH_PRIMARY} disabled={busy || offline || !preview.ok}>
+          <button type="submit" form={form} data-testid="pay-confirm" className={PH_PRIMARY} disabled={busy || offline || !preview.ok}>
             {busy ? <Hourglass aria-hidden className="size-4" /> : <CircleCheck aria-hidden className="size-4" />}
             {busy ? t('pharmacy.sell.pay.saving') : t('pharmacy.sell.pay.confirm')}
           </button>
@@ -146,9 +146,9 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
     >
       <form id={form} onSubmit={submit} className="flex flex-col gap-4">
         {creditAllowed && (
-          <fieldset className="flex flex-col gap-3 rounded-md border border-line p-3" data-testid="pay-credit">
-            <legend className="px-1 text-sm font-medium text-text">{t('pharmacy.credit.pay.legend')}</legend>
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text">
+          <fieldset className="flex flex-col gap-3 rounded-ph-xl border border-ph-line p-3" data-testid="pay-credit">
+            <legend className="px-1 text-sm font-medium text-ph-text">{t('pharmacy.credit.pay.legend')}</legend>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ph-text">
               <input
                 type="checkbox"
                 className="size-5 shrink-0"
@@ -166,7 +166,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
               <>
                 <CustomerPicker saleCurrency={currency} picked={customer} onPick={pickCustomer} />
                 {customerProblem && (
-                  <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">
+                  <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert">
                     {customerProblem}
                   </Note>
                 )}
@@ -174,7 +174,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
                   <>
                     <Field label={t('pharmacy.credit.pay.amount', { currency })} error={creditProblem ? t(`pharmacy.credit.pay.problem.${creditProblem}`) : undefined}>
                       <FieldInput
-                        className={FIELD}
+                        className={PH_FIELD}
                         dir="ltr"
                         inputMode="decimal"
                         autoComplete="off"
@@ -192,20 +192,20 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
         )}
 
         {noRest ? (
-          <Note icon={<CircleCheck aria-hidden />} tone="info" role="status" testId="pay-all-credit">
+          <Note look="ph" icon={<CircleCheck aria-hidden />} tone="info" role="status" testId="pay-all-credit">
             {t('pharmacy.credit.pay.allCredit')}
           </Note>
         ) : (
           <>
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1.5 text-sm font-medium text-text">{t(withCredit ? 'pharmacy.credit.pay.restMethod' : 'pharmacy.sell.pay.method')}</legend>
+              <legend className="mb-1.5 text-sm font-medium text-ph-text">{t(withCredit ? 'pharmacy.credit.pay.restMethod' : 'pharmacy.sell.pay.method')}</legend>
               <div className="grid grid-cols-3 gap-2">
                 {METHODS.map(({ method, icon }) => (
                   <label
                     key={method}
-                    className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
-                      draft.method === method ? 'border-ink bg-ink text-on-ink' : 'border-line-strong bg-raised text-text hover:bg-hover'
-                    } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink`}
+                    className={`flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-ph-xl border px-2 py-1.5 text-center text-sm font-medium [&_svg]:size-4 ${
+                      draft.method === method ? 'border-ph-g8 bg-ph-g8 text-ph-on-green' : 'border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas'
+                    } has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ph-accent`}
                   >
                     <input type="radio" name="method" value={method} checked={draft.method === method} onChange={() => setDraft({ ...draft, method, tendered: '' })} className="sr-only" data-testid={`pay-${method}`} />
                     {icon}
@@ -221,7 +221,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
               error={fieldError}
             >
               <FieldInput
-                className={FIELD}
+                className={PH_FIELD}
                 dir="ltr"
                 inputMode="decimal"
                 autoComplete="off"
@@ -235,11 +235,11 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
 
             {draft.method === 'CASH' && (
               <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('pharmacy.sell.pay.quick')}>
-                <button type="button" className={TOUCH_BTN} data-testid="pay-exact" aria-pressed={exact} onClick={() => setDraft({ ...draft, tendered: '' })}>
+                <button type="button" className={PH_BTN} data-testid="pay-exact" aria-pressed={exact} onClick={() => setDraft({ ...draft, tendered: '' })}>
                   {t('pharmacy.sell.pay.exact')}
                 </button>
                 {cashShortcuts(restOf, currency).map((amount) => (
-                  <button key={amount.toString()} type="button" className={TOUCH_BTN} onClick={() => setDraft({ ...draft, tendered: plainMinor(amount, currency) })}>
+                  <button key={amount.toString()} type="button" className={PH_BTN} onClick={() => setDraft({ ...draft, tendered: plainMinor(amount, currency) })}>
                     <Num>{formatMinor(amount, currency)}</Num>
                   </button>
                 ))}
@@ -247,20 +247,20 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
             )}
 
             {draft.method === 'CASH' ? (
-              <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-md font-semibold text-text">
+              <p data-testid="pay-change" className="flex items-baseline justify-between gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas px-3 py-2.5 text-md font-semibold text-ph-text">
                 <span>{t('pharmacy.sell.pay.change')}</span>
                 <span><Num>{formatMinor(preview.changeMinor, currency)}</Num> {currency}</span>
               </p>
             ) : (
               <Field label={t('pharmacy.sell.pay.reference')} optional>
-                <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
+                <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
               </Field>
             )}
           </>
         )}
 
-        {offline && <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.pay')}</Note>}
-        {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="pay-problem">{problem}</Note>}
+        {offline && <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.pay')}</Note>}
+        {problem && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="pay-problem">{problem}</Note>}
       </form>
     </Dialog>
   );
@@ -272,7 +272,7 @@ function CreditNumbers({ customer, charge }: { customer: PickedCustomer; charge:
   const view = creditView(customer, charge);
   return (
     <div className="flex flex-col gap-1 text-sm" data-testid="credit-numbers">
-      <span className="text-text" data-testid="credit-after">
+      <span className="text-ph-text" data-testid="credit-after">
         {t('pharmacy.credit.pay.after')}: <Num>{formatMinor(view.after < 0n ? 0n : view.after, customer.currency)}</Num> {customer.currency} · {t('pharmacy.credit.pay.remainingAfter')}: <Num>{formatMinor(view.remainingAfter, customer.currency)}</Num> {customer.currency}
       </span>
     </div>
@@ -332,37 +332,37 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
   return (
     <Dialog open={open} onOpenChange={onOpenChange} width="md" title={t('pharmacy.sell.holds.title')} description={t('pharmacy.sell.holds.body')}>
       <div className="flex flex-col gap-3 pb-1" data-testid="holds-list">
-        {!cartEmpty && <Note icon={<CircleAlert aria-hidden />} tone="info">{t('pharmacy.sell.holds.needEmpty')}</Note>}
-        {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{problem}</Note>}
-        {items === null && <Note icon={<Hourglass aria-hidden />} role="status">{t('pharmacy.sell.loading')}</Note>}
-        {hasMore && <Note icon={<CircleAlert aria-hidden />} tone="info" role="status" testId="holds-more">{t('pharmacy.sell.holds.more')}</Note>}
+        {!cartEmpty && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="info">{t('pharmacy.sell.holds.needEmpty')}</Note>}
+        {problem && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{problem}</Note>}
+        {items === null && <Note look="ph" icon={<Hourglass aria-hidden />} role="status">{t('pharmacy.sell.loading')}</Note>}
+        {hasMore && <Note look="ph" icon={<CircleAlert aria-hidden />} tone="info" role="status" testId="holds-more">{t('pharmacy.sell.holds.more')}</Note>}
         {items?.length === 0 && !problem && (
-          <p className="flex items-center gap-2.5 py-4 text-sm text-muted">
+          <p className="flex items-center gap-2.5 py-4 text-sm text-ph-muted">
             <PackageOpen aria-hidden className="size-4 shrink-0" />
             {t('pharmacy.sell.holds.empty')}
           </p>
         )}
         <ul className="flex flex-col gap-2">
           {items?.map((hold) => (
-            <li key={hold.id} data-testid="hold-row" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md border border-line px-3 py-2">
-              <p className="flex min-w-0 flex-col text-sm text-text">
+            <li key={hold.id} data-testid="hold-row" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-ph-xl border border-ph-line px-3 py-2">
+              <p className="flex min-w-0 flex-col text-sm text-ph-text">
                 <span className="font-semibold">
                   <Num>{formatMinor(BigInt(hold.totalPreviewMinor), hold.currency)}</Num> {hold.currency}
                 </span>
-                <span className="text-muted">
+                <span className="text-ph-muted">
                   {t('pharmacy.sell.holds.lines', { count: hold.lineCount })} · {hold.mine ? t('pharmacy.sell.holds.mine') : t('pharmacy.sell.holds.other')} · <Num>{phDateTime(hold.createdAt, locale)}</Num>
                 </span>
               </p>
               {asking === hold.id ? (
                 <span className="flex w-full flex-col gap-2" data-testid="hold-discard-ask">
-                  <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">
+                  <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">
                     {t('pharmacy.sell.holds.discardAsk')}
                   </Note>
                   <span className="flex flex-wrap gap-2">
-                    <button type="button" className={TOUCH_BTN} data-testid="hold-discard-keep" disabled={busyId !== null} onClick={() => setAsking(null)}>
+                    <button type="button" className={PH_BTN} data-testid="hold-discard-keep" disabled={busyId !== null} onClick={() => setAsking(null)}>
                       {t('pharmacy.sell.holds.discardKeep')}
                     </button>
-                    <button type="button" className={TOUCH_PRIMARY} data-testid="hold-discard-confirm" disabled={busyId !== null} onClick={() => void act(hold.id, onDiscard, true)}>
+                    <button type="button" className={PH_PRIMARY} data-testid="hold-discard-confirm" disabled={busyId !== null} onClick={() => void act(hold.id, onDiscard, true)}>
                       <Trash2 aria-hidden className="size-4" />
                       {t('pharmacy.sell.holds.discard')}
                     </button>
@@ -370,11 +370,11 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
                 </span>
               ) : (
                 <span className="flex flex-wrap gap-2">
-                  <button type="button" data-testid="hold-resume" className={TOUCH_BTN} disabled={!cartEmpty || busyId !== null} onClick={() => void act(hold.id, onResume, false)}>
+                  <button type="button" data-testid="hold-resume" className={PH_BTN} disabled={!cartEmpty || busyId !== null} onClick={() => void act(hold.id, onResume, false)}>
                     <Play aria-hidden className="size-4" />
                     {t('pharmacy.sell.holds.resume')}
                   </button>
-                  <button type="button" data-testid="hold-discard" className={TOUCH_BTN} disabled={busyId !== null} onClick={() => setAsking(hold.id)}>
+                  <button type="button" data-testid="hold-discard" className={PH_BTN} disabled={busyId !== null} onClick={() => setAsking(hold.id)}>
                     <Trash2 aria-hidden className="size-4" />
                     {t('pharmacy.sell.holds.discard')}
                   </button>
@@ -507,21 +507,21 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
       description={sale ? <span data-testid="receipt-number">{t('pharmacy.sell.receipt.number', { number: sale.number ?? '' })}</span> : undefined}
       footer={
         <>
-          <button type="button" className={TOUCH_BTN} data-testid="receipt-reprint" onClick={() => void reprint()} disabled={busy || !receipt}>
+          <button type="button" className={PH_BTN} data-testid="receipt-reprint" onClick={() => void reprint()} disabled={busy || !receipt}>
             <RotateCcw aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.reprint')}
           </button>
           {thermal.enabled && (
-            <button type="button" className={TOUCH_BTN} data-testid="receipt-print-browser" onClick={browserPrint} disabled={!receipt}>
+            <button type="button" className={PH_BTN} data-testid="receipt-print-browser" onClick={browserPrint} disabled={!receipt}>
               <Printer aria-hidden className="size-4" />
               {t('pharmacy.print.thermal.browser')}
             </button>
           )}
-          <button type="button" className={TOUCH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt || thermal.state === 'printing'}>
+          <button type="button" className={PH_BTN} data-testid="receipt-print" onClick={print} disabled={!receipt || thermal.state === 'printing'}>
             <Printer aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.print')}
           </button>
-          <button type="button" className={TOUCH_PRIMARY} data-testid="receipt-done" onClick={onClose}>
+          <button type="button" className={PH_PRIMARY} data-testid="receipt-done" onClick={onClose}>
             <CircleCheck aria-hidden className="size-4" />
             {t('pharmacy.sell.receipt.done')}
           </button>
@@ -530,54 +530,54 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
     >
       {sale && (
         <div className="flex flex-col gap-3 pb-1">
-          <Note icon={<CircleCheck aria-hidden />} tone="success" role="status" testId="sale-done">
+          <Note look="ph" icon={<CircleCheck aria-hidden />} tone="success" role="status" testId="sale-done">
             {sale.replayed ? t('pharmacy.sell.receipt.replayed') : t('pharmacy.sell.receipt.saved')}
           </Note>
-          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm text-text" data-testid="sale-totals">
-            <dt className="text-muted">{t('pharmacy.sell.totals.subtotal')}</dt>
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm text-ph-text" data-testid="sale-totals">
+            <dt className="text-ph-muted">{t('pharmacy.sell.totals.subtotal')}</dt>
             <dd className="text-end">{money(sale.subtotalMinor)}</dd>
             {sale.discountMinor !== '0' && (
               <>
-                <dt className="text-muted">{t('pharmacy.sell.totals.discount')}</dt>
+                <dt className="text-ph-muted">{t('pharmacy.sell.totals.discount')}</dt>
                 <dd className="text-end">−{money(sale.discountMinor)}</dd>
               </>
             )}
             {sale.roundingMinor !== '0' && (
               <>
-                <dt className="text-muted">{t('pharmacy.sell.totals.rounding')}</dt>
+                <dt className="text-ph-muted">{t('pharmacy.sell.totals.rounding')}</dt>
                 <dd className="text-end">{money(sale.roundingMinor)}</dd>
               </>
             )}
             <dt className="font-semibold">{t('pharmacy.sell.totals.total')}</dt>
             <dd className="text-end font-semibold" data-testid="sale-total">{money(sale.totalMinor)}</dd>
-            <dt className="text-muted">{t('pharmacy.sell.receipt.paid')}</dt>
+            <dt className="text-ph-muted">{t('pharmacy.sell.receipt.paid')}</dt>
             <dd className="text-end">{money(sale.paidMinor)}</dd>
             {credit && (
               <>
-                <dt className="text-muted" data-testid="sale-credit-label">
+                <dt className="text-ph-muted" data-testid="sale-credit-label">
                   {t('pharmacy.sell.receipt.ofWhichCredit')}: <span dir="auto">{isolate(credit.customerName)}</span>
                 </dt>
                 <dd className="text-end" data-testid="sale-credit">{money(credit.minor)}</dd>
               </>
             )}
-            <dt className="text-muted">{t('pharmacy.sell.pay.change')}</dt>
+            <dt className="text-ph-muted">{t('pharmacy.sell.pay.change')}</dt>
             <dd className="text-end" data-testid="sale-change">{money(sale.changeMinor)}</dd>
           </dl>
           <div className="flex flex-wrap items-end gap-3">
             <Field label={t('pharmacy.sell.receipt.width')}>
-              <FieldSelect className={`${FIELD} pe-8`} value={width} onChange={(event) => setWidth(event.target.value as '80' | '58')} data-testid="receipt-width">
+              <FieldSelect className={`${PH_FIELD} pe-8`} value={width} onChange={(event) => setWidth(event.target.value as '80' | '58')} data-testid="receipt-width">
                 <option value="80">80 mm</option>
                 <option value="58">58 mm</option>
               </FieldSelect>
             </Field>
-            {receipt && receipt.copyNumber > 0 && <span className="pb-3 text-sm text-muted">{t('pharmacy.sell.receipt.copy', { n: receipt.copyNumber })}</span>}
+            {receipt && receipt.copyNumber > 0 && <span className="pb-3 text-sm text-ph-muted">{t('pharmacy.sell.receipt.copy', { n: receipt.copyNumber })}</span>}
           </div>
           {problem && (
-            <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="receipt-problem">
+            <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="receipt-problem">
               {t('pharmacy.sell.receipt.loadFailed')} {problem}
             </Note>
           )}
-          {!receipt && !problem && <Note icon={<Hourglass aria-hidden />} role="status">{t('pharmacy.sell.loading')}</Note>}
+          {!receipt && !problem && <Note look="ph" icon={<Hourglass aria-hidden />} role="status">{t('pharmacy.sell.loading')}</Note>}
           {receipt && (
             <iframe
               ref={frame}
@@ -585,16 +585,16 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
               data-testid="receipt-frame"
               sandbox="allow-same-origin allow-modals"
               srcDoc={receipt.html}
-              className="h-72 w-full rounded-md border border-line bg-white"
+              className="h-72 w-full rounded-ph-xl border border-ph-line bg-white"
             />
           )}
           <ThermalNote state={thermal.state} look="ph" />
           {printFailed && (
-            <Note icon={<Printer aria-hidden />} tone="danger" role="alert" testId="print-failed">
+            <Note look="ph" icon={<Printer aria-hidden />} tone="danger" role="alert" testId="print-failed">
               {t('pharmacy.sell.receipt.printFailed')}
             </Note>
           )}
-          <p className="flex items-start gap-2 text-xs text-muted">
+          <p className="flex items-start gap-2 text-xs text-ph-muted">
             <Receipt aria-hidden className="mt-px size-3.5 shrink-0" />
             {t('pharmacy.sell.receipt.note')}
           </p>
@@ -633,13 +633,13 @@ export function AskDialog({
       description={body}
       footer={
         <>
-          <button type="button" className={TOUCH_BTN} onClick={() => onOpenChange(false)}>
+          <button type="button" className={PH_BTN} onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </button>
           <button
             type="button"
             data-testid="ask-confirm"
-            className={TOUCH_PRIMARY}
+            className={PH_PRIMARY}
             onClick={() => {
               onOpenChange(false);
               onConfirm();

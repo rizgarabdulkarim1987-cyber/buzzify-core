@@ -15,6 +15,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy stock screens: the owner reads the stock of a product with its batches soonest-expiry first, changes a
@@ -66,10 +67,10 @@ async function makePharmacy(label: string): Promise<TestPharmacy> {
 }
 
 /** One product with three batches in the first branch: expired, expiring in 20 days, and a year away. */
-async function seedStock(shop: TestPharmacy, tag: string): Promise<{ productName: string }> {
+async function seedStock(shop: TestPharmacy, tag: string, name?: string): Promise<{ productName: string }> {
   const client = db();
   try {
-    const productName = `Stocked ${tag}`;
+    const productName = name ?? `Stocked ${tag}`;
     const product = await client.phProduct.create({
       data: {
         restaurantId: shop.id,
@@ -101,6 +102,51 @@ async function seedStock(shop: TestPharmacy, tag: string): Promise<{ productName
     await client.$disconnect();
   }
 }
+
+/** An 80-letter Arabic trade name with no space in it: the worst case for a row that must not push the page sideways. */
+const LONG_ARABIC = 'باراسيتامولمسكنللألموخافضللحرارة'.repeat(3).slice(0, 80);
+
+/**
+ * A big catalogue in the first branch: 1,000 products with no stock (out), one with an 80-letter Arabic name (out), one
+ * below its minimum (low) and one whose stock expires in 30 days (expiring).
+ */
+async function seedMany(shop: TestPharmacy, tag: string): Promise<{ low: string; soon: string }> {
+  const client = db();
+  try {
+    const plain = (tradeName: string) => ({
+      restaurantId: shop.id,
+      tradeName,
+      identityKey: `${tradeName}|${shop.id}`,
+      searchText: searchTextOf({ tradeName, genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }),
+    });
+    await client.phProduct.createMany({ data: [...Array.from({ length: 1000 }, (_, i) => plain(`Bulk ${tag} ${String(i).padStart(4, '0')}`)), plain(LONG_ARABIC)] });
+    const low = `Lowish ${tag}`;
+    const soon = `Soonish ${tag}`;
+    const scoped = scopedClient(client, { restaurantId: shop.id, allBranches: true });
+    for (const [name, days, qty, min] of [
+      [low, 400, 2, 10],
+      [soon, 30, 5, 0],
+    ] as const) {
+      const product = await client.phProduct.create({ data: plain(name), select: { id: true } });
+      if (min > 0) await client.phProductBranch.create({ data: { restaurantId: shop.id, branchId: shop.branchIds[0]!, productId: product.id, minQty: min } });
+      const batch = await client.phBatch.create({ data: { restaurantId: shop.id, productId: product.id, lot: 'L1', expiryDate: new Date(`${dateIn(days)}T00:00:00.000Z`) }, select: { id: true } });
+      await scoped.$transaction(async (tx) => {
+        await applyMovement(tx, { restaurantId: shop.id, branchId: shop.branchIds[0]!, batchId: batch.id, userId: 'seed', type: 'RECEIPT', deltas: { available: qty }, reason: '' });
+      });
+    }
+    return { low, soon };
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+/** Neither the document nor `<main>` scrolls (the list scrolls inside its card). */
+const frameScrolls = (page: Page) =>
+  page.evaluate(() => {
+    const doc = document.documentElement;
+    const main = document.querySelector('main');
+    return { page: doc.scrollHeight > window.innerHeight, main: main ? main.scrollHeight > main.clientHeight + 1 : true };
+  });
 
 async function makeCashier(userId: string, restaurantId: string): Promise<void> {
   const client = db();
@@ -177,7 +223,7 @@ test.describe('Pharmacy stock @desktop', () => {
     const page = await freshPage(browser);
     // All branches: the stock is readable, and the page says to choose one branch to change it.
     await signInAndChoose(page, owner, shop, 0);
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock', exact: true }).click();
+    await railLink(page, 'Stock', { exact: true });
     await expect(page.getByRole('heading', { level: 1, name: 'Stock' })).toBeVisible();
     await expect(page.getByTestId('stock-pick-branch')).toBeVisible();
     await expect(page.getByTestId('batch-actions')).toHaveCount(0);
@@ -215,7 +261,7 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(soon.locator('dl').first()).toContainText('33');
 
     // The movement list shows the line; reversing it needs a reason and leaves a reversal line behind.
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock movements' }).click();
+    await railLink(page, 'Stock movements');
     await expect(page.getByRole('heading', { level: 1, name: 'Stock movements' })).toBeVisible();
     const line = page.getByTestId('movement-row').filter({ hasText: 'Broken box' });
     await expect(line).toContainText('Adjustment');
@@ -240,11 +286,103 @@ test.describe('Pharmacy stock @desktop', () => {
     await expect(till.getByTestId('stock-row').first()).toBeVisible();
     await expect(till.getByTestId('stock-write-blocked')).toContainText('Your role can look at stock');
     await expect(till.getByTestId('batch-actions')).toHaveCount(0);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Stock movements' })).toHaveCount(0);
     await expect(till.locator('[data-cost]')).toHaveCount(0);
     await till.goto('/pharmacy/stock/movements');
     await expect(till.getByTestId('movements-forbidden')).toContainText('You cannot see this page');
     await till.context().close();
+  });
+
+  // Pharmacy redesign, task 8 ------------------------------------------------------------------------------------------------
+
+  test('a 1,000-product list scrolls inside its card with 52px rows; filter chips filter; an 80-letter Arabic name never pushes the page sideways', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned('Many');
+    const { low, soon } = await seedMany(shop, randomUUID().slice(0, 6));
+    const page = await freshPage(browser, { width: 1280, height: 800 });
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/stock');
+    await expect(page.getByTestId('stock-count')).toContainText('1,003');
+    const card = page.getByTestId('stock-card');
+    await expect(card).toBeVisible();
+    expect(await frameScrolls(page), '1280px').toEqual({ page: false, main: false });
+    expect(await card.evaluate((el) => el.scrollHeight > el.clientHeight + 1), 'the card scrolls').toBe(true);
+    for (const row of (await page.getByTestId('stock-row').all()).slice(0, 8)) {
+      const height = await row.evaluate((el) => el.getBoundingClientRect().height);
+      expect(Math.abs(height - 52), `row height ${height}`).toBeLessThanOrEqual(1);
+    }
+
+    // The chips are links that set ?filter=.
+    await page.getByTestId('stock-filter-low').click();
+    await expect(page).toHaveURL(/[?&]filter=low/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-filter-low')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    await expect(page.getByTestId('stock-row')).toContainText(low);
+    await expect(page.getByTestId('stock-row').locator('[data-state="low"]')).toBeVisible();
+    await page.getByTestId('stock-filter-expiring').click();
+    await expect(page).toHaveURL(/[?&]filter=expiring/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    await expect(page.getByTestId('stock-row')).toContainText(soon);
+    await page.getByTestId('stock-filter-out').click();
+    await expect(page).toHaveURL(/[?&]filter=out/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-count')).toContainText('1,001');
+    await expect(page.getByTestId('stock-row').first().locator('[data-state="out"]')).toBeVisible();
+    await page.getByTestId('stock-filter-all').click();
+    await expect(page).not.toHaveURL(/filter=/, { timeout: 30_000 });
+    await expect(page.getByTestId('stock-count')).toContainText('1,003');
+
+    // The owner may add a product from here.
+    await expect(page.getByTestId('stock-new-product')).toHaveAttribute('href', '/pharmacy/catalog/new');
+
+    // The 80-letter name, alone, on a phone: no sideways scroll, and the row keeps its height.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto(`/pharmacy/stock?q=${encodeURIComponent(LONG_ARABIC.slice(0, 12))}`);
+    await expect(page.getByTestId('stock-row')).toHaveCount(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth === window.innerWidth), 'no sideways scroll at 375px').toBe(true);
+    await expect(page.getByTestId('stock-row')).toBeVisible();
+    const phoneRow = await page.getByTestId('stock-row').evaluate((el) => el.getBoundingClientRect().height);
+    expect(Math.abs(phoneRow - 52), `phone row height ${phoneRow}`).toBeLessThanOrEqual(1);
+    await page.context().close();
+  });
+
+  test('a role without catalog.manage has no "New product"', async ({ browser }) => {
+    const { shop } = await owned('NoNew');
+    await seedStock(shop, randomUUID().slice(0, 6));
+    const cashier = await createStudioUser({ label: 'ph-stock-cashier', name: 'Stock Cashier' });
+    people.push(cashier.email);
+    await makeCashier(cashier.userId, shop.id);
+    const till = await freshPage(browser);
+    await signInAndChoose(till, cashier, shop, 1);
+    await till.goto('/pharmacy/stock');
+    await expect(till.getByTestId('stock-row').first()).toBeVisible();
+    await expect(till.getByTestId('stock-new-product')).toHaveCount(0);
+    await till.context().close();
+  });
+
+  test('an 80-letter Arabic name in Arabic at 375px: the row keeps one line and 52px, the opened panel wraps it, nothing scrolls sideways', async ({ browser }) => {
+    const { shop, owner } = await owned('LongAr', 'ar');
+    await seedStock(shop, randomUUID().slice(0, 6), LONG_ARABIC);
+    const page = await freshPage(browser, { width: 375, height: 800 });
+    await signInAndChoose(page, owner, shop, 1);
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await page.goto('/pharmacy/stock');
+    const row = page.getByTestId('stock-row').filter({ hasText: LONG_ARABIC });
+    await expect(row).toBeVisible();
+    expect(await scrollsSideways(page), 'the row').toBe(false);
+    const height = await row.evaluate((el) => el.getBoundingClientRect().height);
+    expect(Math.abs(height - 52), `row height ${height}`).toBeLessThanOrEqual(1);
+    await row.getByTestId('stock-batches').locator('> summary').click();
+    await expect(row.getByTestId('batch-row').first()).toBeVisible();
+    expect(await scrollsSideways(page), 'the opened panel').toBe(false);
+    // The whole name is in the panel, wrapped inside the screen.
+    const whole = row.locator('details > div span[dir="auto"]').filter({ hasText: LONG_ARABIC }).first();
+    const box = await whole.evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height }; });
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(375);
+    expect(box.height, 'wraps to more than one line').toBeGreaterThan(30);
+    await page.context().close();
   });
 
   test('reads in Arabic right to left with no sideways scroll at 375, 768 and 1280px, and passes axe', async ({ browser }) => {

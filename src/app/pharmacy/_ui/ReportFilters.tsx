@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useId, useState } from 'react';
 import { useT } from '@/studio/i18n';
 import { filtersKey, isLongRange, PRESETS, type Preset } from './reports-logic';
+import { PH_BTN, PH_FIELD, PH_PRIMARY } from './sell-parts';
 
 /**
  * The filter bar of a report or of the chain page. A plain GET form: the address carries the filters (shareable, and it works
@@ -18,7 +19,7 @@ export interface FilterField {
   options: Array<{ value: string; label: string }>;
 }
 
-const CONTROL = 'min-h-11 w-full min-w-0 rounded-md border border-line-strong bg-raised px-3 text-base text-text aria-[invalid=true]:border-danger';
+const CONTROL = PH_FIELD;
 
 type Props = {
   action: string;
@@ -64,8 +65,8 @@ function FiltersForm({
   const err = (name: string) => problems[name];
   const describe = (name: string) => (err(name) ? `${id}-${name}-err` : undefined);
   return (
-    <form method="get" action={action} data-testid="report-filters" aria-label={t('pharmacy.reports.filter.title')} className="flex min-w-0 flex-col gap-3 rounded-md border border-line bg-surface p-3 sm:p-4">
-      <p className="flex items-center gap-2 text-sm font-semibold text-text">
+    <form method="get" action={action} data-testid="report-filters" aria-label={t('pharmacy.reports.filter.title')} className="flex min-w-0 flex-col gap-3 rounded-ph-2xl bg-ph-card p-3 ring-1 ring-ph-line sm:p-4">
+      <p className="flex items-center gap-2 text-sm font-semibold text-ph-text">
         <SlidersHorizontal aria-hidden className="size-4 shrink-0" />
         {t('pharmacy.reports.filter.title')}
       </p>
@@ -73,7 +74,7 @@ function FiltersForm({
         <>
           <nav aria-label={t('pharmacy.reports.filter.presets')} className="flex flex-wrap gap-2">
             {PRESETS.map((p) => (
-              <Link key={p} href={presetHrefs[p]} data-testid={`preset-${p}`} className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-text hover:bg-hover">
+              <Link key={p} href={presetHrefs[p]} data-testid={`preset-${p}`} className={PH_BTN}>
                 {t(`pharmacy.reports.preset.${p}`)}
               </Link>
             ))}
@@ -81,7 +82,7 @@ function FiltersForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(['from', 'to'] as const).map((name) => (
               <div key={name} className="flex min-w-0 flex-col gap-1">
-                <label htmlFor={`${id}-${name}`} className="text-sm font-medium text-text">
+                <label htmlFor={`${id}-${name}`} className="text-sm font-medium text-ph-text">
                   {t(`pharmacy.reports.filter.${name}`)}
                 </label>
                 <input
@@ -97,7 +98,7 @@ function FiltersForm({
                   className={CONTROL}
                 />
                 {err(name) && (
-                  <p id={`${id}-${name}-err`} data-testid={`filter-error-${name}`} className="flex items-start gap-1.5 text-sm text-danger">
+                  <p id={`${id}-${name}-err`} data-testid={`filter-error-${name}`} className="flex items-start gap-1.5 text-sm text-ph-red">
                     <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
                     <span className="min-w-0">{err(name)}</span>
                   </p>
@@ -105,9 +106,9 @@ function FiltersForm({
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted">{t('pharmacy.reports.filter.rangeNote')}</p>
+          <p className="text-xs text-ph-muted">{t('pharmacy.reports.filter.rangeNote')}</p>
           {long && (
-            <p role="status" data-testid="long-range-hint" className="flex items-start gap-2.5 rounded-md border border-line bg-raised px-3 py-2.5 text-sm text-text">
+            <p role="status" data-testid="long-range-hint" className="flex items-start gap-2.5 rounded-ph-xl bg-ph-blue-wash px-3 py-2.5 text-sm text-ph-text">
               <Clock aria-hidden className="mt-px size-4 shrink-0" />
               <span className="min-w-0">{t('pharmacy.reports.filter.longRange')}</span>
             </p>
@@ -118,7 +119,7 @@ function FiltersForm({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {fields.map((f) => (
             <div key={f.name} className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={`${id}-${f.name}`} className="text-sm font-medium text-text">
+              <label htmlFor={`${id}-${f.name}`} className="text-sm font-medium text-ph-text">
                 {f.label}
               </label>
               <select id={`${id}-${f.name}`} name={f.name} defaultValue={f.value} aria-invalid={err(f.name) ? true : undefined} aria-describedby={describe(f.name)} data-testid={`filter-${f.name}`} className={CONTROL}>
@@ -129,7 +130,7 @@ function FiltersForm({
                 ))}
               </select>
               {err(f.name) && (
-                <p id={`${id}-${f.name}-err`} data-testid={`filter-error-${f.name}`} className="flex items-start gap-1.5 text-sm text-danger">
+                <p id={`${id}-${f.name}-err`} data-testid={`filter-error-${f.name}`} className="flex items-start gap-1.5 text-sm text-ph-red">
                   <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
                   <span className="min-w-0">{err(f.name)}</span>
                 </p>
@@ -138,9 +139,9 @@ function FiltersForm({
           ))}
         </div>
       )}
-      {branchNote && <p data-testid="branch-note" className="text-sm text-muted">{branchNote}</p>}
+      {branchNote && <p data-testid="branch-note" className="text-sm text-ph-muted">{branchNote}</p>}
       <div>
-        <button type="submit" data-testid="filter-apply" className="inline-flex min-h-11 items-center justify-center rounded-md bg-ink px-4 text-base font-medium text-on-ink hover:bg-ink-hover">
+        <button type="submit" data-testid="filter-apply" className={PH_PRIMARY}>
           {t('pharmacy.reports.filter.apply')}
         </button>
       </div>

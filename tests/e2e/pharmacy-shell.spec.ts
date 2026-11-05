@@ -161,7 +161,7 @@ test.describe('Pharmacy shell @desktop', () => {
     await expect(banner.getByText(shop.name)).toBeVisible();
     await expect(banner.getByText(shop.branches[0]!.name)).toBeVisible();
     await expect(banner.getByText('Pharmacy Owner · Owner')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1, name: shop.branches[0]!.name })).toBeVisible();
+    await expect(page.getByTestId('home-place')).toHaveText(shop.branches[0]!.name);
     await expect(page.getByTestId('support-banner')).toHaveCount(0);
 
     // The choice is remembered: /pharmacy goes straight home, and "Change" goes back to the picker.
@@ -170,7 +170,7 @@ test.describe('Pharmacy shell @desktop', () => {
     await banner.getByRole('link', { name: 'Change branch' }).click();
     await expect(page).toHaveURL(/\/pharmacy\/select$/);
     await page.getByRole('group', { name: shop.name }).getByRole('button', { name: 'All branches' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'All branches' })).toBeVisible();
+    await expect(page.getByTestId('home-place')).toHaveText('All branches');
     await page.context().close();
   });
 
@@ -260,6 +260,41 @@ test.describe('Pharmacy shell @desktop', () => {
     await empty.context().close();
   });
 
+  test('the picker: a centred column of option cards at least 72px high, 44px controls, no page scroll; a choice sets the cookie and lands home', async ({ browser }) => {
+    const { shop, owner } = await owned('Picker');
+    const page = await freshPage(browser, { width: 375, height: 667 });
+    await signInToPharmacy(page, owner);
+    await expect(page.getByTestId('select-greeting')).toContainText('Pharmacy');
+    const options = page.getByRole('group', { name: shop.name }).getByRole('button');
+    await expect(options).toHaveCount(3);
+    for (const width of [375, 1280]) {
+      await page.setViewportSize({ width, height: width === 375 ? 667 : 800 });
+      for (const box of await options.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+        expect(box.height, `option height at ${width}px`).toBeGreaterThanOrEqual(72);
+        expect(box.left, `option inside the screen at ${width}px`).toBeGreaterThanOrEqual(0);
+        expect(box.right, `option inside the screen at ${width}px`).toBeLessThanOrEqual(width);
+      }
+      const short = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('main button, main a, header button, header a')]
+          .filter((el) => el.getBoundingClientRect().height > 0 && el.getBoundingClientRect().height < 43.5)
+          .map((el) => el.textContent?.trim()),
+      );
+      expect(short, `controls under 44px at ${width}px`).toEqual([]);
+      expect(await scrollsSideways(page), `${width}px`).toBe(false);
+      expect(await page.evaluate(() => document.documentElement.scrollHeight <= document.documentElement.clientHeight), `no page scroll at ${width}px`).toBe(true);
+    }
+    await page.setViewportSize({ width: 375, height: 667 });
+    await options.filter({ hasText: shop.branches[1]!.name }).click();
+    await expect(page).toHaveURL(/\/pharmacy\/home$/);
+    expect(await placeCookie(page)).not.toBe('');
+    await expect(page.getByTestId('home-place')).toHaveText(shop.branches[1]!.name);
+    // Back on the picker, the current place is marked on its card.
+    await page.goto('/pharmacy/select');
+    await expect(options.filter({ hasText: shop.branches[1]!.name })).toHaveAttribute('aria-current', 'true');
+    await expect(options.filter({ hasText: shop.branches[1]!.name })).toContainText('Current');
+    await page.context().close();
+  });
+
   test('reads in Arabic right to left with no sideways scroll at 375px and 1280px, and passes axe', async ({ browser }) => {
     const { shop, owner } = await owned('Arabic', 'ar');
     const page = await freshPage(browser, { width: 375, height: 800 });
@@ -274,16 +309,16 @@ test.describe('Pharmacy shell @desktop', () => {
     await expect(page).toHaveURL(/\/pharmacy\/home$/);
     for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 800 });
-      await expect(page.getByRole('heading', { level: 1, name: shop.branches[1]!.name })).toBeVisible();
+      await expect(page.getByTestId('home-place')).toHaveText(shop.branches[1]!.name);
       expect(await scrollsSideways(page), `${width}px`).toBe(false);
       expect(await seriousViolations(page)).toEqual([]);
     }
 
-    // The keyboard reaches the skip link first, then the header's controls in reading order, then the page.
+    // The keyboard reaches the skip link first, then the rail's places in reading order (Home first), then the page.
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'انتقل إلى المحتوى' })).toBeFocused();
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('link', { name: 'تغيير الفرع' })).toBeFocused();
+    await expect(page.getByRole('navigation', { name: 'التنقل الرئيسي' }).getByRole('link', { name: 'الرئيسية', exact: true })).toBeFocused();
     await page.context().close();
   });
 });

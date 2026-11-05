@@ -15,6 +15,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy purchasing screens: the owner adds a supplier, starts an order from the below-minimum suggestions, places
@@ -183,7 +184,7 @@ test.describe('Pharmacy purchasing @desktop', () => {
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
 
-    await page.getByRole('navigation').getByRole('link', { name: 'Purchasing' }).click();
+    await railLink(page, 'Purchasing');
     await expect(page.getByRole('heading', { level: 1, name: 'Purchasing' })).toBeVisible();
     await expect(page.getByTestId('hub-open-orders')).toContainText(/Open orders\s*0(?!\d)/);
     await expect(page.getByTestId('hub-invoices').getByRole('link', { name: 'Go to invoices' })).toBeVisible();
@@ -284,6 +285,8 @@ test.describe('Pharmacy purchasing @desktop', () => {
     await makeCashier(cashier.userId, shop.id);
     const till = await freshPage(browser);
     await signInAndChoose(till, cashier, shop, 1);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Purchasing' })).toHaveCount(0);
     for (const url of ['/pharmacy/purchasing', '/pharmacy/purchasing/suppliers', '/pharmacy/purchasing/orders', '/pharmacy/purchasing/orders/new']) {
       await till.goto(url);

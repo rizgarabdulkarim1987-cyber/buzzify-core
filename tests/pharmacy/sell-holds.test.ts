@@ -322,6 +322,31 @@ describe('ph.sell.search by product ids', () => {
   });
 });
 
+describe('ph.sell.search by unit ids', () => {
+  it('reads the products that own the named units, as a search answers them', async () => {
+    const w = await world();
+    await stock(w);
+    const found = dataOf(await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', unitIds: [w.p.strip] }));
+    expect(found.items).toHaveLength(1);
+    expect(found.items[0].productId).toBe(w.p.id);
+    expect(found.items[0].units.map((u: { id: string }) => u.id)).toContain(w.p.strip);
+  });
+
+  it('never returns another business’s unit, an archived product, or accepts more than 30 ids', async () => {
+    const w = await world();
+    const b = await pharmacy('B', { branches: 1 });
+    const foreign = await makeProduct(b.id, 'Foreign');
+    const archived = await product(w, 'Archived');
+    await prisma().phProduct.update({ where: { id: archived.id }, data: { active: false } });
+    const foreignUnit = await prisma().phProductUnit.findFirstOrThrow({ where: { productId: foreign.id }, select: { id: true } });
+    const archivedUnit = await prisma().phProductUnit.findFirstOrThrow({ where: { productId: archived.id }, select: { id: true } });
+    const found = dataOf(await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', unitIds: [foreignUnit.id, archivedUnit.id, 'nope'] }));
+    expect(found.items).toEqual([]);
+    const many = await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', unitIds: Array.from({ length: 31 }, (_, i) => `u${i}`) });
+    expect(codeOf(many)).toBe('INVALID');
+  });
+});
+
 describe('ph.sell.search browse (the shelf)', () => {
   it('with an empty query lists the active products this branch has stock of, by name, and nothing else', async () => {
     const w = await world();

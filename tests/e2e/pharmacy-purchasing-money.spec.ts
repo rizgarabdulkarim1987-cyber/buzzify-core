@@ -16,6 +16,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy purchasing money screens: a supplier's invoices, what is owed, payments (recorded in the books only),
@@ -392,7 +393,7 @@ test.describe('Pharmacy purchasing money @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
 
     // The hub's invoice, payment, credit and return cards are real links now.
-    await page.getByRole('navigation').getByRole('link', { name: 'Purchasing' }).click();
+    await railLink(page, 'Purchasing');
     for (const id of ['hub-invoices', 'hub-payments', 'hub-credits', 'hub-returns']) await expect(page.getByTestId(id).getByRole('link').first()).toBeVisible();
     await shoot(page, 'en-hub-1280');
 
@@ -1003,8 +1004,12 @@ test.describe('Pharmacy purchasing money @desktop', () => {
     await page.getByTestId('alloc-auto').click();
     await page.getByTestId('pay-amount').fill('500');
     await mkShot(page, 'after/en-payment-new-375-viewport', false);
-    // At the very end of the page the allocation status sits above the footer.
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    // At the very end of the page the allocation status sits above the footer. The pharmacy's frame never scrolls the
+    // document: <main id="main"> is the scroll container.
+    await page.evaluate(() => {
+      const main = document.getElementById('main')!;
+      main.scrollTo(0, main.scrollHeight);
+    });
     const status = page.getByTestId('alloc-status');
     const footer = page.getByTestId('pay-total').locator('xpath=..');
     const statusBox = await status.boundingBox();

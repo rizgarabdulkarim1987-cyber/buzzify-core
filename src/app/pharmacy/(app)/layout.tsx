@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getPhAccess, getPhPlaces } from '@/server/pharmacy/actor';
+import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
 import { phEntry } from '@/server/pharmacy/entry';
+import { getNavCounts } from '@/server/pharmacy/nav-counts';
 import { getStudioTranslator } from '@/studio/messages';
 import { Shell } from '@/app/pharmacy/_ui/Shell';
 import { StateNotice } from '@/app/pharmacy/_ui/StateNotice';
@@ -32,8 +34,13 @@ export default async function PharmacyAppLayout({ children }: { children: ReactN
     );
   }
   const notice = entry.kind === 'readOnly' ? <StateNotice kind="readOnly" until={entry.until} t={t} /> : null;
+  // The counters on Stock and Expiry, for the chosen place; a closed pharmacy (above) draws its nav without them.
+  const counts = await getNavCounts({ branchId: access.place.branchId, now: new Date() });
+  // The Doctor's nav item: the person is allowed (owner or switch on) and the plan carries an AI budget. The plan is read only for
+  // someone the budget can decide for, once per request (the page and the slots reuse it).
+  const doctorEnabled = await doctorEnabledThisRequest(access.actor);
   return (
-    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t}>
+    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t} counts={counts} doctorEnabled={doctorEnabled}>
       {children}
     </Shell>
   );

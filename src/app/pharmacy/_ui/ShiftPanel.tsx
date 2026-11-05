@@ -30,11 +30,11 @@ import { phMessage } from "./ph-failure";
 import { OpenShiftPanel } from "./OpenShiftPanel";
 import { ShiftFigures } from "./ShiftFigures";
 import {
-  FIELD,
   FieldInput,
   Note,
-  TOUCH_BTN,
-  TOUCH_PRIMARY,
+  PH_BTN,
+  PH_FIELD,
+  PH_PRIMARY,
 } from "./sell-parts";
 import {
   formatMinor,
@@ -115,15 +115,15 @@ export function ShiftPanel({
     <section
       aria-labelledby="my-shift"
       data-testid="shift-card"
-      className="flex min-w-0 flex-col gap-4"
+      className="flex min-w-0 flex-col gap-4 rounded-ph-2xl bg-ph-card p-4 text-ph-text sm:p-5"
     >
       <div className="flex flex-wrap items-center gap-3">
-        <h2 id="my-shift" className="text-lg font-semibold text-text">
+        <h2 id="my-shift" className="text-lg font-bold">
           {t("pharmacy.shifts.mine")}
         </h2>
         <button
           type="button"
-          className={TOUCH_BTN}
+          className={PH_BTN}
           data-testid="shift-refresh"
           onClick={() => router.refresh()}
         >
@@ -131,7 +131,7 @@ export function ShiftPanel({
           {t("pharmacy.shifts.refresh")}
         </button>
       </div>
-      <p className="text-md text-text" data-testid="expected-live">
+      <p className="text-md" data-testid="expected-live">
         {t("pharmacy.shifts.expectedNow")}:{" "}
         <strong className="font-semibold">
           <Money minor={totals.expectedMinor} currency={shift.currency} />
@@ -139,6 +139,7 @@ export function ShiftPanel({
       </p>
       {notice && (
         <Note
+          look="ph"
           icon={<CircleCheck aria-hidden />}
           tone="success"
           role="status"
@@ -150,7 +151,7 @@ export function ShiftPanel({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className={TOUCH_BTN}
+          className={PH_BTN}
           data-testid="paid-in-open"
           onClick={() => setDialog("in")}
         >
@@ -159,7 +160,7 @@ export function ShiftPanel({
         </button>
         <button
           type="button"
-          className={TOUCH_BTN}
+          className={PH_BTN}
           data-testid="paid-out-open"
           onClick={() => setDialog("out")}
         >
@@ -168,14 +169,14 @@ export function ShiftPanel({
         </button>
         <button
           type="button"
-          className={TOUCH_PRIMARY}
+          className={PH_PRIMARY}
           data-testid="close-open"
           onClick={() => setDialog("close")}
         >
           <DoorClosed aria-hidden className="size-4" />
           {t("pharmacy.shifts.close")}
         </button>
-        <Link href="/pharmacy/sell" className={TOUCH_BTN}>
+        <Link href="/pharmacy/sell" className={PH_BTN}>
           {t("pharmacy.nav.sell")}
         </Link>
       </div>
@@ -295,7 +296,7 @@ export function CashDialog({
         <>
           <button
             type="button"
-            className={TOUCH_BTN}
+            className={PH_BTN}
             onClick={onClose}
             disabled={busy}
           >
@@ -305,7 +306,7 @@ export function CashDialog({
             type="submit"
             form="cash-form"
             data-testid="cash-confirm"
-            className={TOUCH_PRIMARY}
+            className={PH_PRIMARY}
             disabled={!ready || busy}
           >
             {busy ? (
@@ -332,7 +333,7 @@ export function CashDialog({
           }
         >
           <FieldInput
-            className={FIELD}
+            className={PH_FIELD}
             dir="ltr"
             inputMode="decimal"
             autoComplete="off"
@@ -343,13 +344,14 @@ export function CashDialog({
           />
         </Field>
         {hint && (
-          <p className="text-sm text-muted" data-testid="cash-available">
+          <p className="text-sm text-ph-muted" data-testid="cash-available">
             {t("pharmacy.shifts.cash.available")}:{" "}
             <Money minor={hint.availableMinor} currency={currency} />
           </p>
         )}
         {hint?.over && (
           <Note
+            look="ph"
             icon={<TriangleAlert aria-hidden />}
             tone="danger"
             role="status"
@@ -365,7 +367,7 @@ export function CashDialog({
           hint={t("pharmacy.shifts.reasonHint")}
         >
           <FieldInput
-            className={FIELD}
+            className={PH_FIELD}
             dir="auto"
             autoComplete="off"
             maxLength={200}
@@ -376,6 +378,7 @@ export function CashDialog({
         </Field>
         {problem && (
           <Note
+            look="ph"
             icon={<CircleAlert aria-hidden />}
             tone="danger"
             role="alert"
@@ -480,7 +483,7 @@ export function CloseDialog({
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span data-testid="close-expected">
             {t("pharmacy.shifts.expected")}:{" "}
-            <strong className="text-text">
+            <strong className="text-ph-text">
               <Money minor={expectedMinor} currency={shift.currency} />
             </strong>
           </span>
@@ -493,7 +496,7 @@ export function CloseDialog({
         <>
           <button
             type="button"
-            className={TOUCH_BTN}
+            className={PH_BTN}
             onClick={onClose}
             disabled={busy}
           >
@@ -503,7 +506,7 @@ export function CloseDialog({
             type="submit"
             form="close-form"
             data-testid="close-confirm"
-            className={TOUCH_PRIMARY}
+            className={PH_PRIMARY}
             disabled={!ready || busy}
           >
             {busy ? (
@@ -526,7 +529,7 @@ export function CloseDialog({
         <div>
           <button
             type="button"
-            className={TOUCH_BTN}
+            className={PH_BTN}
             data-testid="close-refresh"
             disabled={refreshing || busy}
             onClick={() => startRefresh(() => router.refresh())}
@@ -543,7 +546,7 @@ export function CloseDialog({
           error={invalid ? t("pharmacy.sell.pay.invalidAmount") : undefined}
         >
           <FieldInput
-            className={FIELD}
+            className={PH_FIELD}
             dir="ltr"
             inputMode="decimal"
             autoComplete="off"
@@ -560,7 +563,7 @@ export function CloseDialog({
           <p
             data-testid="close-variance"
             role="status"
-            className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-md border border-line bg-surface px-3 py-2.5 text-md font-semibold text-text"
+            className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-ph-xl border border-ph-line bg-ph-canvas px-3 py-2.5 text-md font-semibold text-ph-text"
           >
             <span className="flex items-center gap-2">
               {plan.kind === "match" ? (
@@ -587,7 +590,7 @@ export function CloseDialog({
             hint={t("pharmacy.shifts.close.reasonHint")}
           >
             <FieldInput
-              className={FIELD}
+              className={PH_FIELD}
               dir="auto"
               autoComplete="off"
               maxLength={200}
@@ -599,6 +602,7 @@ export function CloseDialog({
         )}
         {needsManager && (
           <Note
+            look="ph"
             icon={<TriangleAlert aria-hidden />}
             tone="danger"
             role="alert"
@@ -609,6 +613,7 @@ export function CloseDialog({
         )}
         {closedProbably && (
           <Note
+            look="ph"
             icon={<CircleCheck aria-hidden />}
             tone="info"
             role="status"
@@ -628,6 +633,7 @@ export function CloseDialog({
         )}
         {problem && (
           <Note
+            look="ph"
             icon={<CircleAlert aria-hidden />}
             tone="danger"
             role="alert"

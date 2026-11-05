@@ -16,6 +16,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy expiry list and stock counts: the owner sees the batch that expires soon and the expired one, follows them
@@ -180,7 +181,8 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await seedStock(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await page.getByRole('navigation').getByRole('link', { name: 'Expiry', exact: true }).click();
+    // Not exact: the rail link carries its counter ("Expiry 1") once a batch is close to expiry.
+    await railLink(page, 'Expiry');
     await expect(page.getByRole('heading', { level: 1, name: 'Expiry' })).toBeVisible();
 
     // Default horizon 90 days: the expired and the 20-day batch, not the one a year away.
@@ -190,6 +192,16 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await expect(page.locator('span[data-band="expired"]')).toContainText('Expired');
     await expect(page.locator('span[data-band="d30"]')).toContainText('Within 30 days');
     await expect(page.locator('[data-total="expired"]')).toContainText('1');
+    // Grouped by urgency, each group under its heading; the empty 31-60 and 61-90 groups are not drawn.
+    const groups = page.getByTestId('expiry-group');
+    await expect(groups).toHaveCount(2);
+    expect(await groups.evaluateAll((els) => els.map((el) => el.getAttribute('data-group')))).toEqual(['expired', 'd30']);
+    await expect(groups.nth(0).getByRole('heading', { level: 2 })).toContainText('Expired');
+    await expect(groups.nth(1).getByRole('heading', { level: 2 })).toContainText('Within 30 days');
+    await expect(groups.nth(0).getByTestId('expiry-lot')).toHaveText(['OLD-1']);
+    await expect(groups.nth(1).getByTestId('expiry-lot')).toHaveText(['SOON-2']);
+    await expect(page.getByTestId('expiry-summary')).toContainText('One batch expires within 90 days');
+    await expect(page.getByTestId('expiry-summary')).toContainText('one already expired');
     await page.getByRole('link', { name: '30 days' }).click();
     await expect(page).toHaveURL(/days=30/);
     await expect(page.getByTestId('expiry-lot')).toHaveText(['OLD-1', 'SOON-2']);
@@ -249,7 +261,7 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await page.goto('/pharmacy/select');
     await page.getByRole('group', { name: shop.name }).getByRole('button').nth(1).click();
 
-    await page.getByRole('navigation').getByRole('link', { name: 'Stock counts' }).click();
+    await railLink(page, 'Stock counts');
     await expect(page.getByRole('heading', { level: 1, name: 'Stock counts' })).toBeVisible();
     await expect(page.getByTestId('counts-empty')).toContainText('No counts yet');
     await page.getByLabel('Blind count').check();
@@ -358,6 +370,8 @@ test.describe('Pharmacy counts and expiry @desktop', () => {
     await expect(till.getByTestId('expiry-row').first()).toBeVisible();
     await expect(till.getByTestId('stock-write-blocked')).toContainText('Your role can look at stock');
     await expect(till.getByTestId('expiry-followup')).toHaveCount(0);
+    await openRailMore(till);
+
     await expect(till.getByRole('navigation').getByRole('link', { name: 'Stock counts' })).toHaveCount(0);
     await till.goto('/pharmacy/stock/counts');
     await expect(till.getByTestId('counts-forbidden')).toContainText('You cannot see this page');

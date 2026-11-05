@@ -95,6 +95,48 @@ describe('ph.stock.balances', () => {
     expect(low).toEqual(['ExpiredOnly', 'Mixed']);
   });
 
+  it('filters expiring (the expiry screen and the nav counter rule) and out of stock (nothing sellable in the branches shown)', async () => {
+    const { a, owner, at, b1, b2 } = await world();
+    const soon = await makeProduct(a.id, 'Soon');
+    const fine = await makeProduct(a.id, 'Fine');
+    const empty = await makeProduct(a.id, 'Empty');
+    const stale = await makeProduct(a.id, 'Stale');
+    const held = await makeProduct(a.id, 'Held');
+    const elsewhere = await makeProduct(a.id, 'Elsewhere');
+    await makeBatch(a.id, b1, soon.id, { expiry: '2026-12-15', buckets: { available: 4 } });
+    await makeBatch(a.id, b1, fine.id, { buckets: { available: 9 } });
+    await makeBatch(a.id, b1, stale.id, { expiry: '2026-10-01', buckets: { available: 30 } });
+    await makeBatch(a.id, b1, held.id, { buckets: { quarantine: 6 } });
+    await makeBatch(a.id, b2, elsewhere.id, { buckets: { available: 3 } });
+    void empty;
+    const names = async (input: Record<string, unknown>) => dataOf(await ask(owner, stockQueries.balances, { ...at, ...input })).items.map((i) => i.tradeName);
+
+    expect(await names({ expiring: true })).toEqual(['Soon']);
+    expect(await names({ expiring: true, branchId: b2 })).toEqual([]);
+    // Out: no sellable stock at all (never stocked, only expired, only held back); stock in another branch counts only when it is shown.
+    expect(await names({ outOfStock: true })).toEqual(['Empty', 'Held', 'Stale']);
+    expect(await names({ outOfStock: true, branchId: b1 })).toEqual(['Elsewhere', 'Empty', 'Held', 'Stale']);
+    expect(await names({ outOfStock: true, search: 'emp' })).toEqual(['Empty']);
+  });
+
+  it('gives the matching count and, per product, the generic name, first barcode, base unit and its current price', async () => {
+    const { a, owner, at, b1 } = await world();
+    const p = await makeProduct(a.id, 'Panadol');
+    await prisma().phProduct.update({ where: { id: p.id }, data: { genericName: 'Paracetamol' } });
+    await prisma().phBarcode.create({ data: { restaurantId: a.id, productId: p.id, unitId: p.strip, code: '6001234567890' } });
+    await prisma().phPrice.create({ data: { restaurantId: a.id, productId: p.id, unitId: p.tablet, currency: 'IQD', amountMinor: 250n, validFrom: new Date('2026-01-01T00:00:00.000Z'), changedById: 'seed' } });
+    await makeBatch(a.id, b1, p.id, { buckets: { available: 5 } });
+    const bare = await makeProduct(a.id, 'Zinc');
+    for (const n of ['Q1', 'Q2']) await makeProduct(a.id, n);
+
+    const res = dataOf(await ask(owner, stockQueries.balances, { ...at, pageSize: 2 }));
+    expect(res.total).toBe(4);
+    expect(res.items[0]).toMatchObject({ tradeName: 'Panadol', genericName: 'Paracetamol', barcode: '6001234567890', baseUnit: 'tablet', price: { amountMinor: '250', currency: 'IQD' } });
+    const zinc = dataOf(await ask(owner, stockQueries.balances, { ...at, productId: bare.id }));
+    expect(zinc.total).toBe(1);
+    expect(zinc.items[0]).toMatchObject({ genericName: '', barcode: null, baseUnit: 'tablet', price: null });
+  });
+
   it('refuses a stock filter over too many products with TOO_MANY', async () => {
     const { a, owner, at, b1 } = await world();
     const products = Array.from({ length: 5001 }, (_, i) => ({ restaurantId: a.id, tradeName: 'P' + i, identityKey: 'k' + i, searchText: 'p' + i }));
@@ -108,6 +150,24 @@ describe('ph.stock.balances', () => {
     expect(r.ok ? null : r.error.fields?.phCode).toBe('TOO_MANY');
     expect(dataOf(await ask(owner, stockQueries.balances, at)).items).toHaveLength(50);
   }, 60_000);
+
+  it('filters out of stock in a well-stocked pharmacy: more sellable products than the cap is no refusal', async () => {
+    const { a, owner, at, b1 } = await world();
+    const products = Array.from({ length: 5001 }, (_, i) => ({ restaurantId: a.id, tradeName: 'P' + i, identityKey: 'k' + i, searchText: 'p' + i }));
+    await prisma().phProduct.createMany({ data: [...products, { restaurantId: a.id, tradeName: 'Zero', identityKey: 'zero', searchText: 'zero' }] });
+    const rows = await prisma().phProduct.findMany({ where: { restaurantId: a.id, tradeName: { not: 'Zero' } }, select: { id: true } });
+    await prisma().phBatch.createMany({ data: rows.map((r) => ({ restaurantId: a.id, productId: r.id, lot: 'L', expiryDate: new Date('2028-01-31T00:00:00.000Z') })) });
+    const batches = await prisma().phBatch.findMany({ where: { restaurantId: a.id }, select: { id: true, productId: true } });
+    await prisma().phStockBalance.createMany({ data: batches.map((x) => ({ restaurantId: a.id, branchId: b1, productId: x.productId, batchId: x.id, available: 1 })) });
+    // A live database has planner statistics (autovacuum analyzes after a bulk load); a table seeded a moment ago does not,
+    // and without them Postgres plans the NOT EXISTS as a nested loop.
+    await prisma().$executeRawUnsafe('ANALYZE "PhProduct", "PhBatch", "PhStockBalance"');
+    const out = dataOf(await ask(owner, stockQueries.balances, { ...at, outOfStock: true }));
+    expect(out.items.map((p) => p.tradeName)).toEqual(['Zero']);
+    expect(out.total).toBe(1);
+    // In the other branch nothing is sellable: every product is out there.
+    expect(dataOf(await ask(owner, stockQueries.balances, { ...at, branchId: a.branchIds[1]!, outOfStock: true })).total).toBe(5002);
+  }, 90_000);
 
   it('a search never returns another business’s product', async () => {
     const { owner, at } = await world();
@@ -161,6 +221,9 @@ describe('ph.stock.balances', () => {
     await makeBatch(a.id, b2, p2.id, { buckets: { available: 3 } });
     const items = dataOf(await ask(only1, stockQueries.balances, { ...at, onlyWithStock: true })).items;
     expect(items.map((i) => i.tradeName)).toEqual(['Panadol']);
+    // "Out of stock" counts only their branches too: the product stocked only in the other branch is out for them.
+    const out = dataOf(await ask(only1, stockQueries.balances, { ...at, onlyWithStock: undefined, outOfStock: true })).items;
+    expect(out.map((i) => i.tradeName)).toEqual(['Elsewhere']);
   });
 
   it('never returns another business\'s stock', async () => {

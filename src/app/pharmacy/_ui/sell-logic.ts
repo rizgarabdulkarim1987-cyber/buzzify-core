@@ -165,7 +165,7 @@ export const itemDetail = (item: Pick<AddableItem, 'strength' | 'form' | 'packLa
   [item.strength, item.form, item.packLabel].filter((part) => part.trim() !== '').join(' · ');
 
 export type CartAction =
-  | { type: 'add'; item: AddableItem; unitId?: string }
+  | { type: 'add'; item: AddableItem; unitId?: string; qty?: number }
   | { type: 'qty'; key: string; qty: number }
   | { type: 'step'; key: string; delta: number }
   | { type: 'unit'; key: string; unitId: string }
@@ -178,6 +178,8 @@ export type CartAction =
   | { type: 'load'; cart: CartState };
 
 const clampQty = (qty: number): number => (Number.isFinite(qty) ? Math.min(MAX_QTY, Math.max(1, Math.trunc(qty))) : 1);
+/** How many an `add` puts in: a whole number from 1 (anything else handed in, NaN or infinite included, counts as one). */
+const addedQty = (qty: number | undefined): number => (qty !== undefined && Number.isFinite(qty) && qty >= 1 ? Math.trunc(qty) : 1);
 
 /** The unit a new line starts in: the one a barcode named, else the cheapest-to-count (the smallest sellable unit). */
 export function startUnit(item: AddableItem, unitId?: string): CartUnit | null {
@@ -193,7 +195,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
       const unit = startUnit(action.item, action.unitId);
       if (!unit) return state;
       const same = state.lines.find((l) => l.productId === action.item.productId && l.unitId === unit.id && l.batchId === null && l.discount === null && !l.blocked);
-      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + 1) }));
+      if (same) return map(same.key, (l) => ({ ...l, qty: clampQty(l.qty + addedQty(action.qty)) }));
       if (state.lines.length >= MAX_LINES) return state;
       const line: CartLine = {
         key: `l${state.seq + 1}`,
@@ -203,7 +205,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         rxLevel: action.item.rxLevel,
         units: action.item.units.map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty, priceMinor: u.priceMinor })),
         unitId: unit.id,
-        qty: 1,
+        qty: clampQty(addedQty(action.qty)),
         sellableQty: action.item.sellableQty,
         batches: action.item.batches,
         discount: null,
@@ -410,6 +412,34 @@ export function buildPayment(draft: PayDraft, amountMinor: bigint, paymentKey: s
   return { method: draft.method, amountMinor: amountMinor.toString(), reference: draft.reference.trim(), clientKey: paymentKey };
 }
 
+// Items handed to the sale screen ---------------------------------------------------------------------------------------
+
+export const SELL_ADD_MAX_QTY = 999;
+/** The most items one address hands over: as many unit ids as `ph.sell.search` reads in one call (`SELL_SEARCH_MAX`). */
+export const SELL_ADD_MAX_ITEMS = 30;
+
+/**
+ * `add=<unitId>:<qty>,<unitId>:<qty>` from the sale screen's address (with or without the leading `?`): the units to put in
+ * the cart. An entry with no unit id, or a quantity that is not a whole number from 1 to 999, is dropped; the rest stay,
+ * up to the first SELL_ADD_MAX_ITEMS valid ones (a longer list is cut there, never refused).
+ */
+export function parseSellAdd(search: string): { unitId: string; qty: number }[] {
+  const raw = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('add');
+  if (!raw) return [];
+  const out: { unitId: string; qty: number }[] = [];
+  for (const entry of raw.split(',')) {
+    if (out.length >= SELL_ADD_MAX_ITEMS) break;
+    const cut = entry.lastIndexOf(':');
+    if (cut < 0) continue;
+    const unitId = entry.slice(0, cut).trim();
+    const qtyText = entry.slice(cut + 1).trim();
+    if (unitId === '' || !/^\d{1,3}$/.test(qtyText)) continue;
+    const qty = Number(qtyText);
+    if (qty >= 1 && qty <= SELL_ADD_MAX_QTY) out.push({ unitId, qty });
+  }
+  return out;
+}
+
 // Keys and ids ----------------------------------------------------------------------------------------------------------
 
 /** A fresh idempotency key. Made once per attempt and reused on every retry of that attempt. */
@@ -523,11 +553,18 @@ export type Shortcut = 'search' | 'pay' | 'hold' | 'escape' | 'addTop';
  * the search or closes the dialog, Enter in the search box adds the top result. Keys with Ctrl, Alt or Meta are the
  * browser's; a key held down (repeat) never fires twice; a key that someone already handled (`defaultPrevented`, as a
  * scanner's closing Enter is) and a key pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing.
+ * Nor does any key while a modal sheet is open over the screen (`modalOpen`, the Doctor sheet on a phone): the sheet owns
+ * the keys, and Escape must close it rather than clear the search behind it. Escape pressed inside the Doctor's side panel
+ * (`inDoctor`) is the panel's own too: it never clears the sale search or pulls the focus away.
  */
 export function shortcutOf(
   event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean },
   inSearch: boolean,
+  modalOpen = false,
+  inDoctor = false,
 ): Shortcut | null {
+  if (modalOpen) return null;
+  if (inDoctor && event.key === 'Escape') return null;
   if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented) return null;
   if (event.isComposing || event.keyCode === 229) return null;
   switch (event.key) {

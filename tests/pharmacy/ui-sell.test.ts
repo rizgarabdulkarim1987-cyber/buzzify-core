@@ -128,6 +128,15 @@ describe('the cart reducer', () => {
     expect(withLines({ type: 'add', item: item() }, { type: 'step', key, delta: -1 }).lines[0]!.qty).toBe(1);
   });
 
+  it('an added quantity that is not a whole number from 1 counts as one, and never resets a line already in the cart', () => {
+    for (const qty of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -4]) {
+      expect(withLines({ type: 'add', item: item(), qty }).lines[0]!.qty, `new line, qty ${qty}`).toBe(1);
+      const merged = withLines({ type: 'add', item: item(), qty: 3 }, { type: 'add', item: item(), qty });
+      expect(merged.lines[0]!.qty, `merged, qty ${qty}`).toBe(4);
+    }
+    expect(withLines({ type: 'add', item: item(), qty: 2 }, { type: 'add', item: item(), qty: 2.7 }).lines[0]!.qty).toBe(4);
+  });
+
   it('changing the unit drops a chosen batch; an unknown unit changes nothing', () => {
     let cart = withLines({ type: 'add', item: item() });
     const key = cart.lines[0]!.key;
@@ -318,6 +327,16 @@ describe('keys', () => {
     expect(shortcutOf(press('F4', { altKey: true }), false)).toBeNull();
     expect(shortcutOf(press('F8', { repeat: true }), false)).toBeNull();
     expect(shortcutOf(press('a'), true)).toBeNull();
+  });
+
+  it('means nothing while another modal sheet is open (the Doctor sheet keeps its own Escape)', () => {
+    for (const key of ['F2', 'F4', 'F8', 'Escape', 'Enter']) expect(shortcutOf(press(key), true, true)).toBeNull();
+    expect(shortcutOf(press('Escape'), false, false)).toBe('escape');
+  });
+
+  it('leaves Escape typed in the Doctor side panel alone (the sale search stays), and keeps the other keys', () => {
+    expect(shortcutOf(press('Escape'), false, false, true)).toBeNull();
+    expect(shortcutOf(press('F4'), false, false, true)).toBe('pay');
   });
 });
 

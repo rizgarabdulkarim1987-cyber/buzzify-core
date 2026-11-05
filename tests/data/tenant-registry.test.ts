@@ -122,6 +122,13 @@ describe('tenant scoping registry', () => {
     expect(RESTAURANT_CONFINED_MODELS.Restaurant).toBe('id');
   });
 
+  // The AI Doctor's audit rows belong to a restaurant and a branch: a client limited to branches must not read another branch's.
+  it('registers the AI Doctor audit table as restaurant- and branch-scoped', () => {
+    expect(models.has('PhDoctorLog'), 'PhDoctorLog is a model').toBe(true);
+    expect(RESTAURANT_SCOPED_MODELS as readonly string[]).toContain('PhDoctorLog');
+    expect(PHARMACY_BRANCH_SCOPED_MODELS).toContain('PhDoctorLog');
+  });
+
   it('classifies every model exactly once', () => {
     const all = [
       ...MENU_SCOPED_MODELS,

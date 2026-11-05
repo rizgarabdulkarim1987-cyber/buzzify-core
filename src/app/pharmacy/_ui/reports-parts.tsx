@@ -21,7 +21,7 @@ export const Num = ({ value, testid }: { value: number; testid?: string }) => (
   </bdi>
 );
 export const Pct = ({ bp, none }: { bp: number | null; none: string }) =>
-  bp === null ? <span className="text-muted">{none}</span> : (
+  bp === null ? <span className="text-ph-muted">{none}</span> : (
     <bdi dir="ltr" className="tabular-nums">
       {bpPercent(bp)}
     </bdi>
@@ -41,7 +41,7 @@ export const Day = ({ day }: { day: string }) => (
 export function NoticeLine({ notice, t }: { notice: Notice; t: Translate }) {
   const Icon = notice.tone === 'warn' ? TriangleAlert : Info;
   return (
-    <p data-testid="report-notice" data-notice={notice.key} role="note" className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm text-text ${notice.tone === 'warn' ? 'border-ink bg-raised font-medium' : 'border-line bg-surface'}`}>
+    <p data-testid="report-notice" data-notice={notice.key} role="note" className={`flex items-start gap-2.5 rounded-ph-xl px-3 py-2.5 text-sm text-ph-text ${notice.tone === 'warn' ? 'bg-ph-amber-wash font-medium' : 'bg-ph-blue-wash'}`}>
       <Icon aria-hidden className="mt-px size-4 shrink-0" />
       <span className="min-w-0">{t(`pharmacy.reports.notice.${notice.key}`, notice.count === undefined ? undefined : countParams(notice.count))}</span>
     </p>
@@ -51,7 +51,7 @@ export function NoticeLine({ notice, t }: { notice: Notice; t: Translate }) {
 /** Something that cannot be shown: the figure is missing, not zero. */
 export function Unavailable({ t }: { t: Translate }) {
   return (
-    <span data-testid="unavailable" className="inline-flex items-center gap-1.5 text-sm text-muted">
+    <span data-testid="unavailable" className="inline-flex items-center gap-1.5 text-sm text-ph-muted">
       <CircleAlert aria-hidden className="size-3.5 shrink-0" />
       {t('pharmacy.reports.unavailable')}
     </span>
@@ -62,10 +62,10 @@ export function Section({ title, hint, children, testid }: { title: string; hint
   const id = useId();
   return (
     <section data-testid={testid} aria-labelledby={id} className="flex min-w-0 flex-col gap-2.5">
-      <h2 id={id} className="text-md font-semibold text-text">
+      <h2 id={id} className="text-base font-bold text-ph-text">
         {title}
       </h2>
-      {hint && <p className="max-w-[72ch] text-sm text-muted">{hint}</p>}
+      {hint && <p className="max-w-[72ch] text-sm text-ph-muted">{hint}</p>}
       {children}
     </section>
   );
@@ -77,8 +77,8 @@ export function Figures({ items, testid }: { items: Array<{ label: string; value
     <dl data-testid={testid} className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
       {items.map((item) => (
         <div key={item.label} className="flex min-w-0 flex-col gap-0.5" data-testid={item.testid}>
-          <dt className="text-xs font-medium text-muted">{item.label}</dt>
-          <dd className={`min-w-0 break-words ${item.strong ? 'text-lg font-semibold' : 'text-base'} text-text`}>{item.value}</dd>
+          <dt className="text-xs font-medium text-ph-muted">{item.label}</dt>
+          <dd className={`min-w-0 break-words ${item.strong ? 'text-lg font-semibold' : 'text-base'} text-ph-text`}>{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -100,15 +100,15 @@ export function Tbl({ caption, cols, rows, testid, scrollHint }: { caption: stri
   const id = useId();
   return (
     <div data-testid={testid} className="flex min-w-0 flex-col gap-1">
-      <div role="region" aria-labelledby={`${id}-c`} aria-describedby={`${id}-h`} tabIndex={0} className="max-w-full overflow-x-auto rounded-md border border-line">
+      <div role="region" aria-labelledby={`${id}-c`} aria-describedby={`${id}-h`} tabIndex={0} className="max-w-full overflow-x-auto rounded-ph-xl border border-ph-line bg-ph-card">
         <table className="w-full min-w-max border-collapse text-sm">
           <caption id={`${id}-c`} className="sr-only">
             {caption}
           </caption>
           <thead>
-            <tr className="bg-surface">
+            <tr className="bg-ph-canvas">
               {cols.map((c, i) => (
-                <th key={i} scope="col" className={`whitespace-nowrap border-b border-line px-3 py-2.5 text-xs font-semibold text-muted ${c.num ? 'text-end' : 'text-start'}`}>
+                <th key={i} scope="col" className={`whitespace-nowrap border-b border-ph-line px-3 py-2.5 text-xs font-semibold text-ph-muted ${c.num ? 'text-end' : 'text-start'}`}>
                   {c.h}
                 </th>
               ))}
@@ -116,14 +116,14 @@ export function Tbl({ caption, cols, rows, testid, scrollHint }: { caption: stri
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r} data-testid="report-row" className="border-b border-line last:border-b-0">
+              <tr key={r} data-testid="report-row" className="border-b border-ph-line last:border-b-0">
                 {row.map((cell, i) =>
                   i === 0 ? (
-                    <th key={i} scope="row" className="min-h-11 px-3 py-2.5 text-start font-medium text-text">
+                    <th key={i} scope="row" className="min-h-11 px-3 py-2.5 text-start font-medium text-ph-text">
                       {cell}
                     </th>
                   ) : (
-                    <td key={i} className={`px-3 py-2.5 text-text ${cols[i]?.num ? 'whitespace-nowrap text-end' : 'text-start'}`}>
+                    <td key={i} className={`px-3 py-2.5 text-ph-text ${cols[i]?.num ? 'whitespace-nowrap text-end' : 'text-start'}`}>
                       {cell}
                     </td>
                   ),
@@ -133,7 +133,7 @@ export function Tbl({ caption, cols, rows, testid, scrollHint }: { caption: stri
           </tbody>
         </table>
       </div>
-      <p id={`${id}-h`} className="text-xs text-muted">
+      <p id={`${id}-h`} className="text-xs text-ph-muted">
         {scrollHint}
       </p>
     </div>

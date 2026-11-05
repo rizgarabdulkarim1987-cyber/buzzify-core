@@ -1,7 +1,11 @@
 import { Lock, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
+import { DoctorSlot } from '@/app/pharmacy/_ui/DoctorSlot';
 import { SellWorkspace } from '@/app/pharmacy/_ui/SellWorkspace';
+import { LOOK_COOKIE, lookOf } from '@/app/pharmacy/_ui/sell-look';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
+import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
 import { current } from '@/server/pharmacy/queries/shifts';
 import { search } from '@/server/pharmacy/queries/sell';
 import { query } from '@/server/studio/framework/invoke';
@@ -47,13 +51,16 @@ export default async function SellPage() {
     );
   }
 
-  const [now, found] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 })]);
+  const [now, found, doctor] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), doctorEnabledThisRequest(actor)]);
   const open = now
     ? { id: now.shift.id, currency: now.shift.currency, openingFloatMinor: now.shift.openingFloatMinor, openedAt: now.shift.openedAt }
     : null;
 
+  const look = lookOf((await cookies()).get(LOOK_COOKIE)?.value);
+
   return (
     <SellWorkspace
+      look={look}
       restaurantId={placeInput.restaurantId}
       branchId={place.branchId}
       userId={actor.userId}
@@ -65,6 +72,8 @@ export default async function SellPage() {
         rx: roleMay(actor, 'rx.dispense'),
         credit: found.settings.creditEnabled && roleMay(actor, 'credit.sell'),
       }}
+      aside={<DoctorSlot where="sell" enabled={doctor} branchId={place.branchId} t={t} />}
+      phoneAside={<DoctorSlot where="sell-phone" enabled={doctor} branchId={place.branchId} t={t} />}
     />
   );
 }

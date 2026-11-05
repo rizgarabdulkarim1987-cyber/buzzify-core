@@ -468,6 +468,67 @@ test.describe('Pharmacy reports and chain @desktop', () => {
     await x.context().close();
   });
 
+  test('the landing: period tabs, the four cards in IQD, the chart and the top products above the detailed reports', async ({ browser }) => {
+    test.setTimeout(180_000);
+    // The owner at 1280x800: the landing part fits on the screen without scrolling the page.
+    const o = await session(browser, owner, shop, null, { width: 1280, height: 800 });
+    await o.goto('/pharmacy/reports');
+    const landing = o.getByTestId('reports-landing');
+    await expect(landing).toBeVisible();
+    const box = await landing.boundingBox();
+    expect(box && box.y + box.height, 'the landing ends inside the first screen').toBeLessThanOrEqual(800);
+    // Every sale of the world is today: each period holds them all. IQD only; the USD sale is left out and a note says so.
+    await expect(o.getByTestId('landing-sales')).toContainText('4,585 IQD');
+    await expect(o.getByTestId('landing-invoices')).toContainText('4');
+    await expect(o.getByTestId('landing-returns')).toContainText('450 IQD');
+    await expect(o.getByTestId('landing-profit')).toContainText('566 IQD');
+    await expect(o.getByTestId('home-other-currencies')).toBeVisible();
+    const top = o.getByTestId('landing-top').getByRole('listitem');
+    await expect(top).toHaveCount(2);
+    await expect(top.first()).toContainText(world.names.P);
+    await expect(top.first()).toContainText('2,135 IQD');
+    await expect(top.nth(1)).toContainText(world.names.Q);
+    // The period tabs: 7 days, 30 days, 12 months, each a point of the chart; the cards follow the same days.
+    const points = o.getByTestId('home-chart').locator('figcaption li');
+    await expect(points).toHaveCount(7);
+    const tabs = o.getByRole('navigation', { name: 'Period' }).getByRole('link');
+    await tabs.nth(1).click();
+    await expect(o).toHaveURL(/\/pharmacy\/reports\?period=30d$/);
+    await expect(points).toHaveCount(30);
+    await expect(tabs.nth(1)).toHaveAttribute('aria-current', 'page');
+    await tabs.nth(2).click();
+    await expect(o).toHaveURL(/\/pharmacy\/reports\?period=12m$/);
+    await expect(points).toHaveCount(12);
+    await expect(o.getByTestId('landing-sales')).toContainText('4,585 IQD');
+    // The detailed reports are still there, below the landing.
+    await o.getByTestId('report-card-sales').click();
+    await expect(o).toHaveURL(/\/pharmacy\/reports\/sales$/);
+    await o.context().close();
+
+    // The pharmacist in charge (no profit.view): the cards without the estimated profit, the rest the same.
+    const p = await session(browser, pic, shop, null, { width: 1280, height: 800 });
+    await p.goto('/pharmacy/reports');
+    await expect(p.getByTestId('landing-sales')).toContainText('4,585 IQD');
+    await expect(p.getByTestId('landing-profit')).toHaveCount(0);
+    await expect(p.getByTestId('reports-landing')).not.toContainText('566');
+    await p.context().close();
+
+    // A phone: no sideways scroll.
+    const s = await session(browser, owner, shop, null, { width: 375, height: 812 });
+    await s.goto('/pharmacy/reports?period=30d');
+    await expect(s.getByTestId('landing-sales')).toBeVisible();
+    expect(await scrollsSideways(s)).toBe(false);
+    await s.context().close();
+
+    // A pharmacy with no sales: zeros, the empty chart and no top products, never a missing figure.
+    const e = await session(browser, ownerEmpty, empty, null);
+    await e.goto('/pharmacy/reports');
+    await expect(e.getByTestId('landing-sales')).toContainText('0 IQD');
+    await expect(e.getByTestId('home-chart-empty')).toBeVisible();
+    await expect(e.getByTestId('landing-top-empty')).toBeVisible();
+    await e.context().close();
+  });
+
   test('stale filters in the address say what is wrong and load nothing; presets and offline keep the filters', async ({ browser }) => {
     test.setTimeout(180_000);
     const o = await session(browser, owner, shop, null);

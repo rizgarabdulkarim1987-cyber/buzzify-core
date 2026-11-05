@@ -6,7 +6,9 @@ import { isExpired, utcToday, type ExpiryPrecision } from '@/server/domain/pharm
 import { normalizeForSearch } from '@/server/domain/pharmacy/product-identity';
 import type { PhActor } from './actor';
 import { mayViewCost } from './products';
+import { priceRowsAt } from './prices';
 import { BUCKETS, type Bucket } from './stock';
+import { expiringWhere } from './stock-alerts';
 
 /**
  * Reading stock (Phase 2): balances per product with their batches in FEFO order, and the movement ledger. Both read
@@ -33,6 +35,10 @@ export const balancesInput = z.object({
   onlyWithStock: z.boolean().optional(),
   /** Products with a minimum set whose available stock in a branch shown is below it. */
   lowStock: z.boolean().optional(),
+  /** Products with stock expiring within 90 days and not yet expired in a branch shown (the expiry screen's and the nav counter's rule). */
+  expiring: z.boolean().optional(),
+  /** Products with nothing sellable (`available` of an ACTIVE, unexpired batch) in the branches shown, never-stocked ones included. */
+  outOfStock: z.boolean().optional(),
   cursor,
   pageSize,
 });
@@ -101,6 +107,13 @@ export interface ProductBalance {
   strength: string;
   form: string;
   active: boolean;
+  genericName: string;
+  /** The product's first barcode (any unit), or null. */
+  barcode: string | null;
+  /** The label of the base unit (level 0), or null when the product has none. */
+  baseUnit: string | null;
+  /** The base unit's price now, in the pharmacy's default currency (a branch price when one branch is shown), or null. */
+  price: { amountMinor: string; currency: 'IQD' | 'USD' } | null;
   branches: BranchTotals[];
   batches: BatchView[];
 }
@@ -119,9 +132,9 @@ type Place = { branchId?: string | undefined };
  */
 export const MAX_FILTERED_PRODUCTS = 5000;
 
-/** The products a stock filter keeps, as ids; null when no filter is on. */
+/** The products a stock filter keeps, as ids; null when no such filter is on. ("Out of stock" is a relation predicate, see `outOfStockWhere`.) */
 async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesInput> & Place): Promise<string[] | null> {
-  if (!input.onlyWithStock && !input.lowStock) return null;
+  if (!input.onlyWithStock && !input.lowStock && !input.expiring) return null;
   const branch = input.branchId ? { branchId: input.branchId } : {};
   const product = input.productId ? { productId: input.productId } : {};
   const today = new Date(`${utcToday()}T00:00:00.000Z`);
@@ -141,6 +154,9 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
       : Promise.resolve([]),
     input.lowStock ? scoped.phProductBranch.findMany({ where: { ...branch, ...product, minQty: { gt: 0 } }, select: { productId: true, branchId: true, minQty: true } }) : Promise.resolve([]),
   ]);
+  const expiring = input.expiring
+    ? await scoped.phStockBalance.findMany({ where: { ...expiringWhere(branch, new Date()), ...product }, select: { productId: true }, distinct: ['productId'] })
+    : [];
   let ids: Set<string> | null = null;
   const narrow = (next: Set<string>) => {
     ids = ids === null ? next : new Set([...ids].filter((id) => next.has(id)));
@@ -152,6 +168,7 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
     const availableAt = new Map(sellableSums.map((s) => [`${s.productId}|${s.branchId}`, s._sum.available ?? 0]));
     narrow(new Set(minimums.filter((m) => (availableAt.get(`${m.productId}|${m.branchId}`) ?? 0) < m.minQty).map((m) => m.productId)));
   }
+  if (input.expiring) narrow(new Set(expiring.map((e) => e.productId)));
   const kept = [...(ids ?? [])];
   if (kept.length > MAX_FILTERED_PRODUCTS) {
     throw new StudioError('CONFLICT', 'Too many products match: narrow the search or choose a branch', { phCode: 'TOO_MANY' });
@@ -159,33 +176,56 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
   return kept;
 }
 
+/**
+ * "Out of stock": no sellable balance in the branches shown, as a NOT EXISTS on the product's balances, so no id list
+ * goes back to the database however many products are stocked. Sellable is the stock screen's own rule (R2-5):
+ * `available` above 0 in an ACTIVE batch that has not expired. The branches shown are the place's branch, else the actor's
+ * own branches: the scoped client narrows a model's own rows to them, but not a relation filter like this one, so a
+ * branch-limited actor's stock elsewhere must not count here.
+ */
+function outOfStockWhere(ph: PhActor, input: Place) {
+  const today = new Date(`${utcToday()}T00:00:00.000Z`);
+  const branchId = input.branchId ?? (ph.allBranches ? undefined : { in: ph.branchIds });
+  return {
+    balances: {
+      none: { ...(branchId ? { branchId } : {}), available: { gt: 0 }, batch: { status: 'ACTIVE' as const, expiryDate: { gte: today } } },
+    },
+  };
+}
+
 /** Products by trade name, each with its branch totals and its batches earliest expiry first. */
 export async function listBalances(
   scoped: ScopedClient,
   ph: PhActor,
   input: z.infer<typeof balancesInput> & Place,
-): Promise<{ items: ProductBalance[]; nextCursor: string | null }> {
+): Promise<{ items: ProductBalance[]; nextCursor: string | null; total: number }> {
   const ids = await filteredIds(scoped, input);
   const words = [...new Set(normalizeForSearch(input.search ?? '').split(' ').filter(Boolean))].slice(0, 8);
-  const rows = await scoped.phProduct.findMany({
-    where: {
-      ...(input.productId ? { id: input.productId } : {}),
-      ...(ids !== null ? { id: { in: ids } } : {}),
-      ...(words.length > 0 ? { AND: words.map((w) => ({ searchText: { contains: literal(w) } })) } : {}),
-    },
-    select: { id: true, tradeName: true, strength: true, form: true, active: true },
-    orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
-    take: input.pageSize + 1,
-    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
-  });
+  const idWhere = [
+    ...(input.productId ? [{ id: input.productId }] : []),
+    ...(ids !== null ? [{ id: { in: ids } }] : []),
+    ...(input.outOfStock ? [outOfStockWhere(ph, input)] : []),
+  ];
+  const searchWhere = words.length > 0 ? words.map((w) => ({ searchText: { contains: literal(w) } })) : [];
+  const finalWhere = { AND: [...idWhere, ...searchWhere] };
+  const [rows, total] = await Promise.all([
+    scoped.phProduct.findMany({
+      where: finalWhere,
+      select: { id: true, tradeName: true, strength: true, form: true, active: true, genericName: true },
+      orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
+      take: input.pageSize + 1,
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+    }),
+    scoped.phProduct.count({ where: finalWhere }),
+  ]);
   const more = rows.length > input.pageSize;
   const page = more ? rows.slice(0, input.pageSize) : rows;
   const productIds = page.map((p) => p.id);
   const branch = input.branchId ? { branchId: input.branchId } : {};
 
-  const [balances, batches, minimums] =
+  const [balances, batches, minimums, baseUnits, barcodes, settings] =
     productIds.length === 0
-      ? [[], [], []]
+      ? [[], [], [], [], [], null]
       : await Promise.all([
           scoped.phStockBalance.findMany({
             where: { productId: { in: productIds }, ...branch },
@@ -196,7 +236,20 @@ export async function listBalances(
             select: { id: true, productId: true, lot: true, expiryDate: true, expiryPrecision: true, status: true, unitCostMinor: true, costCurrency: true, costUnitId: true },
           }),
           scoped.phProductBranch.findMany({ where: { productId: { in: productIds }, ...branch }, select: { productId: true, branchId: true, minQty: true } }),
+          scoped.phProductUnit.findMany({ where: { productId: { in: productIds }, level: 0 }, select: { id: true, productId: true, label: true } }),
+          scoped.phBarcode.findMany({ where: { productId: { in: productIds } }, select: { productId: true, code: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+          scoped.phSettings.findFirst({ select: { defaultCurrency: true } }),
         ]);
+  const currency = settings?.defaultCurrency ?? 'IQD';
+  const prices = await priceRowsAt(scoped, {
+    units: baseUnits.map((u) => ({ productId: u.productId, unitId: u.id })),
+    branchId: input.branchId ?? null,
+    currency,
+    at: new Date(),
+  });
+  const baseUnitOf = new Map(baseUnits.map((u) => [u.productId, u]));
+  const barcodeOf = new Map<string, string>();
+  for (const b of barcodes) if (!barcodeOf.has(b.productId)) barcodeOf.set(b.productId, b.code);
 
   const today = utcToday();
   const withCost = mayViewCost(ph);
@@ -252,11 +305,19 @@ export async function listBalances(
       strength: product.strength,
       form: product.form,
       active: product.active,
+      genericName: product.genericName,
+      barcode: barcodeOf.get(product.id) ?? null,
+      baseUnit: baseUnitOf.get(product.id)?.label ?? null,
+      price: (() => {
+        const unit = baseUnitOf.get(product.id);
+        const row = unit ? prices.get(`${product.id}:${unit.id}`) : undefined;
+        return row ? { amountMinor: String(row.amount), currency } : null;
+      })(),
       branches: [...totals.values()].sort((x, y) => cmp(x.branchId, y.branchId)),
       batches: views,
     };
   });
-  return { items, nextCursor: more ? page[page.length - 1]!.id : null };
+  return { items, nextCursor: more ? page[page.length - 1]!.id : null, total };
 }
 
 export interface MovementView {

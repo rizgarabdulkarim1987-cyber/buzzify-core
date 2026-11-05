@@ -1,145 +1,140 @@
-import {
-  ArrowLeftRight,
-  BarChart3,
-  Boxes,
-  CalendarClock,
-  ClipboardCheck,
-  FileText,
-  History,
-  Home,
-  MapPin,
-  Network,
-  PackagePlus,
-  Pill,
-  Receipt,
-  Settings,
-  ShoppingCart,
-  Sparkles,
-  Tag,
-  Timer,
-  Truck,
-  Undo2,
-  Users,
-} from 'lucide-react';
+import { Pill, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
-import { canPh } from '@/server/domain/pharmacy/permissions';
 import type { PhActor } from '@/server/pharmacy/actor';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
-import { NavLink } from './NavLink';
+import { BottomBar } from './BottomBar';
+import { Rail } from './Rail';
 import { SupportBanner } from './SupportBanner';
+import { phNav, type PhNavItem, type PhNavKey, type PhShellLink } from './nav';
 
-const LINK = 'inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-text hover:bg-hover';
+/** The places the phone's bottom bar holds; everything else goes in its "More" sheet. */
+const BAR = new Set<PhNavKey>(['home', 'sell', 'stock', 'expiry']);
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: ReactNode;
-  exact?: boolean;
-}
-
-/** The links this person may use, in the order they are shown: the same permissions as before, listed once. */
-function navItems(actor: PhActor, t: Translate): NavItem[] {
-  const role = actor.role;
-  const may = (permission: Parameters<typeof canPh>[1]) => role !== null && canPh(role, permission);
-  const items: (NavItem | false)[] = [
-    { href: '/pharmacy/home', label: t('pharmacy.nav.home'), icon: <Home aria-hidden /> },
-    { href: '/pharmacy/catalog', label: t('pharmacy.nav.catalog'), icon: <Pill aria-hidden /> },
-    may('shift.use') && { href: '/pharmacy/sell', label: t('pharmacy.nav.sell'), icon: <ShoppingCart aria-hidden /> },
-    (may('shift.use') || may('report.view')) && { href: '/pharmacy/shifts', label: t('pharmacy.nav.shifts'), icon: <Timer aria-hidden /> },
-    (may('shift.use') || may('report.view')) && { href: '/pharmacy/sales', label: t('pharmacy.nav.sales'), icon: <Receipt aria-hidden /> },
-    (may('return.approve') || may('report.view')) && { href: '/pharmacy/returns', label: t('pharmacy.nav.returns'), icon: <Undo2 aria-hidden /> },
-    may('rx.dispense') && { href: '/pharmacy/prescriptions', label: t('pharmacy.nav.prescriptions'), icon: <FileText aria-hidden /> },
-    (may('customer.manage') || may('credit.sell')) && { href: '/pharmacy/customers', label: t('pharmacy.nav.customers'), icon: <Users aria-hidden /> },
-    may('catalog.view') && { href: '/pharmacy/stock', label: t('pharmacy.nav.stock'), icon: <Boxes aria-hidden />, exact: true },
-    may('catalog.view') && { href: '/pharmacy/stock/expiry', label: t('pharmacy.nav.expiry'), icon: <CalendarClock aria-hidden /> },
-    may('stock.count') && { href: '/pharmacy/stock/counts', label: t('pharmacy.nav.counts'), icon: <ClipboardCheck aria-hidden /> },
-    may('purchase.manage') && { href: '/pharmacy/stock/receive', label: t('pharmacy.nav.receiving'), icon: <PackagePlus aria-hidden /> },
-    may('transfer.manage') && { href: '/pharmacy/stock/transfers', label: t('pharmacy.nav.transfers'), icon: <ArrowLeftRight aria-hidden /> },
-    may('purchase.manage') && { href: '/pharmacy/purchasing', label: t('pharmacy.nav.purchasing'), icon: <Truck aria-hidden /> },
-    may('report.view') && { href: '/pharmacy/stock/movements', label: t('pharmacy.nav.movements'), icon: <History aria-hidden /> },
-    may('report.view') && { href: '/pharmacy/reports', label: t('pharmacy.nav.reports'), icon: <BarChart3 aria-hidden /> },
-    may('catalog.view') && { href: '/pharmacy/assistant', label: t('pharmacy.nav.assistant'), icon: <Sparkles aria-hidden /> },
-    may('catalog.view') && { href: '/pharmacy/print/labels', label: t('pharmacy.print.labels.title'), icon: <Tag aria-hidden /> },
-    may('report.view') && actor.branchIds.length > 1 && { href: '/pharmacy/chain', label: t('pharmacy.nav.chain'), icon: <Network aria-hidden /> },
-    (role === 'OWNER' || role === 'BRANCH_MANAGER') && { href: '/pharmacy/settings', label: t('pharmacy.nav.settings'), icon: <Settings aria-hidden /> },
-  ];
-  return items.filter((item): item is NavItem => item !== false);
-}
+const RAIL_LINK = 'flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-on-green underline underline-offset-2 hover:bg-ph-g9';
+const SHEET_LINK = 'flex min-h-12 items-center gap-2 rounded-ph-xl px-3 text-base font-medium text-ph-text underline underline-offset-2 hover:bg-ph-card';
 
 /**
- * The frame of every pharmacy screen once a place is chosen: the support strip for a support actor, a header saying
- * where the person works (pharmacy and branch, with the way to change it) and who they are, then the page. Server
- * rendered, no motion (the pharmacy's document is marked `data-motion="none"`); it wraps on a phone and never scrolls
- * sideways.
+ * The fixed frame of every pharmacy screen once a place is chosen. On a desktop (`md:` and up): the flat green rail at
+ * the start side (the pharmacy and branch, the role's places, and the person with change branch, account and sign out at
+ * its foot). On a phone: a slim top bar (pharmacy, branch, account), the page, and a bottom bar whose "More" opens a sheet
+ * with the rest. The document never scrolls; `<main>` is the one scroll container. Nothing of the frame prints, and in
+ * print the frame lets the page run to its full height. Server rendered apart from the parts that know the current
+ * path; no motion (the pharmacy's document is marked `data-motion="none"`).
  */
 export function Shell({
   actor,
   branchName,
   notice,
   t,
+  counts,
+  doctorEnabled = false,
   children,
 }: {
   actor: PhActor;
   /** The chosen branch; null for "All branches". */
   branchName: string | null;
-  /** A state notice under the header (read-only), if any. */
+  /** A state notice above the page (read-only), if any. */
   notice?: ReactNode;
   t: Translate;
+  /** The counters on Stock and Expiry; none drawn when absent. */
+  counts?: { lowStock: number; expiring: number };
+  /** Whether the AI Doctor is a place yet. */
+  doctorEnabled?: boolean;
   children: ReactNode;
 }) {
   const role = actor.role ? t(`pharmacy.role.${actor.role}`) : t('pharmacy.role.support');
-  const items = navItems(actor, t);
+  const where = branchName ?? t('pharmacy.branch.all');
+  const nav = phNav(actor.role, { branchCount: actor.branchIds.length, doctorEnabled });
+  const link = (item: PhNavItem): PhShellLink => ({
+    key: item.key,
+    href: item.href,
+    label: t(item.labelKey),
+    icon: item.icon,
+    ...(item.badge && counts ? { count: counts[item.badge] } : {}),
+  });
+  const primary = nav.primary.map(link);
+  const more = nav.more.map(link);
+  const navLabel = t('pharmacy.nav.main');
+  const moreLabel = t('pharmacy.nav.more');
+
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="flex h-dvh flex-col overflow-hidden bg-ph-canvas text-ph-text md:flex-row print:h-auto print:overflow-visible print:bg-transparent md:print:flex-col">
       <a
         href="#main"
         className="sr-only rounded-md bg-ink px-3 py-2 text-on-ink focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50"
       >
         {t('common.skipToContent')}
       </a>
-      <SupportBanner support={actor.support} locale={actor.locale} />
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-2 sm:px-8 print:hidden">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <header className="flex shrink-0 items-center gap-3 bg-ph-g9 px-4 py-2 text-ph-on-green md:w-[196px] md:flex-col md:items-stretch md:gap-1 md:overflow-y-auto md:px-3 md:py-[18px] print:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 md:flex-none md:px-2 md:pb-[18px]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-ph-xl bg-ph-card text-ph-g8">
+            <Pill aria-hidden size={20} />
+          </span>
           <p className="flex min-w-0 flex-col">
-            <span className="text-xs font-medium text-muted">{t('pharmacy.shell.label')}</span>
-            <span className="break-words text-lg font-semibold leading-tight text-text" dir="auto">
+            <span className="sr-only">{t('pharmacy.shell.label')}: </span>
+            <span className="truncate text-base font-bold md:whitespace-normal md:break-words" dir="auto">
               {actor.restaurantName}
             </span>
-          </p>
-          <p className="flex min-w-0 items-center gap-1.5 text-sm text-text">
-            <MapPin aria-hidden size={16} className="shrink-0 text-muted" />
-            <span className="sr-only">{t('pharmacy.shell.where')}: </span>
-            <span className="break-words" dir="auto">
-              {branchName ?? t('pharmacy.branch.all')}
+            <span className="flex min-w-0 text-xs text-ph-on-green-muted">
+              <span className="sr-only">{t('pharmacy.shell.where')}: </span>
+              <span className="truncate md:whitespace-normal md:break-words" dir="auto">
+                {where}
+              </span>
             </span>
           </p>
-          <Link href="/pharmacy/select" className={LINK}>
-            {t('pharmacy.shell.changeBranch')}
-          </Link>
         </div>
-        <div className="ms-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-          <span dir="auto">
+        <Link
+          href="/studio/account"
+          aria-label={t('pharmacy.shell.account')}
+          className="grid size-11 shrink-0 place-items-center rounded-ph-xl text-ph-on-green hover:bg-ph-g8 md:hidden"
+        >
+          <UserRound aria-hidden size={22} />
+        </Link>
+        <Rail primary={primary} more={more} navLabel={navLabel} moreLabel={moreLabel} />
+        <div className="hidden md:mt-auto md:flex md:flex-col md:gap-0.5 md:rounded-[14px] md:bg-ph-g8 md:p-2.5 md:text-ph-on-green">
+          <span className="break-words px-2 pb-1 text-sm font-semibold" dir="auto">
             {actor.name} · {role}
           </span>
-          <Link href="/studio/account" className={LINK}>
+          <Link href="/pharmacy/select" className={RAIL_LINK}>
+            {t('pharmacy.shell.changeBranch')}
+          </Link>
+          <Link href="/studio/account" className={RAIL_LINK}>
             {t('pharmacy.shell.account')}
           </Link>
-          <SignOutButton />
+          <SignOutButton className="inline-flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-semibold text-ph-on-green hover:bg-ph-g9 disabled:opacity-60" />
         </div>
       </header>
-      <nav aria-label={t('pharmacy.nav.label')} className="flex items-center gap-1 overflow-x-auto border-b border-line bg-surface px-2 py-1.5 sm:flex-wrap sm:overflow-visible sm:px-6 print:hidden">
-        {items.map((item) => (
-          <NavLink key={item.href} href={item.href} icon={item.icon} exact={item.exact}>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-      {notice ? <div className="print:hidden">{notice}</div> : null}
-      <main id="main" className="flex min-w-0 flex-1 flex-col">
-        {children}
-      </main>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col print:min-h-0">
+        <SupportBanner support={actor.support} locale={actor.locale} />
+        {notice ? <div className="shrink-0 print:hidden">{notice}</div> : null}
+        {/* The one scroll container: in the tab order, so the keyboard can scroll a page that has nothing focusable (axe scrollable-region-focusable). */}
+        <main id="main" tabIndex={0} className="relative flex min-h-0 min-w-0 flex-1 scroll-pb-24 flex-col overflow-y-auto focus-visible:-outline-offset-2 print:overflow-visible">
+          {children}
+        </main>
+      </div>
+      <BottomBar
+        bar={primary.filter((l) => BAR.has(l.key))}
+        sheet={[...primary.filter((l) => !BAR.has(l.key)), ...more]}
+        navLabel={navLabel}
+        moreLabel={moreLabel}
+        closeLabel={t('pharmacy.nav.close')}
+        account={
+          <div className="flex flex-col gap-1">
+            <span className="break-words px-3 pb-1 text-sm font-semibold text-ph-muted" dir="auto">
+              {actor.name} · {role} · {where}
+            </span>
+            <Link href="/pharmacy/select" className={SHEET_LINK}>
+              {t('pharmacy.shell.changeBranch')}
+            </Link>
+            <Link href="/studio/account" className={SHEET_LINK}>
+              {t('pharmacy.shell.account')}
+            </Link>
+            <SignOutButton className="inline-flex min-h-12 items-center gap-2 rounded-ph-xl px-3 text-base font-semibold text-ph-text hover:bg-ph-card disabled:opacity-60" />
+          </div>
+        }
+      />
     </div>
   );
 }

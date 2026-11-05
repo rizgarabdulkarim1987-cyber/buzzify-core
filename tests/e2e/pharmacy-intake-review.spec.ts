@@ -436,9 +436,12 @@ test.describe('Pharmacy invoice review @desktop', () => {
     // The approve bar stays within reach and says why it is blocked.
     await expect(page.getByTestId('intake-approve')).toBeDisabled();
     // A card is about 900px at this width (measured 920): a guard against it growing, not a claim that it is short. The bar follows the person down the list.
-    const perLine = await page.evaluate(() => document.documentElement.scrollHeight / document.querySelectorAll('[data-testid=review-row]').length);
+    // The frame never scrolls the document: <main id="main"> is the scroll container, so it is the one measured and scrolled.
+    const perLine = await page.evaluate(() => document.getElementById('main')!.scrollHeight / document.querySelectorAll('[data-testid=review-row]').length);
     expect(perLine).toBeLessThan(1100);
-    await page.evaluate(() => window.scrollTo(0, 5000));
+    expect(perLine).toBeGreaterThan(100);
+    await page.evaluate(() => document.getElementById('main')!.scrollTo(0, 5000));
+    expect(await page.evaluate(() => document.getElementById('main')!.scrollTop)).toBeGreaterThan(0);
     await expect(page.getByTestId('intake-approve-bar')).toBeInViewport();
     await shoot(page, 'en-review-200-375', false);
     await page.context().close();

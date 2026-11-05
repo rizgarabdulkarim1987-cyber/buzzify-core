@@ -13,6 +13,7 @@ import {
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
+import { railLink } from './helpers/pharmacy-nav';
 
 /**
  * The pharmacy catalog screens: the owner adds a product with its packs and barcodes, finds it by barcode and by its
@@ -113,6 +114,23 @@ async function signInAndChoose(page: Page, user: StudioUser, shop: TestPharmacy)
   await expect(page).toHaveURL(/\/pharmacy\/home$/);
 }
 
+/** The controls in <main> shorter than a 44px touch target: inputs, selects, buttons, links, and the label row of each checkbox. */
+const shortControls = (page: Page) =>
+  page.evaluate(() => {
+    const main = document.getElementById('main');
+    if (!main) return ['no main'];
+    const els = [...main.querySelectorAll<HTMLElement>('input:not([type=checkbox]), select, textarea, button, a')];
+    for (const box of main.querySelectorAll('input[type=checkbox]')) {
+      const label = box.closest('label');
+      if (label) els.push(label);
+    }
+    return els.flatMap((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0 || el.closest('[hidden]') || getComputedStyle(el).visibility === 'hidden') return [];
+      return r.height < 43.5 ? [`${el.tagName} "${(el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 30)}" ${Math.round(r.height)}px`] : [];
+    });
+  });
+
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
 /** A CSV of `rows` products; the rows at `bad` have no trade name. */
@@ -151,7 +169,7 @@ test.describe('Pharmacy catalog @desktop', () => {
     await signInAndChoose(page, owner, shop);
 
     // An empty catalog says so and offers the two ways to fill it.
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page.getByRole('heading', { level: 1, name: 'Catalog' })).toBeVisible();
     await expect(page.getByTestId('catalog-empty')).toBeVisible();
     await page.getByTestId('catalog-empty').getByRole('link', { name: 'Add a product' }).click();
@@ -219,11 +237,11 @@ test.describe('Pharmacy catalog @desktop', () => {
     await page.getByRole('tab', { name: 'Details' }).click();
     await page.getByLabel('Trade name').fill(`${tradeName} changed`);
     page.once('dialog', (dialog) => void dialog.dismiss());
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page.getByLabel('Trade name')).toHaveValue(`${tradeName} changed`);
     expect(page.url()).toBe(productUrl);
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await railLink(page, 'Catalog');
     await expect(page).toHaveURL(/\/pharmacy\/catalog$/);
 
     // An import of 20 rows, two without a name: they are shown and left out, the rest are added.
@@ -315,6 +333,77 @@ test.describe('Pharmacy catalog @desktop', () => {
     const over = await send(csv(5.5 * 1024 * 1024));
     expect(over.status()).toBe(413);
     expect(((await over.json()) as { error: { fields: Record<string, string> } }).error.fields.phCode).toBe('FILE_TOO_LARGE');
+    await page.context().close();
+  });
+
+  test('the product form: the save bar stays in view at 375 and 1280, the import card, the dispensing default, a version conflict', async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { shop, owner } = await owned('Form');
+    const page = await freshPage(browser, { width: 375, height: 667 });
+    await signInAndChoose(page, owner, shop);
+    await page.goto('/pharmacy/catalog/new');
+    await expect(page.getByRole('heading', { level: 1, name: 'New product' })).toBeVisible();
+
+    // The dispensing level is still there and still starts at "Over the counter"; the import card leads to the import.
+    await expect(page.getByLabel('Dispensing')).toHaveValue('OTC');
+    await expect(page.getByTestId('product-import')).toHaveAttribute('href', '/pharmacy/catalog/import');
+
+    // A long form (two packs, a barcode): the save button is on screen at the top and at the end, the document never scrolls.
+    const tag = randomUUID().slice(0, 6);
+    const save = page.getByRole('button', { name: 'Save product' });
+    await page.getByLabel('Trade name').fill(`Form ${tag}`);
+    await page.getByRole('button', { name: 'Add a larger pack' }).click();
+    await page.getByLabel('Pack 1: Unit name').fill('strip');
+    await page.getByLabel('Pack 1: Holds (base units)').fill('10');
+    await page.getByRole('button', { name: 'Add a larger pack' }).click();
+    await page.getByLabel('Pack 2: Unit name').fill('box');
+    await page.getByLabel('Pack 2: Holds (base units)').fill('30');
+    const scan = page.getByLabel('Scan or type a barcode');
+    await scan.fill(ean13(`62${digits(10)}`));
+    await scan.press('Enter');
+    for (const field of [page.getByLabel('Trade name'), scan, page.getByLabel('Pack 2: Unit name')]) {
+      await field.focus();
+      await expect(save).toBeInViewport({ ratio: 1 });
+    }
+    const box = await save.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= document.documentElement.clientHeight)).toBe(true);
+    expect(await scrollsSideways(page)).toBe(false);
+    // Every control of the form is a 44px touch target, on a phone and on a desktop.
+    expect(await shortControls(page), 'controls under 44px at 375').toEqual([]);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByLabel('Trade name').focus();
+    await expect(save).toBeInViewport({ ratio: 1 });
+    expect(await shortControls(page), 'controls under 44px at 1280').toEqual([]);
+
+    // Creating still works end to end; while the save runs the button says so.
+    await page.route('**/pharmacy/catalog/new', async (route) => {
+      if (route.request().method() === 'POST') await new Promise((done) => setTimeout(done, 1500));
+      await route.continue();
+    });
+    await save.click();
+    await expect(page.getByRole('button', { name: 'Saving…' })).toBeVisible();
+    await expect(page).toHaveURL(/\/pharmacy\/catalog\/(?!new)[^/]+$/);
+    const productUrl = page.url();
+    await expect(page.getByRole('heading', { level: 1, name: `Form ${tag}` })).toBeVisible();
+    await expect(page.getByLabel('Dispensing')).toHaveValue('OTC');
+    await expect(page.getByTestId('product-import')).toHaveCount(0);
+    expect(await shortControls(page), 'controls under 44px on a saved product').toEqual([]);
+
+    // A version conflict: a second tab saves first; this one is refused with the existing message and its Reload.
+    const other = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() }, viewport: { width: 1280, height: 800 }, storageState: await page.context().storageState() });
+    await hideDevTools(other);
+    const second = await other.newPage();
+    await second.goto(productUrl);
+    await second.getByLabel('Trade name').fill(`Form ${tag} b`);
+    await second.getByRole('button', { name: 'Save product' }).click();
+    await expect(second.getByText('Saved', { exact: true })).toBeVisible();
+    await page.getByLabel(/^Strength/).fill('250 mg');
+    await save.click();
+    await expect(page.getByRole('alert').getByRole('button', { name: 'Reload' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Reload to see their changes.' })).toBeVisible();
+    expect(await shortControls(page), 'controls under 44px with the conflict shown').toEqual([]);
+    await other.close();
     await page.context().close();
   });
 

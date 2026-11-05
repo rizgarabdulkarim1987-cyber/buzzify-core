@@ -10,11 +10,12 @@ import * as returnActions from '@/server/pharmacy/actions/supplier-returns';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { setAiProviderForTests } from '@/server/ai/provider';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
+import { phScopedClient } from '@/server/studio/framework/access';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { dataOf, makeBatch, makeProduct, META } from './stock-helpers';
-import { NOW, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, asPh, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 
 /**
  * Isolation of the stock definitions (phase 2): a person of business A with a valid session who sends a hand-made input
@@ -120,6 +121,12 @@ interface Ids {
   /** An assistant proposal of the business in branch 1 / in branch 2 (phase 7, task 4); branch-scoped. */
   proposal1: string;
   proposal2: string;
+  /** An AI Doctor audit row of the business in branch 1 / in branch 2; branch-scoped. */
+  doctorLog1: string;
+  doctorLog2: string;
+  /** A pharmacist (a staff row with ai.use) of branch 1 / of branch 2 (plan Task 9): the AI Doctor switch names one. */
+  staff1: string;
+  staff2: string;
 }
 interface World {
   a: Ids;
@@ -141,7 +148,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2' | 'proposal1' | 'proposal2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2' | 'proposal1' | 'proposal2' | 'doctorLog1' | 'doctorLog2' | 'staff1' | 'staff2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -353,6 +360,18 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
     (await prisma().phAiProposal.create({ data: { restaurantId: base.restaurantId, branchId, kind: 'REORDER', payload: { lines: [{ productId: base.productId, qty: 1 }] }, createdById: owner.userId }, select: { id: true } })).id;
   withDocs.proposal1 = await proposalIn(base.b1);
   withDocs.proposal2 = await proposalIn(base.b2);
+  // One AI Doctor audit row in each branch.
+  const doctorLogIn = async (branchId: string) =>
+    (await prisma().phDoctorLog.create({ data: { restaurantId: base.restaurantId, branchId, staffId: owner.userId, mode: 'COMPLAINT', questionText: 'headache', answer: { summary: 'seed' }, model: 'seed', inputTokens: 1, outputTokens: 1, outcome: 'ANSWERED' }, select: { id: true } })).id;
+  withDocs.doctorLog1 = await doctorLogIn(base.b1);
+  withDocs.doctorLog2 = await doctorLogIn(base.b2);
+  // One pharmacist in each branch, the AI Doctor switch off.
+  const pharmacistIn = async (branchId: string, n: number) => {
+    const who = await person(`pharm${base.tradeName}${n}`, { staff: [base.restaurantId, 'PHARMACIST', [branchId]] });
+    return (await prisma().phStaff.findFirstOrThrow({ where: { restaurantId: base.restaurantId, userId: who.userId }, select: { id: true } })).id;
+  };
+  withDocs.staff1 = await pharmacistIn(base.b1, 1);
+  withDocs.staff2 = await pharmacistIn(base.b2, 2);
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -403,8 +422,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1, proposalId: ids.proposal1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2, proposalId: ids.proposal2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1, proposalId: ids.proposal1, doctorLogId: ids.doctorLog1, staffId: ids.staff1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2, proposalId: ids.proposal2, doctorLogId: ids.doctorLog2, staffId: ids.staff2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -482,6 +501,8 @@ const CASES: Record<string, Case> = {
   // Expiry
   'ph.stock.expiry.setStatus': { body: (ids, n) => ({ batchId: pick(ids, n).batchId, status: 'IN_PROGRESS', note: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.stock.expiry': { body: () => ({ days: 180, includeExpired: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.nav.counts': { body: () => ({ now: NOW }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.home.figures': { body: () => ({ period: '7d', now: NOW }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Selling (phase 3). The seller must be in a branch of their own with an open shift; a product of the other business is refused.
   'ph.sales.create': { body: (ids) => saleBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.sales.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
@@ -655,6 +676,19 @@ const CASES: Record<string, Case> = {
   },
   'ph.assistant.proposal.accept': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.assistant.proposal.dismiss': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // The AI Doctor (Task 6). The body names a branch of the side (a place's own branch replaces it), so with no branch in the place the
+  // framework's branch check runs on it: another business's or branch's is refused before anything runs. This world's plan has no AI
+  // budget, so a call in one's own branch is refused by the Doctor's own access rule (FORBIDDEN) and writes nothing: both outcomes are
+  // harmless; the paths that answer are proven in doctor-action.test.ts and doctor-service.test.ts.
+  'ph.doctor.ask': { body: (ids, n) => ({ mode: 'COMPLAINT', text: 'Mild headache since this morning', branchId: n === 1 ? ids.b1 : ids.b2 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // The Doctor page's earlier questions (Task 8): read through the branch-scoped client, own rows (the owner's: the pharmacy's); real rows below.
+  'ph.doctor.history': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // The owner's control of the Doctor (Task 9). The review reads the business's OTC products through the scoped client (real rows below).
+  // The switch names a staff row: another business's is not found, and only the owner may flip one at all (a branch manager is refused), so
+  // naming branch 2's pharmacist from branch 1 is refused. The staff list is branch-scoped through the staff's branch links.
+  'ph.doctor.rxReview': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.staff.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.staff.setDoctor': { body: (ids, n) => ({ staffId: pick(ids, n).staffId, on: true }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -811,6 +845,133 @@ describe('the pharmacy isolation sweep', () => {
     expect(manager).toContain(a.proposal1);
     expect(manager, 'a branch-1 manager does not see branch 2').not.toContain(a.proposal2);
     expect(manager).not.toContain(b.proposal1);
+  });
+
+  it('covers the AI Doctor definition with a sweep case of its own', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.doctor.'));
+    expect(names.sort()).toEqual(['ph.doctor.ask', 'ph.doctor.history', 'ph.doctor.rxReview']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('has real Doctor log rows to guard: a scoped read sees its own branch only, and never the other business', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    const owner = (await asPh(ownerA.userId, a.restaurantId))!;
+    const manager = (await asPh(managerA1.userId, a.restaurantId))!;
+    const ownerRows = await phScopedClient(prisma(), owner).phDoctorLog.findMany({ select: { id: true } });
+    expect(ownerRows.map((r) => r.id)).toEqual(expect.arrayContaining([a.doctorLog1, a.doctorLog2]));
+    expect(ownerRows.map((r) => r.id)).not.toContain(b.doctorLog1);
+    expect(ownerRows.map((r) => r.id)).not.toContain(b.doctorLog2);
+    const managerRows = (await phScopedClient(prisma(), manager).phDoctorLog.findMany({ select: { id: true } })).map((r) => r.id);
+    expect(managerRows).toContain(a.doctorLog1);
+    expect(managerRows, 'a branch-1 manager does not see branch 2').not.toContain(a.doctorLog2);
+    expect(managerRows).not.toContain(b.doctorLog1);
+    // Naming the other business's or branch's row outright finds nothing.
+    expect(await phScopedClient(prisma(), manager).phDoctorLog.findMany({ where: { id: { in: [a.doctorLog2, b.doctorLog1, b.doctorLog2] } } })).toEqual([]);
+  });
+
+  it('has real Doctor history to guard: the owner sees the business’s rows of every branch, a manager only their own, and nobody another business’s', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    const def = DEFINITIONS.get('ph.doctor.history')!;
+    const mineText = `manager-own-question-${Date.now().toString(36)}`;
+    const own = await prisma().phDoctorLog.create({
+      data: { restaurantId: a.restaurantId, branchId: a.b1, staffId: managerA1.userId, mode: 'COMPLAINT', questionText: mineText, answer: { summary: 'seed' }, model: 'seed', inputTokens: 1, outputTokens: 1, outcome: 'ANSWERED' },
+      select: { id: true },
+    });
+    // The history applies the Doctor's own rule (plan budget, owner or switch): open it for this test, put the world back after.
+    const where = { applicationId_code: { applicationId: 'pharmacy', code: 'standard' } } as const;
+    const planWas = await prisma().appPlan.findUnique({ where, select: { limits: true } });
+    const limits = { branches: 5, users: 20, storageMb: 50, aiMonthlyBudgetMinor: 1000 };
+    if (planWas) await prisma().appPlan.update({ where, data: { limits } });
+    else await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'standard', name: { en: 'Standard' }, limits } });
+    const staffWhere = { restaurantId: a.restaurantId, userId: managerA1.userId };
+    const switchWas = await prisma().phStaff.findMany({ where: staffWhere, select: { id: true, aiDoctor: true } });
+    await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: true } });
+    try {
+      // With the switch off, the manager sees nothing at all.
+      await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: false } });
+      expect(json(await run(def, managerA1, { restaurantId: a.restaurantId })), 'the switch off: no history').toBe('{"ok":true,"data":{"items":[]}}');
+      await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: true } });
+      const owner = json(await run(def, ownerA, { restaurantId: a.restaurantId }));
+      expect(owner).toContain(a.doctorLog1);
+      expect(owner).toContain(a.doctorLog2);
+      expect(owner, 'the owner sees a staff member’s question').toContain(own.id);
+      expect(owner).not.toContain(b.doctorLog1);
+      expect(owner).not.toContain(b.doctorLog2);
+      expect(owner, 'no answer, model or tokens leave the log').not.toMatch(/"answer"|"model"|"inputTokens"|"staffId"/);
+      // The owner on one branch: that branch only.
+      const ownerB1 = json(await run(def, ownerA, { restaurantId: a.restaurantId, branchId: a.b1 }));
+      expect(ownerB1).toContain(a.doctorLog1);
+      expect(ownerB1).not.toContain(a.doctorLog2);
+      const manager = json(await run(def, managerA1, { restaurantId: a.restaurantId }));
+      expect(manager).toContain(own.id);
+      expect(manager).toContain(mineText);
+      expect(manager, 'a manager does not see the owner’s questions in their own branch').not.toContain(a.doctorLog1);
+      expect(manager, 'nor their text').not.toContain('"headache"');
+      expect(manager, 'nor another branch’s').not.toContain(a.doctorLog2);
+      expect(manager).not.toContain(b.doctorLog1);
+      // The other business's owner never sees it.
+      expect(json(await run(def, world.ownerB, { restaurantId: b.restaurantId }))).not.toContain(own.id);
+    } finally {
+      await prisma().phDoctorLog.delete({ where: { id: own.id } });
+      for (const row of switchWas) await prisma().phStaff.update({ where: { id: row.id }, data: { aiDoctor: row.aiDoctor } });
+      if (planWas) await prisma().appPlan.update({ where, data: { limits: planWas.limits as never } });
+      else await prisma().appPlan.delete({ where });
+    }
+  });
+
+  it('covers the owner’s Doctor control (Task 9) with sweep cases of its own', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.staff.') || name === 'ph.doctor.rxReview');
+    expect(names.sort()).toEqual(['ph.doctor.rxReview', 'ph.staff.list', 'ph.staff.setDoctor']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('has real staff to guard: the owner lists both branches’ pharmacists, the branch-1 manager only branch 1’s, nobody another business’s; the switch reaches the own business only', async () => {
+    const { a, b, ownerA, ownerB, managerA1 } = world;
+    const list = DEFINITIONS.get('ph.staff.list')!;
+    const owner = json(await run(list, ownerA, { restaurantId: a.restaurantId }));
+    expect(owner).toContain(a.staff1);
+    expect(owner).toContain(a.staff2);
+    expect(owner).not.toContain(b.staff1);
+    expect(owner).not.toContain(b.staff2);
+    const manager = json(await run(list, managerA1, { restaurantId: a.restaurantId, branchId: a.b1 }));
+    expect(manager).toContain(a.staff1);
+    expect(manager, 'a branch-1 manager does not see branch 2’s pharmacist').not.toContain(a.staff2);
+    expect(manager).not.toContain(a.b2);
+    expect(json(await run(list, ownerB, { restaurantId: b.restaurantId }))).not.toContain(a.staff1);
+
+    const set = DEFINITIONS.get('ph.staff.setDoctor')!;
+    const switches = () => prisma().phStaff.findMany({ where: { id: { in: [a.staff1, a.staff2, b.staff1, b.staff2] } }, select: { id: true, aiDoctor: true }, orderBy: { id: 'asc' } });
+    const was = await switches();
+    try {
+      expect(codeOf(await run(set, ownerA, { restaurantId: a.restaurantId, staffId: b.staff1, on: true }))).toBe('NOT_FOUND');
+      expect(codeOf(await run(set, managerA1, { restaurantId: a.restaurantId, branchId: a.b1, staffId: a.staff1, on: true })), 'a manager may not flip it').toBe('FORBIDDEN');
+      expect(await switches()).toEqual(was);
+      expect(codeOf(await run(set, ownerA, { restaurantId: a.restaurantId, staffId: a.staff2, on: true }))).toBe('OK');
+      expect((await switches()).filter((r) => r.aiDoctor).map((r) => r.id)).toEqual([a.staff2]);
+    } finally {
+      for (const row of was) await prisma().phStaff.update({ where: { id: row.id }, data: { aiDoctor: row.aiDoctor } });
+    }
+  });
+
+  it('has real products to review: each owner and the branch-1 manager see their own business’s OTC amoxicillin, never the other’s', async () => {
+    const { a, b, ownerA, ownerB, managerA1 } = world;
+    const def = DEFINITIONS.get('ph.doctor.rxReview')!;
+    const amox = async (restaurantId: string, tradeName: string) =>
+      (await prisma().phProduct.create({ data: { restaurantId, tradeName, genericName: 'amoxicillin', identityKey: `${tradeName}|${restaurantId}`, searchText: tradeName.toLowerCase() }, select: { id: true } })).id;
+    const [mineA, mineB] = [await amox(a.restaurantId, `${a.tradeName} Amox`), await amox(b.restaurantId, `${b.tradeName} Amox`)];
+    try {
+      for (const [who, place] of [[ownerA, { restaurantId: a.restaurantId }], [managerA1, { restaurantId: a.restaurantId, branchId: a.b1 }]] as const) {
+        const out = json(await run(def, who, place));
+        expect(out).toContain(mineA);
+        expect(out).not.toContain(mineB);
+        expect(out).not.toContain(b.tradeName);
+      }
+      const theirs = json(await run(def, ownerB, { restaurantId: b.restaurantId }));
+      expect(theirs).toContain(mineB);
+      expect(theirs).not.toContain(mineA);
+    } finally {
+      await prisma().phProduct.deleteMany({ where: { id: { in: [mineA, mineB] } } });
+    }
   });
 
   it('covers every phase 6 transfer definition', () => {
@@ -979,7 +1140,10 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     customerLedger: businessWide ? await prisma().phCustomerLedger.findMany(businessWide) : undefined,
     customerPayments: await prisma().phCustomerPayment.findMany({ where, orderBy }),
     aiProposals: await prisma().phAiProposal.findMany({ where, orderBy }),
+    doctorLogs: await prisma().phDoctorLog.findMany({ where, orderBy }),
     settings: branchId ? undefined : await prisma().phSettings.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
+    // Staff rows (and their AI Doctor switch) are the business's; compared for a whole business only (plan Task 9).
+    staff: businessWide ? await prisma().phStaff.findMany(businessWide) : undefined,
     // Support reads are logged by design (a granted Super Admin leaves a `support.read` row even when refused): checked on their own.
     audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId, action: { not: 'support.read' } }, orderBy }),
   });
@@ -992,8 +1156,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId, doctorLogId, staffId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId, doctorLogId, staffId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.customerId, ids.customerName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ids.transfer1, ids.transfer2, ...docs(1), ...docs(2)];

@@ -6,10 +6,8 @@ import { normalizeScan } from '@/server/domain/pharmacy/barcode';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
-import { IconButton } from '@/studio/ui/IconButton';
-import { Input } from '@/studio/ui/Input';
-import { Select } from '@/studio/ui/Select';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
+import { PhIconButton, PhInput, PhSelect } from './ph-controls';
 import type { BarcodeDraft, LevelDraft } from './product-draft';
 
 /** The most barcodes a product has (the server's limit). */
@@ -50,20 +48,20 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
   return (
     <div className="flex flex-col gap-3">
       {barcodes.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
+        <p className="flex items-center gap-2 text-sm text-ph-muted">
           <ScanBarcode aria-hidden className="size-4 shrink-0" />
           {t('pharmacy.catalog.barcode.none')}
         </p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line rounded-md border border-line">
+        <ul className="flex min-w-0 flex-col divide-y divide-ph-line rounded-ph-xl border border-ph-line">
           {barcodes.map((barcode, index) => (
-            <li key={`${barcode.code}-${index}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
-              <span dir="ltr" className="min-w-0 break-all font-mono text-sm text-text tabular-nums">
+            <li key={`${barcode.code}-${index}`} className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+              <span dir="ltr" className="min-w-0 break-all font-mono text-sm text-ph-text tabular-nums">
                 {barcode.code}
               </span>
               {barcode.shared && <StatusBadge>{t('pharmacy.catalog.barcode.sharedBadge')}</StatusBadge>}
               <div className="ms-auto flex items-center gap-2">
-                <Select
+                <PhSelect
                   aria-label={`${t('pharmacy.catalog.barcode.unit')}: ${barcode.code}`}
                   value={String(Math.min(barcode.level, levels.length - 1))}
                   disabled={disabled}
@@ -71,14 +69,14 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
                   options={unitOptions}
                 />
                 {!disabled && (
-                  <IconButton
+                  <PhIconButton
                     label={t('pharmacy.catalog.barcode.remove', { code: barcode.code })}
                     icon={<Trash2 />}
                     onClick={() => onChange(barcodes.filter((_, i) => i !== index))}
                   />
                 )}
               </div>
-              {errors[`barcodes.${index}.code`] && <p className="w-full text-sm text-danger">{errors[`barcodes.${index}.code`]}</p>}
+              {errors[`barcodes.${index}.code`] && <p className="w-full text-sm text-ph-red">{errors[`barcodes.${index}.code`]}</p>}
             </li>
           ))}
         </ul>
@@ -86,7 +84,7 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
       {!disabled && barcodes.length < MAX_BARCODES && (
         <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,10rem)_auto]">
           <Field label={t('pharmacy.catalog.barcode.scan')} error={problem ?? undefined}>
-            <Input
+            <PhInput
               dir="ltr"
               inputMode="numeric"
               autoComplete="off"
@@ -104,9 +102,9 @@ export function BarcodeList({ barcodes, levels, onChange, disabled, errors }: Ba
             />
           </Field>
           <Field label={t('pharmacy.catalog.barcode.unit')}>
-            <Select value={String(chosen)} onChange={(e) => setLevel(Number(e.target.value))} options={unitOptions} />
+            <PhSelect value={String(chosen)} onChange={(e) => setLevel(Number(e.target.value))} options={unitOptions} />
           </Field>
-          <Button icon={<Plus aria-hidden />} onClick={add}>
+          <Button className="min-h-11" icon={<Plus aria-hidden />} onClick={add}>
             {t('pharmacy.catalog.barcode.add')}
           </Button>
         </div>

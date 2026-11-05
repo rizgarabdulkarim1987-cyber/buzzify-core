@@ -22,7 +22,7 @@ vi.mock('@/studio/request-locale', () => ({ requestStudioLocale: async () => 'en
 const actions = vi.hoisted(() => ({ setExpiryStatus: vi.fn() }));
 vi.mock('@/app/pharmacy/_actions/expiry', () => actions);
 
-const { ExpiryList, ExpiryTotalsRow, BandChip, leftText } = await import('@/app/pharmacy/_ui/ExpiryList');
+const { ExpiryGroups, ExpiryList, ExpirySummary, ExpiryTotalsRow, BandChip, leftText } = await import('@/app/pharmacy/_ui/ExpiryList');
 const { default: ExpiryError } = await import('@/app/pharmacy/(app)/stock/expiry/error');
 const { default: ExpiryLoading } = await import('@/app/pharmacy/(app)/stock/expiry/loading');
 
@@ -153,6 +153,44 @@ describe('the expiry rows', () => {
     mount(list([row()], { canFollow: false }));
     expect(container.querySelector('[data-testid="expiry-followup"]')).toBeNull();
     expect(container.querySelector('[data-follow="NEW"]')).not.toBeNull();
+  });
+});
+
+describe('the urgency groups', () => {
+  const at = (batchId: string, expiryDate: string, expiryPrecision: 'DAY' | 'MONTH' = 'DAY') => row({ batch: { batchId, lot: batchId, expiryDate, expiryPrecision, status: 'ACTIVE' } });
+  const groups = (items: ExpiryRow[]) =>
+    createElement(ExpiryGroups, { items, today: '2026-10-27', t: en, userId: 'user-1', canFollow: false, branchNames: null });
+
+  it('draws only the groups that have batches, in order, each with its heading, dot and own list', () => {
+    mount(groups([at('LATE', '2027-01-10'), at('GONE', '2026-10-01'), at('SOON', '2026-11-05')]));
+    const sections = [...container.querySelectorAll('[data-testid="expiry-group"]')];
+    expect(sections.map((el) => el.getAttribute('data-group'))).toEqual(['expired', 'd30', 'd90']);
+    expect(sections.map((el) => el.querySelector('h2')!.textContent)).toEqual(['Expired1 on this page', 'Within 30 days1 on this page', '61 to 90 days1 on this page']);
+    expect(sections.map((el) => bare(el.querySelector('[data-testid="expiry-lot"]')))).toEqual(['GONE', 'SOON', 'LATE']);
+    for (const el of sections) {
+      expect(el.querySelector('h2 > span[aria-hidden]')!.className).toMatch(/rounded-full/);
+      expect(el.querySelector('ul')!.getAttribute('aria-label')).toBe(el.querySelector('h2 span:nth-child(2)')!.textContent);
+    }
+  });
+
+  it('groups a MONTH batch from the start of its month: 01/2027 is in 61 to 90 days on 27 October', () => {
+    mount(groups([at('M', '2027-01-31', 'MONTH')]));
+    expect(container.querySelector('[data-testid="expiry-group"]')!.getAttribute('data-group')).toBe('d90');
+  });
+
+  it('puts what lies beyond 90 days (the 180-day horizon) in a last group', () => {
+    mount(groups([at('FAR', '2027-03-01'), at('SOON', '2026-11-05')]));
+    expect([...container.querySelectorAll('[data-testid="expiry-group"]')].map((el) => el.getAttribute('data-group'))).toEqual(['d30', 'd180']);
+  });
+
+  it('says how many expire within the horizon and how many already expired, with plurals', () => {
+    mount(createElement(ExpirySummary, { totals: { expired: 1, d30: 1, d60: 0, d90: 0, d180: 5 }, days: 90, t: en }));
+    expect(text()).toBe('One batch expires within 90 days, one already expired');
+    mount(createElement(ExpirySummary, { totals: { expired: 0, d30: 1200, d60: 3, d90: 0, d180: 5 }, days: 180, t: en }));
+    expect(text()).toBe('1,208 batches expire within 180 days');
+    const ar = getStudioTranslator('ar');
+    mount(createElement(ExpirySummary, { totals: { expired: 2, d30: 3, d60: 0, d90: 0, d180: 0 }, days: 90, t: ar }));
+    expect(text()).toBe('3 دفعات تنتهي خلال 90 يومًا، ودفعتان منتهيتان');
   });
 });
 

@@ -192,6 +192,15 @@ export async function book(
 
 type OpenReservation = { id: string; month: string; microUsd: bigint; fileId: string };
 
+/** The calls without a file: their reservation's `fileId` is `<purpose>:<uuid>`, and their call-log purpose is that prefix. */
+export const FILELESS_PURPOSES = ['assistant', 'doctor'] as const;
+export type FilelessPurpose = (typeof FILELESS_PURPOSES)[number];
+
+/** The call-log purpose of a reservation, read from its `fileId`: a fileless prefix, otherwise an invoice extraction. */
+export function logPurposeOf(fileId: string): FilelessPurpose | 'extract' {
+  return FILELESS_PURPOSES.find((purpose) => fileId.startsWith(`${purpose}:`)) ?? 'extract';
+}
+
 /**
  * A reservation nobody will settle becomes SPEND at the reserved amount (never unspent), logged as an ERROR call. The caller
  * holds the month's usage row. `false` when it was already gone (someone else settled or swept it).
@@ -202,7 +211,7 @@ async function convertToSpend(tx: ScopedTx, restaurantId: string, reservation: O
   if (removed.count === 0) return false;
   await book(tx, reservation.month, state, reservation.microUsd, reservation.microUsd, { calls: 1, inputTokens: 0, outputTokens: 0 });
   await tx.phAiCall.create({
-    data: { restaurantId, purpose: reservation.fileId.startsWith('assistant:') ? 'assistant' : 'extract', model: 'none', status: 'ERROR', costMicroUsd: reservation.microUsd, fileId: reservation.fileId },
+    data: { restaurantId, purpose: logPurposeOf(reservation.fileId), model: 'none', status: 'ERROR', costMicroUsd: reservation.microUsd, fileId: reservation.fileId },
   });
   return true;
 }

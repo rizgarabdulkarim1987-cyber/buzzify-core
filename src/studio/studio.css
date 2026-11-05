@@ -79,6 +79,28 @@
   --color-info-wash: var(--s-info-wash);
   --color-overlay: var(--s-overlay);
 
+  /* The pharmacy's tokens (--ph-*, defined on .ph in src/app/pharmacy/pharmacy.css). */
+  --color-ph-canvas: var(--ph-canvas);
+  --color-ph-card: var(--ph-card);
+  --color-ph-line: var(--ph-line);
+  --color-ph-text: var(--ph-text);
+  --color-ph-muted: var(--ph-muted);
+  --color-ph-g9: var(--ph-g9);
+  --color-ph-g8: var(--ph-g8);
+  --color-ph-g6: var(--ph-g6);
+  --color-ph-g1: var(--ph-g1);
+  --color-ph-blue: var(--ph-blue);
+  --color-ph-blue-wash: var(--ph-blue-wash);
+  --color-ph-red: var(--ph-red);
+  --color-ph-red-wash: var(--ph-red-wash);
+  --color-ph-amber-ink: var(--ph-amber-ink);
+  --color-ph-amber-wash: var(--ph-amber-wash);
+  --color-ph-accent: var(--ph-accent);
+  --color-ph-on-green: var(--ph-on-green);
+  --color-ph-on-green-muted: var(--ph-on-green-muted);
+  --color-ph-badge: var(--ph-badge);
+  --color-ph-badge-ink: var(--ph-badge-ink);
+
   --font-*: initial;
   --font-sans: var(--s-font);
   --font-mono: var(--s-mono);
@@ -107,6 +129,10 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-full: 9999px;
+  /* The pharmacy redesign's rounder corners (rounded-ph-xl, rounded-ph-2xl): their own names, so the till and the Studio,
+     whose rounded-xl/2xl have no radius, look as before. */
+  --radius-ph-xl: 12px;
+  --radius-ph-2xl: 16px;
 
   /* The one shadow: a dialog lifts off the page. */
   --shadow-*: initial;

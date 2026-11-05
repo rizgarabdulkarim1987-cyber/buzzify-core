@@ -207,6 +207,7 @@ model Restaurant {
   phCustomerLedger           PhCustomerLedger[]
   phCustomerPayments         PhCustomerPayment[]
   phAiProposals              PhAiProposal[]
+  phDoctorLogs               PhDoctorLog[]
   supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
@@ -255,6 +256,7 @@ model Branch {
   phControlledEntries PhControlledEntry[]
   phCustomerPayments PhCustomerPayment[]
   phAiProposals     PhAiProposal[]
+  phDoctorLogs      PhDoctorLog[]
 
   @@unique([restaurantId, id])
   @@index([restaurantId])
@@ -2401,6 +2403,8 @@ model PhStaff {
   userId        String
   role          PhRole
   deactivatedAt DateTime?
+  /// Whether this person may use the AI Doctor (the owner switches it on per person; off by default).
+  aiDoctor      Boolean    @default(false)
   createdAt     DateTime   @default(now())
   restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -4174,6 +4178,29 @@ model PhAiProposal {
 
   @@unique([restaurantId, id])
   @@index([restaurantId, branchId, status, createdAt])
+}
+
+/// One AI Doctor question and what it answered (audit). `staffId` is the asking person's user id (like the other logs'
+/// actor ids). `questionText` is at most 280 characters, null for a photo question; no photo is stored.
+/// mode: COMPLAINT | MEDICINE_NAME | MEDICINE_PHOTO. outcome: ANSWERED | REFUSED | FAILED.
+model PhDoctorLog {
+  id           String     @id @default(cuid())
+  restaurantId String
+  branchId     String
+  staffId      String
+  mode         String
+  questionText String?
+  answer       Json
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  outcome      String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch     @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([restaurantId, id])
+  @@index([restaurantId, branchId, createdAt])
 }
 
 /// The intro page shown before the menu (docs/superpowers/specs/2026-10-29-menu-intro-design.md). One per menu.
