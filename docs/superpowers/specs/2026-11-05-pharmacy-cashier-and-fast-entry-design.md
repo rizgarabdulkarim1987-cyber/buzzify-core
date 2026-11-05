@@ -108,6 +108,8 @@ Layout A. Keypad on the physical right. Unit as a converting button. No popups. 
 
 - **Currency (owner, 2026-11-05).** The customer does not pay in USD. The USD figure and the exchange rate in the header are display only. The pharmacist can change the rate in settings. No currency toggle in the payment panel; shift and drawer totals stay in IQD. Purchase prices are in USD as in the prototype.
 
+- **Simpler side navigation (owner, 2026-11-05).** The side menu is too complex. Five primary items (Sell, Stock, Products, Customers, Reports) and one "More" grouped Daily / Stock / Purchasing. Routes unchanged. Stock opens the fast entry first.
+
 ## More calls made after the builder check (owner to confirm)
 
 - **The new cashier replaces `/sell` (owner decision, 2026-11-05).** The owner rejected keeping the old screen alongside: the new page takes over the sell route. The old sell tests are migrated to the new screen, not kept as a parallel path. The multi-receipt state is new state, not a patch on the old cart reducer, but it reuses the existing pricing, stock, shift, payment and prescription logic. The builder plans the swap so nothing the old screen does is lost (shift gating, draft cart, prescription recording, payment and discount drafts).

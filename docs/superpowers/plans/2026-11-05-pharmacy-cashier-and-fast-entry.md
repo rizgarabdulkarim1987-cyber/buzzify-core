@@ -295,3 +295,20 @@ Note: do this task continuously, adding keys in the task that introduces each st
 - [ ] **Step 2:** Run the Review Focus scenarios by hand in the browser pane and attach screenshots.
 - [ ] **Step 3:** Run `code-review`, fix confirmed findings.
 - [ ] **Step 4:** Open the PR through the browser compare URL (the `gh` CLI is not installed here); description lists parity checklist, prototype behaviours left out, and the open points (prescription confirmation, tablets).
+
+### Task 16: Simplified side navigation
+
+The owner finds the side menu too complex (Home, Sell, Stock, Expiry, Reports, AI Doctor, then More with Catalog, Shifts, Sales, Returns, Prescriptions, Customers, Stock counts, Receiving, Transfers, Purchasing, Stock movements). Routes stay unchanged; only the navigation shrinks.
+
+**Files:**
+- Modify: `src/app/pharmacy/_ui/Rail.tsx`, `NavLink.tsx`, `MoreSheet.tsx`, the nav definition they read, and nav counts if keyed per item
+- Test: `tests/pharmacy/ui-nav.test.ts`
+
+**Interfaces:**
+- Produces: five primary items only: Sell, Stock, Products (catalog), Customers, Reports. Everything else (Expiry, Shifts, Sales, Returns, Prescriptions, Stock counts, Receiving, Transfers, Purchasing, Stock movements, AI Doctor when enabled) sits behind one "More" entry, grouped under three headings (Daily, Stock, Purchasing). The Stock item opens the new fast entry screen first, with links to expiry, counts, receiving, transfers and movements as secondary links on the stock page. The red count badges (stock, expiry) stay on the items they belong to or on "More" when hidden. No page is removed.
+
+- [ ] **Step 1: Write failing tests**: primary list has exactly 5 entries in this order; every previously reachable route is still reachable from More or Stock; count badges still show for stock and expiry; role-hidden items stay hidden.
+- [ ] **Step 2: Run** `npx vitest run tests/pharmacy/ui-nav.test.ts`. Expected: FAIL.
+- [ ] **Step 3: Implement** by editing the nav definition; ar/ckb/en labels for the new group headings.
+- [ ] **Step 4: Run.** Expected: PASS; check the rail and the phone bottom bar in the browser pane.
+- [ ] **Step 5: Commit** `feat(pharmacy): simplified side navigation`.
