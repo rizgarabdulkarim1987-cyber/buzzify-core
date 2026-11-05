@@ -1,6 +1,7 @@
 import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, startUnit, type AddableItem, type CartAction, type CartLine, type CartState, type CartUnit, type Currency, type ScanItem } from '../sell-logic';
 import { parseReceipts, receiptsReducer, type ReceiptsAction, type ReceiptsState } from '../sell-receipts';
 import type { CashierKeyContext } from '../sell-keys';
+import { prescriptionKept } from '../prescription-logic';
 
 /**
  * The cashier screen's state glue, pure apart from reading a DOM target: the receipts reducer plus "change the active
@@ -33,7 +34,11 @@ export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean
   return action.type === 'customer' && action.customerId !== current.customerId;
 }
 
-/** A cart change goes to the active receipt; on a paid (done) receipt it starts a fresh one instead of reusing the paid lines. A change to a frozen receipt is ignored. */
+/**
+ * A cart change goes to the active receipt; on a paid (done) receipt it starts a fresh one instead of reusing the paid lines. A
+ * change to a frozen receipt is ignored. As on the old sale screen, a receipt emptied line by line is no longer the held cart it
+ * came from, and a prescription is let go once no line needs one (it belongs to those lines, never to another sale).
+ */
 export function cashierReducer(state: ReceiptsState, action: CashierAction): ReceiptsState {
   if (action.type === 'load') return action.state;
   if (frozenEdit(state, action)) return state;
@@ -42,8 +47,16 @@ export function cashierReducer(state: ReceiptsState, action: CashierAction): Rec
   if (!current) return state;
   const base = current.done ? emptyCart() : current.cart;
   const next = cartReducer(base, action.action);
-  return next === base ? state : receiptsReducer(state, { type: 'cart', cart: next });
+  if (next === base) return state;
+  const changed = receiptsReducer(state, { type: 'cart', cart: next });
+  const r = changed.receipts[changed.active]!;
+  const fromHoldId = next.lines.length === 0 ? null : r.fromHoldId;
+  const prescriptionId = prescriptionKept(r.prescriptionId, rxLevelLines(next));
+  if (fromHoldId === r.fromHoldId && prescriptionId === r.prescriptionId) return changed;
+  return { ...changed, receipts: changed.receipts.map((x, i) => (i === changed.active ? { ...x, fromHoldId, prescriptionId } : x)) };
 }
+
+const rxLevelLines = (cart: CartState) => cart.lines.map((l) => ({ rxLevel: l.rxLevel }));
 
 /**
  * The old (v2) single-cart draft, when it may move into the receipts: any valid cart. A sale in flight moves with it (the

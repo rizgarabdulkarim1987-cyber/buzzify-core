@@ -41,7 +41,11 @@ export type ReceiptsAction =
   /** A refused sale changed the receipt: its prescription is gone, or its lines were fitted to fresh prices. */
   | { type: 'refused'; receiptKey: string; prescriptionId?: null; cart?: CartState }
   /** The receipt with this key was sold: done, with no attempt left. */
-  | { type: 'sold'; receiptKey: string };
+  | { type: 'sold'; receiptKey: string }
+  /** The prescription recorded for the receipt with this key (its id only; null lets it go). Refused while its sale is in flight. */
+  | { type: 'prescription'; receiptKey: string; prescriptionId: string | null }
+  /** The receipt with this key starts again empty (held, or its data discarded). Refused while its sale is in flight. */
+  | { type: 'reset'; receiptKey: string };
 
 export const newReceipt = (): OpenReceipt => ({ key: newClientKey('rc'), cart: emptyCart(), customerId: null, fromHoldId: null, prescriptionId: null, done: false, attempt: null });
 
@@ -60,6 +64,9 @@ function patchOpen(state: ReceiptsState, key: string, patch: Partial<OpenReceipt
   if (at < 0) return state;
   return { ...state, receipts: state.receipts.map((r, i) => (i === at ? { ...r, ...patch } : r)) };
 }
+
+/** The not-yet-paid receipt with this key exists and has no sale in flight (it may change outside its own sale). */
+const idle = (state: ReceiptsState, key: string): boolean => state.receipts.some((r) => r.key === key && !r.done && r.attempt === null);
 
 export function receiptsReducer(state: ReceiptsState, action: ReceiptsAction): ReceiptsState {
   const current = state.receipts[state.active];
@@ -96,6 +103,10 @@ export function receiptsReducer(state: ReceiptsState, action: ReceiptsAction): R
       return patchOpen(state, action.receiptKey, { attempt: null, ...(action.prescriptionId === null ? { prescriptionId: null } : {}), ...(action.cart ? { cart: action.cart } : {}) });
     case 'sold':
       return patchOpen(state, action.receiptKey, { done: true, attempt: null });
+    case 'prescription':
+      return idle(state, action.receiptKey) ? patchOpen(state, action.receiptKey, { prescriptionId: action.prescriptionId }) : state;
+    case 'reset':
+      return idle(state, action.receiptKey) ? patchOpen(state, action.receiptKey, newReceipt()) : state;
   }
 }
 
