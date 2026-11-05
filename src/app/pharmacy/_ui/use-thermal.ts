@@ -35,11 +35,11 @@ export function useThermalJob(ws: WorkstationSettings | null) {
   const [state, setState] = useState<ThermalState>('idle');
   const enabled = ws !== null && printerOf(ws) !== null;
   const run = useCallback(
-    async (model: ReceiptModel) => {
+    async (model: ReceiptModel, opts: { drawer: boolean } = { drawer: false }) => {
       if (!ws || !printerOf(ws)) return;
       setState('printing');
       const font = typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily || 'sans-serif';
-      const result = await printThermal(model, ws, { font, dir: model.dir });
+      const result = await printThermal(model, ws, { font, dir: model.dir, allowDrawer: opts.drawer });
       setState(result.ok ? 'ok' : result.reason === 'printer' ? 'printer' : 'bridge');
     },
     [ws],

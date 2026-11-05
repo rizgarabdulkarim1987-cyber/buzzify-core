@@ -56,6 +56,12 @@ describe('printThermal', () => {
     expect(result).toEqual({ ok: true });
     expect(has(calls[0].bytes, KICK)).toBe(false);
   });
+  it('never kicks the drawer on a second print of the same sale (allowDrawer false)', async () => {
+    const f = fakeFetch();
+    const result = await printThermal(receipt(), ws(), { fetchImpl: f.impl, render, bridgeUrl: 'http://127.0.0.1:9101', dir: 'ltr', allowDrawer: false });
+    expect(result).toEqual({ ok: true });
+    expect(has(f.calls[0].bytes, KICK)).toBe(false);
+  });
   it('says there is no thermal printer instead of failing', async () => {
     const { result, calls } = await run(receipt(), ws(null));
     expect(result).toEqual({ ok: false, reason: 'none', message: 'no receipt printer' });

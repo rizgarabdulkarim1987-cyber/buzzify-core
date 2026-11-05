@@ -10,7 +10,7 @@ import type { PrinterView } from '@/server/pos/printers';
  */
 
 export type ThermalResult = PrintResult | { ok: false; reason: 'none'; message: string };
-type Opts = Pick<PrintOptions, 'fetchImpl' | 'render' | 'bridgeUrl' | 'dir' | 'font'>;
+type Opts = Pick<PrintOptions, 'fetchImpl' | 'render' | 'bridgeUrl' | 'dir' | 'font'> & { /** False prints the paper without ever opening the drawer (a second print of the same sale). Default true. */ allowDrawer?: boolean };
 
 const NONE: ThermalResult = { ok: false, reason: 'none', message: 'no receipt printer' };
 
@@ -31,7 +31,7 @@ export function thermalDrawerPlan(model: ReceiptModel, ws: WorkstationSettings):
 export async function printThermal(model: ReceiptModel, ws: WorkstationSettings, opts: Opts = {}): Promise<ThermalResult> {
   const printer = printerOf(ws);
   if (!printer) return NONE;
-  return printDoc(receiptPaperDoc(model), printer, { ...opts, drawer: thermalDrawerPlan(model, ws) });
+  return printDoc(receiptPaperDoc(model), printer, { ...opts, drawer: opts.allowDrawer !== false && thermalDrawerPlan(model, ws) });
 }
 
 /** Opens the cash drawer by hand, with no paper. */

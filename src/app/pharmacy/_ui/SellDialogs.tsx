@@ -424,7 +424,6 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
     setReceipt(null);
     setProblem(null);
     setPrintFailed(false);
-    resetThermal();
     void settle(() => saleReceipt({ saleId, width, locale })).then((result) => {
       if (cancelled) return;
       if (result.ok) setReceipt(result.data as ReceiptResult);
@@ -436,15 +435,21 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the receipt is read again only for another sale or width
   }, [saleId, width, locale]);
 
+  useEffect(() => {
+    resetThermal();
+  }, [saleId, resetThermal]);
+
   // The first print of a sale goes to the thermal printer by itself (once per sale; a width change or a re-render does not print again).
   useEffect(() => {
     if (!saleId || !receipt || !thermal.enabled || autoPrinted.current === saleId || receipt.copyNumber > 0) return;
     autoPrinted.current = saleId;
-    void runThermal(receipt.model);
+    void runThermal(receipt.model, { drawer: true });
   }, [saleId, receipt, thermal.enabled, runThermal]);
 
   const print = () => {
     setPrintFailed(false);
+    // A press of Print by hand is a second print of this sale: it never opens the drawer, and it ends the automatic print.
+    if (saleId) autoPrinted.current = saleId;
     if (thermal.enabled && receipt) {
       void runThermal(receipt.model);
       return;
@@ -454,6 +459,7 @@ export function ReceiptDialog({ sale, credit = null, onClose }: ReceiptDialogPro
 
   const browserPrint = () => {
     setPrintFailed(false);
+    if (saleId) autoPrinted.current = saleId;
     try {
       const target = frame.current?.contentWindow;
       if (!target) throw new Error('no frame');

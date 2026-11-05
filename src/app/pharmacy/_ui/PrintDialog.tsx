@@ -37,7 +37,7 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
   const [busy, setBusy] = useState(false);
   const reprintKey = useRef<KeyedAttempt | null>(null);
   const thermal = useThermalJob(useThermal());
-  const { run: runThermal, reset: resetThermal } = thermal;
+  const { run: runThermal } = thermal;
   const kind = target?.kind;
   const id = target?.id;
 
@@ -48,7 +48,6 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
     setReceipt(null);
     setProblem(null);
     setPrintFailed(false);
-    resetThermal();
     const load = kind === 'sale' ? () => saleReceipt({ saleId: id, width, locale }) : () => returnSlip({ returnId: id, width, locale });
     void settle(load).then((result) => {
       if (cancelled) return;
