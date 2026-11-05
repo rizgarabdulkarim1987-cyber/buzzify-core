@@ -513,6 +513,8 @@ const CASES: Record<string, Case> = {
   'ph.sales.discardHold': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.sales.holds': { body: () => ({}), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.sell.search': { body: (ids) => ({ q: ids.tradeName }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // A product is the business's; its batches and sales are read for the place's branch only.
+  'ph.sell.info': { body: (ids) => ({ productId: ids.productId }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   // Shifts and cash (phase 3). Open and the cash movements act on the caller's own shift: they name no foreign id.
   'ph.shifts.open': { body: () => ({ currency: 'IQD', openingFloatMinor: 10n, clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.cash.paidIn': { body: () => ({ amountMinor: 5n, reason: 'Planted', clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
@@ -1042,7 +1044,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers the sale screen search', () => {
     const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
-    expect(sell).toEqual(['ph.sell.search']);
+    expect(sell.sort()).toEqual(['ph.sell.info', 'ph.sell.search']);
     expect(sell.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
@@ -1283,6 +1285,7 @@ const ROLE_MATRIX: Record<string, { accountant: string; cashier: string }> = {
   'ph.sales.discardHold': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
   'ph.sales.holds': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.sell.search': { accountant: 'OK', cashier: 'OK' },
+  'ph.sell.info': { accountant: 'OK', cashier: 'OK' },
   'ph.shifts.open': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.cash.paidIn': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.cash.paidOut': { accountant: 'FORBIDDEN', cashier: 'OK' },

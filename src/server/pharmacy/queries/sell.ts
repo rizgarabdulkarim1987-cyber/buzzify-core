@@ -1,5 +1,6 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
+import { sellInfo, sellInfoInput } from '@/server/pharmacy/sell-info';
 import { sellSearch, sellSearchInput } from '@/server/pharmacy/sell-search';
 import { defineQuery } from '@/server/studio/framework/query';
 
@@ -16,5 +17,18 @@ export const search = defineQuery({
   run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     return sellSearch(scoped, ph, input);
+  },
+});
+
+/** One product beside the sale: its batches here (expired marked), its details (no cost) and its substitutes by active ingredient. */
+export const info = defineQuery({
+  name: 'ph.sell.info',
+  permission: null,
+  ph: 'catalog.view',
+  input: sellInfoInput.extend(phPlaceInput.shape),
+  target: phTargetOf,
+  run(ctx, input) {
+    const { ph, scoped } = pharmacyOf(ctx);
+    return sellInfo(scoped, ph, input);
   },
 });
