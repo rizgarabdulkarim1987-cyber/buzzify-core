@@ -10,7 +10,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { phMessage } from '../ph-failure';
 import { prescriptionKept } from '../prescription-logic';
-import { blockedLines, formatMinor, outcomeUnknown, refreshCart, saleAttemptFor, saleSignature, TOTAL_MOVED_CODES, type Currency, type PayDraft } from '../sell-logic';
+import { blockedLines, formatMinor, outcomeUnknown, parseMoney, refreshCart, saleAttemptFor, saleSignature, TOTAL_MOVED_CODES, type Currency, type PayDraft } from '../sell-logic';
 import type { OpenReceipt, ReceiptsState } from '../sell-receipts';
 import { cashierReducer, type CashierAction } from './cashier-logic';
 import { flowOfAttempt, rxLinesOf, RX_DROP_CODES, saleRequestOf, type WorkFlow } from './sale-flow-logic';
@@ -21,7 +21,7 @@ export interface Sold {
   sale: SaleResult;
   /** The part put on a customer's account, with the customer's name (the printed receipt carries no name). */
   credit: { customerName: string; minor: string } | null;
-  /** "No print" was ticked when the sale was made: nothing is printed by itself and the drawer stays shut. */
+  /** "No print" was ticked for this sale: no paper is printed by itself; the drawer still opens for a cash part. */
   noPrint: boolean;
 }
 
@@ -33,19 +33,30 @@ export interface SaleFlow {
   /** Esc / back: closes the flow or the receipt panel of the active receipt (never while its sale is being sent). */
   close: () => void;
   pay: (draft: PayDraft, amountMinor: bigint, onAccount: { minor: bigint; customerName: string } | null) => Promise<void>;
+  /** Sends the active receipt's attempt again exactly as it was sent (same keys, same body). */
+  retry: (customerName: string) => Promise<void>;
+  /** Lets the active receipt's attempt go (its outcome stays unknown): the receipt can change again and the next pay has new keys. */
+  discard: () => void;
+  /** The active receipt's sale is being sent. */
   busy: boolean;
+  /** Another receipt's sale is being sent: this one waits (one sale at a time). */
+  elsewhere: boolean;
   problem: string | null;
   sold: Sold | null;
   noPrint: boolean;
   setNoPrint: (on: boolean) => void;
 }
 
+type SaleBody = NonNullable<ReturnType<typeof saleRequestOf>>;
+
 /**
  * The sale path of the cashier, the old sale screen's `submitPay` moved onto receipts. One attempt (sale key and payment keys)
- * per receipt, written to the device BEFORE the call: the same sale sends the same keys, a changed one new keys. A lost or
- * unexpected answer keeps the attempt (the sale may have been recorded; a retry replays it); a refusal drops it (and the
- * prescription when the refusal is about it; prices that moved are read again). A sale marks its receipt done. The header
- * figures are read again the way the other pharmacy screens refresh theirs: `router.refresh()` (the page reads `ph.pulse`).
+ * per receipt, written to the device BEFORE the call: the same sale sends the same keys, a changed one new keys. While a receipt has
+ * an attempt it is frozen (`frozenEdit`): its lines are the lines being paid. A lost or unexpected answer keeps the attempt (the
+ * sale may have been recorded): Retry sends it again with the same keys, or the cashier lets it go (Discard). A refusal drops it
+ * (and the prescription when the refusal is about it); when prices moved the receipt stays frozen while they are read again and
+ * the CURRENT lines are fitted to them. A sale marks its receipt done and turns "no print" off again. The header figures are read
+ * again the way the other pharmacy screens refresh theirs: `router.refresh()` (the page reads `ph.pulse`).
  */
 export function useSaleFlow(opts: {
   receipt: OpenReceipt;
@@ -76,14 +87,17 @@ export function useSaleFlow(opts: {
     save(next);
     dispatch(action);
   };
+  const current = (key: string) => mirrorRef.current.receipts.find((x) => x.key === key && !x.done) ?? null;
+  /** Closes the flow only when it is the one of this receipt (a flow open on another receipt stays). */
+  const closeAsk = (key: string) => setAsk((a) => (a?.receiptKey === key ? null : a));
   const failure = (error: StudioFailure) => (outcomeUnknown(error) ? t('pharmacy.sell.offline.notSent') : phMessage(t, locale, error, 'pharmacy.sell'));
 
   /**
-   * The prices behind a refused payment moved (or the rounding did): read the receipt's products again BY ID, fit every line to
-   * the fresh prices and units, and say the server's total, so the cashier checks the receipt and pays again (the old screen's).
+   * The prices behind a refused payment moved (or the rounding did): read the receipt's products again BY ID while it stays frozen,
+   * fit the receipt's CURRENT lines to the fresh prices and units, drop the attempt, and say the server's total (the old screen's).
    */
-  const refreshAfterRefusal = async (r: OpenReceipt, error: StudioFailure, base: string) => {
-    const ids = [...new Set(r.cart.lines.map((l) => l.productId))];
+  const refreshAfterRefusal = async (key: string, error: StudioFailure, base: string, dropRx: boolean) => {
+    const ids = [...new Set((current(key)?.cart.lines ?? []).map((l) => l.productId))];
     const fresh = new Map<string, SellItem>();
     let failed = false;
     for (let i = 0; i < ids.length && !failed; i += 30) {
@@ -91,66 +105,94 @@ export function useSaleFlow(opts: {
       if (!read.ok) failed = true;
       else for (const item of (read.data as { items: SellItem[] }).items) fresh.set(item.productId, item);
     }
-    if (failed) {
-      setProblem({ receiptKey: r.key, text: `${base} ${t('pharmacy.sell.pay.refreshFailed')}` });
+    const now = current(key);
+    const rx = dropRx ? { prescriptionId: null } : {};
+    if (failed || !now) {
+      act({ type: 'refused', receiptKey: key, ...rx });
+      setProblem({ receiptKey: key, text: `${base} ${t('pharmacy.sell.pay.refreshFailed')}` });
       return;
     }
-    const next = refreshCart(r.cart, fresh);
-    act({ type: 'refused', receiptKey: r.key, cart: next });
+    const next = refreshCart(now.cart, fresh);
+    act({ type: 'refused', receiptKey: key, cart: next, ...rx });
     const total = error.fields?.totalMinor;
     const totalText = total && /^\d+$/.test(total) ? ` ${t('pharmacy.sell.pay.serverTotal', { total: `${formatMinor(BigInt(total), currency)} ${currency}` })}` : '';
     if (blockedLines(next).length > 0) {
-      setAsk(null);
+      closeAsk(key);
       say(`${base}${totalText}`);
       return;
     }
-    setProblem({ receiptKey: r.key, text: `${base}${totalText}` });
+    setProblem({ receiptKey: key, text: `${base}${totalText}` });
+  };
+
+  /** Sends the sale of the receipt `key` (its attempt is already on it, so it is frozen) and settles the answer. */
+  const send = async (key: string, body: SaleBody, credit: Sold['credit']) => {
+    const printOff = noPrint;
+    lock.current = true;
+    setBusyKey(key);
+    setProblem(null);
+    try {
+      const result = await settle(() => createSale(body));
+      if (!result.ok) {
+        if (result.error.message === NETWORK_FAILURE) setNotSent(true);
+        // An unknown outcome keeps the attempt (and its keys); a refusal is the server's definite "no": a new try is a new sale.
+        if (outcomeUnknown(result.error)) {
+          setProblem({ receiptKey: key, text: failure(result.error) });
+          return;
+        }
+        const code = result.error.fields?.phCode ?? '';
+        const dropRx = RX_DROP_CODES.includes(code);
+        const said = failure(result.error);
+        if (TOTAL_MOVED_CODES.includes(code)) {
+          await refreshAfterRefusal(key, result.error, said, dropRx);
+          return;
+        }
+        act({ type: 'refused', receiptKey: key, ...(dropRx ? { prescriptionId: null } : {}) });
+        setProblem({ receiptKey: key, text: said });
+        return;
+      }
+      setNotSent(false);
+      act({ type: 'sold', receiptKey: key });
+      closeAsk(key);
+      setSold({ receiptKey: key, sale: result.data as SaleResult, credit, noPrint: printOff });
+      setNoPrint(false);
+      router.refresh();
+    } finally {
+      lock.current = false;
+      setBusyKey(null);
+    }
   };
 
   const pay: SaleFlow['pay'] = async (draft, amountMinor, onAccount) => {
     if (lock.current) return;
-    const r = mirrorRef.current.receipts.find((x) => x.key === receipt.key && !x.done);
+    const r = current(receipt.key);
     if (!r) return;
     const rxId = prescriptionKept(r.prescriptionId, rxLinesOf(r.cart));
     const sig = saleSignature(r.cart, currency, draft, amountMinor, r.fromHoldId, rxId);
-    if (!sig) {
-      setProblem({ receiptKey: r.key, text: t('pharmacy.sell.blocked.invalid') });
-      return;
-    }
     // One key pair per attempt: a retry of the same sale (same cart, payment, hold and prescription) sends the same keys, so the
     // server records it once, also after a reload (the attempt is on the receipt, on the device). Anything changed is a new sale.
-    const attempt = saleAttemptFor(r.attempt, sig, draft, amountMinor, r.fromHoldId, undefined, rxId);
-    const body = saleRequestOf(r.cart, currency, attempt, draft, amountMinor, onAccount, rxId, r.fromHoldId);
-    if (!body) {
+    const attempt = sig ? saleAttemptFor(r.attempt, sig, draft, amountMinor, r.fromHoldId, undefined, rxId) : null;
+    const body = attempt ? saleRequestOf(r.cart, currency, attempt, draft, amountMinor, onAccount, rxId, r.fromHoldId) : null;
+    if (!attempt || !body) {
       setProblem({ receiptKey: r.key, text: t('pharmacy.sell.blocked.invalid') });
       return;
     }
     act({ type: 'attempt', receiptKey: r.key, attempt });
-    lock.current = true;
-    setBusyKey(r.key);
-    setProblem(null);
-    const result = await settle(() => createSale(body));
-    lock.current = false;
-    setBusyKey(null);
-    if (!result.ok) {
-      if (result.error.message === NETWORK_FAILURE) setNotSent(true);
-      // An unknown outcome keeps the attempt (and its keys); a refusal is the server's definite "no": a new try is a new sale.
-      if (outcomeUnknown(result.error)) {
-        setProblem({ receiptKey: r.key, text: failure(result.error) });
-        return;
-      }
-      const code = result.error.fields?.phCode ?? '';
-      act({ type: 'refused', receiptKey: r.key, ...(RX_DROP_CODES.includes(code) ? { prescriptionId: null } : {}) });
-      const said = failure(result.error);
-      if (TOTAL_MOVED_CODES.includes(code)) await refreshAfterRefusal(r, result.error, said);
-      else setProblem({ receiptKey: r.key, text: said });
+    await send(r.key, body, draft.credit && onAccount ? { customerName: onAccount.customerName, minor: onAccount.minor.toString() } : null);
+  };
+
+  const retry: SaleFlow['retry'] = async (customerName) => {
+    if (lock.current) return;
+    const r = current(receipt.key);
+    const a = r?.attempt;
+    if (!r || !a) return;
+    const onAccount = a.credit ? parseMoney(a.credit.amount, currency) : null;
+    const draft: PayDraft = { method: a.method, tendered: '', reference: a.reference, credit: a.credit ?? null };
+    const body = a.credit && onAccount === null ? null : saleRequestOf(r.cart, currency, a, draft, BigInt(a.amountMinor), onAccount === null ? null : { minor: onAccount }, a.prescriptionId ?? null, a.fromHoldId);
+    if (!body) {
+      setProblem({ receiptKey: r.key, text: t('pharmacy.sell.blocked.invalid') });
       return;
     }
-    setNotSent(false);
-    act({ type: 'sold', receiptKey: r.key });
-    setAsk(null);
-    setSold({ receiptKey: r.key, sale: result.data as SaleResult, credit: draft.credit && onAccount ? { customerName: onAccount.customerName, minor: onAccount.minor.toString() } : null, noPrint });
-    router.refresh();
+    await send(r.key, body, onAccount === null ? null : { customerName, minor: onAccount.toString() });
   };
 
   const busy = busyKey === receipt.key;
@@ -162,11 +204,18 @@ export function useSaleFlow(opts: {
     },
     close: () => {
       if (busy) return;
-      setAsk(null);
+      closeAsk(receipt.key);
       if (sold?.receiptKey === receipt.key) setSold(null);
     },
     pay,
+    retry,
+    discard: () => {
+      if (busy || lock.current) return;
+      act({ type: 'attempt', receiptKey: receipt.key, attempt: null });
+      setProblem(null);
+    },
     busy,
+    elsewhere: busyKey !== null && !busy,
     problem: problem?.receiptKey === receipt.key ? problem.text : null,
     sold: sold?.receiptKey === receipt.key && receipt.done ? sold : null,
     noPrint,

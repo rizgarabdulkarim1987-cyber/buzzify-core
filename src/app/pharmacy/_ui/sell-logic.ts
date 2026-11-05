@@ -726,6 +726,12 @@ export const isLine = (l: unknown): l is CartLine => {
   );
 };
 
+/**
+ * The longest signature kept: a signature is the whole request as JSON (up to MAX_LINES lines), so it cannot be capped like a key.
+ * Keys are capped at 80 and the reference at 200 (the payment field's own limit), so a real attempt is never dropped by its size.
+ */
+const MAX_SIG = 100_000;
+
 /** A stored sale attempt that can be sent again as it was (its keys and payment); anything else reads as no attempt. */
 export const isAttempt = (a: unknown): a is SaleAttempt => {
   const x = a as SaleAttempt;
@@ -740,7 +746,16 @@ export const isAttempt = (a: unknown): a is SaleAttempt => {
     typeof x.amountMinor === 'string' &&
     /^\d+$/.test(x.amountMinor) &&
     typeof x.reference === 'string' &&
-    (x.fromHoldId === null || typeof x.fromHoldId === 'string')
+    (x.fromHoldId === null || typeof x.fromHoldId === 'string') &&
+    x.sig.length <= MAX_SIG &&
+    x.key.length <= 80 &&
+    x.paymentKey.length <= 80 &&
+    x.reference.length <= 200 &&
+    (x.creditKey === undefined || (typeof x.creditKey === 'string' && x.creditKey.length >= 8 && x.creditKey.length <= 80)) &&
+    (x.credit === undefined ||
+      x.credit === null ||
+      (typeof x.credit === 'object' && typeof x.credit.customerId === 'string' && x.credit.customerId.length > 0 && x.credit.customerId.length <= 80 && typeof x.credit.amount === 'string' && x.credit.amount.length <= 40 && typeof x.creditKey === 'string')) &&
+    (x.prescriptionId === undefined || x.prescriptionId === null || (typeof x.prescriptionId === 'string' && x.prescriptionId.length <= 64))
   );
 };
 
@@ -778,7 +793,7 @@ export function baseQtyByProduct(cart: CartState): Map<string, number> {
   return out;
 }
 
-/** Products whose cart quantity is above what was sellable when found: a warning, never a block (the sale decides). */
+/** Products whose cart quantity is above what was sellable when found. The cashier now blocks Pay on them (`payBlockKey`); the sale still decides. */
 export function overSellable(cart: CartState): Set<string> {
   const need = baseQtyByProduct(cart);
   const over = new Set<string>();

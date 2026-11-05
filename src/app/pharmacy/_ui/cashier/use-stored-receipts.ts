@@ -10,7 +10,7 @@ import { restoreReceipts, type CashierAction } from './cashier-logic';
  * old single-cart draft moves in as receipt 1), written on every change after that. `loaded` is false until the read is
  * done (an early scan would be replaced by the restore); `restored` says receipts with lines came back.
  */
-export function useStoredReceipts(ids: { restaurantId: string; branchId: string; userId: string }, currency: Currency, shiftOpen: boolean, state: ReceiptsState, dispatch: Dispatch<CashierAction>) {
+export function useStoredReceipts(ids: { restaurantId: string; branchId: string; userId: string }, currency: Currency, shiftOpen: boolean, state: ReceiptsState, dispatch: Dispatch<CashierAction>, anyLines: boolean) {
   const [loaded, setLoaded] = useState(false);
   const [restored, setRestored] = useState(false);
   const storeKey = receiptsKey(ids.restaurantId, ids.branchId, ids.userId, currency);
@@ -40,6 +40,13 @@ export function useStoredReceipts(ids: { restaurantId: string; branchId: string;
       /* the receipts on the device are a convenience */
     }
   }, [shiftOpen, loaded, state, storeKey]);
+  // Leaving the page with unpaid lines asks first (the browser's own question).
+  useEffect(() => {
+    if (!anyLines) return;
+    const before = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', before);
+    return () => window.removeEventListener('beforeunload', before);
+  }, [anyLines]);
   /** Writes the receipts at once, ahead of the next render: a sale's attempt is on the device BEFORE the sale is sent. */
   const save = useCallback(
     (next: ReceiptsState) => {

@@ -3580,7 +3580,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.credit.debt': 'On account',
   'pharmacy.cashier.credit.overLimit': 'over the limit',
   'pharmacy.cashier.credit.nothing': 'Nothing is left to put on account. Take it as a cash payment (F2).',
-  'pharmacy.cashier.receipt.noPrint': 'Printing is off for this receipt. The drawer was not opened.',
+  'pharmacy.cashier.receipt.noPrint': 'This receipt was not printed (printing was off for it). The drawer still opens when the sale took cash.',
+  'pharmacy.cashier.frozen': 'This receipt is being paid or its payment outcome is not known, so it cannot change now. Open a new receipt (F4 or ＋) to keep selling.',
+  'pharmacy.cashier.frozenScan': '“{name}” was not added: this receipt is being paid or its payment outcome is not known. Open a new receipt (F4 or ＋) and scan again.',
+  'pharmacy.cashier.flow.otherPaying': 'A sale on another receipt is being sent right now. Wait for its answer, then confirm this one.',
+  'pharmacy.cashier.flow.retry': 'Send again (same payment)',
+  'pharmacy.cashier.flow.discard': 'Discard this attempt',
+  'pharmacy.cashier.flow.discardArmed': 'Tap again to discard',
+  'pharmacy.cashier.flow.discardWarning': 'The first sale may already be recorded. Check the Sales list before paying again: paying after discarding makes a new sale.',
   'pharmacy.cashier.receipt.next': 'New receipt',
 };
 

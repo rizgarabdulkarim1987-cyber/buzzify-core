@@ -3612,7 +3612,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.credit.debt': 'يُسجَّل دَيناً',
   'pharmacy.cashier.credit.overLimit': 'يتجاوز السقف',
   'pharmacy.cashier.credit.nothing': 'لا يبقى شيء ليُسجَّل دَيناً. اقبضه دفعاً نقدياً (F2).',
-  'pharmacy.cashier.receipt.noPrint': 'الطباعة متوقفة لهذا الوصل. لم يُفتح الجرار.',
+  'pharmacy.cashier.receipt.noPrint': 'لم يُطبع هذا الوصل (الطباعة متوقفة له). يُفتح الجرار إن كان في البيع جزء نقدي.',
+  'pharmacy.cashier.frozen': 'هذا الوصل قيد الدفع أو نتيجة دفعه غير معروفة، فلا يتغيّر الآن. افتح وصلاً جديداً (F4 أو ＋) لمتابعة البيع.',
+  'pharmacy.cashier.frozenScan': 'لم تُضف «{name}»: هذا الوصل قيد الدفع أو نتيجة دفعه غير معروفة. افتح وصلاً جديداً (F4 أو ＋) ثم امسح مرة أخرى.',
+  'pharmacy.cashier.flow.otherPaying': 'يُرسَل دفع وصل آخر الآن. انتظر جوابه ثم أكّد هذا الوصل.',
+  'pharmacy.cashier.flow.retry': 'إعادة الإرسال (نفس الدفعة)',
+  'pharmacy.cashier.flow.discard': 'إهمال هذه المحاولة',
+  'pharmacy.cashier.flow.discardArmed': 'اضغط مرة أخرى للإهمال',
+  'pharmacy.cashier.flow.discardWarning': 'قد يكون البيع الأول سُجّل. راجع قائمة المبيعات قبل الدفع من جديد: الدفع بعد الإهمال بيع جديد.',
   'pharmacy.cashier.receipt.next': 'وصل جديد',
 };
 

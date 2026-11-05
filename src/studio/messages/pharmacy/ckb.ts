@@ -3573,7 +3573,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.credit.debt': 'وەک قەرز تۆمار دەکرێت',
   'pharmacy.cashier.credit.overLimit': 'لە سنوور زیاترە',
   'pharmacy.cashier.credit.nothing': 'هیچ نامێنێتەوە بۆ تۆمارکردن وەک قەرز. وەک پارەدانی نەختینە وەری بگرە (F2).',
-  'pharmacy.cashier.receipt.noPrint': 'چاپکردن بۆ ئەم پسوولەیە وەستاوە. دەرجەکە نەکرایەوە.',
+  'pharmacy.cashier.receipt.noPrint': 'ئەم پسوولەیە چاپ نەکرا (چاپکردن بۆی وەستابوو). ئەگەر فرۆشتنەکە پارەی نەختی تێدابێت دەرجەکە دەکرێتەوە.',
+  'pharmacy.cashier.frozen': 'ئەم پسوولەیە لە پارەداندایە یان ئەنجامی پارەدانەکەی نەزانراوە، بۆیە ئێستا ناگۆڕێت. پسوولەیەکی نوێ بکەرەوە (F4 یان ＋) بۆ بەردەوامبوونی فرۆشتن.',
+  'pharmacy.cashier.frozenScan': '«{name}» زیاد نەکرا: ئەم پسوولەیە لە پارەداندایە یان ئەنجامی پارەدانەکەی نەزانراوە. پسوولەیەکی نوێ بکەرەوە (F4 یان ＋) و دووبارە سکان بکە.',
+  'pharmacy.cashier.flow.otherPaying': 'ئێستا پارەدانی پسوولەیەکی تر دەنێردرێت. چاوەڕێی وەڵامەکەی بکە، پاشان ئەمە پشتڕاست بکەرەوە.',
+  'pharmacy.cashier.flow.retry': 'دووبارە ناردنەوە (هەمان پارەدان)',
+  'pharmacy.cashier.flow.discard': 'وازهێنان لەم هەوڵە',
+  'pharmacy.cashier.flow.discardArmed': 'دووبارە دابگرە بۆ وازهێنان',
+  'pharmacy.cashier.flow.discardWarning': 'لەوانەیە فرۆشتنی یەکەم تۆمار کرابێت. پێش دووبارە پارەدان لیستی فرۆشتنەکان بپشکنە: پارەدان دوای وازهێنان فرۆشتنێکی نوێیە.',
   'pharmacy.cashier.receipt.next': 'پسوولەی نوێ',
 };
 

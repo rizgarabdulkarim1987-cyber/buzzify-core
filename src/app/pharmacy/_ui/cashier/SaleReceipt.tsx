@@ -10,6 +10,7 @@ import { Field } from '@/studio/ui/Field';
 import { phMessage } from '../ph-failure';
 import { formatMinor, keyFor, outcomeUnknown, type Currency, type KeyedAttempt } from '../sell-logic';
 import { FieldSelect, Note, Num, PH_BTN, PH_FIELD, PH_PRIMARY } from '../sell-parts';
+import { openThermalDrawer, thermalDrawerPlan } from '../thermal-print';
 import { ThermalNote } from '../ThermalNote';
 import { useThermal, useThermalJob } from '../use-thermal';
 import { isolate } from '../WriteBlocked';
@@ -20,7 +21,8 @@ import type { Sold } from './use-sale-flow';
  * of the STORED sale, shown in a sandboxed frame. The first print of the sale goes to the workstation's thermal printer by itself
  * (once per sale) and only that print may open the drawer; the drawer rule itself is `thermalDrawerPlan` (an original sale that
  * took cash, on a printer with a drawer pin and the cash rule on), so a card-only sale, a credit-only sale and a copy never open
- * it. "No print" skips the automatic print, so the drawer stays shut. Print by hand and a copy never open the drawer.
+ * it. "No print" skips the automatic print but not the drawer: when the same rule says the drawer opens, it is opened with no
+ * paper (`openThermalDrawer`). Print by hand and a copy never open the drawer.
  */
 export function SaleReceipt({ sold, onNext }: { sold: Sold; onNext: () => void }) {
   const t = useT();
@@ -34,7 +36,8 @@ export function SaleReceipt({ sold, onNext }: { sold: Sold; onNext: () => void }
   const [busy, setBusy] = useState(false);
   const reprintKey = useRef<KeyedAttempt | null>(null);
   const saleId = sale.id;
-  const thermal = useThermalJob(useThermal());
+  const workstation = useThermal();
+  const thermal = useThermalJob(workstation);
   const { run: runThermal } = thermal;
   const autoPrinted = useRef<string | null>(null);
 
@@ -56,11 +59,13 @@ export function SaleReceipt({ sold, onNext }: { sold: Sold; onNext: () => void }
   }, [saleId, width, locale]);
 
   // The first print of a sale goes to the thermal printer by itself, once (a width change or a re-render does not print again).
+  // With "no print" only the drawer is opened, by the same rule, with no paper.
   useEffect(() => {
-    if (noPrint || !receipt || !thermal.enabled || autoPrinted.current === saleId || receipt.copyNumber > 0) return;
+    if (!receipt || !workstation || !thermal.enabled || autoPrinted.current === saleId || receipt.copyNumber > 0) return;
     autoPrinted.current = saleId;
-    void runThermal(receipt.model, { drawer: true });
-  }, [noPrint, saleId, receipt, thermal.enabled, runThermal]);
+    if (!noPrint) void runThermal(receipt.model, { drawer: true });
+    else if (thermalDrawerPlan(receipt.model, workstation)) void openThermalDrawer(workstation);
+  }, [noPrint, saleId, receipt, workstation, thermal.enabled, runThermal]);
 
   const browserPrint = () => {
     setPrintFailed(false);

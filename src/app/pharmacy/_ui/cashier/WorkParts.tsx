@@ -1,8 +1,9 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Hourglass, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleCheck, Hourglass, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import { useT } from '@/studio/i18n';
-import { Note, PH_PRIMARY } from '../sell-parts';
+import { Note, PH_BTN, PH_PRIMARY } from '../sell-parts';
 
 /** What every payment flow shows besides its own fields: why Pay is held back, the connection, a sale in flight, a refusal, "no print". */
 export interface FlowCommon {
@@ -16,10 +17,17 @@ export interface FlowCommon {
   pending: boolean;
   noPrint: boolean;
   onNoPrint: (on: boolean) => void;
+  /** Sends the sale in flight again with the same keys. */
+  onRetry: () => void;
+  /** Lets the sale in flight go (after the armed second tap). */
+  onDiscard: () => void;
 }
 
-export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPrint, busy }: FlowCommon) {
+export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPrint, busy, onRetry, onDiscard }: FlowCommon) {
   const t = useT();
+  // Letting an attempt go is a two-tap action: the first tap arms it and says what it means, the second does it.
+  const [armed, setArmed] = useState(false);
+  const stuck = pending && !busy;
   return (
     <>
       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ph-text">
@@ -36,7 +44,7 @@ export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPri
           {t('pharmacy.sell.offline.pay')}
         </Note>
       )}
-      {pending && !problem && (
+      {stuck && !problem && (
         <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="alert" testId="flow-attempt">
           {t('pharmacy.sell.attempt.unknown')}
         </Note>
@@ -45,6 +53,38 @@ export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPri
         <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="flow-problem">
           {problem}
         </Note>
+      )}
+      {stuck && (
+        <div className="flex flex-col gap-1.5" data-testid="flow-stuck">
+          {armed && (
+            <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="alert" testId="flow-discard-warning">
+              {t('pharmacy.cashier.flow.discardWarning')}
+            </Note>
+          )}
+          <div className="grid grid-cols-2 gap-1.5">
+            <button type="button" className={PH_BTN} data-testid="flow-retry" disabled={offline} onClick={onRetry}>
+              <RotateCcw aria-hidden className="size-4" />
+              {t('pharmacy.cashier.flow.retry')}
+            </button>
+            <button
+              type="button"
+              className={`${PH_BTN} ${armed ? 'border-ph-red text-ph-red' : ''}`}
+              data-testid="flow-discard"
+              aria-pressed={armed}
+              onClick={() => {
+                if (!armed) {
+                  setArmed(true);
+                  return;
+                }
+                setArmed(false);
+                onDiscard();
+              }}
+            >
+              <Trash2 aria-hidden className="size-4" />
+              {t(armed ? 'pharmacy.cashier.flow.discardArmed' : 'pharmacy.cashier.flow.discard')}
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

@@ -15,7 +15,7 @@ import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { addActionFor, addedKey, cashierReducer, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
+import { addActionFor, addedKey, cashierReducer, frozenEdit, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
 import { SaleLinesTable } from './SaleLinesTable';
@@ -85,22 +85,23 @@ export function CashierScreen(props: CashierScreenProps) {
   const padAt = `${receipt.key}:${selected}`;
   const pad = padState.at === padAt ? padState.text : '';
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
+  /** A change to the active receipt; refused and said while that receipt is frozen by its sale (`frozenEdit`). True when made. */
+  const edit = (action: CashierAction): boolean => {
+    if (frozenEdit(mirror.current, action)) {
+      setMessage({ tone: 'danger', text: t('pharmacy.cashier.frozen') });
+      return false;
+    }
+    dispatch(action);
+    return true;
+  };
 
   // The receipts live on this device ------------------------------------------------------------------------------------
-  const { loaded, restored, save } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch);
+  const { loaded, restored, save } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch, anyLines);
   // Paying: the flow asked for on this receipt, its sale attempt (on the receipt, on the device) and the receipt after the sale.
   const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }) });
   const pickCustomer = (customer: PickedCustomer | null) => {
-    setCustomers((all) => ({ ...all, [receipt.key]: customer }));
-    dispatch({ type: 'customer', customerId: customer?.id ?? null });
+    if (edit({ type: 'customer', customerId: customer?.id ?? null })) setCustomers((all) => ({ ...all, [receipt.key]: customer }));
   };
-
-  useEffect(() => {
-    if (!anyLines) return;
-    const before = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', before);
-    return () => window.removeEventListener('beforeunload', before);
-  }, [anyLines]);
 
   // Scans go to the active receipt, one at a time, in order ------------------------------------------------------------
   const lookupFailed = (error: Parameters<typeof phMessage>[2], code: string) => {
@@ -108,12 +109,19 @@ export function CashierScreen(props: CashierScreenProps) {
     if (lost) setNotSent(true);
     setMessage({ tone: 'danger', text: lost ? t('pharmacy.sell.scan.failed', { code }) : phMessage(t, locale, error, 'pharmacy.sell') });
   };
-  /** Puts the item on the active receipt and selects the line it landed on (a new line, or the existing one whose quantity grew). The unit preference counts only while no line is selected. */
-  const addItem = (item: AddableItem) => {
+  /**
+   * Puts the item on the active receipt and selects the line it landed on (a new line, or the existing one whose quantity grew). The
+   * unit preference counts only while no line is selected. A receipt frozen by its sale takes nothing: said, never queued. True when added.
+   */
+  const addItem = (item: AddableItem): boolean => {
     const cur = mirror.current;
     const r = cur.receipts[cur.active]!;
     const hasSelection = r.cart.lines.some((l) => l.key === picks.current[r.key]);
     const action: CashierAction = { type: 'line', action: addActionFor(item, hasSelection ? 'default' : scanUnit) };
+    if (frozenEdit(cur, action)) {
+      setMessage({ tone: 'danger', text: t('pharmacy.cashier.frozenScan', { name: item.tradeName }) });
+      return false;
+    }
     const next = cashierReducer(cur, action);
     mirror.current = next;
     dispatch(action);
@@ -121,14 +129,15 @@ export function CashierScreen(props: CashierScreenProps) {
     const key = addedKey(r.done ? emptyCart() : r.cart, landed.cart);
     if (key) select(key, landed.key);
     setMessage(null);
+    return true;
   };
   /** A scanned or typed barcode: the one exact match is added; blocked, unknown and several matches are said. True when added. */
   const takeBarcode = (code: string, items: SellItem[]): boolean => {
     const outcome = scanOutcome(code, items);
-    if (outcome.kind === 'add') addItem(outcome.item);
-    else if (outcome.kind === 'blocked') setMessage({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
+    if (outcome.kind === 'add') return addItem(outcome.item);
+    if (outcome.kind === 'blocked') setMessage({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
     else setMessage({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
-    return outcome.kind === 'add';
+    return false;
   };
   useScanQueue(async (code) => {
     const result = await settle(() => sellSearch({ q: code, currency }));
@@ -149,8 +158,7 @@ export function CashierScreen(props: CashierScreenProps) {
   const rows: Suggestion[] = listOpen && sugg.status === 'ready' ? sugg.rows : [];
   const activeIndex = activeAt.q === query ? activeAt.index : -1;
   const pick = (row: Suggestion) => {
-    addItem(row.item);
-    setQuery('');
+    if (addItem(row.item)) setQuery('');
     searchBox.current?.focus();
   };
 
@@ -180,8 +188,7 @@ export function CashierScreen(props: CashierScreenProps) {
       setMessage({ tone: 'danger', text: t('pharmacy.sell.empty', { q }) });
       return;
     }
-    addItem(top);
-    setQuery('');
+    if (addItem(top)) setQuery('');
     searchBox.current?.focus();
   };
 
@@ -227,18 +234,14 @@ export function CashierScreen(props: CashierScreenProps) {
       if ('select' in effect) {
         if (effect.select === selected) return false;
         select(effect.select);
-      } else if ('step' in effect) dispatch({ type: 'line', action: { type: 'step', ...effect.step } });
-      else {
-        dispatch({ type: 'line', action: { type: 'remove', key: effect.remove } });
-        select(effect.next);
-      }
+      } else if ('step' in effect) edit({ type: 'line', action: { type: 'step', ...effect.step } });
+      else if (edit({ type: 'line', action: { type: 'remove', key: effect.remove } })) select(effect.next);
     } else if (key.kind === 'unit') {
       // The unit key converts: the selected line to its next priced unit, or (no line selected) the unit the next item starts in.
       // Saying "nothing to change" is an answer too, so the key is taken from the browser either way.
       const effect = unitKeyEffect(selectedLine, currency);
       if ('set' in effect) {
-        dispatch({ type: 'line', action: { type: 'unit', ...effect.set } });
-        setMessage(null);
+        if (edit({ type: 'line', action: { type: 'unit', ...effect.set } })) setMessage(null);
       } else if ('none' in effect) setMessage({ tone: 'info', text: t('pharmacy.cashier.unit.none') });
       else setScanUnit(nextScanUnitPref);
     } else if (key.kind === 'inquiry') setInquiry((on) => !on);
@@ -255,8 +258,7 @@ export function CashierScreen(props: CashierScreenProps) {
       setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.noLine') });
       return;
     }
-    if (qty === null) return;
-    dispatch({ type: 'line', action: { type: 'qty', key: selectedLine.key, qty } });
+    if (qty === null || !edit({ type: 'line', action: { type: 'qty', key: selectedLine.key, qty } })) return;
     setPadState({ at: padAt, text: '' });
     setMessage(null);
   };
@@ -387,8 +389,7 @@ export function CashierScreen(props: CashierScreenProps) {
               over={overSellable(receipt.cart)}
               onSelect={select}
               onRemove={(key) => {
-                dispatch({ type: 'line', action: { type: 'remove', key } });
-                if (key === selected) select(null);
+                if (edit({ type: 'line', action: { type: 'remove', key } }) && key === selected) select(null);
               }}
               canSeeCost={canSeeCost}
               canEditPrice={canEditPrice}

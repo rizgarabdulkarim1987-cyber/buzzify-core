@@ -137,7 +137,7 @@ const CUSTOMER = { id: 'c1', name: 'Ali Hassan', currency: 'IQD', creditLimitMin
 beforeEach(() => {
   window.localStorage.clear();
   window.localStorage.setItem('ph.print.workstation', 'Counter 1');
-  for (const fn of [...Object.values(sales), ...Object.values(receipts), nav.refresh, customers.getCustomer, bridge.printDoc]) fn.mockReset();
+  for (const fn of [...Object.values(sales), ...Object.values(receipts), nav.refresh, customers.getCustomer, bridge.printDoc, bridge.kickDrawer]) fn.mockReset();
   bridge.printDoc.mockResolvedValue({ ok: true });
   print.getPrintSettings.mockResolvedValue({ ok: true, data: { print: { workstations: { 'Counter 1': WORKSTATION } } } });
   receipts.saleReceipt.mockResolvedValue(receiptOf([{ method: 'CASH', amountMinor: 5000n }]));
@@ -430,5 +430,163 @@ describe('a credit sale', () => {
     typeIn('flow-now', '3500');
     expect((byTest('flow-confirm') as HTMLButtonElement).disabled).toBe(false);
     expect(sales.createSale).not.toHaveBeenCalled();
+  });
+});
+
+// Fix round 1: the receipt is frozen while it is being paid ------------------------------------------------------------
+
+const setSearch = (text: string) => typeIn('cashier-search', text);
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+const qtyOf = () => allTest('sale-line').map((r) => r.querySelectorAll('td')[3]!.textContent);
+const startPay = async () => {
+  press({ key: 'F2' });
+  const button = byTest('flow-confirm') as HTMLButtonElement;
+  await act(async () => button.click());
+};
+
+describe('the frozen receipt (pure)', () => {
+  const state = () => ({ receipts: [{ ...newReceipt(), key: 'a', cart: cartOf(), attempt: ATTEMPT }, { ...newReceipt(), key: 'b', cart: cartOf() }], active: 0 });
+
+  it('ignores every change to the lines or the customer of a receipt with an attempt, and nothing else', () => {
+    const s = state();
+    const line = s.receipts[0]!.cart.lines[0]!.key;
+    expect(cashierLogic.frozenEdit(s, { type: 'line', action: { type: 'qty', key: line, qty: 9 } })).toBe(true);
+    expect(cashierLogic.cashierReducer(s, { type: 'line', action: { type: 'qty', key: line, qty: 9 } })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'line', action: { type: 'add', item: item({ productId: 'p2' }) } })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'cart', cart: emptyCart() })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'customer', customerId: 'c9' })).toBe(s);
+    expect(cashierLogic.frozenEdit(s, { type: 'customer', customerId: null })).toBe(false);
+    const other = { ...s, active: 1 };
+    const otherLine = other.receipts[1]!.cart.lines[0]!.key;
+    expect(cashierLogic.frozenEdit(other, { type: 'line', action: { type: 'qty', key: otherLine, qty: 9 } })).toBe(false);
+    expect(cashierLogic.cashierReducer(other, { type: 'line', action: { type: 'qty', key: otherLine, qty: 9 } }).receipts[1]!.cart.lines[0]!.qty).toBe(9);
+    const freed = cashierLogic.cashierReducer(s, { type: 'attempt', receiptKey: 'a', attempt: null });
+    expect(cashierLogic.cashierReducer(freed, { type: 'line', action: { type: 'qty', key: line, qty: 9 } }).receipts[0]!.cart.lines[0]!.qty).toBe(9);
+  });
+});
+
+describe('the frozen receipt (screen)', () => {
+  it('refuses scans, keys and the keypad while the sale is being sent, then sells exactly the paid lines', async () => {
+    const answer = deferred<unknown>();
+    sales.createSale.mockReturnValue(answer.promise);
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [{ ...item({ productId: 'p2', tradeName: 'Brufen', code: '999' }), matchedOn: 'barcode', notSellable: false, noPrice: false }] } });
+    screenWith([{}]);
+    press({ key: 'ArrowDown' });
+    await startPay();
+    const sent = sales.createSale.mock.calls[0]![0] as { lines: unknown[] };
+    setSearch('999');
+    await act(async () => {
+      byTest('cashier-search')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    });
+    await flush();
+    expect(byTest('cashier-message')!.textContent).toContain('F4');
+    press({ key: '+' });
+    press({ key: 'Delete' });
+    click(allTest('key-digit').find((b) => b.textContent === '7')!);
+    click(byTest('keypad-enter'));
+    expect(qtyOf()).toEqual(['3']);
+    expect(byTest('flow-attempt')).toBeNull();
+    await act(async () => answer.resolve({ ok: true, data: SALE }));
+    await flush();
+    expect(byTest('receipt-tab')!.textContent).toContain('Paid');
+    expect(qtyOf()).toEqual(['3']);
+    expect(sent.lines).toEqual([{ productId: 'p1', unitId: 'strip', qty: 3 }]);
+  });
+
+  it('keeps another receipt editable and holds its Confirm back with a reason while a sale is in flight', async () => {
+    sales.createSale.mockReturnValue(deferred<unknown>().promise);
+    screenWith([{ key: 'rc-a' }, { key: 'rc-b' }]);
+    await startPay();
+    press({ key: '2', altKey: true });
+    press({ key: 'ArrowDown' });
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['4']);
+    press({ key: 'F2' });
+    expect((byTest('flow-confirm') as HTMLButtonElement).disabled).toBe(true);
+    expect(byTest('flow-blocked')!.textContent).toContain('another receipt');
+  });
+
+  it('after a lost answer stays frozen, retries with the same keys, or lets the attempt go with an armed two-tap and a warning', async () => {
+    sales.createSale.mockRejectedValue(new TypeError('fetch failed'));
+    screenWith([{}]);
+    await startPay();
+    await flush();
+    press({ key: 'ArrowDown' });
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['3']);
+    await act(async () => byTest('flow-retry')!.click());
+    await flush();
+    const [a, b] = sales.createSale.mock.calls.map((c) => c[0] as { clientKey: string; payments: { clientKey: string }[] });
+    expect(b!.clientKey).toBe(a!.clientKey);
+    expect(b!.payments[0]!.clientKey).toBe(a!.payments[0]!.clientKey);
+    click(byTest('flow-discard'));
+    expect(stored().receipts[0]!.attempt).not.toBeNull();
+    expect(byTest('flow-discard-warning')!.textContent).toContain('Sales');
+    click(byTest('flow-discard'));
+    expect(stored().receipts[0]!.attempt).toBeNull();
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['4']);
+    sales.createSale.mockResolvedValueOnce({ ok: true, data: SALE });
+    await confirm();
+    expect((sales.createSale.mock.calls[2]![0] as { clientKey: string }).clientKey).not.toBe(a!.clientKey);
+  });
+
+  it('keeps the receipt frozen while moved prices are read again, then fits the current lines to them', async () => {
+    sales.createSale.mockResolvedValueOnce({ ok: false, error: { code: 'CONFLICT', message: 'short', fields: { phCode: 'PAYMENT_SHORT', totalMinor: '6000' } } });
+    const fresh = deferred<unknown>();
+    sales.sellSearch.mockReturnValue(fresh.promise);
+    screenWith([{}]);
+    await startPay();
+    await flush();
+    press({ key: 'ArrowDown' });
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['3']);
+    await act(async () => fresh.resolve({ ok: true, data: { items: [{ ...item({ units: [{ id: 'strip', label: 'strip', baseQty: 1, priceMinor: '2000' }] }), matchedOn: 'id', notSellable: false, noPrice: false }] } }));
+    await flush();
+    expect(byTest('flow-problem')!.textContent).toContain('6,000');
+    expect(stored().receipts[0]!.attempt).toBeNull();
+    expect(byTest('receipt-tab')!.textContent).toContain('6,000');
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['4']);
+  });
+});
+
+describe('no print', () => {
+  it('opens the drawer without paper for a cash sale', async () => {
+    sales.createSale.mockResolvedValue({ ok: true, data: SALE });
+    screenWith([{}]);
+    press({ key: 'F2' });
+    click(byTest('flow-no-print'));
+    await confirm();
+    expect(bridge.printDoc).not.toHaveBeenCalled();
+    expect(bridge.kickDrawer).toHaveBeenCalledTimes(1);
+    expect(byTest('receipt-no-print')).not.toBeNull();
+  });
+
+  it('does neither for a card-only sale', async () => {
+    sales.createSale.mockResolvedValue({ ok: true, data: SALE });
+    receipts.saleReceipt.mockResolvedValue(receiptOf([{ method: 'CARD_MANUAL', amountMinor: 4500n }]));
+    screenWith([{}]);
+    press({ key: 'F2' });
+    click(byTest('pay-method-CARD_MANUAL'));
+    click(byTest('flow-no-print'));
+    await confirm();
+    expect(bridge.printDoc).not.toHaveBeenCalled();
+    expect(bridge.kickDrawer).not.toHaveBeenCalled();
+  });
+
+  it('does not carry over to the next sale', async () => {
+    sales.createSale.mockResolvedValue({ ok: true, data: SALE });
+    screenWith([{}, {}]);
+    press({ key: 'F2' });
+    click(byTest('flow-no-print'));
+    await confirm();
+    press({ key: '2', altKey: true });
+    press({ key: 'F2' });
+    expect((byTest('flow-no-print') as HTMLInputElement).checked).toBe(false);
   });
 });

@@ -21,9 +21,22 @@ export interface CashierPulse {
 
 export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction } | { type: 'load'; state: ReceiptsState };
 
-/** A cart change goes to the active receipt; on a paid (done) receipt it starts a fresh one instead of reusing the paid lines. */
+/**
+ * Whether the action would change a FROZEN receipt: the active receipt has a sale attempt (being sent, or its outcome unknown), and
+ * the action changes its lines, its whole cart or its customer (to another one). A frozen receipt's lines are the lines being paid;
+ * only the sale's own outcome (`attempt`, `refused`, `sold`) may change it. Other receipts stay editable.
+ */
+export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean {
+  const current = state.receipts[state.active];
+  if (!current || current.done || current.attempt === null) return false;
+  if (action.type === 'line' || action.type === 'cart' || action.type === 'replace') return true;
+  return action.type === 'customer' && action.customerId !== current.customerId;
+}
+
+/** A cart change goes to the active receipt; on a paid (done) receipt it starts a fresh one instead of reusing the paid lines. A change to a frozen receipt is ignored. */
 export function cashierReducer(state: ReceiptsState, action: CashierAction): ReceiptsState {
   if (action.type === 'load') return action.state;
+  if (frozenEdit(state, action)) return state;
   if (action.type !== 'line') return receiptsReducer(state, action);
   const current = state.receipts[state.active];
   if (!current) return state;
