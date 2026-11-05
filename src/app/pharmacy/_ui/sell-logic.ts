@@ -246,6 +246,22 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
 
 export const unitOf = (line: CartLine): CartUnit => line.units.find((u) => u.id === line.unitId) ?? line.units[0]!;
 
+/**
+ * The unit the unit key moves a line to: the next one after the line's unit (wrapping) that has a price; null when there
+ * is no other priced unit (the screen then says so inline). A unit counts as sellable when `priceMinor !== null` (CartUnit
+ * carries no other flag, and a cart's prices are already in the sale currency; `_currency` documents that).
+ */
+export function nextUnitId(line: CartLine, _currency: Currency): string | null {
+  void _currency;
+  const { units } = line;
+  const at = units.findIndex((u) => u.id === line.unitId);
+  for (let step = 1; step < units.length; step += 1) {
+    const candidate = units[(Math.max(at, 0) + step) % units.length]!;
+    if (candidate.priceMinor !== null && candidate.id !== line.unitId) return candidate.id;
+  }
+  return null;
+}
+
 // The estimate --------------------------------------------------------------------------------------------------------
 
 export interface Estimate {
