@@ -465,7 +465,7 @@ describe('a typed barcode', () => {
 });
 
 describe('focus goes back to the scan field', () => {
-  it('after a keypad digit, the check key and a pay button', () => {
+  it('after a keypad digit and the check key; a pay button moves it into its flow (Task 9a)', () => {
     screenWith(cartOf(item()));
     selectFirst();
     const search = byTest('cashier-search');
@@ -477,6 +477,6 @@ describe('focus goes back to the scan field', () => {
     expect(document.activeElement).toBe(search);
     (search as HTMLElement).blur();
     click(byTest('pay-cash'));
-    expect(document.activeElement).toBe(search);
+    expect(document.activeElement).toBe(byTest('flow-tendered'));
   });
 });

@@ -1,20 +1,20 @@
 'use client';
 
 import { Banknote, UserRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { CustomerPicker, type PickedCustomer } from '../CustomerPicker';
 import { formatMinor, type Currency } from '../sell-logic';
 import { Num } from '../sell-parts';
 import { usdEquivalent } from './cashier-logic';
 import { Keypad } from './Keypad';
-
-export type PayFlow = 'cash' | 'credit';
+import type { WorkFlow } from './sale-flow-logic';
 
 const PAY = 'inline-flex min-h-14 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-base font-bold disabled:cursor-not-allowed disabled:opacity-45';
 
 /**
- * The side column (layout A): the total box, the customer, the receipt number, the keypad and the cash / credit buttons. The
- * buttons only report which flow was asked for (`flow`); the payment itself is the next task. Credit is off without its permission.
+ * The side column (layout A): the total box, the customer, the receipt number, the keypad, the cash / credit buttons and, under
+ * them, the work panel (`children`: the payment flows and the receipt after a sale). Credit is off without its permission.
  */
 export function SideColumn({
   currency,
@@ -31,6 +31,7 @@ export function SideColumn({
   flow,
   payable,
   onPay,
+  children,
 }: {
   currency: Currency;
   totalMinor: bigint;
@@ -45,10 +46,12 @@ export function SideColumn({
   /** What is left of the selected line's product in its unit; null with no selection. */
   stockLeft: number | null;
   pad: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean };
-  flow: PayFlow | null;
+  flow: WorkFlow | null;
   /** The receipt has lines to pay for. */
   payable: boolean;
-  onPay: (flow: PayFlow) => void;
+  onPay: (flow: WorkFlow) => void;
+  /** The work panel. */
+  children?: ReactNode;
 }) {
   const t = useT();
   const usd = usdEquivalent(totalMinor, currency, usdRate);
@@ -139,6 +142,7 @@ export function SideColumn({
           {t('pharmacy.cashier.pay.credit')}
         </button>
       </div>
+      {children}
     </aside>
   );
 }

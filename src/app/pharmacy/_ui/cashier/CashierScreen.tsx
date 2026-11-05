@@ -20,11 +20,13 @@ import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
 import { SaleLinesTable } from './SaleLinesTable';
 import { ScanBar } from './ScanBar';
-import { SideColumn, type PayFlow } from './SideColumn';
+import { SideColumn } from './SideColumn';
 import { Suggestions, suggestionId } from './Suggestions';
 import { useScanQueue } from './use-scan-queue';
 import { useStoredReceipts } from './use-stored-receipts';
+import { useSaleFlow } from './use-sale-flow';
 import { useSuggestions } from './use-suggestions';
+import { WorkPanel } from './WorkPanel';
 
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
@@ -42,7 +44,7 @@ type Message = { tone: 'danger' | 'info'; text: string };
  * strip, and a grid whose FIRST child is the side column (370px), so in RTL it sits on the physical right (the keypad goes
  * there), with the main column beside it: receipt tabs, the scan field, an inline message line, the sale lines. No dialog,
  * no motion. Up to MAX_RECEIPTS receipts are open at once and kept on this device per pharmacy, branch, person and currency.
- * The lines table, side column, inline flows and inquiry come in later tasks; this is the frame they fill.
+ * Paying is the work panel under the pay buttons (`WorkPanel`, `useSaleFlow`); the other inline flows and the inquiry come later.
  */
 export function CashierScreen(props: CashierScreenProps) {
   const { restaurantId, branchId, userId, settings, pulse, canSeeCost = false, canEditPrice = false } = props;
@@ -59,8 +61,6 @@ export function CashierScreen(props: CashierScreenProps) {
   // The unit the next scanned item starts in while no line is selected: one preference for the whole screen, not per receipt.
   const [scanUnit, setScanUnit] = useState<ScanUnitPref>('default');
   const [inquiry, setInquiry] = useState(false);
-  // The payment flow asked for (the flows themselves are the next task), tied to the receipt it was asked on.
-  const [flowAsk, setFlowAsk] = useState<{ receiptKey: string; flow: PayFlow } | null>(null);
   const [padState, setPadState] = useState<{ at: string; text: string }>({ at: '', text: '' });
   const [customers, setCustomers] = useState<Record<string, PickedCustomer | null>>({});
   const searchBox = useRef<HTMLInputElement>(null);
@@ -82,13 +82,18 @@ export function CashierScreen(props: CashierScreenProps) {
     setSelections(picks.current);
   };
   const selectedLine = receipt.cart.lines.find((l) => l.key === selected) ?? null;
-  const flow = flowAsk?.receiptKey === receipt.key ? flowAsk.flow : null;
   const padAt = `${receipt.key}:${selected}`;
   const pad = padState.at === padAt ? padState.text : '';
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
 
   // The receipts live on this device ------------------------------------------------------------------------------------
-  const { loaded, restored } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch);
+  const { loaded, restored, save } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch);
+  // Paying: the flow asked for on this receipt, its sale attempt (on the receipt, on the device) and the receipt after the sale.
+  const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }) });
+  const pickCustomer = (customer: PickedCustomer | null) => {
+    setCustomers((all) => ({ ...all, [receipt.key]: customer }));
+    dispatch({ type: 'customer', customerId: customer?.id ?? null });
+  };
 
   useEffect(() => {
     if (!anyLines) return;
@@ -212,7 +217,7 @@ export function CashierScreen(props: CashierScreenProps) {
         setClosedFor(query.trim());
         return true;
       }
-      setFlowAsk(null);
+      sale.close();
       setQuery('');
       setMessage(null);
       searchBox.current?.focus();
@@ -238,9 +243,9 @@ export function CashierScreen(props: CashierScreenProps) {
       else setScanUnit(nextScanUnitPref);
     } else if (key.kind === 'inquiry') setInquiry((on) => !on);
     else if (key.kind === 'cash' || key.kind === 'credit') {
-      // Only the ask is recorded here; the payment flows come next. Nothing to pay for (or no credit permission): the key keeps its browser meaning.
+      // The flow opens in the work panel; nothing is sent until it is confirmed. Nothing to pay for (or no credit permission): the key keeps its browser meaning.
       if (receipt.done || receipt.cart.lines.length === 0 || (key.kind === 'credit' && !props.perms.credit)) return false;
-      setFlowAsk({ receiptKey: receipt.key, flow: key.kind });
+      sale.open(key.kind);
     } else return false;
     return true;
   };
@@ -305,10 +310,7 @@ export function CashierScreen(props: CashierScreenProps) {
           receiptNo={state.active + 1}
           canCredit={props.perms.credit}
           customer={customers[receipt.key] ?? null}
-          onCustomer={(customer) => {
-            setCustomers((all) => ({ ...all, [receipt.key]: customer }));
-            dispatch({ type: 'customer', customerId: customer?.id ?? null });
-          }}
+          onCustomer={pickCustomer}
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
           pad={{ text: pad, onKey: (k) => {
               setPadState({ at: padAt, text: padText(pad, k) });
@@ -318,13 +320,12 @@ export function CashierScreen(props: CashierScreenProps) {
               applyPad();
               searchBox.current?.focus();
             }, canEnter: pad !== '' }}
-          flow={flow}
+          flow={sale.flow}
           payable={!receipt.done && receipt.cart.lines.length > 0}
-          onPay={(f) => {
-            run({ kind: f });
-            searchBox.current?.focus();
-          }}
-        />
+          onPay={(f) => run({ kind: f })}
+        >
+          <WorkPanel sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt} />
+        </SideColumn>
 
         <section className="flex min-w-0 flex-col gap-2 lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
           <ReceiptTabs
