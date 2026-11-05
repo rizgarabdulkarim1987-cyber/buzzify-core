@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { DoctorSlot } from '@/app/pharmacy/_ui/DoctorSlot';
 import { SellWorkspace } from '@/app/pharmacy/_ui/SellWorkspace';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
+import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
 import { current } from '@/server/pharmacy/queries/shifts';
 import { search } from '@/server/pharmacy/queries/sell';
 import { query } from '@/server/studio/framework/invoke';
@@ -48,7 +49,7 @@ export default async function SellPage() {
     );
   }
 
-  const [now, found] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 })]);
+  const [now, found, doctor] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), doctorEnabledThisRequest(actor)]);
   const open = now
     ? { id: now.shift.id, currency: now.shift.currency, openingFloatMinor: now.shift.openingFloatMinor, openedAt: now.shift.openedAt }
     : null;
@@ -66,7 +67,8 @@ export default async function SellPage() {
         rx: roleMay(actor, 'rx.dispense'),
         credit: found.settings.creditEnabled && roleMay(actor, 'credit.sell'),
       }}
-      aside={<DoctorSlot where="sell" />}
+      aside={<DoctorSlot where="sell" enabled={doctor} branchId={place.branchId} t={t} />}
+      phoneAside={<DoctorSlot where="sell-phone" enabled={doctor} branchId={place.branchId} t={t} />}
     />
   );
 }

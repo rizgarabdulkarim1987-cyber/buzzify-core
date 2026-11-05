@@ -736,9 +736,10 @@ test.describe('Pharmacy sell @desktop', () => {
       // Four lines: more than the phone's cart pane holds, so the cart scrolls inside its pane.
       await page.goto(`/pharmacy/sell?add=${units.map((u) => `${u}:1`).join(',')}`);
       await expect(page.getByTestId('cart-line')).toHaveCount(4);
-      // The AI Doctor's column is there, and takes no room while its slot renders nothing.
+      // The AI Doctor's column is there, and takes no room while its slot renders nothing (a plan without an AI budget; with one,
+      // the owner sees the Doctor's panel there: tests/e2e/pharmacy-doctor.spec.ts).
       await expect(page.getByTestId('sell-doctor-slot')).toHaveCount(1);
-      await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
+      if ((await page.getByTestId('sell-doctor-slot').getByTestId('doctor-panel').count()) === 0) await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
 
       for (const [width, height, payId] of [
         [1280, 800, 'pay-open'],

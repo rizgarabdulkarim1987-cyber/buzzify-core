@@ -108,6 +108,8 @@ export interface SellWorkspaceProps {
   perms: SellPerms;
   /** The start-side column beside the sale (the AI Doctor's slot): hidden below `lg:`, and while it renders nothing. */
   aside?: ReactNode;
+  /** The phone's counterpart (the AI Doctor's floating button): floats above the phone's pay bar below `lg:`. */
+  phoneAside?: ReactNode;
 }
 
 type View =
@@ -147,7 +149,7 @@ function expirySoon(expiryDate: string): boolean {
  * says the sale may or may not have been recorded. A definite refusal drops the attempt. A sale is never queued.
  */
 export function SellWorkspace(props: SellWorkspaceProps) {
-  const { restaurantId, branchId, userId, settings, perms, aside } = props;
+  const { restaurantId, branchId, userId, settings, perms, aside, phoneAside } = props;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -951,6 +953,12 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         </div>
       </div>
 
+      {phoneAside ? (
+        // A zero-height anchor: the button floats over the foot of the cart pane, never over the pay bar under it.
+        <div className="relative h-0 shrink-0 lg:hidden" data-testid="sell-doctor-float">
+          <div className="absolute bottom-3 end-3 z-10">{phoneAside}</div>
+        </div>
+      ) : null}
       {cart.lines.length > 0 && payBar(true)}
 
       <PayDialog

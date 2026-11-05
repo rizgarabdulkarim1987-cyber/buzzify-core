@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import { getPhAccess } from '@/server/pharmacy/actor';
+import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
 import { getHomeFigures } from '@/server/pharmacy/home';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -23,6 +24,7 @@ export default async function PharmacyHomePage({ searchParams }: { searchParams:
   const period = periodOf(params.period);
   const role = access.actor?.role ?? null;
   const figures = role !== null && access.actor?.support === null ? await getHomeFigures({ branchId: access.place?.branchId ?? null, period, now }) : null;
+  const doctorEnabled = access.actor ? await doctorEnabledThisRequest(access.actor) : false;
   const name = firstNameOf(access.actor?.name ?? '');
   const greeting = t(`pharmacy.home.greeting.${greetingOf(now)}`, { name }).replace(/[,،]\s*$/, '');
   return (
@@ -33,6 +35,7 @@ export default async function PharmacyHomePage({ searchParams }: { searchParams:
       period={period}
       sellHref={role !== null && canPh(role, 'shift.use') ? '/pharmacy/sell' : null}
       reportsHref={role !== null && canPh(role, 'report.view') ? '/pharmacy/reports' : null}
+      doctorEnabled={doctorEnabled}
       t={t}
     />
   );

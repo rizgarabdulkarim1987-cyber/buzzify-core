@@ -74,7 +74,7 @@ function AttentionRow({ item, t }: { item: HomeAttention; t: Translate }) {
 
 /**
  * The pharmacy's home (pharmacy redesign, task 6): greeting and the one "New sale" button, four KPI cards, the sales chart
- * and what needs attention, then the AI Doctor's slot (empty until it ships). Money and invoices are shown only when the
+ * and what needs attention, then the AI Doctor's green card (for people who may use it). Money and invoices are shown only when the
  * figures say the person may see them (`report.view`); the stock cards are for everyone. Server-rendered, no motion.
  */
 export function HomeDashboard({
@@ -84,6 +84,7 @@ export function HomeDashboard({
   period,
   sellHref,
   reportsHref,
+  doctorEnabled = false,
   t,
 }: {
   figures: HomeFigures | null;
@@ -92,6 +93,8 @@ export function HomeDashboard({
   period: HomePeriod;
   sellHref: string | null;
   reportsHref: string | null;
+  /** Whether this person may use the AI Doctor (its green card shows only then). */
+  doctorEnabled?: boolean;
   t: Translate;
 }) {
   const f = figures;
@@ -181,7 +184,7 @@ export function HomeDashboard({
         </>
       ) : null}
 
-      <DoctorSlot where="home" />
+      <DoctorSlot where="home" enabled={doctorEnabled} branchId={null} t={t} />
     </div>
   );
 }
