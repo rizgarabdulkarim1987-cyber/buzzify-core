@@ -8,16 +8,16 @@ import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
 import { RxCartPanel } from '../SellRx';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { estimateCart, overSellable, unitOf, type Currency } from '../sell-logic';
+import { estimateCart, overSellable, unitOf, type CartLine, type Currency } from '../sell-logic';
 import { Note } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
+import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, suggestionsFrom, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { CashierToolbar, LeaveNote } from './CashierToolbar';
 import { cashierOps } from './flows-logic';
 import { InquiryPanel } from './InquiryPanel';
-import { LinePanels } from './LinePanels';
+import { LinePanels, type BatchOverride } from './LinePanels';
 import { OtherFlow } from './OtherFlow';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
@@ -36,7 +36,7 @@ import { useReturnFlow } from './use-return-flow';
 import { useRxCheck } from './use-rx-check';
 import { useStoredReceipts } from './use-stored-receipts';
 import { useSaleFlow } from './use-sale-flow';
-import { useSuggestions } from './use-suggestions';
+import { useSuggestions, type SuggestionState } from './use-suggestions';
 import { WorkPanel } from './WorkPanel';
 
 export interface CashierScreenProps extends SellScreenProps {
@@ -72,6 +72,8 @@ export function CashierScreen(props: CashierScreenProps) {
   const [notSent, setNotSent] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [query, setQuery] = useState('');
+  // The products a scanned barcode matched when it matched several: listed under the field until one is chosen, typing or Escape.
+  const [matches, setMatches] = useState<Suggestion[] | null>(null);
   // Each receipt keeps its own selected line.
   const [selections, setSelections] = useState<Record<string, string | null>>({});
   // The unit the next scanned item starts in while no line is selected: one preference for the whole screen, not per receipt.
@@ -138,7 +140,7 @@ export function CashierScreen(props: CashierScreenProps) {
   const used = () => void (setQuery(''), focusField());
   const panels = usePanels({ mirror, apply, say, addItem: (item, handIn) => addItem(item, handIn) });
   const { inquiry } = panels;
-  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField, inquire: inquiry.on ? inquiry.show : null });
+  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField, inquire: inquiry.on ? inquiry.show : null, offer: (_code, items) => setMatches(suggestionsFrom(items)) });
   useHandIn({ currency, ready, add: addItem, lookupFailed, say, setNotSent });
   const holds = useHoldFlow({ currency, enabled: ready, mirror, apply, say, setNotSent, done: sale.close });
   const leave = useLeaveGuard(anyLines);
@@ -154,10 +156,12 @@ export function CashierScreen(props: CashierScreenProps) {
   const sugg = useSuggestions(query, currency, shift !== null && loaded);
   const [closedFor, setClosedFor] = useState<string | null>(null);
   const [activeAt, setActiveAt] = useState({ q: '', index: -1 });
-  const listOpen = sugg.status !== 'idle' && closedFor !== query.trim();
-  const rows: Suggestion[] = listOpen && sugg.status === 'ready' ? sugg.rows : [];
+  const listOpen = matches !== null || (sugg.status !== 'idle' && closedFor !== query.trim());
+  const listState: SuggestionState = matches ? { status: 'ready', rows: matches } : listOpen ? sugg : { status: 'idle' };
+  const rows: Suggestion[] = listState.status === 'ready' ? listState.rows : [];
   const activeIndex = activeAt.q === query ? activeAt.index : -1;
   const pick = (row: Suggestion) => {
+    setMatches(null);
     if (inquiry.on) inquiry.show(row.item);
     if (inquiry.on || addItem(row.item)) setQuery('');
     searchBox.current?.focus();
@@ -190,6 +194,7 @@ export function CashierScreen(props: CashierScreenProps) {
     else if (key.kind === 'escape') {
       // An open suggestion list closes first; Escape does its other work (clear, back to the field) when the list is closed.
       if (listOpen) {
+        setMatches(null);
         setClosedFor(query.trim());
         return true;
       }
@@ -268,6 +273,11 @@ export function CashierScreen(props: CashierScreenProps) {
     if (free && sale.flow === 'rx' && receipt.key === key) sale.close();
   };
   const closeFlow = () => void (sale.close(), focusField());
+  // batch.override: the selected line sells from a chosen batch (with a reason), or automatically again; refused while frozen.
+  const batchOverrideOf = (line: CartLine): BatchOverride => ({
+    onPick: (b) => edit({ type: 'line', action: { type: 'batch', key: line.key, batchId: b?.batchId ?? null, lot: b?.lot ?? '', reason: line.batchReason } }),
+    onReason: (reason) => edit({ type: 'line', action: { type: 'batch', key: line.key, batchId: line.batchId, lot: line.batchLot, reason } }),
+  });
   const find = (name: string) => void (setQuery(name), focusField());
 
   // Render ---------------------------------------------------------------------------------------------------------------
@@ -333,7 +343,7 @@ export function CashierScreen(props: CashierScreenProps) {
           <ScanBar
             inputRef={searchBox}
             query={query}
-            onQuery={setQuery}
+            onQuery={(text) => void (setMatches(null), setQuery(text))}
             onEnter={() => {
               const row = rows[activeIndex];
               if (row && row.reason === null) pick(row);
@@ -347,7 +357,7 @@ export function CashierScreen(props: CashierScreenProps) {
             inquiry={inquiry.on}
             onInquiry={() => run({ kind: 'inquiry' })}
           />
-          <Suggestions state={listOpen ? sugg : { status: 'idle' }} query={query} currency={currency} listId={listId} active={activeIndex} onPick={pick} />
+          <Suggestions state={listState} query={query} currency={currency} listId={listId} active={activeIndex} onPick={pick} />
           {message && (
             <Note look="ph" icon={<CircleAlert aria-hidden />} tone={message.tone} role="status" testId="cashier-message">
               {message.text}
@@ -372,7 +382,7 @@ export function CashierScreen(props: CashierScreenProps) {
               canSeeCost={canSeeCost} canEditPrice={canEditPrice} costs={costs}
             />
           )}
-          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} cost={selected ? costs?.[selected] : undefined} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
+          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} cost={selected ? costs?.[selected] : undefined} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} override={props.perms.batchOverride && selectedLine ? batchOverrideOf(selectedLine) : undefined} />
         </section>
       </div>
     </div>

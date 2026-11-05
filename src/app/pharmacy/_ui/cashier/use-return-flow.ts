@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { createReturn } from '@/app/pharmacy/_actions/returns';
 import type { ReturnResult } from '@/server/pharmacy/returns';
@@ -26,11 +27,14 @@ export type ReturnRequest = ReturnBody & { clientKey: string };
  *  - `done`: the finished return, shown (and its slip printed) when return mode shows again.
  */
 export function useReturnFlow() {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<ReturnRequest | null>(null);
   const [done, setDone] = useState<ReturnResult | null>(null);
   const lock = useRef(false);
   const kept = useRef<{ sig: string; request: ReturnRequest } | null>(null);
+  // The returns whose slip went to the printer by itself: once per return for the screen, however often return mode reopens.
+  const printed = useRef(new Set<string>());
 
   const send = async (body: ReturnBody): Promise<ActionResult<ReturnResult>> => {
     const sig = returnSignature(body.saleId, body.lines, body.reason, body.refundMethod);
@@ -47,6 +51,8 @@ export function useReturnFlow() {
       kept.current = null;
       setPending(null);
       setDone(result.data);
+      // The header figures (shift net, drawer cash) are read again, as after a sale.
+      router.refresh();
     } else if (outcomeUnknown(result.error)) setPending(request);
     else {
       kept.current = null;
@@ -67,6 +73,12 @@ export function useReturnFlow() {
       setPending(null);
     },
     clearDone: () => setDone(null),
+    /** True the first time it is asked for a return (its slip may print by itself), false ever after. */
+    firstPrint: (returnId: string) => {
+      if (printed.current.has(returnId)) return false;
+      printed.current.add(returnId);
+      return true;
+    },
   };
 }
 

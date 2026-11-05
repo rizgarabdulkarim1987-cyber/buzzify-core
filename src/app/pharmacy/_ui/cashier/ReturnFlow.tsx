@@ -13,7 +13,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { phMessage } from '../ph-failure';
 import { ReturnWorkspace } from '../ReturnWorkspace';
-import { formatMinor, type Currency } from '../sell-logic';
+import { formatMinor, outcomeUnknown, type Currency } from '../sell-logic';
 import { FieldInput, Note, Num, PH_BTN, PH_FIELD, PH_PRIMARY } from '../sell-parts';
 import { ThermalNote } from '../ThermalNote';
 import { useThermal, useThermalJob } from '../use-thermal';
@@ -56,7 +56,15 @@ export function ReturnFlow({ canReturn, shiftCurrency, returns }: { canReturn: b
     );
   }
   const again = () => void (setFound(null), returns.clearDone(), setText(''), setNotFound(null), setProblem(null));
-  if (returns.done) return <ReturnSlip result={returns.done} onAgain={again} />;
+  // A Retry the server refused (not a lost answer) lets the return go: say why, and start again from the sale's number.
+  const retry = async () => {
+    const result = await returns.retry();
+    if (result && !result.ok && !outcomeUnknown(result.error)) {
+      setFound(null);
+      setProblem(phMessage(t, locale, result.error, 'pharmacy.returns'));
+    }
+  };
+  if (returns.done) return <ReturnSlip result={returns.done} onAgain={again} firstPrint={returns.firstPrint} />;
   if (returns.pending && !returns.busy) {
     return (
       <div className="flex min-w-0 flex-col gap-2.5" data-testid="return-pending">
@@ -64,7 +72,7 @@ export function ReturnFlow({ canReturn, shiftCurrency, returns }: { canReturn: b
           {t('pharmacy.cashier.return.pending')}
         </Note>
         <div className="flex flex-wrap gap-1.5">
-          <button type="button" className={PH_PRIMARY} data-testid="return-retry" onClick={() => void returns.retry()}>
+          <button type="button" className={PH_PRIMARY} data-testid="return-retry" onClick={() => void retry()}>
             <RotateCw aria-hidden className="size-4" />
             {t('pharmacy.cashier.return.retry')}
           </button>
@@ -170,7 +178,7 @@ export function ReturnFlow({ canReturn, shiftCurrency, returns }: { canReturn: b
  * The finished return and its slip: the server's rendering of the stored return, printed once by itself on the workstation's
  * thermal printer with the drawer OFF (a return never opens it), else by the browser from the frame.
  */
-function ReturnSlip({ result, onAgain }: { result: ReturnResult; onAgain: () => void }) {
+function ReturnSlip({ result, onAgain, firstPrint }: { result: ReturnResult; onAgain: () => void; /** Screen level: true only the first time for this return. */ firstPrint: (returnId: string) => boolean }) {
   const t = useT();
   const { locale } = useLocale();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -179,7 +187,6 @@ function ReturnSlip({ result, onAgain }: { result: ReturnResult; onAgain: () => 
   const workstation = useThermal();
   const thermal = useThermalJob(workstation);
   const { run } = thermal;
-  const printed = useRef(false);
   useEffect(() => {
     let cancelled = false;
     void settle(() => returnSlip({ returnId: result.id, width: '80', locale })).then((answer) => {
@@ -193,10 +200,10 @@ function ReturnSlip({ result, onAgain }: { result: ReturnResult; onAgain: () => 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the slip is read once per return
   }, [result.id, locale]);
   useEffect(() => {
-    if (!slip || !thermal.enabled || printed.current) return;
-    printed.current = true;
+    // Printed by itself once per return for the whole screen (the flag lives with the return, not with this panel).
+    if (!slip || !thermal.enabled || !firstPrint(result.id)) return;
     void run(slip.model, { drawer: false });
-  }, [slip, thermal.enabled, run]);
+  }, [slip, thermal.enabled, run, firstPrint, result.id]);
   const print = () => {
     if (thermal.enabled && slip) return void run(slip.model, { drawer: false });
     frame.current?.contentWindow?.print();

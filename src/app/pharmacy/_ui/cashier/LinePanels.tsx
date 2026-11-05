@@ -6,7 +6,7 @@ import type { InfoBatch } from '@/server/pharmacy/sell-info';
 import type { SellItem } from '@/server/pharmacy/sell-search';
 import { useT } from '@/studio/i18n';
 import { formatMinor, startUnit, type CartLine, type Currency } from '../sell-logic';
-import { Num } from '../sell-parts';
+import { FieldInput, Num, PH_FIELD } from '../sell-parts';
 import { expiryText, lineBatchId } from './panels-logic';
 import type { LineCost } from './SaleLinesTable';
 import { useProductInfo, type ProductInfoState } from './use-product-info';
@@ -52,6 +52,49 @@ export function SubButton({ item, currency, testId, onPick }: { item: SellItem; 
   );
 }
 
+export interface BatchOverride {
+  /** A batch of the line's product, or null for automatic (soonest expiry first). */
+  onPick: (batch: { batchId: string; lot: string } | null) => void;
+  onReason: (reason: string) => void;
+}
+
+const CHOICE = 'flex min-h-11 min-w-0 flex-col items-start justify-center rounded-ph-xl border px-3 py-1 text-start text-sm';
+const choiceTone = (on: boolean) => (on ? 'border-ph-g8 bg-ph-g8 text-ph-on-green' : 'border-ph-line bg-ph-card text-ph-text hover:bg-ph-canvas');
+
+/**
+ * The old sale screen's batch override (`batch.override`), as buttons under the batch list (never a dropdown): automatic, or one
+ * of the line's batches; a chosen batch needs a reason of at least three characters, and Pay says so until it is written.
+ */
+function BatchChoice({ line, override }: { line: CartLine; override: BatchOverride }) {
+  const t = useT();
+  const short = line.batchId !== null && line.batchReason.trim().length < 3;
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 border-t border-ph-line pt-2" data-testid="batch-override">
+      <p className="text-xs text-ph-muted">{t('pharmacy.sell.batch.hint')}</p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('pharmacy.sell.batch.label')}>
+        <button type="button" className={`${CHOICE} ${choiceTone(line.batchId === null)}`} aria-pressed={line.batchId === null} data-testid="batch-auto" onClick={() => override.onPick(null)}>
+          {t('pharmacy.sell.batch.auto')}
+        </button>
+        {line.batches.map((b) => (
+          <button key={b.batchId} type="button" className={`${CHOICE} ${choiceTone(line.batchId === b.batchId)}`} aria-pressed={line.batchId === b.batchId} data-testid="batch-pick" data-batch={b.batchId} onClick={() => override.onPick({ batchId: b.batchId, lot: b.lot })}>
+            <bdi dir="auto">{b.lot}</bdi>
+            <small className="text-xs">
+              <Num>{b.expiryDate.slice(0, 7)}</Num> · {t('pharmacy.cashier.batch.left', { qty: b.available })}
+            </small>
+          </button>
+        ))}
+      </div>
+      {line.batchId !== null && (
+        <label className="flex min-w-0 flex-col gap-1 text-sm font-semibold text-ph-text">
+          {t('pharmacy.sell.batch.reason')}
+          <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={300} aria-invalid={short || undefined} data-testid="batch-reason" value={line.batchReason} onChange={(event) => override.onReason(event.target.value)} />
+          {short && <span className="text-xs font-normal text-ph-red">{t('pharmacy.sell.batch.reasonNeeded')}</span>}
+        </label>
+      )}
+    </div>
+  );
+}
+
 /** Loading or failed in words, else the body. */
 function Body({ state, children }: { state: ProductInfoState; children: (info: Extract<ProductInfoState, { status: 'ready' }>['info']) => ReactNode }) {
   const t = useT();
@@ -79,7 +122,7 @@ function Body({ state, children }: { state: ProductInfoState; children: (info: E
  * prices, last purchase, barcode, active ingredient; the line's cost and profit from the cart's own `ph.sell.costs` answer for a
  * role that may see cost, "hidden" for anyone else), and its substitutes by active ingredient (a press replaces the line, keeping its quantity). Read only, no motion.
  */
-export function LinePanels({ line, currency, canSeeCost, cost, refresh = '', onSubstitute }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; /** The selected line's cost and profit (only ever passed when `canSeeCost`). */ cost?: LineCost; /** Changes after a sale: the product is read again (its batches moved). */ refresh?: string; onSubstitute: (item: SellItem) => void }) {
+export function LinePanels({ line, currency, canSeeCost, cost, refresh = '', onSubstitute, override }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; /** The selected line's cost and profit (only ever passed when `canSeeCost`). */ cost?: LineCost; /** Changes after a sale: the product is read again (its batches moved). */ refresh?: string; onSubstitute: (item: SellItem) => void; /** batch.override: choosing the batch the line sells from (with a reason). */ override?: BatchOverride }) {
   const t = useT();
   const state = useProductInfo(line?.productId ?? null, currency, refresh);
   return (
@@ -114,6 +157,7 @@ export function LinePanels({ line, currency, canSeeCost, cost, refresh = '', onS
             );
           }}
         </Body>
+        {override && line && line.batches.length > 0 && <BatchChoice line={line} override={override} />}
       </section>
       <section className={CARD} data-testid="panel-details">
         <h3 className={TITLE}>{t('pharmacy.cashier.panels.details')}</h3>

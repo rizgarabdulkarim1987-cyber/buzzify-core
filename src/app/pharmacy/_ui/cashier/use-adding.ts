@@ -43,6 +43,8 @@ export function useAdding(o: {
   focus: () => void;
   /** Inquiry mode (F7): a scanned or typed item is SHOWN through this instead of added, even one that cannot be sold. */
   inquire?: ((item: ScanItem) => void) | null;
+  /** A barcode that matches several products: its matches, offered inline for the cashier to choose one (the old screen's pick). */
+  offer?: (code: string, items: ScanItem[]) => void;
 }) {
   const { currency, mirror: mirrorRef, picks, select, scanUnit, dispatch, say, setNotSent } = o;
   const t = useT();
@@ -94,7 +96,10 @@ export function useAdding(o: {
     }
     if (outcome.kind === 'add') return addItem(outcome.item);
     if (outcome.kind === 'blocked') say({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
-    else say({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
+    else if (outcome.kind === 'pick') {
+      say({ tone: 'info', text: t('pharmacy.sell.scan.pick', { code }) });
+      o.offer?.(code, outcome.items);
+    } else say({ tone: 'danger', text: t('pharmacy.sell.scan.unknown', { code }) });
     return false;
   };
   useScanQueue(async (code) => {
