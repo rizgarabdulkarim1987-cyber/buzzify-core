@@ -1,4 +1,4 @@
-import { emptyCart, newClientKey, type CartState } from './sell-logic';
+import { CURRENCIES, emptyCart, isDiscount, isLine, MAX_LINES, newClientKey, parseDraft, type CartState, type Currency } from './sell-logic';
 
 /**
  * The cashier's open receipts, pure (no DOM, no React): up to MAX_RECEIPTS carts side by side, one active. A receipt
@@ -69,4 +69,66 @@ export function receiptsReducer(state: ReceiptsState, action: ReceiptsAction): R
     case 'replace':
       return withActive(state, action.receipt);
   }
+}
+
+// On the device ---------------------------------------------------------------------------------------------------------
+
+export const RECEIPTS_VERSION = 3;
+/** One set of receipts per pharmacy, branch, person AND currency, like the single-cart draft before it. */
+export const receiptsKey = (restaurantId: string, branchId: string, userId: string, currency: Currency): string =>
+  `ph-sell-receipts:v${RECEIPTS_VERSION}:${restaurantId}:${branchId}:${userId}:${currency}`;
+
+/** Paid receipts are not kept; the active pointer follows its receipt (or the nearest one left). */
+export function serializeReceipts(state: ReceiptsState): string {
+  const kept = state.receipts.filter((r) => !r.done).slice(0, MAX_RECEIPTS);
+  const activeKey = state.receipts[state.active]?.key;
+  const at = kept.findIndex((r) => r.key === activeKey);
+  const active = at >= 0 ? at : Math.min(Math.max(0, state.active), Math.max(0, kept.length - 1));
+  return JSON.stringify({ v: RECEIPTS_VERSION, active, receipts: kept });
+}
+
+const isCart = (c: unknown): c is CartState => {
+  const x = c as CartState | null;
+  return !!x && typeof x === 'object' && Array.isArray(x.lines) && x.lines.length <= MAX_LINES && x.lines.every(isLine) && isDiscount(x.invoiceDiscount) && typeof x.discountReason === 'string' && Number.isInteger(x.seq);
+};
+
+const orNull = (v: unknown): string | null => (typeof v === 'string' && v.length <= 64 ? v : null);
+
+function toReceipt(r: unknown): OpenReceipt | null {
+  const x = r as Partial<OpenReceipt> | null;
+  if (!x || typeof x !== 'object' || typeof x.key !== 'string' || x.key.length === 0 || x.key.length > 80 || !isCart(x.cart)) return null;
+  return { key: x.key, cart: x.cart, customerId: orNull(x.customerId), fromHoldId: orNull(x.fromHoldId), prescriptionId: orNull(x.prescriptionId), done: false };
+}
+
+/**
+ * The stored receipts, or a single empty one. A receipt that is not a valid cart is dropped and the rest kept; more than
+ * MAX_RECEIPTS are cut; a v2 single-cart draft (`legacyDraftRaw`) becomes receipt 1 when there are no v3 receipts. Never throws.
+ */
+export function parseReceipts(raw: string | null, legacyDraftRaw: string | null): ReceiptsState {
+  try {
+    if (raw) {
+      const parsed = JSON.parse(raw) as { v?: unknown; active?: unknown; receipts?: unknown } | null;
+      if (parsed && parsed.v === RECEIPTS_VERSION && Array.isArray(parsed.receipts)) {
+        const slots = parsed.receipts.slice(0, MAX_RECEIPTS).map(toReceipt);
+        const receipts = slots.filter((r): r is OpenReceipt => r !== null);
+        if (receipts.length > 0) {
+          const want = Number.isInteger(parsed.active) ? (parsed.active as number) : 0;
+          const wanted = want >= 0 && want < slots.length ? slots[want] : null;
+          const at = wanted ? receipts.indexOf(wanted) : -1;
+          return { receipts, active: at >= 0 ? at : Math.min(Math.max(0, want), receipts.length - 1) };
+        }
+      }
+    }
+  } catch {
+    /* fall through to the legacy draft */
+  }
+  try {
+    const draft = parseDraft(legacyDraftRaw);
+    if (draft && CURRENCIES.includes(draft.currency)) {
+      return { receipts: [{ ...newReceipt(), cart: draft.cart, fromHoldId: draft.fromHoldId, prescriptionId: draft.prescriptionId ?? null }], active: 0 };
+    }
+  } catch {
+    /* fall through */
+  }
+  return initialReceipts();
 }

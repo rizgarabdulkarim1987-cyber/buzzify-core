@@ -666,7 +666,7 @@ export function serializeDraft(currency: Currency, cart: CartState, attempt: Sal
   return JSON.stringify({ v: DRAFT_VERSION, currency, cart, fromHoldId, attempt, ...(prescriptionId ? { prescriptionId } : {}) } satisfies Draft);
 }
 
-const isDiscount = (d: unknown): d is DiscountDraft | null =>
+export const isDiscount = (d: unknown): d is DiscountDraft | null =>
   d === null || (typeof d === 'object' && d !== null && ((d as DiscountDraft).kind === 'amount' || (d as DiscountDraft).kind === 'percent') && typeof (d as DiscountDraft).value === 'string');
 
 const isUnit = (u: unknown): u is CartUnit => {
@@ -674,7 +674,7 @@ const isUnit = (u: unknown): u is CartUnit => {
   return !!x && typeof x.id === 'string' && typeof x.label === 'string' && Number.isInteger(x.baseQty) && (x.priceMinor === null || (typeof x.priceMinor === 'string' && /^\d+$/.test(x.priceMinor)));
 };
 
-const isLine = (l: unknown): l is CartLine => {
+export const isLine = (l: unknown): l is CartLine => {
   const x = l as CartLine;
   return (
     !!x &&
