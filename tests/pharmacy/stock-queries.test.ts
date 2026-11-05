@@ -221,6 +221,9 @@ describe('ph.stock.balances', () => {
     await makeBatch(a.id, b2, p2.id, { buckets: { available: 3 } });
     const items = dataOf(await ask(only1, stockQueries.balances, { ...at, onlyWithStock: true })).items;
     expect(items.map((i) => i.tradeName)).toEqual(['Panadol']);
+    // "Out of stock" counts only their branches too: the product stocked only in the other branch is out for them.
+    const out = dataOf(await ask(only1, stockQueries.balances, { ...at, onlyWithStock: undefined, outOfStock: true })).items;
+    expect(out.map((i) => i.tradeName)).toEqual(['Elsewhere']);
   });
 
   it('never returns another business\'s stock', async () => {

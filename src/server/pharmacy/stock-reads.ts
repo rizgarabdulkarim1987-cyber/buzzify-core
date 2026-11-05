@@ -179,13 +179,16 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
 /**
  * "Out of stock": no sellable balance in the branches shown, as a NOT EXISTS on the product's balances, so no id list
  * goes back to the database however many products are stocked. Sellable is the stock screen's own rule (R2-5):
- * `available` above 0 in an ACTIVE batch that has not expired.
+ * `available` above 0 in an ACTIVE batch that has not expired. The branches shown are the place's branch, else the actor's
+ * own branches: the scoped client narrows a model's own rows to them, but not a relation filter like this one, so a
+ * branch-limited actor's stock elsewhere must not count here.
  */
-function outOfStockWhere(input: Place) {
+function outOfStockWhere(ph: PhActor, input: Place) {
   const today = new Date(`${utcToday()}T00:00:00.000Z`);
+  const branchId = input.branchId ?? (ph.allBranches ? undefined : { in: ph.branchIds });
   return {
     balances: {
-      none: { ...(input.branchId ? { branchId: input.branchId } : {}), available: { gt: 0 }, batch: { status: 'ACTIVE' as const, expiryDate: { gte: today } } },
+      none: { ...(branchId ? { branchId } : {}), available: { gt: 0 }, batch: { status: 'ACTIVE' as const, expiryDate: { gte: today } } },
     },
   };
 }
@@ -201,7 +204,7 @@ export async function listBalances(
   const idWhere = [
     ...(input.productId ? [{ id: input.productId }] : []),
     ...(ids !== null ? [{ id: { in: ids } }] : []),
-    ...(input.outOfStock ? [outOfStockWhere(input)] : []),
+    ...(input.outOfStock ? [outOfStockWhere(ph, input)] : []),
   ];
   const searchWhere = words.length > 0 ? words.map((w) => ({ searchText: { contains: literal(w) } })) : [];
   const finalWhere = { AND: [...idWhere, ...searchWhere] };
