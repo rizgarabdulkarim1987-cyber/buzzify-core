@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleAlert, CircleCheck, Hourglass, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useT } from '@/studio/i18n';
 import { Note, PH_BTN, PH_PRIMARY } from '../sell-parts';
 
@@ -15,19 +15,29 @@ export interface FlowCommon {
   problem: string | null;
   /** This receipt has a sale whose outcome is not known. */
   pending: boolean;
+  /** Another receipt's sale is being sent: this one can neither be sent again nor let go until it is answered. */
+  elsewhere: boolean;
   noPrint: boolean;
   onNoPrint: (on: boolean) => void;
   /** Sends the sale in flight again with the same keys. */
   onRetry: () => void;
-  /** Lets the sale in flight go (after the armed second tap). */
-  onDiscard: () => void;
+  /** Lets the sale in flight go (after the armed second tap); false when it could not (another sale is being sent). */
+  onDiscard: () => boolean;
 }
 
-export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPrint, busy, onRetry, onDiscard }: FlowCommon) {
+export function FlowNotes({ blocked, offline, problem, pending, elsewhere, noPrint, onNoPrint, busy, onRetry, onDiscard }: FlowCommon) {
   const t = useT();
-  // Letting an attempt go is a two-tap action: the first tap arms it and says what it means, the second does it.
+  const blockedId = useId();
+  // Letting an attempt go is a two-tap action: the first tap arms it and says what it means, the second does it. It is disarmed
+  // by Retry and whenever the receipt stops or starts being stuck, so a new lost answer never finds it armed.
   const [armed, setArmed] = useState(false);
   const stuck = pending && !busy;
+  const [wasStuck, setWasStuck] = useState(stuck);
+  if (wasStuck !== stuck) {
+    setWasStuck(stuck);
+    setArmed(false);
+  }
+  const held = offline || elsewhere;
   return (
     <>
       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ph-text">
@@ -35,7 +45,7 @@ export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPri
         {t('pharmacy.cashier.flow.noPrint')}
       </label>
       {blocked && (
-        <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="status" testId="flow-blocked">
+        <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="status" testId="flow-blocked" id={blockedId}>
           {blocked}
         </Note>
       )}
@@ -62,7 +72,17 @@ export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPri
             </Note>
           )}
           <div className="grid grid-cols-2 gap-1.5">
-            <button type="button" className={PH_BTN} data-testid="flow-retry" disabled={offline} onClick={onRetry}>
+            <button
+              type="button"
+              className={PH_BTN}
+              data-testid="flow-retry"
+              disabled={held}
+              aria-describedby={held && blocked ? blockedId : undefined}
+              onClick={() => {
+                setArmed(false);
+                onRetry();
+              }}
+            >
               <RotateCcw aria-hidden className="size-4" />
               {t('pharmacy.cashier.flow.retry')}
             </button>
@@ -71,13 +91,11 @@ export function FlowNotes({ blocked, offline, problem, pending, noPrint, onNoPri
               className={`${PH_BTN} ${armed ? 'border-ph-red text-ph-red' : ''}`}
               data-testid="flow-discard"
               aria-pressed={armed}
+              disabled={elsewhere}
+              aria-describedby={elsewhere && blocked ? blockedId : undefined}
               onClick={() => {
-                if (!armed) {
-                  setArmed(true);
-                  return;
-                }
-                setArmed(false);
-                onDiscard();
+                if (!armed) setArmed(true);
+                else if (onDiscard()) setArmed(false);
               }}
             >
               <Trash2 aria-hidden className="size-4" />

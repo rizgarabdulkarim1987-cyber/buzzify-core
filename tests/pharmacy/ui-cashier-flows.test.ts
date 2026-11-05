@@ -590,3 +590,171 @@ describe('no print', () => {
     expect((byTest('flow-no-print') as HTMLInputElement).checked).toBe(false);
   });
 });
+
+// Fix round 2: a stuck sale can only be retried or explicitly discarded --------------------------------------------------
+
+type SentSale = { clientKey: string; payments: { method: string; amountMinor: string; reference: string; clientKey: string }[] };
+const sentAt = (i: number) => sales.createSale.mock.calls[i]![0] as SentSale;
+const confirmButton = () => byTest('flow-confirm') as HTMLButtonElement;
+const lostSale = async () => {
+  sales.createSale.mockRejectedValue(new TypeError('fetch failed'));
+};
+
+describe('the stuck sale (pure)', () => {
+  const OTHER: SaleAttempt = { ...ATTEMPT, sig: 'new-sig', key: 'sale-key-0002', paymentKey: 'pay-key-0002' };
+  const one = () => ({ receipts: [{ ...newReceipt(), key: 'a', cart: cartOf(), attempt: ATTEMPT }], active: 0 });
+
+  it('never lets an attempt of another signature replace the pending one; only refused, sold and an explicit discard clear it', () => {
+    const s = one();
+    expect(receiptsReducer(s, { type: 'attempt', receiptKey: 'a', attempt: OTHER })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'attempt', receiptKey: 'a', attempt: OTHER })).toBe(s);
+    expect(receiptsReducer(s, { type: 'attempt', receiptKey: 'a', attempt: { ...ATTEMPT } }).receipts[0]!.attempt).toEqual(ATTEMPT);
+    expect(receiptsReducer(s, { type: 'attempt', receiptKey: 'a', attempt: null }).receipts[0]!.attempt).toBeNull();
+    expect(receiptsReducer(s, { type: 'refused', receiptKey: 'a' }).receipts[0]!.attempt).toBeNull();
+    expect(receiptsReducer(s, { type: 'sold', receiptKey: 'a' }).receipts[0]).toMatchObject({ done: true, attempt: null });
+    const freed = receiptsReducer(s, { type: 'attempt', receiptKey: 'a', attempt: null });
+    expect(receiptsReducer(freed, { type: 'attempt', receiptKey: 'a', attempt: OTHER }).receipts[0]!.attempt).toEqual(OTHER);
+  });
+
+  it('marks a receipt with an attempt done only through the sale', () => {
+    const s = one();
+    expect(cashierLogic.frozenEdit(s, { type: 'done' })).toBe(true);
+    expect(cashierLogic.cashierReducer(s, { type: 'done' })).toBe(s);
+    expect(cashierLogic.cashierReducer(s, { type: 'sold', receiptKey: 'a' }).receipts[0]!.done).toBe(true);
+  });
+
+  it('keeps an attempt for the largest possible sale through the device round trip', async () => {
+    const { saleSignature, saleAttemptFor, MAX_LINES, MAX_SIG_LENGTH } = await import('@/app/pharmacy/_ui/sell-logic');
+    const uuid = (i: number) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+    const base = cartOf(999).lines[0]!;
+    const reason = '"'.repeat(300);
+    const lines = Array.from({ length: MAX_LINES }, (_, i) => ({
+      ...base,
+      key: `line-${i}`,
+      productId: uuid(i),
+      units: [{ ...base.units[0]!, id: uuid(100_000 + i) }],
+      unitId: uuid(100_000 + i),
+      batchId: uuid(200_000 + i),
+      batchLot: 'L'.repeat(40),
+      batchReason: reason,
+      discount: { kind: 'percent' as const, value: '10' },
+    }));
+    const cart: CartState = { ...cartOf(), lines, discountReason: reason, invoiceDiscount: { kind: 'percent', value: '5' } };
+    const draft = { method: 'TRANSFER_MANUAL' as const, tendered: '', reference: 'R'.repeat(200), credit: { customerId: uuid(9), amount: '999999999999' } };
+    const sig = saleSignature(cart, 'IQD', draft, 999_999_999_999n, uuid(7), uuid(8))!;
+    expect(sig.length).toBeGreaterThan(100_000);
+    expect(sig.length).toBeLessThanOrEqual(MAX_SIG_LENGTH);
+    const attempt = saleAttemptFor(null, sig, draft, 999_999_999_999n, uuid(7), undefined, uuid(8));
+    const back = parseReceipts(serializeReceipts({ receipts: [{ ...newReceipt(), cart, attempt }], active: 0 }), null);
+    expect(back.receipts[0]!.attempt).toEqual(attempt);
+  });
+});
+
+describe('the stuck sale (screen)', () => {
+  it('locks the cash fields, method and quick cash; Confirm sends the same keys again; Discard frees them for a new sale', async () => {
+    await lostSale();
+    screenWith([{}]);
+    press({ key: 'F2' });
+    typeIn('flow-tendered', '5000');
+    await confirm();
+    const before = stored().receipts[0]!.attempt;
+    typeIn('flow-tendered', '9000');
+    expect((byTest('flow-tendered') as HTMLInputElement).value).toBe('5000');
+    expect((byTest('flow-tendered') as HTMLInputElement).readOnly).toBe(true);
+    expect(allTest('flow-quick').every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    expect((byTest('pay-method-CARD_MANUAL') as HTMLButtonElement).disabled).toBe(true);
+    click(byTest('pay-method-CARD_MANUAL'));
+    expect(byTest('pay-method-CASH')!.getAttribute('aria-pressed')).toBe('true');
+    expect(stored().receipts[0]!.attempt).toEqual(before);
+    expect(confirmButton().textContent).toContain('Send again');
+    await confirm();
+    expect(sentAt(1)).toEqual(sentAt(0));
+    click(byTest('flow-discard'));
+    click(byTest('flow-discard'));
+    expect((byTest('flow-tendered') as HTMLInputElement).readOnly).toBe(false);
+    typeIn('flow-tendered', '6000');
+    sales.createSale.mockResolvedValueOnce({ ok: true, data: SALE });
+    await confirm();
+    expect(sentAt(2).clientKey).not.toBe(sentAt(0).clientKey);
+    expect(sentAt(2).payments[0]!.amountMinor).toBe('6000');
+  });
+
+  it('locks the reference of a card payment while stuck', async () => {
+    await lostSale();
+    screenWith([{}]);
+    press({ key: 'F2' });
+    click(byTest('pay-method-CARD_MANUAL'));
+    typeIn('flow-reference', 'R1');
+    await confirm();
+    typeIn('flow-reference', 'R2');
+    expect((byTest('flow-reference') as HTMLInputElement).value).toBe('R1');
+    await confirm();
+    expect(sentAt(1)).toEqual(sentAt(0));
+    expect(sentAt(1).payments[0]!.reference).toBe('R1');
+  });
+
+  it('locks the credit fields while stuck and Confirm sends the same three keys again', async () => {
+    customers.getCustomer.mockResolvedValue({ ok: true, data: CUSTOMER });
+    await lostSale();
+    screenWith([{ customerId: 'c1' }], { perms: { ...PERMS, credit: true } });
+    press({ key: 'F3' });
+    await flush();
+    typeIn('flow-now', '1000');
+    await confirm();
+    typeIn('flow-now', '2000');
+    expect((byTest('flow-now') as HTMLInputElement).value).toBe('1000');
+    expect((byTest('pay-method-CARD_MANUAL') as HTMLButtonElement).disabled).toBe(true);
+    await confirm();
+    expect(sentAt(1)).toEqual(sentAt(0));
+  });
+
+  it('comes back disarmed after Retry and after a new lost answer', async () => {
+    await lostSale();
+    screenWith([{}]);
+    await startPay();
+    await flush();
+    click(byTest('flow-discard'));
+    expect(byTest('flow-discard')!.getAttribute('aria-pressed')).toBe('true');
+    await act(async () => byTest('flow-retry')!.click());
+    await flush();
+    expect(byTest('flow-discard')!.getAttribute('aria-pressed')).toBe('false');
+    expect(byTest('flow-discard-warning')).toBeNull();
+    click(byTest('flow-discard'));
+    await confirm();
+    expect(byTest('flow-discard')!.getAttribute('aria-pressed')).toBe('false');
+    expect(stored().receipts[0]!.attempt).not.toBeNull();
+  });
+
+  it('holds Retry and Discard back, with the reason, while another receipt is sending', async () => {
+    await lostSale();
+    screenWith([{ key: 'rc-a' }, { key: 'rc-b' }]);
+    await startPay();
+    await flush();
+    sales.createSale.mockReturnValue(deferred<unknown>().promise);
+    press({ key: '2', altKey: true });
+    await startPay();
+    press({ key: '1', altKey: true });
+    press({ key: 'F2' });
+    const discard = byTest('flow-discard') as HTMLButtonElement;
+    expect(discard.disabled).toBe(true);
+    expect((byTest('flow-retry') as HTMLButtonElement).disabled).toBe(true);
+    expect(byTest('flow-blocked')!.textContent).toContain('another receipt');
+    expect(document.getElementById(discard.getAttribute('aria-describedby') ?? '')?.textContent).toContain('another receipt');
+    expect(stored().receipts.find((r) => r.key === 'rc-a')!.attempt).not.toBeNull();
+  });
+});
+
+describe('no print across receipts', () => {
+  it('a finished sale clears only the tick it took', async () => {
+    const answer = deferred<unknown>();
+    sales.createSale.mockReturnValue(answer.promise);
+    screenWith([{ key: 'rc-a' }, { key: 'rc-b' }]);
+    await startPay();
+    press({ key: '2', altKey: true });
+    press({ key: 'F2' });
+    click(byTest('flow-no-print'));
+    await act(async () => answer.resolve({ ok: true, data: SALE }));
+    await flush();
+    expect((byTest('flow-no-print') as HTMLInputElement).checked).toBe(true);
+  });
+});

@@ -727,10 +727,14 @@ export const isLine = (l: unknown): l is CartLine => {
 };
 
 /**
- * The longest signature kept: a signature is the whole request as JSON (up to MAX_LINES lines), so it cannot be capped like a key.
- * Keys are capped at 80 and the reference at 200 (the payment field's own limit), so a real attempt is never dropped by its size.
+ * The longest signature kept. A signature is the whole request as JSON, so it is sized from the largest request: MAX_LINES lines,
+ * each with three ids, a batch reason and a discount reason of 300 characters (the server's limit) that JSON may escape to six
+ * characters each (a control character), plus the rest of the line; and the payment, credit and invoice discount on top. About
+ * 930,000 characters; an attempt for any sale the server could take is never dropped by its size. Keys are capped at 80 and the
+ * reference at 200 (the payment field's own limit).
  */
-const MAX_SIG = 100_000;
+const SIG_LINE_BUDGET = 2 * 300 * 6 + 1024;
+export const MAX_SIG_LENGTH = MAX_LINES * SIG_LINE_BUDGET + 8192;
 
 /** A stored sale attempt that can be sent again as it was (its keys and payment); anything else reads as no attempt. */
 export const isAttempt = (a: unknown): a is SaleAttempt => {
@@ -747,7 +751,7 @@ export const isAttempt = (a: unknown): a is SaleAttempt => {
     /^\d+$/.test(x.amountMinor) &&
     typeof x.reference === 'string' &&
     (x.fromHoldId === null || typeof x.fromHoldId === 'string') &&
-    x.sig.length <= MAX_SIG &&
+    x.sig.length <= MAX_SIG_LENGTH &&
     x.key.length <= 80 &&
     x.paymentKey.length <= 80 &&
     x.reference.length <= 200 &&

@@ -29,7 +29,7 @@ export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction 
 export function frozenEdit(state: ReceiptsState, action: CashierAction): boolean {
   const current = state.receipts[state.active];
   if (!current || current.done || current.attempt === null) return false;
-  if (action.type === 'line' || action.type === 'cart' || action.type === 'replace') return true;
+  if (action.type === 'line' || action.type === 'cart' || action.type === 'replace' || action.type === 'done') return true;
   return action.type === 'customer' && action.customerId !== current.customerId;
 }
 

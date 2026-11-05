@@ -33,7 +33,10 @@ export type ReceiptsAction =
   | { type: 'customer'; customerId: string | null }
   | { type: 'done' }
   | { type: 'replace'; receipt: OpenReceipt }
-  /** The sale attempt of the receipt with this key (null drops it); a paid or missing receipt is left alone. */
+  /**
+   * The sale attempt of the receipt with this key (null drops it: the explicit Discard); a paid or missing receipt is left alone.
+   * A pending attempt is never replaced by one of another signature: only Discard, `refused` and `sold` clear it.
+   */
   | { type: 'attempt'; receiptKey: string; attempt: SaleAttempt | null }
   /** A refused sale changed the receipt: its prescription is gone, or its lines were fitted to fresh prices. */
   | { type: 'refused'; receiptKey: string; prescriptionId?: null; cart?: CartState }
@@ -84,8 +87,11 @@ export function receiptsReducer(state: ReceiptsState, action: ReceiptsAction): R
       return current && !current.done ? withActive(state, { ...current, done: true }) : state;
     case 'replace':
       return withActive(state, action.receipt);
-    case 'attempt':
+    case 'attempt': {
+      const pending = state.receipts.find((r) => r.key === action.receiptKey && !r.done)?.attempt;
+      if (pending && action.attempt && action.attempt.sig !== pending.sig) return state;
       return patchOpen(state, action.receiptKey, { attempt: action.attempt });
+    }
     case 'refused':
       return patchOpen(state, action.receiptKey, { attempt: null, ...(action.prescriptionId === null ? { prescriptionId: null } : {}), ...(action.cart ? { cart: action.cart } : {}) });
     case 'sold':

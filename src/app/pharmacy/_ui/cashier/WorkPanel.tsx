@@ -58,7 +58,7 @@ export function WorkPanel({
     );
   }
   const block = payBlockKey(receipt.cart, estimate, { mayDispense: perms.rx, prescriptionId: receipt.prescriptionId, controlledMaxQty: settings.controlledMaxQty, controlledEnabled: settings.controlledEnabled });
-  const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, noPrint: sale.noPrint, onNoPrint: sale.setNoPrint };
+  const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, elsewhere: sale.elsewhere, noPrint: sale.noPrint, onNoPrint: sale.setNoPrint };
   return (
     <section className="flex flex-col gap-2.5 rounded-ph-2xl border border-ph-line bg-ph-card p-3" data-testid="work-panel" data-flow={kind} aria-label={t('pharmacy.cashier.flow.region')}>
       <div className="flex items-center justify-between gap-2">

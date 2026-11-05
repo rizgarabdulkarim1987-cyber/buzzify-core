@@ -20,7 +20,8 @@ import { ConfirmBar, FlowNotes, type FlowCommon } from './WorkParts';
  * The credit flow (F3), inline: the receipt's customer is required (picked in the side column); what is paid now (cash by default,
  * or card / transfer) is typed, and the rest goes on the customer's account. The limit is checked here with the old screen's rules
  * (`creditPreview`: landing exactly on the limit is allowed) before anything is sent; the server stays the authority. A customer kept
- * on the receipt (after a reload, or a credit sale in flight) is read again so the figures are current.
+ * on the receipt (after a reload, or a credit sale in flight) is read again so the figures are current. A sale in flight is locked
+ * as it was sent: Confirm sends it again with the same keys (Retry), and only Discard lets it go.
  */
 export function PayCredit({
   currency,
@@ -62,10 +63,17 @@ export function PayCredit({
 
   const draft = customer ? creditDraftOf(input, customer.id, totalMinor, currency) : null;
   const preview = draft && customer ? creditPreview(draft, totalMinor, currency, customer) : null;
-  const canSend = !common.busy && !common.offline && common.blocked === null && preview?.ok === true && preview.creditMinor !== null;
+  const locked = common.pending;
+  const stuck = locked && !common.busy;
+  const canSend = stuck ? !common.offline && !common.elsewhere : !common.busy && !common.offline && common.blocked === null && preview?.ok === true && preview.creditMinor !== null;
+  const change = (next: typeof input) => {
+    if (!locked) setInput(next);
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (canSend && draft && customer) onSubmit(draft, preview!.amountMinor, { minor: preview!.creditMinor!, customerName: customer.name });
+    if (!canSend) return;
+    if (stuck) common.onRetry();
+    else if (draft && customer) onSubmit(draft, preview!.amountMinor, { minor: preview!.creditMinor!, customerName: customer.name });
   };
   const view = customer ? creditView(customer, 0n) : null;
   const onAccount = draft?.credit ? parseMoney(draft.credit.amount, currency) : null;
@@ -112,15 +120,16 @@ export function PayCredit({
               autoComplete="off"
               autoFocus
               data-testid="flow-now"
+              readOnly={locked}
               value={input.now}
               placeholder="0"
-              onChange={(event) => setInput({ ...input, now: event.target.value })}
+              onChange={(event) => change({ ...input, now: event.target.value })}
             />
           </Field>
-          <MethodButtons method={input.method} onMethod={(method) => setInput({ ...input, method })} />
+          <MethodButtons method={input.method} disabled={locked} onMethod={(method) => change({ ...input, method })} />
           {input.method !== 'CASH' && (
             <Field label={t('pharmacy.sell.pay.reference')} optional>
-              <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={200} value={input.reference} onChange={(event) => setInput({ ...input, reference: event.target.value })} />
+              <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={200} readOnly={locked} value={input.reference} onChange={(event) => change({ ...input, reference: event.target.value })} />
             </Field>
           )}
           {draft && onAccount !== null && (
@@ -149,7 +158,7 @@ export function PayCredit({
         </>
       )}
       <FlowNotes {...common} />
-      <ConfirmBar {...common} disabled={!canSend} label={t('pharmacy.cashier.flow.confirm')} />
+      <ConfirmBar {...common} disabled={!canSend} label={t(stuck ? 'pharmacy.cashier.flow.retry' : 'pharmacy.cashier.flow.confirm')} />
     </form>
   );
 }
