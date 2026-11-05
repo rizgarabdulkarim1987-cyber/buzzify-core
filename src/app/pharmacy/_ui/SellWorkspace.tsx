@@ -1368,9 +1368,9 @@ function CartRow({
         )}
         {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
           <details className="min-w-0 [&[open]]:basis-full" data-testid="line-more">
-            <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
+            <summary className="grid size-11 cursor-pointer list-none place-items-center rounded-ph-xl text-ph-muted hover:bg-ph-canvas [&::-webkit-details-marker]:hidden">
               <Tag aria-hidden className="size-4 shrink-0" />
-              {t('pharmacy.sell.cart.more.open')}
+              <span className="sr-only">{t('pharmacy.sell.cart.more.open')}</span>
             </summary>
             <div className="mt-2 flex flex-col gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas p-3">
               {perms.discount && (
