@@ -18,7 +18,7 @@ import {
 
 /**
  * The cashier's payment flows, pure: why Pay is held back, the drafts the cash and credit flows send, and the sale request.
- * The request is the old sale screen's (`SellWorkspace.submitPay`) to the letter: same cart body, same payments, same keys.
+ * The request is the old sale screen's (`submitPay`, removed in Task 11) to the letter: same cart body, same payments, same keys.
  */
 
 /** The payment flows of the work panel. */

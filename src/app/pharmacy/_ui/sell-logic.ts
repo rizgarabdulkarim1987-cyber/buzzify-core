@@ -565,44 +565,7 @@ export function openedShiftOrClosed(data: { status: 'OPEN' | 'CLOSED' }): { kind
 /** The refusals that mean "the total the server computed is not what was paid": prices or rounding moved. */
 export const TOTAL_MOVED_CODES: readonly string[] = ['PAYMENT_SHORT', 'PAYMENT_NON_CASH_OVERPAY', 'PAYMENT_CASH_NOT_NEEDED'];
 
-// Keyboard ---------------------------------------------------------------------------------------------------------------
-
-export type Shortcut = 'search' | 'pay' | 'hold' | 'escape' | 'addTop';
-
-/**
- * What a key press means on the sale screen. F2 focuses the search, F4 opens payment, F8 holds the cart, Escape clears
- * the search or closes the dialog, Enter in the search box adds the top result. Keys with Ctrl, Alt or Meta are the
- * browser's; a key held down (repeat) never fires twice; a key that someone already handled (`defaultPrevented`, as a
- * scanner's closing Enter is) and a key pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing.
- * Nor does any key while a modal sheet is open over the screen (`modalOpen`, the Doctor sheet on a phone): the sheet owns
- * the keys, and Escape must close it rather than clear the search behind it. Escape pressed inside the Doctor's side panel
- * (`inDoctor`) is the panel's own too: it never clears the sale search or pulls the focus away.
- */
-export function shortcutOf(
-  event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean },
-  inSearch: boolean,
-  modalOpen = false,
-  inDoctor = false,
-): Shortcut | null {
-  if (modalOpen) return null;
-  if (inDoctor && event.key === 'Escape') return null;
-  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented) return null;
-  if (event.isComposing || event.keyCode === 229) return null;
-  switch (event.key) {
-    case 'F2':
-      return 'search';
-    case 'F4':
-      return 'pay';
-    case 'F8':
-      return 'hold';
-    case 'Escape':
-      return 'escape';
-    case 'Enter':
-      return inSearch && !event.shiftKey ? 'addTop' : null;
-    default:
-      return null;
-  }
-}
+// The cashier's keys are `cashierKeyOf` in sell-keys.ts.
 
 /** A quantity typed in a line's field (Latin, Arabic-Indic or Persian digits): a whole number from 1; null for empty or nothing usable. */
 export function parseQtyText(text: string): number | null {

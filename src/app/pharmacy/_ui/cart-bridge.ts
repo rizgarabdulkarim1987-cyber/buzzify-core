@@ -1,6 +1,6 @@
 /**
  * A hand-off to the sale screen from outside it (the AI Doctor, later others): "put this unit in the cart". A module-level
- * set of listeners; `SellWorkspace` subscribes while it is mounted. Nothing is queued: with the sale screen closed, an item
+ * set of listeners; the cashier (`CashierScreen`, through `useHandIn`) subscribes while it is mounted. Nothing is queued: with the sale screen closed, an item
  * added here is lost, and the caller navigates with `?add=` instead (see `parseSellAdd`).
  */
 

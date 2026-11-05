@@ -1,5 +1,5 @@
 /**
- * The cashier screen's keyboard mapping, pure (no DOM, no React). Same guards as `shortcutOf` in sell-logic.ts: a key held
+ * The cashier screen's keyboard mapping, pure (no DOM, no React). The guards of the old sale screen's keys: a key held
  * down (repeat) never fires twice, a key already handled (`defaultPrevented`, as a scanner's closing Enter is) and a key
  * pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing, and nothing fires while a modal
  * is open. Function keys work everywhere; `*`, `/`, `+`, `-` and the line keys are hotkeys only outside a text field,
