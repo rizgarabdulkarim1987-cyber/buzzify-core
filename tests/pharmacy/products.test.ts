@@ -529,8 +529,8 @@ describe('pharmacy products', () => {
     const SELF_CONTAINED_TRANSFERS = ['PhTransfer', 'PhTransferLine'];
     // Phase 7 records are self-contained: a prescription and its file hold text and a stored object, never a unit; a register row is in
     // base units (`baseQty`) and names the batch it came from, so a resize of a unit changes nothing in it; customers, their ledger and
-    // their payments hold money and a currency only; an assistant proposal is a suggestion and moves no stock or money. Decided here, not by omission.
-    const SELF_CONTAINED_PHASE_7 = ['PhPrescription', 'PhRxAttachment', 'PhControlledEntry', 'PhCustomer', 'PhCustomerLedger', 'PhCustomerPayment', 'PhAiProposal'];
+    // their payments hold money and a currency only; an assistant proposal is a suggestion and moves no stock or money; a doctor log row is an audit of a question and answer. Decided here, not by omission.
+    const SELF_CONTAINED_PHASE_7 = ['PhPrescription', 'PhRxAttachment', 'PhControlledEntry', 'PhCustomer', 'PhCustomerLedger', 'PhCustomerPayment', 'PhAiProposal', 'PhDoctorLog'];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');

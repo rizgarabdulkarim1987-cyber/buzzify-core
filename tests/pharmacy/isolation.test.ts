@@ -120,6 +120,9 @@ interface Ids {
   /** An assistant proposal of the business in branch 1 / in branch 2 (phase 7, task 4); branch-scoped. */
   proposal1: string;
   proposal2: string;
+  /** An AI Doctor audit row of the business in branch 1 / in branch 2; branch-scoped. */
+  doctorLog1: string;
+  doctorLog2: string;
 }
 interface World {
   a: Ids;
@@ -141,7 +144,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2' | 'proposal1' | 'proposal2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2' | 'rx1' | 'rx2' | 'rxFile1' | 'rxFile2' | 'customerId' | 'customerName' | 'custPay1' | 'custPay2' | 'proposal1' | 'proposal2' | 'doctorLog1' | 'doctorLog2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -353,6 +356,11 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
     (await prisma().phAiProposal.create({ data: { restaurantId: base.restaurantId, branchId, kind: 'REORDER', payload: { lines: [{ productId: base.productId, qty: 1 }] }, createdById: owner.userId }, select: { id: true } })).id;
   withDocs.proposal1 = await proposalIn(base.b1);
   withDocs.proposal2 = await proposalIn(base.b2);
+  // One AI Doctor audit row in each branch.
+  const doctorLogIn = async (branchId: string) =>
+    (await prisma().phDoctorLog.create({ data: { restaurantId: base.restaurantId, branchId, staffId: owner.userId, mode: 'COMPLAINT', questionText: 'headache', answer: { summary: 'seed' }, model: 'seed', inputTokens: 1, outputTokens: 1, outcome: 'ANSWERED' }, select: { id: true } })).id;
+  withDocs.doctorLog1 = await doctorLogIn(base.b1);
+  withDocs.doctorLog2 = await doctorLogIn(base.b2);
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -403,8 +411,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1, proposalId: ids.proposal1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2, proposalId: ids.proposal2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1, rxId: ids.rx1, rxFileId: ids.rxFile1, custPayId: ids.custPay1, proposalId: ids.proposal1, doctorLogId: ids.doctorLog1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2, rxId: ids.rx2, rxFileId: ids.rxFile2, custPayId: ids.custPay2, proposalId: ids.proposal2, doctorLogId: ids.doctorLog2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -981,6 +989,7 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     customerLedger: businessWide ? await prisma().phCustomerLedger.findMany(businessWide) : undefined,
     customerPayments: await prisma().phCustomerPayment.findMany({ where, orderBy }),
     aiProposals: await prisma().phAiProposal.findMany({ where, orderBy }),
+    doctorLogs: await prisma().phDoctorLog.findMany({ where, orderBy }),
     settings: branchId ? undefined : await prisma().phSettings.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     // Support reads are logged by design (a granted Super Admin leaves a `support.read` row even when refused): checked on their own.
     audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId, action: { not: 'support.read' } }, orderBy }),
@@ -994,8 +1003,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId, doctorLogId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId, rxId, rxFileId, proposalId, doctorLogId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.customerId, ids.customerName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ids.transfer1, ids.transfer2, ...docs(1), ...docs(2)];
