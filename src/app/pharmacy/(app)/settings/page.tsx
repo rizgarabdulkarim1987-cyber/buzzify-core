@@ -6,6 +6,7 @@ import { PharmacySettings } from '@/app/pharmacy/_ui/PharmacySettings';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { get as getControlled } from '@/server/pharmacy/queries/controlled-settings';
 import { get as getCredit } from '@/server/pharmacy/queries/credit-settings';
+import { get as getRate } from '@/server/pharmacy/queries/exchange-rate';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -37,7 +38,7 @@ export default async function SettingsPage() {
       </>
     );
   }
-  const [controlled, credit] = await Promise.all([query(getControlled, access.placeInput), query(getCredit, access.placeInput)]);
+  const [controlled, credit, rate] = await Promise.all([query(getControlled, access.placeInput), query(getCredit, access.placeInput), query(getRate, access.placeInput)]);
   const writable = access.writable('settings.manage');
   return (
     <>
@@ -84,7 +85,7 @@ export default async function SettingsPage() {
           </Link>
         </nav>
         <PharmacySettings
-          initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, version: controlled.version }}
+          initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, usdRate: rate.usdRate, version: controlled.version }}
           editable={owner && writable.ok}
         />
       </div>

@@ -2,6 +2,7 @@
 
 import * as controlledSettings from '@/server/pharmacy/actions/controlled-settings';
 import * as creditSettings from '@/server/pharmacy/actions/credit-settings';
+import * as exchangeRate from '@/server/pharmacy/actions/exchange-rate';
 import * as customers from '@/server/pharmacy/actions/customers';
 import { invokePh, invokePhQuery } from '@/server/pharmacy/invoke';
 import * as customerQueries from '@/server/pharmacy/queries/customers';
@@ -46,4 +47,8 @@ export async function setControlledSettings(input: unknown) {
 
 export async function setCreditSettings(input: unknown) {
   return invokePh(creditSettings.set, input);
+}
+
+export async function setExchangeRate(input: unknown) {
+  return invokePh(exchangeRate.set, input);
 }

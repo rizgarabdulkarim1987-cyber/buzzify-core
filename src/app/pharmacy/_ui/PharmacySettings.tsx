@@ -3,7 +3,7 @@
 import { CircleAlert, CircleCheck, Info, Save, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
-import { setControlledSettings, setCreditSettings } from '@/app/pharmacy/_actions/customers';
+import { setControlledSettings, setCreditSettings, setExchangeRate } from '@/app/pharmacy/_actions/customers';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
@@ -18,8 +18,11 @@ export interface SettingsIn {
   controlledMaxQty: number;
   rxRetentionDays: number;
   creditEnabled: boolean;
+  usdRate: number;
   version: number;
 }
+
+type Group = 'controlled' | 'credit' | 'rate';
 
 const whole = (text: string, min: number, max: number): number | null => {
   if (!/^\d{1,9}$/.test(text.trim())) return null;
@@ -45,16 +48,18 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
   const [maxQty, setMaxQty] = useState(String(initial.controlledMaxQty));
   const [retention, setRetention] = useState(String(initial.rxRetentionDays));
   const [credit, setCredit] = useState(initial.creditEnabled);
-  const [busy, setBusy] = useState<'controlled' | 'credit' | null>(null);
+  const [rateText, setRateText] = useState(String(initial.usdRate));
+  const [busy, setBusy] = useState<Group | null>(null);
   const [asking, setAsking] = useState(false);
-  const [message, setMessage] = useState<{ group: 'controlled' | 'credit'; tone: 'danger' | 'success'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ group: Group; tone: 'danger' | 'success'; text: string } | null>(null);
   const lock = useRef(false);
 
   const qty = whole(maxQty, 0, 1_000_000);
   const days = whole(retention, 1, 36_500);
+  const rate = whole(rateText, 1, 1_000_000);
   const can = editable && online && busy === null;
 
-  const run = async (group: 'controlled' | 'credit', call: () => Promise<unknown>, after?: () => void) => {
+  const run = async (group: Group, call: () => Promise<unknown>, after?: () => void) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(group);
@@ -83,7 +88,7 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
     else saveControlled();
   };
 
-  const notice = (group: 'controlled' | 'credit') =>
+  const notice = (group: Group) =>
     message && message.group === group ? (
       <Note icon={message.tone === 'danger' ? <CircleAlert aria-hidden /> : <CircleCheck aria-hidden />} tone={message.tone} role={message.tone === 'danger' ? 'alert' : 'status'} testId={`settings-${group}-message`}>
         {message.text}
@@ -144,6 +149,24 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
             <button type="button" className={TOUCH_PRIMARY} data-testid="settings-credit-save" disabled={!can} onClick={() => void run('credit', () => setCreditSettings({ creditEnabled: credit, version }))}>
               <Save aria-hidden className="size-4" />
               {busy === 'credit' ? t('pharmacy.settings.saving') : t('pharmacy.settings.save')}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="set-rate-h" className="flex flex-col gap-4" data-testid="settings-rate">
+        <h2 id="set-rate-h" className="text-lg font-semibold text-text">
+          {t('pharmacy.settings.rate.title')}
+        </h2>
+        <Field label={t('pharmacy.settings.rate.label')} hint={t('pharmacy.settings.rate.hint')} error={rate === null ? t('pharmacy.settings.problem.rate') : undefined}>
+          <FieldInput className={FIELD} dir="ltr" inputMode="numeric" autoComplete="off" data-testid="settings-usd-rate" value={rateText} disabled={!editable} onChange={(e) => setRateText(e.target.value)} />
+        </Field>
+        {notice('rate')}
+        {editable && (
+          <div>
+            <button type="button" className={TOUCH_PRIMARY} data-testid="settings-rate-save" disabled={!can || rate === null} onClick={() => rate !== null && void run('rate', () => setExchangeRate({ usdRate: rate, version }))}>
+              <Save aria-hidden className="size-4" />
+              {busy === 'rate' ? t('pharmacy.settings.saving') : t('pharmacy.settings.save')}
             </button>
           </div>
         )}

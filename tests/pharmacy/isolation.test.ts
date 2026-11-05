@@ -660,6 +660,9 @@ const CASES: Record<string, Case> = {
   'ph.credit.payment.record': { body: (ids) => ({ customerId: ids.customerId, method: 'CARD', amountMinor: 1n, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credit.payment.reverse': { body: (ids, n) => ({ paymentId: pick(ids, n).custPayId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.credit.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.exchangeRate.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.exchangeRate.set': { body: () => ({ usdRate: 1450, version: 999 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.pulse': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credit.settings.set': { body: () => ({ creditEnabled: false, version: 1 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Printing settings (phase 7, task 6): one JSON value on the business's own settings row; a stale version changes nothing.
   'ph.print.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
