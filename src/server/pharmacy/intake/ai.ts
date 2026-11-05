@@ -202,7 +202,7 @@ async function convertToSpend(tx: ScopedTx, restaurantId: string, reservation: O
   if (removed.count === 0) return false;
   await book(tx, reservation.month, state, reservation.microUsd, reservation.microUsd, { calls: 1, inputTokens: 0, outputTokens: 0 });
   await tx.phAiCall.create({
-    data: { restaurantId, purpose: reservation.fileId.startsWith('assistant:') ? 'assistant' : 'extract', model: 'none', status: 'ERROR', costMicroUsd: reservation.microUsd, fileId: reservation.fileId },
+    data: { restaurantId, purpose: reservation.fileId.startsWith('assistant:') ? 'assistant' : reservation.fileId.startsWith('doctor:') ? 'doctor' : 'extract', model: 'none', status: 'ERROR', costMicroUsd: reservation.microUsd, fileId: reservation.fileId },
   });
   return true;
 }

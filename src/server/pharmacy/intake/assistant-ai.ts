@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { AI_TIMEOUTS_MS } from '@/server/ai/provider/models';
-import type { AiProvider, AiRequest, AiResponse } from '@/server/ai/provider/types';
+import type { AiProvider, AiPurpose, AiRequest, AiResponse } from '@/server/ai/provider/types';
 import { resolveAiProvider } from '@/server/ai/settings';
 import { delegates, scopedClient } from '@/server/data/tenant-db';
-import { baghdadMonth, budgetMicroUsdFromCents, estimateCostMicroUsd, fitsContext } from '@/server/domain/pharmacy/intake';
+import { baghdadMonth, budgetMicroUsdFromCents, estimateCostMicroUsd, fitsContext, type MediaHint } from '@/server/domain/pharmacy/intake';
 import { limitsOf } from '@/server/domain/pharmacy/limits';
 import { book, estimateInputTokens, isTimeout, isUnique, lockUsage, logError, pricingOf, type AiFailureCode, type AiPricing, type RunOptions } from './ai';
 
@@ -17,6 +17,10 @@ import { book, estimateInputTokens, isTimeout, isUnique, lockUsage, logError, pr
  * (a stale one is swept as spend like any other, since no file row exists for it), and the call log's purpose is `assistant`.
  * Nothing here throws for a database or provider problem: a refusal is `{ ok: false, code }` and the assistant shows the plain tables.
  * Lock order: the month's usage row first, as in ai.ts. The call log holds no prompt and no answer.
+ *
+ * The AI Doctor (src/server/pharmacy/doctor/doctor-ai.ts) runs through the same steps (`runBudgetedCall`), with its own call-log
+ * purpose and reservation prefix `doctor`, the model purpose of its mode, and a bounded photo: the assistant's call is exactly
+ * `runBudgetedCall` with purpose `ask`, log purpose `assistant` and no media.
  */
 
 export interface AssistantCallArgs {
@@ -30,22 +34,37 @@ export type AssistantCallOptions = Pick<RunOptions, 'provider' | 'pricing' | 'ti
 
 export type AssistantCallResult = { ok: true; response: AiResponse; costMicroUsd: bigint } | { ok: false; code: AiFailureCode };
 
+/** What a budgeted call without a file adds to the assistant's arguments: who it is logged as, which model runs it, its media. */
+export interface BudgetedCallArgs extends AssistantCallArgs {
+  /** The model purpose sent to the provider (and the model whose price is checked). */
+  purpose: AiPurpose;
+  /** `PhAiCall.purpose`, and the prefix of the reservation's `fileId` (`<logPurpose>:<uuid>`), which the sweeper reads back. */
+  logPurpose: 'assistant' | 'doctor';
+  /** One hint per image or PDF part of `input` (see `estimateInputTokens`). */
+  media?: readonly MediaHint[];
+}
+
 const fail = (code: AiFailureCode): AssistantCallResult => ({ ok: false, code });
 
 type Everyone = Parameters<typeof scopedClient>[0];
 
 export async function runAssistantAi(db: Everyone, args: AssistantCallArgs, opts: AssistantCallOptions = {}): Promise<AssistantCallResult> {
+  return runBudgetedCall(db, { ...args, purpose: 'ask', logPurpose: 'assistant' }, opts);
+}
+
+/** One budgeted call without a file (the assistant's, the Doctor's): reserve the worst case, call, settle; never throws for a database or provider problem. */
+export async function runBudgetedCall(db: Everyone, args: BudgetedCallArgs, opts: AssistantCallOptions = {}): Promise<AssistantCallResult> {
   const ids = { restaurantId: args.restaurantId };
   const pricing: AiPricing | null = pricingOf(opts);
   if (!pricing) return fail('AI_PRICING_NOT_SET');
-  const inputBound = estimateInputTokens(args.input);
+  const inputBound = estimateInputTokens(args.input, args.media ?? []);
   if (inputBound === null || !fitsContext(inputBound, args.maxOutputTokens)) return fail('AI_INPUT_TOO_LARGE');
   const worst = estimateCostMicroUsd({ inputTokens: inputBound, outputTokens: args.maxOutputTokens }, pricing);
   const inputSide = estimateCostMicroUsd({ inputTokens: inputBound, outputTokens: 0 }, pricing);
 
   const scoped = scopedClient(db, { restaurantId: args.restaurantId, allBranches: true });
   const month = baghdadMonth(args.now);
-  const fileId = `assistant:${randomUUID()}`;
+  const fileId = `${args.logPurpose}:${randomUUID()}`;
   let provider: AiProvider | null;
   let reservationId: string;
   try {
@@ -54,7 +73,7 @@ export async function runAssistantAi(db: Everyone, args: AssistantCallArgs, opts
     if (budget <= 0n) return fail('AI_NOT_IN_PLAN');
     provider = opts.provider ?? (await resolveAiProvider(db));
     if (!provider) return fail('AI_NOT_CONFIGURED');
-    const running = provider.modelFor?.('ask');
+    const running = provider.modelFor?.(args.purpose);
     if (pricing.model !== undefined && running !== undefined && running !== pricing.model) {
       logError('the price is declared for another model than the one that would run', ids);
       return fail('AI_PRICING_MODEL_MISMATCH');
@@ -70,7 +89,7 @@ export async function runAssistantAi(db: Everyone, args: AssistantCallArgs, opts
       return made.id;
     });
     if (held === null) {
-      await scoped.phAiCall.create({ data: { restaurantId: args.restaurantId, purpose: 'assistant', model: 'none', status: 'BUDGET', fileId } }).catch(() => undefined);
+      await scoped.phAiCall.create({ data: { restaurantId: args.restaurantId, purpose: args.logPurpose, model: 'none', status: 'BUDGET', fileId } }).catch(() => undefined);
       return fail('AI_BUDGET_REACHED');
     }
     reservationId = held;
@@ -86,7 +105,7 @@ export async function runAssistantAi(db: Everyone, args: AssistantCallArgs, opts
   let response: AiResponse | null = null;
   let code: AiFailureCode | null = null;
   try {
-    response = await provider.complete({ ...args.input, purpose: 'ask', maxTokens: args.maxOutputTokens, signal });
+    response = await provider.complete({ ...args.input, purpose: args.purpose, maxTokens: args.maxOutputTokens, signal });
     if (response.stop === 'refusal') code = 'AI_REFUSED';
   } catch (error) {
     code = isTimeout(error) && opts.signal?.aborted !== true ? 'AI_TIMEOUT' : 'AI_PROVIDER_ERROR';
@@ -108,14 +127,14 @@ export async function runAssistantAi(db: Everyone, args: AssistantCallArgs, opts
       const removed = await tx.phAiReservation.deleteMany({ where: { id: reservationId } });
       // Gone: the sweeper booked it as spend (then only what the call cost above that is still owed), or an earlier attempt of this settle committed.
       if (removed.count === 0) {
-        const logged = await tx.phAiCall.count({ where: { fileId, purpose: 'assistant' } });
+        const logged = await tx.phAiCall.count({ where: { fileId, purpose: args.logPurpose } });
         if (logged > 0) return;
       }
       const gone = removed.count === 0;
       const owed = gone ? (actual > worst ? actual - worst : 0n) : actual;
       await book(tx, month, state, gone ? 0n : worst, owed, { calls: gone ? 0 : 1, inputTokens, outputTokens });
       await tx.phAiCall.create({
-        data: { restaurantId: args.restaurantId, purpose: 'assistant', model, inputTokens: response ? inputTokens : null, outputTokens: response ? outputTokens : null, ms: Date.now() - started, status, costMicroUsd: owed, fileId },
+        data: { restaurantId: args.restaurantId, purpose: args.logPurpose, model, inputTokens: response ? inputTokens : null, outputTokens: response ? outputTokens : null, ms: Date.now() - started, status, costMicroUsd: owed, fileId },
       });
     });
   for (let attempt = 1; attempt <= 2; attempt += 1) {
