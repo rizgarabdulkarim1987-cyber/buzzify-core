@@ -3648,9 +3648,10 @@ const pharmacy: Messages = {
   'pharmacy.cashier.subs.none': 'هیچ جێگرەوەیەک تۆمار نەکراوە.',
   'pharmacy.cashier.subs.price': '{price} بۆ هەر {unit} · بڕ {qty}',
   'pharmacy.cashier.subs.replaced': 'کاڵاکە گۆڕدرا بە {name}',
+  'pharmacy.cashier.subs.replacedDropped': 'کاڵاکە گۆڕدرا بە {name}. داشکاندنی هێڵە کۆنەکە و وەجبە هەڵبژێردراوەکەی نەگوازرانەوە.',
   'pharmacy.cashier.tools.return': 'گەڕاندنەوەی کاڵا',
   'pharmacy.cashier.flow.title.return': 'گەڕاندنەوە',
-  'pharmacy.cashier.return.note': 'دەگەڕێتەوە بۆ کۆگا و پسوولەی گەڕاندنەوە چاپ دەکرێت. چەکمەجەی پارە بۆ گەڕاندنەوە ناکرێتەوە.',
+  'pharmacy.cashier.return.note': 'گەڕاندنەوەکە لەسەر فرۆشتنە ڕەسەنەکە تۆمار دەکرێت و پسوولەی گەڕاندنەوە چاپ دەکرێت. چەکمەجەی پارە بۆ گەڕاندنەوە ناکرێتەوە.',
   'pharmacy.cashier.return.role': 'گەڕاندنەوە دەرمانسازی بەرپرس یان بەڕێوەبەر یان خاوەن دەیکات. داوا لە یەکێکیان بکە بیکات.',
   'pharmacy.cashier.return.number': 'ژمارەی پسوولەی ڕەسەن',
   'pharmacy.cashier.return.find': 'گەڕان',
@@ -3662,6 +3663,11 @@ const pharmacy: Messages = {
   'pharmacy.cashier.return.slip': 'پسوولەی گەڕاندنەوە',
   'pharmacy.cashier.return.print': 'چاپکردنی پسوولەی گەڕاندنەوە',
   'pharmacy.cashier.return.again': 'گەڕاندنەوەیەکی تر',
+  'pharmacy.cashier.return.sending': 'گەڕاندنەوەیەک دەنێردرێت. چاوەڕێی وەڵامەکەی بکە پێش ئەوەی لە دۆخی گەڕاندنەوە دەربچیت.',
+  'pharmacy.cashier.return.pending': 'دوایین گەڕاندنەوە وەڵامی نەگەیشت، لەوانەیە تۆمار کرابێت. وەک خۆی دووبارە بینێرە (یەک جار تۆمار دەکرێت)، یان دوای پشکنینی لیستی فرۆشتنەکان وازی لێ بهێنە.',
+  'pharmacy.cashier.return.retry': 'هەمان گەڕاندنەوە دووبارە بنێرە',
+  'pharmacy.cashier.return.release': 'وازی لێ بهێنە',
+  'pharmacy.cashier.return.releaseArmed': 'دووبارە دابگرە بۆ وازهێنان',
 };
 
 export default pharmacy;

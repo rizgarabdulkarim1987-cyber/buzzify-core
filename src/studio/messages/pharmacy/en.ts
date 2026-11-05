@@ -3655,9 +3655,10 @@ const pharmacy: Messages = {
   'pharmacy.cashier.subs.none': 'No substitutes recorded.',
   'pharmacy.cashier.subs.price': '{price} per {unit} · stock {qty}',
   'pharmacy.cashier.subs.replaced': 'The item was replaced with {name}.',
+  'pharmacy.cashier.subs.replacedDropped': 'The item was replaced with {name}. The discount and chosen batch of the old line were not carried over.',
   'pharmacy.cashier.tools.return': 'Return an item',
   'pharmacy.cashier.flow.title.return': 'Return',
-  'pharmacy.cashier.return.note': 'It goes back to stock and a return slip prints. The cash drawer does not open for a return.',
+  'pharmacy.cashier.return.note': 'It is recorded against the original sale and a return slip prints. The cash drawer does not open for a return.',
   'pharmacy.cashier.return.role': 'Returns are made by the pharmacist in charge, a manager or the owner. Ask one of them to make it.',
   'pharmacy.cashier.return.number': 'Original receipt number',
   'pharmacy.cashier.return.find': 'Find',
@@ -3669,6 +3670,11 @@ const pharmacy: Messages = {
   'pharmacy.cashier.return.slip': 'Return slip',
   'pharmacy.cashier.return.print': 'Print the return slip',
   'pharmacy.cashier.return.again': 'Another return',
+  'pharmacy.cashier.return.sending': 'A return is being sent. Wait for its answer before leaving return mode.',
+  'pharmacy.cashier.return.pending': 'The last return got no answer. It may already be recorded. Send it again as it is (it is recorded once), or let it go after checking the sales list.',
+  'pharmacy.cashier.return.retry': 'Send the same return again',
+  'pharmacy.cashier.return.release': 'Let it go',
+  'pharmacy.cashier.return.releaseArmed': 'Tap again to let it go',
 };
 
 export default pharmacy;

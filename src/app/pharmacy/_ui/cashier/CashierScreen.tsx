@@ -31,6 +31,7 @@ import { useHandIn } from './use-handin';
 import { useHoldFlow } from './use-hold-flow';
 import { useLeaveGuard } from './use-leave-guard';
 import { usePanels } from './use-panels';
+import { useReturnFlow } from './use-return-flow';
 import { useRxCheck } from './use-rx-check';
 import { useStoredReceipts } from './use-stored-receipts';
 import { useSaleFlow } from './use-sale-flow';
@@ -121,7 +122,10 @@ export function CashierScreen(props: CashierScreenProps) {
   // The receipts live on this device ------------------------------------------------------------------------------------
   const { loaded, restored, save } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch, anyLines);
   // Paying: the flow asked for on this receipt, its sale attempt (on the receipt, on the device) and the receipt after the sale.
-  const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }) });
+  // A return being sent keeps return mode and this receipt on screen (`stuck` says why); its state outlives the panel (`useReturnFlow`).
+  const returns = useReturnFlow();
+  const stuck = () => returns.busy && (say({ tone: 'danger', text: t('pharmacy.cashier.return.sending') }), true);
+  const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }), stay: stuck });
   const pickCustomer = (customer: PickedCustomer | null) => {
     if (edit({ type: 'customer', customerId: customer?.id ?? null })) setCustomers((all) => ({ ...all, [receipt.key]: customer }));
   };
@@ -163,6 +167,7 @@ export function CashierScreen(props: CashierScreenProps) {
     searchBox.current?.select();
   };
   const openReceipt = () => {
+    if (stuck()) return;
     if (state.receipts.length >= MAX_RECEIPTS && !receipt.done) {
       setMessage({ tone: 'danger', text: t('pharmacy.cashier.tabs.max', { max: MAX_RECEIPTS }) });
       return;
@@ -178,6 +183,7 @@ export function CashierScreen(props: CashierScreenProps) {
    * last, + - Delete with no selection) return false and keep their browser meaning.
    */
   const run = (key: CashierKey): boolean => {
+    if ((key.kind === 'switch' || key.kind === 'switchRel') && stuck()) return true;
     if (key.kind === 'switch') dispatch({ type: 'switch', index: key.index });
     else if (key.kind === 'switchRel') dispatch({ type: 'switch', index: state.active + key.delta });
     else if (key.kind === 'new') openReceipt();
@@ -188,6 +194,7 @@ export function CashierScreen(props: CashierScreenProps) {
         setClosedFor(query.trim());
         return true;
       }
+      if (stuck()) return true;
       sale.close();
       setQuery('');
       setMessage(null);
@@ -303,20 +310,13 @@ export function CashierScreen(props: CashierScreenProps) {
           customer={customers[receipt.key] ?? null}
           onCustomer={pickCustomer}
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
-          pad={{ text: pad, onKey: (k) => {
-              setPadState({ at: padAt, text: padText(pad, k) });
-              searchBox.current?.focus();
-            },
-            onEnter: () => {
-              applyPad();
-              searchBox.current?.focus();
-            }, canEnter: pad !== '' }}
+          pad={{ text: pad, onKey: (k) => void (setPadState({ at: padAt, text: padText(pad, k) }), focusField()), onEnter: () => void (applyPad(), focusField()), canEnter: pad !== '' }}
           flow={sale.flow}
           payable={!receipt.done && receipt.cart.lines.length > 0 && !heldHere}
           onPay={(f) => run({ kind: f })}
         >
           <WorkPanel sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
-            other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} />}
+            other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
             idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
           />
         </SideColumn>
@@ -327,7 +327,7 @@ export function CashierScreen(props: CashierScreenProps) {
             active={state.active}
             currency={currency}
             roundingStep={step}
-            onSwitch={(index) => dispatch({ type: 'switch', index })}
+            onSwitch={(index) => void (stuck() || dispatch({ type: 'switch', index }))}
             onClose={(index) => dispatch({ type: 'close', index })}
             onOpen={openReceipt}
           />
@@ -344,10 +344,7 @@ export function CashierScreen(props: CashierScreenProps) {
             line={selectedLine}
             scanUnit={scanUnit}
             currency={currency}
-            onUnit={() => {
-              run({ kind: 'unit' });
-              searchBox.current?.focus();
-            }}
+            onUnit={() => void (run({ kind: 'unit' }), focusField())}
             inquiry={inquiry.on}
             onInquiry={() => run({ kind: 'inquiry' })}
           />
@@ -377,7 +374,7 @@ export function CashierScreen(props: CashierScreenProps) {
               canEditPrice={canEditPrice}
             />
           )}
-          <LinePanels line={selectedLine} currency={currency} canSeeCost={canSeeCost} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
+          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
         </section>
       </div>
     </div>

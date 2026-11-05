@@ -73,8 +73,10 @@ export function useSaleFlow(opts: {
   setNotSent: (on: boolean) => void;
   /** Says a sentence in the screen's message line (a refusal that closed the flow). */
   say: (text: string) => void;
+  /** True (and says why) while the open flow must stay: a return being sent keeps return mode on screen. */
+  stay?: () => boolean;
 }): SaleFlow {
-  const { receipt, currency, mirrorRef, dispatch, save, setNotSent, say } = opts;
+  const { receipt, currency, mirrorRef, dispatch, save, setNotSent, say, stay = () => false } = opts;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -222,11 +224,12 @@ export function useSaleFlow(opts: {
   return {
     flow: ask?.receiptKey === receipt.key ? ask.flow : null,
     open: (kind) => {
+      if (stay()) return;
       setAsk({ receiptKey: receipt.key, flow: receipt.attempt && isPayFlow(kind) ? flowOfAttempt(receipt.attempt) : kind });
       if (problem?.receiptKey === receipt.key && !busy) setProblem(null);
     },
     close: () => {
-      if (busy) return;
+      if (busy || stay()) return;
       closeAsk(receipt.key);
       if (sold?.receiptKey === receipt.key) setSold(null);
     },

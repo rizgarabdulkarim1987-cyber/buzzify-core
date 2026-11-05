@@ -14,6 +14,7 @@ import { ReturnFlow } from './ReturnFlow';
 import { RxFlow } from './RxFlow';
 import { rxLinesOf, type WorkFlow } from './sale-flow-logic';
 import type { HoldFlow } from './use-hold-flow';
+import type { ReturnFlowState } from './use-return-flow';
 
 /** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy, a return. */
 export function OtherFlow({
@@ -31,6 +32,7 @@ export function OtherFlow({
   onRxSaved,
   close,
   canReturn,
+  returns,
 }: {
   flow: WorkFlow | null;
   receipt: OpenReceipt;
@@ -48,6 +50,8 @@ export function OtherFlow({
   close: () => void;
   /** return.approve: the server refuses a return from anyone else. */
   canReturn: boolean;
+  /** The return being sent or waiting for its answer: it outlives this panel. */
+  returns: ReturnFlowState;
 }) {
   const line = (action: Extract<CashierAction, { type: 'line' }>['action']) => edit({ type: 'line', action });
   if (flow === 'discount') {
@@ -67,7 +71,7 @@ export function OtherFlow({
   }
   if (flow === 'held') return <HeldList holds={holds} />;
   if (flow === 'ops') return <OpsPanel ops={ops} />;
-  if (flow === 'return') return <ReturnFlow canReturn={canReturn} shiftCurrency={currency} />;
+  if (flow === 'return') return <ReturnFlow canReturn={canReturn} shiftCurrency={currency} returns={returns} />;
   if (flow === 'copy' && last) return <ReceiptCopy key={last.id} sale={last} onClose={close} />;
   if (flow === 'rx') {
     const key = receipt.key;

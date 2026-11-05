@@ -78,6 +78,11 @@ const tick = () => act(async () => void (await new Promise((r) => setTimeout(r, 
 const flush = async () => {
   for (let i = 0; i < 6; i += 1) await tick();
 };
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
 const wait = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 const flowOf = () => byTest('work-panel')!.getAttribute('data-flow');
 const message = () => byTest('cashier-message')?.textContent ?? '';
@@ -109,9 +114,10 @@ const INFO = (productId = 'p1', over: Record<string, unknown> = {}) => ({
     productId,
     currency: 'IQD',
     batches: [
-      { batchId: 'bx', lot: 'OLD1', expiryDate: '2026-10-31', available: 2, expired: true, near: false, sellable: false },
-      { batchId: 'b1', lot: 'L1', expiryDate: '2026-12-31', available: 5, expired: false, near: true, sellable: true },
-      { batchId: 'b2', lot: 'L2', expiryDate: '2027-03-31', available: 20, expired: false, near: false, sellable: true },
+      { batchId: 'bx', lot: 'OLD1', expiryDate: '2026-10-31', expiryPrecision: 'MONTH', available: 2, expired: true, near: false, sellable: false },
+      { batchId: 'b1', lot: 'L1', expiryDate: '2026-12-31', expiryPrecision: 'MONTH', available: 5, expired: false, near: true, sellable: true },
+      { batchId: 'b2', lot: 'L2', expiryDate: '2027-03-31', expiryPrecision: 'MONTH', available: 20, expired: false, near: false, sellable: true },
+      { batchId: 'b3', lot: 'RC1', expiryDate: '2027-05-04', expiryPrecision: 'DAY', available: 4, expired: false, near: false, sellable: false },
     ],
     details: { code: '6221010001', genericName: 'Paracetamol', activeIngredient: 'Paracetamol', lastSales: [{ unitLabel: 'strip', unitPriceMinor: '1500', at: '2026-11-04T10:00:00Z' }, { unitLabel: 'strip', unitPriceMinor: '1400', at: '2026-11-03T10:00:00Z' }], lastPurchase: { at: '2026-10-04', supplierName: 'Al-Hakim' } },
     substitutes: productId === 'p1' ? [ADOL] : [],
@@ -186,7 +192,8 @@ afterEach(() => {
 
 describe('panel wording (pure)', () => {
   it('reads an expiry as month/year and the stock as packs and pieces', () => {
-    expect(panels.expiryText('2027-03-31')).toBe('03/2027');
+    expect(panels.expiryText('2027-03-31', 'MONTH')).toBe('03/2027');
+    expect(panels.expiryText('2027-03-03', 'DAY')).toBe('03/03/2027');
     expect(panels.stockBreakdown(25, item().units)).toEqual({ total: 25, baseLabel: 'tablet', pack: { count: 1, label: 'pack', rest: 5 } });
     expect(panels.stockBreakdown(7, [{ id: 'u', label: 'box', baseQty: 1, priceMinor: '1' }])).toEqual({ total: 7, baseLabel: 'box', pack: null });
   });
@@ -235,7 +242,9 @@ describe('inquiry mode (F7)', () => {
     expect(byTest('inquiry-name')!.textContent).toContain('Panadol');
     expect(allTest('inquiry-price').map((p) => p.textContent?.replace(/\s+/g, ' ').trim())).toEqual(['tablet 150 IQD', 'strip 1,500 IQD', 'pack 2,900 IQD']);
     expect(byTest('inquiry-stock')!.textContent).toMatch(/25.*tablet.*1.*pack.*5/);
-    expect(allTest('inquiry-batch').map((b) => b.textContent)).toEqual([expect.stringContaining('expired'), expect.stringContaining('soon'), expect.not.stringContaining('expired')]);
+    expect(allTest('inquiry-batch').map((b) => b.textContent)).toEqual([expect.stringContaining('expired'), expect.stringContaining('soon'), expect.not.stringContaining('expired'), expect.stringContaining('not sold')]);
+    // M5: a recalled (not expired) batch is marked as not sold too.
+    expect(allTest('inquiry-batch')[3]!.getAttribute('data-sellable')).toBe('false');
     expect(allTest('inquiry-batch')[0]!.getAttribute('data-expired')).toBe('true');
     expect(sales.sellInfo).toHaveBeenCalledWith({ productId: 'p1', currency: 'IQD' });
     expect(allTest('inquiry-sub').map((s) => s.textContent)).toEqual([expect.stringContaining('Adol')]);
@@ -295,14 +304,16 @@ describe('the line panels', () => {
     await flush();
     expect(sales.sellInfo).toHaveBeenCalledWith({ productId: 'p1', currency: 'IQD' });
     const rows = allTest('panel-batch');
-    expect(rows.map((r) => r.getAttribute('data-lot'))).toEqual(['OLD1', 'L1', 'L2']);
+    expect(rows.map((r) => r.getAttribute('data-lot'))).toEqual(['OLD1', 'L1', 'L2', 'RC1']);
+    expect(rows[3]!.textContent).toContain('04/05/2027');
+    expect(rows[3]!.textContent).toContain('not sold');
     expect(rows[0]!.getAttribute('data-expired')).toBe('true');
     expect(rows[0]!.textContent).toContain('not sold');
     expect(rows[1]!.getAttribute('aria-current')).toBe('true');
     expect(rows[1]!.textContent).toContain('soon');
     expect(rows[1]!.textContent).toMatch(/12\/2026/);
     const details = byTest('panel-details')!.textContent!;
-    expect(details).toContain('1,500 · 1,400');
+    expect(details).toContain('1,500 strip · 1,400 strip');
     expect(details).toContain('Al-Hakim');
     expect(details).toContain('6221010001');
     expect(details).toContain('Paracetamol');
@@ -410,4 +421,128 @@ describe('return mode', () => {
     await openReturn(over);
     expect(byTest('return-role')!.textContent).toMatch(/manager|owner|pharmacist/i);
   }
+});
+
+describe('fix round 1: minor findings', () => {
+  it('reads the selected product again after a sale (M1: a refresh token)', async () => {
+    const { LinePanels } = await import('@/app/pharmacy/_ui/cashier/LinePanels');
+    const line = cartOf().lines[0]!;
+    const show = (refresh: string) => mount(createElement(LinePanels, { line, currency: 'IQD', canSeeCost: false, refresh, onSubstitute: () => undefined }));
+    show('a');
+    await flush();
+    show('a');
+    await flush();
+    expect(sales.sellInfo).toHaveBeenCalledTimes(1);
+    show('b');
+    await flush();
+    expect(sales.sellInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it('says a replaced line lost its discount (M3)', async () => {
+    const discounted = cartReducer(cartOf(), { type: 'discount', key: cartOf().lines[0]!.key, discount: { kind: 'percent', value: '5' } });
+    screenWith([{ cart: discounted }]);
+    await flush();
+    press({ key: 'ArrowDown' });
+    await flush();
+    click(allTest('panel-sub')[0]!);
+    expect(stored().receipts[0]!.cart.lines.map((l) => [l.productId, l.discount])).toEqual([['p2', null]]);
+    expect(message()).toMatch(/discount/i);
+  });
+
+  it('offers no substitute on a paid receipt (M4)', async () => {
+    screenWith([{ done: true }]);
+    await flush();
+    press({ key: 'ArrowDown' });
+    await flush();
+    expect(allTest('panel-sub')).toHaveLength(0);
+    expect(byTest('panel-batches')!.textContent).toContain('Select a line');
+  });
+});
+
+describe('fix round 1: a return in flight (I1)', () => {
+  const ready = () => {
+    sales.listSales.mockResolvedValue({ ok: true, data: { items: [{ id: 'sale-77', number: 'S-77' }], nextCursor: null } });
+    returns.returnableLines.mockResolvedValue({ ok: true, data: RETURNABLE });
+    returns.returnPreview.mockResolvedValue({ ok: true, data: { refundMinor: '1500', isFinal: true } });
+    receipts.returnSlip.mockResolvedValue({ ok: true, data: { html: '<p>slip</p>', text: 'slip', model: slipModel(), copyNumber: 0, replayed: false } });
+  };
+  const fillAndSend = async () => {
+    screenWith([{ cart: emptyCart() }, { cart: emptyCart() }], { canReturn: true });
+    await flush();
+    click(byTest('tool-return'));
+    typeIn('return-number', 'S-77');
+    click(byTest('return-find'));
+    await flush();
+    typeIn('return-qty', '10');
+    typeIn('return-reason', 'Wrong strength');
+    await wait(300);
+    await flush();
+    const confirm = byTest('return-confirm') as HTMLButtonElement;
+    await act(async () => confirm.click());
+  };
+
+  it('keeps return mode and the receipt while the return is being sent, then shows its slip', async () => {
+    ready();
+    const answer = deferred<unknown>();
+    returns.createReturn.mockReturnValue(answer.promise);
+    await fillAndSend();
+    expect(press({ key: 'Escape' }).defaultPrevented).toBe(true);
+    expect(flowOf()).toBe('return');
+    expect(message()).toMatch(/return is being sent/i);
+    press({ key: '2', altKey: true });
+    expect(stored().active).toBe(0);
+    click(byTest('tool-held'));
+    expect(flowOf()).toBe('return');
+    click(byTest('tool-return'));
+    expect(flowOf()).toBe('return');
+    await act(async () => answer.resolve({ ok: true, data: RETURN_DONE }));
+    await flush();
+    expect(byTest('return-slip')).not.toBeNull();
+    expect(bridge.kickDrawer).not.toHaveBeenCalled();
+  });
+
+  it('after a lost answer, never sends another return: re-opening offers only the same one again, with the same key', async () => {
+    ready();
+    returns.createReturn.mockRejectedValueOnce(new Error('offline'));
+    await fillAndSend();
+    await flush();
+    const first = returns.createReturn.mock.calls[0]![0] as { clientKey: string };
+    press({ key: 'Escape' });
+    expect(flowOf()).toBe('idle');
+    press({ key: '2', altKey: true });
+    press({ key: '1', altKey: true });
+    click(byTest('tool-return'));
+    expect(byTest('return-pending')).not.toBeNull();
+    expect(byTest('return-number')).toBeNull();
+    expect(byTest('return-form')).toBeNull();
+    returns.createReturn.mockResolvedValueOnce({ ok: true, data: { ...RETURN_DONE, replayed: true } });
+    await act(async () => byTest('return-retry')!.click());
+    await flush();
+    expect(returns.createReturn).toHaveBeenCalledTimes(2);
+    expect(returns.createReturn.mock.calls[1]![0]).toEqual(first);
+    expect(byTest('return-slip')).not.toBeNull();
+  });
+
+  it('lets a lost return go only with two taps, then a new return gets a new key', async () => {
+    ready();
+    returns.createReturn.mockRejectedValueOnce(new Error('offline'));
+    await fillAndSend();
+    await flush();
+    const first = (returns.createReturn.mock.calls[0]![0] as { clientKey: string }).clientKey;
+    click(byTest('return-release'));
+    expect(byTest('return-pending')).not.toBeNull();
+    click(byTest('return-release'));
+    expect(byTest('return-pending')).toBeNull();
+    returns.createReturn.mockResolvedValueOnce({ ok: true, data: RETURN_DONE });
+    typeIn('return-number', 'S-77');
+    click(byTest('return-find'));
+    await flush();
+    typeIn('return-qty', '10');
+    typeIn('return-reason', 'Wrong strength');
+    await wait(300);
+    await flush();
+    await act(async () => (byTest('return-confirm') as HTMLButtonElement).click());
+    await flush();
+    expect((returns.createReturn.mock.calls[1]![0] as { clientKey: string }).clientKey).not.toBe(first);
+  });
 });

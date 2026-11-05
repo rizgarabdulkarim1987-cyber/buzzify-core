@@ -15,7 +15,7 @@ import { act, ask, codeOf, dataOf, makeBatch, makeProduct } from './stock-helper
 interface Info {
   productId: string;
   currency: string;
-  batches: { batchId: string; lot: string; expiryDate: string; available: number; expired: boolean; near: boolean; sellable: boolean }[];
+  batches: { batchId: string; lot: string; expiryDate: string; expiryPrecision: string; available: number; expired: boolean; near: boolean; sellable: boolean }[];
   details: { code: string; genericName: string; activeIngredient: string; lastSales: { unitLabel: string; unitPriceMinor: string; at: string }[]; lastPurchase: { at: string; supplierName: string } | null };
   substitutes: { productId: string; tradeName: string; sellableQty: number }[];
 }
@@ -60,7 +60,7 @@ describe('batches', () => {
       [false, true, true],
       [false, true, false],
     ]);
-    expect(got.batches[1]).toMatchObject({ available: 7, expiryDate: plus(30) });
+    expect(got.batches[1]).toMatchObject({ available: 7, expiryDate: plus(30), expiryPrecision: 'DAY' });
   });
 
   it('marks a recalled batch not sellable', async () => {
@@ -125,6 +125,18 @@ describe('substitutes', () => {
     expect(got.substitutes[0]).toMatchObject({ productId: adol.id, sellableQty: 60 });
     // From Adol's side Panadol is the substitute.
     expect((await info(adol.id)).substitutes.map((s) => s.tradeName)).toEqual(['Panadol']);
+  });
+
+  it('finds an exact match even behind many products that only contain the ingredient (M6)', async () => {
+    await ingredientOf(w.p.id, 'Paracetamol');
+    await prisma().phProduct.createMany({
+      data: Array.from({ length: 105 }, (_, i) => ({ restaurantId: w.a.id, tradeName: `AAA ${i}`, identityKey: `combo-${i}|${w.a.id}`, searchText: `aaa ${i}`, activeIngredient: `Paracetamol + Extra ${i}` })),
+    });
+    const zed = await makeProduct(w.a.id, 'Zedol');
+    await ingredientOf(zed.id, 'paracetamol');
+    await priced(zed);
+    await makeBatch(w.a.id, w.b1, zed.id, { lot: 'Z1', buckets: { available: 5 } });
+    expect((await info(w.p.id)).substitutes.map((s) => s.tradeName)).toEqual(['Zedol']);
   });
 
   it('is empty when the product has no active ingredient', async () => {

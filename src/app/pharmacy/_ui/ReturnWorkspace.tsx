@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createReturn, returnPreview } from '@/app/pharmacy/_actions/returns';
 import type { Returnable } from '@/server/pharmacy/returns-reads';
 import type { ReturnResult } from '@/server/pharmacy/returns';
+import type { ActionResult } from '@/server/studio/framework/result';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Field } from '@/studio/ui/Field';
@@ -21,8 +22,11 @@ export interface ReturnWorkspaceProps {
   data: Returnable;
   /** Whether the person has an open shift in this branch in the sale's currency (the refund is posted into it). */
   shiftOk: boolean;
-  /** Given by the cashier's return mode: it shows the finished return (and prints its slip) itself, instead of this page's view. */
-  onDone?: (result: ReturnResult) => void;
+  /**
+   * Given by the cashier's return mode: it sends the return itself (keeping the key and the outcome at screen level, so closing the
+   * mode never loses a return in flight) and shows the finished return and its slip, instead of this page's own key and view.
+   */
+  send?: (body: { saleId: string; lines: { saleLineId: string; baseQty: number }[]; reason: string; refundMethod: RefundMethod }) => Promise<ActionResult<ReturnResult>>;
 }
 
 /**
@@ -31,7 +35,7 @@ export interface ReturnWorkspaceProps {
  * (`ph.returns.preview`), never worked out here; the return itself judges again. The method is limited to those the sale
  * was paid with. One key per request: a retry after a dropped connection repeats it, a changed request gets a new one.
  */
-export function ReturnWorkspace({ data, shiftOk, onDone }: ReturnWorkspaceProps) {
+export function ReturnWorkspace({ data, shiftOk, send }: ReturnWorkspaceProps) {
   const t = useT();
   const { locale } = useLocale();
   const failure = useReturnFailure();
@@ -120,6 +124,12 @@ export function ReturnWorkspace({ data, shiftOk, onDone }: ReturnWorkspaceProps)
     if (busy || !request.ok || !fresh || reason.trim().length < 3 || !shiftOk) return;
     setBusy(true);
     setProblem(null);
+    if (send) {
+      const sent = await send({ saleId: data.saleId, lines: request.lines, reason: reason.trim(), refundMethod: method });
+      setBusy(false);
+      if (!sent.ok) setProblem(failure(sent.error));
+      return;
+    }
     attempt.current = keyFor(attempt.current, returnSignature(data.saleId, request.lines, reason, method), 'ret');
     const clientKey = attempt.current.key;
     const result = await settle(() => createReturn({ saleId: data.saleId, lines: request.lines, reason: reason.trim(), refundMethod: method, clientKey }));
@@ -130,8 +140,7 @@ export function ReturnWorkspace({ data, shiftOk, onDone }: ReturnWorkspaceProps)
       return;
     }
     attempt.current = null;
-    if (onDone) onDone(result.data as ReturnResult);
-    else setDone(result.data as ReturnResult);
+    setDone(result.data as ReturnResult);
   };
 
   return (

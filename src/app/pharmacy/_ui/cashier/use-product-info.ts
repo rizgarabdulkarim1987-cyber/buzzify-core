@@ -10,21 +10,22 @@ export type ProductInfoState = { status: 'idle' } | { status: 'loading' } | { st
 
 /**
  * One product's batches, details and substitutes (`ph.sell.info`), read when the product shown changes. An answer for a product
- * no longer shown is dropped; the state is always read against the product asked for now. Read-only: it never touches a receipt.
+ * no longer shown is dropped; the state is always read against the product asked for now. A new `refresh` token (a sale was made)
+ * reads it again. Read-only: it never touches a receipt.
  */
-export function useProductInfo(productId: string | null, currency: Currency): ProductInfoState {
+export function useProductInfo(productId: string | null, currency: Currency, refresh = ''): ProductInfoState {
   const [answer, setAnswer] = useState<{ at: string; info: SellInfo | null } | null>(null);
-  const at = productId ? `${productId}:${currency}` : '';
+  const at = productId ? `${productId}:${currency}:${refresh}` : '';
   useEffect(() => {
     if (!productId) return;
     let cancelled = false;
     void settle(() => sellInfo({ productId, currency })).then((result) => {
-      if (!cancelled) setAnswer({ at: `${productId}:${currency}`, info: result?.ok ? (result.data as SellInfo) : null });
+      if (!cancelled) setAnswer({ at: `${productId}:${currency}:${refresh}`, info: result?.ok ? (result.data as SellInfo) : null });
     });
     return () => {
       cancelled = true;
     };
-  }, [productId, currency]);
+  }, [productId, currency, refresh]);
   if (!productId) return { status: 'idle' };
   if (!answer || answer.at !== at) return { status: 'loading' };
   return answer.info ? { status: 'ready', info: answer.info } : { status: 'failed' };

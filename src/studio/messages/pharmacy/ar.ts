@@ -3687,9 +3687,10 @@ const pharmacy: Messages = {
   'pharmacy.cashier.subs.none': 'لا بدائل مسجلة.',
   'pharmacy.cashier.subs.price': '{price} لكل {unit} · رصيد {qty}',
   'pharmacy.cashier.subs.replaced': 'استُبدلت المادة بـ {name}',
+  'pharmacy.cashier.subs.replacedDropped': 'استُبدلت المادة بـ {name}. لم يُنقل خصم السطر القديم ولا الدفعة المختارة له.',
   'pharmacy.cashier.tools.return': 'إرجاع مادة',
   'pharmacy.cashier.flow.title.return': 'إرجاع',
-  'pharmacy.cashier.return.note': 'يُعاد للمخزون ويُطبع وصل إرجاع. لا يُفتح الجرار لوصل الإرجاع.',
+  'pharmacy.cashier.return.note': 'يُسجَّل الإرجاع على البيع الأصلي ويُطبع وصل إرجاع. لا يُفتح الجرار للإرجاع.',
   'pharmacy.cashier.return.role': 'الإرجاع يجريه الصيدلاني المسؤول أو المدير أو المالك. اطلب من أحدهم إجراءه.',
   'pharmacy.cashier.return.number': 'رقم الوصل الأصلي',
   'pharmacy.cashier.return.find': 'بحث',
@@ -3701,6 +3702,11 @@ const pharmacy: Messages = {
   'pharmacy.cashier.return.slip': 'وصل إرجاع',
   'pharmacy.cashier.return.print': 'طباعة وصل الإرجاع',
   'pharmacy.cashier.return.again': 'إرجاع آخر',
+  'pharmacy.cashier.return.sending': 'يُرسَل إرجاع الآن. انتظر الرد قبل مغادرة وضع الإرجاع.',
+  'pharmacy.cashier.return.pending': 'لم يصل رد الإرجاع الأخير، وقد يكون سُجّل. أرسله مرة أخرى كما هو (يُسجَّل مرة واحدة)، أو اتركه بعد مراجعة قائمة المبيعات.',
+  'pharmacy.cashier.return.retry': 'أرسل الإرجاع نفسه مرة أخرى',
+  'pharmacy.cashier.return.release': 'اتركه',
+  'pharmacy.cashier.return.releaseArmed': 'اضغط مرة أخرى لتركه',
 };
 
 export default pharmacy;

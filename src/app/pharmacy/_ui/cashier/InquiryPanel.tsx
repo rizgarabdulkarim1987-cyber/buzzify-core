@@ -69,8 +69,9 @@ export function InquiryPanel({ item, currency, onAdd, onShow }: { item: ScanItem
             <>
               <ul className="flex flex-wrap gap-1.5 text-sm" aria-label={t('pharmacy.cashier.panels.batches')}>
                 {state.info.batches.map((b) => (
-                  <li key={b.batchId} className={`inline-flex min-h-8 flex-wrap items-center gap-x-1.5 rounded-lg border px-2 ${b.expired ? 'border-transparent bg-ph-red-wash text-ph-red' : 'border-ph-line text-ph-text'}`} data-testid="inquiry-batch" data-expired={b.expired}>
+                  <li key={b.batchId} className={`inline-flex min-h-8 flex-wrap items-center gap-x-1.5 rounded-lg border px-2 ${b.expired ? 'border-transparent bg-ph-red-wash text-ph-red' : b.sellable ? 'border-ph-line text-ph-text' : 'border-ph-line text-ph-muted'}`} data-testid="inquiry-batch" data-expired={b.expired} data-sellable={b.sellable}>
                     <BatchMarks batch={b} /> · <bdi dir="auto">{b.lot}</bdi> · <Num>{b.available}</Num>
+                    {!b.sellable && !b.expired && <span className="text-ph-red">· {t('pharmacy.cashier.batch.notSold')}</span>}
                   </li>
                 ))}
               </ul>

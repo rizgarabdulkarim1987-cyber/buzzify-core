@@ -31,6 +31,7 @@ export interface InfoBatch {
   batchId: string;
   lot: string;
   expiryDate: string;
+  expiryPrecision: 'DAY' | 'MONTH';
   available: number;
   expired: boolean;
   /** Within NEAR_EXPIRY_DAYS and not expired. */
@@ -90,7 +91,7 @@ export async function sellInfo(scoped: ScopedClient, ph: PhActor, input: z.infer
     .map(({ available, batch }) => {
       const fefo = { id: batch.id, lot: batch.lot, expiryDate: batch.expiryDate.toISOString().slice(0, 10), expiryPrecision: batch.expiryPrecision };
       const expired = isExpired(fefo, today);
-      return { fefo, row: { batchId: batch.id, lot: batch.lot, expiryDate: fefo.expiryDate, available, expired, near: !expired && daysToExpiry(fefo, today) <= NEAR_EXPIRY_DAYS, sellable: sellableStock({ available, reserved: 0, quarantine: 0, damaged: 0 }, { status: batch.status, expiryDate: fefo.expiryDate }, today) > 0 } };
+      return { fefo, row: { batchId: batch.id, lot: batch.lot, expiryDate: fefo.expiryDate, expiryPrecision: batch.expiryPrecision, available, expired, near: !expired && daysToExpiry(fefo, today) <= NEAR_EXPIRY_DAYS, sellable: sellableStock({ available, reserved: 0, quarantine: 0, damaged: 0 }, { status: batch.status, expiryDate: fefo.expiryDate }, today) > 0 } };
     })
     .sort((a, b) => fefoOrder(a.fefo, b.fefo))
     .map((b) => b.row);
@@ -114,13 +115,17 @@ export async function sellInfo(scoped: ScopedClient, ph: PhActor, input: z.infer
 async function substitutesOf(scoped: ScopedClient, a: { branchId: string; currency: 'IQD' | 'USD'; productId: string; ingredient: string; now: Date }): Promise<SellItem[]> {
   const ingredient = a.ingredient.trim();
   if (ingredient === '') return [];
-  const rows = await scoped.phProduct.findMany({
-    where: { active: true, id: { not: a.productId }, activeIngredient: { contains: ingredient, mode: 'insensitive' } },
-    orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
-    take: 100,
-    select: { id: true, activeIngredient: true },
-  });
-  const ids = rows.filter((r) => sameIngredient(r.activeIngredient, ingredient)).map((r) => r.id);
+  // The exact value first (no combination product can crowd it out), then values that only differ by case or spaces around it.
+  const find = (match: { equals: string } | { contains: string }) =>
+    scoped.phProduct.findMany({
+      where: { active: true, id: { not: a.productId }, activeIngredient: { ...match, mode: 'insensitive' } },
+      orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
+      take: 100,
+      select: { id: true, tradeName: true, activeIngredient: true },
+    });
+  const [exact, near] = await Promise.all([find({ equals: ingredient }), find({ contains: ingredient })]);
+  const byId = new Map([...exact, ...near].filter((r) => sameIngredient(r.activeIngredient, ingredient)).map((r) => [r.id, r]));
+  const ids = [...byId.values()].sort((x, y) => (x.tradeName < y.tradeName ? -1 : x.tradeName > y.tradeName ? 1 : x.id < y.id ? -1 : 1)).map((r) => r.id);
   const items = await sellItemsByIds(scoped, { branchId: a.branchId, currency: a.currency, productIds: ids, now: a.now });
   return items.filter((i) => !i.notSellable && !i.noPrice && i.sellableQty > 0).slice(0, SUBSTITUTES_MAX);
 }

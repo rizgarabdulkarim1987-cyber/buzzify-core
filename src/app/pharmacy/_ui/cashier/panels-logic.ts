@@ -1,3 +1,4 @@
+import { formatExpiry, type ExpiryPrecision } from '@/server/domain/pharmacy/expiry';
 import { normalizeDigits, type CartUnit } from '../sell-logic';
 
 /**
@@ -5,11 +6,8 @@ import { normalizeDigits, type CartUnit } from '../sell-logic';
  * are read out, which batch a line takes, and the sale number typed for a return.
  */
 
-/** 'YYYY-MM-DD' as the prototype prints an expiry: MM/YYYY. */
-export function expiryText(date: string): string {
-  const [y, m] = date.split('-');
-  return y && m ? `${m}/${y}` : date;
-}
+/** 'YYYY-MM-DD' read out at the batch's own precision: MM/YYYY for a month expiry, DD/MM/YYYY for a day one (as every other screen). */
+export const expiryText = (date: string, precision: ExpiryPrecision): string => formatExpiry({ expiryDate: date, expiryPrecision: precision });
 
 /**
  * Stock in base pieces, with the largest unit's count and the pieces left over when the largest unit holds more than one

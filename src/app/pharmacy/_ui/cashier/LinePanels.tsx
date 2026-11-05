@@ -14,12 +14,12 @@ const CARD = 'flex min-w-0 flex-col gap-2 rounded-ph-xl border border-ph-line bg
 const TITLE = 'text-sm font-bold text-ph-text';
 const MUTED = 'px-1 py-2 text-sm text-ph-muted';
 
-/** How a batch reads (expiry month/year, near or expired in words, never a colour alone), shared by the inquiry panel. */
-export function BatchMarks({ batch }: { batch: Pick<InfoBatch, 'expiryDate' | 'expired' | 'near'> }) {
+/** How a batch reads (expiry at its precision, near or expired in words, never a colour alone), shared by the inquiry panel. */
+export function BatchMarks({ batch }: { batch: Pick<InfoBatch, 'expiryDate' | 'expiryPrecision' | 'expired' | 'near'> }) {
   const t = useT();
   return (
     <>
-      <Num>{expiryText(batch.expiryDate)}</Num>
+      <Num>{expiryText(batch.expiryDate, batch.expiryPrecision)}</Num>
       {batch.expired ? (
         <span className="inline-flex items-center gap-1 text-ph-red">
           <Ban aria-hidden className="size-3.5" />
@@ -78,9 +78,9 @@ function Body({ state, children }: { state: ProductInfoState; children: (info: E
  * prices, last purchase, barcode, active ingredient; cost and profit are hidden from a role without them and are not read at all
  * yet), and its substitutes by active ingredient (a press replaces the line, keeping its quantity). Read only, no motion.
  */
-export function LinePanels({ line, currency, canSeeCost, onSubstitute }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; onSubstitute: (item: SellItem) => void }) {
+export function LinePanels({ line, currency, canSeeCost, refresh = '', onSubstitute }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; /** Changes after a sale: the product is read again (its batches moved). */ refresh?: string; onSubstitute: (item: SellItem) => void }) {
   const t = useT();
-  const state = useProductInfo(line?.productId ?? null, currency);
+  const state = useProductInfo(line?.productId ?? null, currency, refresh);
   return (
     <section className="grid min-w-0 gap-2 lg:grid-cols-3" aria-label={t('pharmacy.cashier.panels.region')} data-testid="line-panels">
       <section className={CARD} data-testid="panel-batches">
@@ -120,7 +120,7 @@ export function LinePanels({ line, currency, canSeeCost, onSubstitute }: { line:
           {(info) => (
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm text-ph-text">
               <dt className="text-ph-muted">{t('pharmacy.cashier.panels.lastSales')}</dt>
-              <dd className="text-end">{info.details.lastSales.length ? <Num>{info.details.lastSales.map((s) => formatMinor(BigInt(s.unitPriceMinor), info.currency)).join(' · ')}</Num> : '—'}</dd>
+              <dd className="text-end">{info.details.lastSales.length ? <Num>{info.details.lastSales.map((s) => `${formatMinor(BigInt(s.unitPriceMinor), info.currency)} ${s.unitLabel}`).join(' · ')}</Num> : '—'}</dd>
               <dt className="text-ph-muted">{t('pharmacy.cashier.panels.lastBuy')}</dt>
               <dd className="min-w-0 break-words text-end">
                 {info.details.lastPurchase ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, CircleCheck, Hourglass, Lock, Printer, Search, Undo2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, Hourglass, Lock, Printer, RotateCw, Search, Undo2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { returnSlip } from '@/app/pharmacy/_actions/receipts';
@@ -17,7 +17,9 @@ import { formatMinor, type Currency } from '../sell-logic';
 import { FieldInput, Note, Num, PH_BTN, PH_FIELD, PH_PRIMARY } from '../sell-parts';
 import { ThermalNote } from '../ThermalNote';
 import { useThermal, useThermalJob } from '../use-thermal';
+import { ArmedButton } from './ArmedButton';
 import { saleNumberOf } from './panels-logic';
+import type { ReturnFlowState } from './use-return-flow';
 
 /**
  * Return mode, inline in the work panel: a return is always against its ORIGINAL sale, found by the receipt number, and goes
@@ -25,8 +27,10 @@ import { saleNumberOf } from './panels-logic';
  * what is left, the server's refund figure, one key per request) and action (`ph.returns.create`, which takes the same batches and
  * prices the sale took, and needs `return.approve`). Nothing here opens the cash drawer: the return slip is printed with the drawer
  * off. A return without the original sale is never sent from here: the way without it says who decides.
+ * The return itself is sent through `returns` (screen level, `useReturnFlow`), so leaving return mode never loses one in flight and
+ * a return whose answer was lost blocks every other return until it is sent again as it is or let go with two taps.
  */
-export function ReturnFlow({ canReturn, shiftCurrency }: { canReturn: boolean; shiftCurrency: Currency }) {
+export function ReturnFlow({ canReturn, shiftCurrency, returns }: { canReturn: boolean; shiftCurrency: Currency; returns: ReturnFlowState }) {
   const t = useT();
   const { locale } = useLocale();
   const [text, setText] = useState('');
@@ -35,7 +39,6 @@ export function ReturnFlow({ canReturn, shiftCurrency }: { canReturn: boolean; s
   const [notFound, setNotFound] = useState<string | null>(null);
   const [noSale, setNoSale] = useState(false);
   const [found, setFound] = useState<Returnable | null>(null);
-  const [done, setDone] = useState<ReturnResult | null>(null);
 
   const note = (
     <p className="text-xs text-ph-muted" data-testid="return-note">
@@ -52,8 +55,31 @@ export function ReturnFlow({ canReturn, shiftCurrency }: { canReturn: boolean; s
       </div>
     );
   }
-  const again = () => void (setFound(null), setDone(null), setText(''), setNotFound(null), setProblem(null));
-  if (done) return <ReturnSlip result={done} onAgain={again} />;
+  const again = () => void (setFound(null), returns.clearDone(), setText(''), setNotFound(null), setProblem(null));
+  if (returns.done) return <ReturnSlip result={returns.done} onAgain={again} />;
+  if (returns.pending && !returns.busy) {
+    return (
+      <div className="flex min-w-0 flex-col gap-2.5" data-testid="return-pending">
+        <Note look="ph" icon={<CircleAlert aria-hidden />} tone="danger" role="alert">
+          {t('pharmacy.cashier.return.pending')}
+        </Note>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" className={PH_PRIMARY} data-testid="return-retry" onClick={() => void returns.retry()}>
+            <RotateCw aria-hidden className="size-4" />
+            {t('pharmacy.cashier.return.retry')}
+          </button>
+          <ArmedButton
+            testId="return-release"
+            icon={<X aria-hidden className="size-4" />}
+            label={t('pharmacy.cashier.return.release')}
+            armedLabel={t('pharmacy.cashier.return.releaseArmed')}
+            onConfirm={() => void (returns.release(), again())}
+          />
+        </div>
+        {note}
+      </div>
+    );
+  }
 
   const find = async (event: FormEvent) => {
     event.preventDefault();
@@ -92,7 +118,7 @@ export function ReturnFlow({ canReturn, shiftCurrency }: { canReturn: boolean; s
             {t('pharmacy.returns.fail.NOTHING_TO_RETURN')}
           </Note>
         ) : (
-          <ReturnWorkspace data={found} shiftOk={shiftCurrency === found.currency} onDone={setDone} />
+          <ReturnWorkspace data={found} shiftOk={shiftCurrency === found.currency} send={returns.send} />
         )}
         {note}
       </div>
