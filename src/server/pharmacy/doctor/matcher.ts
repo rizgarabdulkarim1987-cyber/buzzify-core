@@ -26,14 +26,15 @@ const SCREEN_LIMIT = 100;
 /** One option of a complaint answer; derived from the answer schema so it cannot drift. `tradeNames` is intentionally unused here: the shop's own catalog decides what is shown, never the model's brand names. */
 export type ComplaintOption = ComplaintAnswer['options'][number];
 
-const DIGIT = String.raw`[0-9\u0660-\u0669\u06F0-\u06F9]`;
-const CURRENCY = String.raw`(?:iqd|usd|\$|دينار|د\.ع|دۆلار|دولار)`;
-const MONEY = new RegExp(String.raw`${DIGIT}[0-9\u0660-\u0669\u06F0-\u06F9.,]*\s*${CURRENCY}|${CURRENCY}\s*${DIGIT}`, 'i');
-const STOCK_PHRASE = /in\s+stock|متوفر|بەردەست/i;
+/** Any digit of any script (Latin, Arabic-Indic, Extended Arabic-Indic, fullwidth...), after NFKC. */
+const ANY_DIGIT = /\p{Nd}/u;
+/** Money and stock words in English, Arabic and Kurdish; with the digit rule, a note cannot state a price or a quantity. */
+const MONEY_OR_STOCK_WORDS = /iqd|usd|\$|dinars?|dollars?|bucks|thousand|in\s+stock|د\.ع|دينار|دنانير|دیناڕ|دینار|دولار|دۆلار|ألف|الف|هەزار|متوفر|بەردەست/i;
 
-/** The model's note, kept only when it states no price or quantity (those come from the database alone), cut to 140 characters. */
+/** The model's note, kept only when it has no digit in any script and no money or stock word (prices and quantities come from the database alone), cut to 140 characters. */
 export function safeNote(note: string): string {
-  if (MONEY.test(note) || STOCK_PHRASE.test(note)) return '';
+  const plain = note.normalize('NFKC');
+  if (ANY_DIGIT.test(plain) || MONEY_OR_STOCK_WORDS.test(plain)) return '';
   return note.trim().slice(0, DOCTOR_NOTE_MAX);
 }
 
