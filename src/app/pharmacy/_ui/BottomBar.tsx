@@ -3,10 +3,13 @@
 import { Ellipsis } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { MoreSheet } from './MoreSheet';
 import { countText, NavIcon } from './NavIcon';
 import { phActiveKey, type PhShellLink } from './nav';
+
+/** Tailwind's `md:` breakpoint, where the rail takes over from the bottom bar. */
+const DESKTOP = '(min-width: 48rem)';
 
 const ITEM = 'flex min-h-14 w-full flex-col items-center justify-center gap-0.5 px-1 py-1 text-xs font-semibold';
 
@@ -31,6 +34,16 @@ export function BottomBar({
 }) {
   const active = phActiveKey(usePathname());
   const [open, setOpen] = useState(false);
+  // The sheet is a phone-only modal: once the window widens past `md:` (a tablet turned on its side) it is hidden but would
+  // still hold the page inert, so it closes.
+  useEffect(() => {
+    const desktop = window.matchMedia(DESKTOP);
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setOpen(false);
+    };
+    desktop.addEventListener('change', onChange);
+    return () => desktop.removeEventListener('change', onChange);
+  }, []);
   const moreActive = sheet.some((l) => l.key === active);
   return (
     <>

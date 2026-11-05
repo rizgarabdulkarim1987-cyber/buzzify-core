@@ -9,6 +9,7 @@ import {
   hideDevTools,
   removeRestaurants,
   removeStudioUsers,
+  totp,
   uniqueClientAddress,
   type StudioUser,
 } from './helpers/studio';
@@ -194,6 +195,79 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     await expect(page).toHaveURL(/\/pharmacy\/purchasing$/);
     await expect(sheet).toBeHidden();
     await expect(more).toHaveAttribute('aria-current', 'page');
+    await page.context().close();
+  });
+
+  test('the More sheet closes when the window widens past the phone layout, so the rail works at once', async ({ browser }) => {
+    const { shop, owner } = await owned('Rotate');
+    const page = await freshPage(browser, PHONE);
+    await enter(page, owner, shop.name, shop.branches[0]!.name);
+    await mainNav(page).getByRole('button', { name: 'More' }).click();
+    const sheet = page.getByRole('dialog', { name: 'More' });
+    await expect(sheet).toBeVisible();
+
+    // A tablet turned on its side: the sheet (a modal, phone-only) must not stay open and leave the page inert.
+    await page.setViewportSize(DESKTOP);
+    await expect(page.locator('#ph-more-sheet')).not.toHaveAttribute('open', '');
+    await link(mainNav(page), 'Stock').click({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/pharmacy\/stock$/);
+    await page.context().close();
+  });
+
+  test('a support actor (a Super Admin with a grant) opens the pharmacy: Home only on the rail, no counters, blocked notices', async ({ browser }) => {
+    test.setTimeout(120_000);
+    const shop = await makePharmacy('Support');
+    restaurants.push(shop.id);
+    const admin = await createStudioUser({ label: 'ph-nav-support', name: 'Support Person', superAdmin: true });
+    people.push(admin.email);
+    const client = db();
+    try {
+      const now = Date.now();
+      await client.supportAccessGrant.create({
+        data: { restaurantId: shop.id, granteeUserId: admin.userId, scopes: ['catalog.read', 'stock.read'], reason: 'e2e support ticket', startsAt: new Date(now - 3_600_000), expiresAt: new Date(now + DAY) },
+      });
+    } finally {
+      await client.$disconnect();
+    }
+
+    // A Super Admin enrols in two-factor before anything else opens.
+    const page = await freshPage(browser);
+    await page.goto('/studio/sign-in');
+    await page.getByLabel('Email').fill(admin.email);
+    await page.getByLabel('Password', { exact: true }).fill(admin.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/studio\/setup-two-factor$/);
+    await page.getByLabel('Password', { exact: true }).fill(admin.password);
+    await page.getByRole('button', { name: 'Continue' }).click();
+    const secret = (await page.getByLabel('Setup key').inputValue()).replace(/\s+/g, '');
+    await page.getByLabel('6-digit code from the app').fill(totp(secret));
+    await page.getByRole('button', { name: 'Turn on two-factor' }).click();
+    await page.getByLabel('I have saved my recovery codes').check();
+    await page.getByRole('button', { name: 'Continue to the Studio' }).click();
+    await expect(page).toHaveURL(/\/studio$/);
+
+    await page.goto('/pharmacy/select');
+    await page.getByRole('group', { name: shop.name }).getByRole('button').first().click();
+    await expect(page).toHaveURL(/\/pharmacy\/home$/);
+    await expect(page.getByTestId('support-banner')).toBeVisible();
+
+    for (const path of ['/pharmacy/home', '/pharmacy/stock', '/pharmacy/stock/expiry', '/pharmacy/reports', '/pharmacy/catalog']) {
+      const answer = await page.goto(path);
+      expect(answer?.status(), path).toBe(200);
+      const rail = mainNav(page);
+      await expect(rail.getByRole('link'), path).toHaveText(['Home']);
+      await expect(rail.locator('summary'), `${path}: no More`).toHaveCount(0);
+      // No counter pill on the one place there is.
+      await expect(rail.getByRole('link', { name: 'Home', exact: true }), path).toHaveText('Home');
+      // The screens a support actor has no role for say so; the catalog is the one their grant (catalog.read) may list.
+      const blocked = page.locator('main [data-testid$="forbidden"]');
+      if (path === '/pharmacy/catalog') {
+        await expect(page.getByRole('heading', { level: 1, name: 'Catalog' })).toBeVisible();
+        await expect(blocked).toHaveCount(0);
+      } else if (path !== '/pharmacy/home') {
+        await expect(blocked.first(), `${path}: blocked notice`).toBeVisible();
+      }
+    }
     await page.context().close();
   });
 
