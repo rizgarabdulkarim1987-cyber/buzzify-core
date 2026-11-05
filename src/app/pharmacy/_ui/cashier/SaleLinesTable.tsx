@@ -6,10 +6,13 @@ import { useT } from '@/studio/i18n';
 import { formatMinor, unitOf, type CartLine, type Currency, type Estimate } from '../sell-logic';
 import { Chip, Num } from '../sell-parts';
 
-/** What the server sent for a line's cost and profit (minor units as text). Absent unless the person may see cost. */
+/**
+ * What the server sent for a line's cost and profit (minor units as text, `ph.sell.costs`). Absent unless the person may see
+ * cost; the profit only with `profit.view` too. A loss keeps its minus sign.
+ */
 export interface LineCost {
   costMinor: string;
-  profitMinor: string;
+  profitMinor?: string;
 }
 
 export interface SaleLinesTableProps {

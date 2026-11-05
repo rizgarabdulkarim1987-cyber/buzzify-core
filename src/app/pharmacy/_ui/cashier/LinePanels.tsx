@@ -8,6 +8,7 @@ import { useT } from '@/studio/i18n';
 import { formatMinor, startUnit, type CartLine, type Currency } from '../sell-logic';
 import { Num } from '../sell-parts';
 import { expiryText, lineBatchId } from './panels-logic';
+import type { LineCost } from './SaleLinesTable';
 import { useProductInfo, type ProductInfoState } from './use-product-info';
 
 const CARD = 'flex min-w-0 flex-col gap-2 rounded-ph-xl border border-ph-line bg-ph-card p-3';
@@ -75,10 +76,10 @@ function Body({ state, children }: { state: ProductInfoState; children: (info: E
 /**
  * The three panels under the sale lines (layout A's `.insp`) for the SELECTED line: its batches here nearest expiry first (the one
  * the sale takes from is marked; an expired or recalled batch is listed and marked "not sold"), its details (last three sale
- * prices, last purchase, barcode, active ingredient; cost and profit are hidden from a role without them and are not read at all
- * yet), and its substitutes by active ingredient (a press replaces the line, keeping its quantity). Read only, no motion.
+ * prices, last purchase, barcode, active ingredient; the line's cost and profit from the cart's own `ph.sell.costs` answer for a
+ * role that may see cost, "hidden" for anyone else), and its substitutes by active ingredient (a press replaces the line, keeping its quantity). Read only, no motion.
  */
-export function LinePanels({ line, currency, canSeeCost, refresh = '', onSubstitute }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; /** Changes after a sale: the product is read again (its batches moved). */ refresh?: string; onSubstitute: (item: SellItem) => void }) {
+export function LinePanels({ line, currency, canSeeCost, cost, refresh = '', onSubstitute }: { line: CartLine | null; currency: Currency; canSeeCost: boolean; /** The selected line's cost and profit (only ever passed when `canSeeCost`). */ cost?: LineCost; /** Changes after a sale: the product is read again (its batches moved). */ refresh?: string; onSubstitute: (item: SellItem) => void }) {
   const t = useT();
   const state = useProductInfo(line?.productId ?? null, currency, refresh);
   return (
@@ -150,6 +151,15 @@ export function LinePanels({ line, currency, canSeeCost, refresh = '', onSubstit
             </dl>
           )}
         </Body>
+        {/* The line's cost comes with the cart (not with the product read), so it shows whatever that read does. */}
+        {canSeeCost && line && (
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm text-ph-text">
+            <dt className="text-ph-muted">{t('pharmacy.cashier.col.cost')}</dt>
+            <dd className="text-end" data-testid="panel-cost">{cost ? <Num>{formatMinor(BigInt(cost.costMinor), currency)}</Num> : '—'}</dd>
+            <dt className="text-ph-muted">{t('pharmacy.cashier.col.profit')}</dt>
+            <dd className="text-end" data-testid="panel-profit">{cost?.profitMinor !== undefined ? <Num>{formatMinor(BigInt(cost.profitMinor), currency)}</Num> : '—'}</dd>
+          </dl>
+        )}
       </section>
       <section className={CARD} data-testid="panel-subs">
         <h3 className={`${TITLE} inline-flex items-center gap-1.5`}>

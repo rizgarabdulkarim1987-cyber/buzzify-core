@@ -30,6 +30,7 @@ import { useAdding, type Message } from './use-adding';
 import { useHandIn } from './use-handin';
 import { useHoldFlow } from './use-hold-flow';
 import { useLeaveGuard } from './use-leave-guard';
+import { useLineCosts } from './use-line-costs';
 import { usePanels } from './use-panels';
 import { useReturnFlow } from './use-return-flow';
 import { useRxCheck } from './use-rx-check';
@@ -41,7 +42,7 @@ import { WorkPanel } from './WorkPanel';
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
   pulse?: CashierPulse;
-  /** Cost and profit columns: pharmacist and owner only. The lines carry no cost today, so the cells stay empty. */
+  /** Cost and profit columns (a role with cost.view): filled from `ph.sell.costs`, which the server answers with nothing for anyone else. */
   canSeeCost?: boolean;
   /** Price edit: pharmacist and owner only. */
   canEditPrice?: boolean;
@@ -85,6 +86,7 @@ export function CashierScreen(props: CashierScreenProps) {
   const step = Number(settings.roundingStepMinor);
   const receipt = state.receipts[state.active] ?? state.receipts[0]!;
   const estimate = useMemo(() => estimateCart(receipt.cart, currency, step), [receipt.cart, currency, step]);
+  const costs = useLineCosts({ enabled: canSeeCost, lines: receipt.cart.lines, results: estimate.lines, currency });
   const selected = receipt.cart.lines.some((l) => l.key === selections[receipt.key]) ? (selections[receipt.key] ?? null) : null;
   // What the receipts and selections are right now, ahead of the next render: a scan that lands before React re-renders still selects the right line.
   const mirror = useRef(state);
@@ -162,10 +164,7 @@ export function CashierScreen(props: CashierScreenProps) {
   };
 
   // Keys -----------------------------------------------------------------------------------------------------------------
-  const focusSearch = () => {
-    searchBox.current?.focus();
-    searchBox.current?.select();
-  };
+  const focusSearch = () => void (searchBox.current?.focus(), searchBox.current?.select());
   const openReceipt = () => {
     if (stuck()) return;
     if (state.receipts.length >= MAX_RECEIPTS && !receipt.done) {
@@ -370,11 +369,10 @@ export function CashierScreen(props: CashierScreenProps) {
               onRemove={(key) => {
                 if (edit({ type: 'line', action: { type: 'remove', key } }) && key === selected) select(null);
               }}
-              canSeeCost={canSeeCost}
-              canEditPrice={canEditPrice}
+              canSeeCost={canSeeCost} canEditPrice={canEditPrice} costs={costs}
             />
           )}
-          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
+          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} cost={selected ? costs?.[selected] : undefined} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} />
         </section>
       </div>
     </div>
