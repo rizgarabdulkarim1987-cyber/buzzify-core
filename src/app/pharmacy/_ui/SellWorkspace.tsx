@@ -34,7 +34,7 @@ import { prescriptionGate, prescriptionKept, type RxLine } from './prescription-
 import { PrescriptionDrawer } from './PrescriptionDrawer';
 import { RxCartPanel } from './SellRx';
 import { onAddToCart } from './cart-bridge';
-import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
+import type { SellItem } from '@/server/pharmacy/sell-search';
 import type { SaleResult } from '@/server/pharmacy/sales';
 import type { HoldResult } from '@/server/pharmacy/holds';
 import type { StudioFailure } from '@/server/studio/framework/result';
@@ -89,25 +89,11 @@ import {
 } from './sell-logic';
 import { useOnline } from './use-online';
 import { useScannerCapture } from './useScannerCapture';
+import type { SellPerms, SellScreenProps } from './sell-props';
 
-export interface SellPerms {
-  /** discount.apply */
-  discount: boolean;
-  /** batch.override */
-  batchOverride: boolean;
-  /** rx.dispense */
-  rx: boolean;
-  /** credit.sell (and the business has switched credit on: the page sets this only when both hold) */
-  credit: boolean;
-}
+export type { SellPerms };
 
-export interface SellWorkspaceProps {
-  restaurantId: string;
-  branchId: string;
-  userId: string;
-  shift: OpenShift | null;
-  settings: SellSettings;
-  perms: SellPerms;
+export interface SellWorkspaceProps extends SellScreenProps {
   /** The start-side column beside the sale (the AI Doctor's slot): hidden below `lg:`, and while it renders nothing. */
   aside?: ReactNode;
   /** The phone's counterpart (the AI Doctor's floating button): floats above the phone's pay bar below `lg:`. */
