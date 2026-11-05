@@ -22,6 +22,7 @@ import { Input } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 import { Picker, type PickerOption } from '@/studio/ui/Picker';
 import { Select } from '@/studio/ui/Select';
+import type { SpaceId } from '@/studio/spaces';
 
 const EMAIL_INPUT = { type: 'email', dir: 'ltr', autoComplete: 'off', className: 'rtl:text-right' } as const;
 
@@ -87,7 +88,7 @@ export function InviteOwnerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onIssued: (issued: IssuedInvitation) => void;
-  space: 'food' | 'pharmacy' | 'retail' | 'platform';
+  space: SpaceId;
 }) {
   const t = useT();
   const refuse = useRefuse();
@@ -145,7 +146,7 @@ export function PersonDialogs({
   action: PersonAction | null;
   onClose: () => void;
   onDone: () => void;
-  space: 'food' | 'pharmacy' | 'retail' | 'platform';
+  space: SpaceId;
 }) {
   const t = useT();
   const refuse = useRefuse();

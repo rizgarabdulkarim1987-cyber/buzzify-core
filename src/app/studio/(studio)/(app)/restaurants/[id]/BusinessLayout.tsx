@@ -18,7 +18,13 @@ import { loadRestaurant } from './load';
 import { RestaurantActions } from './RestaurantActions';
 
 /** What the way back to a space's list is called. */
-const LIST_LABEL: Record<BusinessSpaceId, string> = { food: 'restaurants.title', pharmacy: 'pharmacies.title', retail: 'retail.title' };
+const LIST_LABEL: Record<BusinessSpaceId, string> = {
+  food: 'restaurants.title',
+  pharmacy: 'pharmacies.title',
+  supermarket: 'retail.title',
+  electronics: 'retail.title',
+  clothing: 'retail.title',
+};
 
 /**
  * The frame of one restaurant: its name, client ID and status, what the person may do to it as a whole, and its tabs.
@@ -40,7 +46,7 @@ export async function BusinessLayout({
   if (!actor) redirect(SIGN_IN_PATH);
   const restaurant = await loadRestaurant(id);
   // In the words of the business's own project: a retail shop's frame names no restaurant, menu or guest.
-  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector));
+  const t = spaceT(getStudioTranslator(actor.locale), spaceOfSector(restaurant.sector, restaurant.retailActivity));
 
   const listHref = businessBase(space);
   const base = `${listHref}/${restaurant.id}`;
@@ -82,7 +88,7 @@ export async function BusinessLayout({
             <span dir="ltr" className="font-mono text-sm">
               {restaurant.clientId}
             </span>
-            {food ? <span>{t(`restaurants.type.${restaurant.type}`)}</span> : <SectorBadge sector={restaurant.sector} t={t} />}
+            {food ? <span>{t(`restaurants.type.${restaurant.type}`)}</span> : <SectorBadge sector={restaurant.sector} activity={restaurant.retailActivity} t={t} />}
             {restaurant.city && <span>{restaurant.city}</span>}
             <RestaurantStatusBadge status={restaurant.status} t={t} />
           </span>
@@ -109,7 +115,7 @@ export async function BusinessLayout({
         </div>
       )}
       {/* The tabs' client screens speak the business's own project too, for its owner as for a Super Admin. */}
-      <SpaceWords space={spaceOfSector(restaurant.sector)}>{children}</SpaceWords>
+      <SpaceWords space={spaceOfSector(restaurant.sector, restaurant.retailActivity)}>{children}</SpaceWords>
     </>
   );
 }

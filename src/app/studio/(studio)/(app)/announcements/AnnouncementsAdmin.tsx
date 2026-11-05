@@ -9,6 +9,7 @@ import { LOCALE_NAMES, LOCALES } from '@/lib/locale';
 import { describeFailure } from '@/studio/errors';
 import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import type { BusinessSpaceId } from '@/studio/spaces';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { EmptyState } from '@/studio/ui/EmptyState';
@@ -42,7 +43,7 @@ const toIso = (local: string): string | undefined => (local ? new Date(local).to
  * The Buzzify team's announcements: the live and scheduled ones, a form to write one in up to three languages, and
  * archiving. A new announcement appears on every till within a minute.
  */
-export function AnnouncementsAdmin({ rows, space = 'food' }: { rows: AnnouncementRow[]; space?: 'food' | 'pharmacy' | 'retail' }) {
+export function AnnouncementsAdmin({ rows, space = 'food' }: { rows: AnnouncementRow[]; space?: BusinessSpaceId }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();

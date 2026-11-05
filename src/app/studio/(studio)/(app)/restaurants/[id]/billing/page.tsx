@@ -21,7 +21,7 @@ export default async function RestaurantBillingPage({ params }: { params: Promis
   const [view, overview, plans] = await Promise.all([
     query(restaurantBilling, { restaurantId: restaurant.id }),
     // The prices of the business's own project's products (a retail shop's are Retail's, not the Menu's and the Cashier's).
-    query(billingOverview, { space: spaceOfSector(restaurant.sector) }),
+    query(billingOverview, { space: spaceOfSector(restaurant.sector, restaurant.retailActivity) }),
     query(getPlans, {}),
   ]);
   const planNames = Object.fromEntries(Object.entries(plans.plans).map(([code, plan]) => [code, plan.names]));

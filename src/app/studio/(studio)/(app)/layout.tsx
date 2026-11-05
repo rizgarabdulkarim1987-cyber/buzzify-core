@@ -16,6 +16,7 @@ import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { RetailOnlyNotice } from '@/studio/shell/RetailOnlyNotice';
 import { Sidebar, type SidebarItem } from '@/studio/shell/Sidebar';
 import { SpaceShell, type SpaceNavigation } from '@/studio/shell/SpaceShell';
+import { spaceT } from '@/studio/space-words';
 import { SPACES } from '@/studio/spaces';
 
 /** The person's role as the sidebar names it: Super Admin, else their role in their restaurants. */
@@ -63,10 +64,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     const tillOpen = Boolean(pos.actor && pos.gate?.open);
     const spaces: SpaceNavigation[] = SPACES.map((space) => {
       const navItems = space.id === 'food' && tillOpen ? [...spaceNav(space.id), posNavItem()] : spaceNav(space.id);
+      // In the space's own words: a Retail product's list is its own ("Supermarkets"), never another product's.
+      const st = spaceT(t, space.id);
       return {
         id: space.id,
-        name: t(space.nameKey),
-        items: navItems.map(({ labelKey, label, scope, ...item }) => ({ ...item, label: label ?? t(labelKey) })),
+        name: st(space.nameKey),
+        items: navItems.map(({ labelKey, label, scope, ...item }) => ({ ...item, label: label ?? st(labelKey) })),
       };
     });
     return (

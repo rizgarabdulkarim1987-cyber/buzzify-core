@@ -2,7 +2,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { direction, type Locale } from '@/lib/locale';
 import { getPrisma } from '@/server/data/prisma';
 import { clientIp } from '@/server/http/client-ip';
-import { actorFromHeaders, type Actor } from '@/server/studio/auth/actor';
+import { actorFromHeaders } from '@/server/studio/auth/actor';
 import { addressKey, checkRateLimit, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
 import { getStudioTranslator } from '@/studio/messages';
@@ -14,8 +14,10 @@ import {
   decodeResume,
   encodeResume,
   HANDOFF_COOKIE_MAX_AGE,
+  HOP_COOKIE,
   isRestaurantId,
   issueHandoff,
+  mayHandOff,
   ownedRetailShops,
   PICK_COOKIE,
   RESUME_COOKIE,
@@ -49,7 +51,7 @@ function cookieLine(name: string, value: string, maxAge: number): string {
 }
 const setCookie = (name: string, value: string) => cookieLine(name, value, HANDOFF_COOKIE_MAX_AGE);
 const clearCookie = (name: string) => cookieLine(name, '', 0);
-const CLEAR_BOTH = () => [clearCookie(RESUME_COOKIE), clearCookie(PICK_COOKIE)];
+const CLEAR_BOTH = () => [clearCookie(RESUME_COOKIE), clearCookie(PICK_COOKIE), clearCookie(HOP_COOKIE)];
 
 function answer(status: number, body: string | null, contentType: string | null, cookies: string[], extra: Record<string, string> = {}): Response {
   const headers = new Headers({ ...BASE_HEADERS, ...extra });
@@ -96,9 +98,6 @@ async function admit(prisma: PrismaClient, request: Request, now: Date): Promise
   return null;
 }
 
-/** A session that may sign in elsewhere: not a till's PIN session, and a Super Admin only with two-factor on. */
-const mayHandOff = (actor: Actor) => !actor.posRestaurantId && (!actor.isSuperAdmin || actor.twoFactorEnabled);
-
 async function guarded(label: string, run: () => Promise<Response>): Promise<Response> {
   try {
     return await run();
@@ -116,14 +115,17 @@ export function handoffRoute(request: Request): Promise<Response> {
     const refused = await admit(prisma, request, now);
     if (refused) return refused;
     const config = retailConfig();
-    const callbackUrl = config.callbackUrl;
+    // RETAIL_URL's callback and each Retail product address's: a misconfigured address fails here (503).
+    const callbackUrls = config.callbackUrls;
     void config.handoffSecret; // A misconfigured secret fails here (503), before anyone is sent to sign in.
 
     const query = new URL(request.url).searchParams;
     const state = query.get('state');
     const nonce = query.get('nonce');
-    if (!checkReturn(query.get('return'), callbackUrl) || !checkStateAndNonce(state, nonce)) return plain(400, 'Bad request');
-    const resume = { state: state!, nonce: nonce! };
+    const back = query.get('return');
+    if (!checkReturn(back, callbackUrls) || !checkStateAndNonce(state, nonce)) return plain(400, 'Bad request');
+    const callbackUrl = back!;
+    const resume = { state: state!, nonce: nonce!, ...(callbackUrl !== config.callbackUrl ? { return: callbackUrl } : {}) };
 
     const actor = await actorFromHeaders(prisma, request.headers);
     if (!actor) return redirectTo(`${SIGN_IN_PATH}?next=${encodeURIComponent(CONTINUE_PATH)}`, [setCookie(RESUME_COOKIE, encodeResume(resume))]);
@@ -132,6 +134,20 @@ export function handoffRoute(request: Request): Promise<Response> {
     const choice = await chooseBusiness(prisma, actor, readCookie(request.headers, PICK_COOKIE));
     if (choice.kind === 'choose') return redirectTo(CHOOSE_PATH, [setCookie(RESUME_COOKIE, encodeResume(resume)), clearCookie(PICK_COOKIE)]);
     if (choice.kind === 'notReady') return page(200, actor.locale, 'preparing', CLEAR_BOTH());
+
+    // An owner signs in at the Retails address of their shop's own product. A handoff that came back to another address
+    // starts again at that product's (Retails makes its state there), with the shop picked; only once, so a Retails that
+    // names one return for all its addresses still signs the owner in, at the address it named.
+    if (choice.kind === 'business') {
+      const own = config.callbackUrlFor(choice.activity);
+      if (callbackUrl !== own && readCookie(request.headers, HOP_COOKIE) !== choice.restaurantId) {
+        return redirectTo(`${config.baseUrlFor(choice.activity)}${RETAIL_START_PATH}`, [
+          clearCookie(RESUME_COOKIE),
+          setCookie(PICK_COOKIE, choice.restaurantId),
+          setCookie(HOP_COOKIE, choice.restaurantId),
+        ]);
+      }
+    }
 
     const token = await issueHandoff(prisma, actor, choice.kind === 'business' ? choice.restaurantId : null, resume.nonce, now);
     if (!token) return page(403, actor.locale, 'refused', CLEAR_BOTH());
@@ -147,9 +163,11 @@ export function continueRoute(request: Request): Promise<Response> {
     const prisma = getPrisma();
     const refused = await admit(prisma, request, new Date());
     if (refused) return refused;
-    const callbackUrl = retailConfig().callbackUrl;
+    const config = retailConfig();
     const resume = decodeResume(readCookie(request.headers, RESUME_COOKIE));
     if (!resume) return plain(400, 'Bad request', [clearCookie(RESUME_COOKIE)]);
+    // The address the handoff came back to, while it is still one of the configured ones; else RETAIL_URL's.
+    const callbackUrl = resume.return && checkReturn(resume.return, config.callbackUrls) ? resume.return : config.callbackUrl;
     const query = new URLSearchParams({ return: callbackUrl, state: resume.state, nonce: resume.nonce });
     return redirectTo(`${HANDOFF_PATH}?${query}`);
   });
@@ -160,16 +178,19 @@ export function openRoute(request: Request, restaurantId: string): Promise<Respo
     const prisma = getPrisma();
     const refused = await admit(prisma, request, new Date());
     if (refused) return refused;
-    const baseUrl = retailConfig().baseUrl;
+    const config = retailConfig();
+    void config.baseUrl; // A misconfigured address fails here (503).
     if (!isRestaurantId(restaurantId)) return notFound();
     const actor = await actorFromHeaders(prisma, request.headers);
     if (!actor || !mayHandOff(actor)) return notFound();
     const owned = await ownedRetailShops(prisma, actor.userId);
-    if (!owned.some((shop) => shop.id === restaurantId)) return notFound();
+    const shop = owned.find((entry) => entry.id === restaurantId);
+    if (!shop) return notFound();
 
     const pick = setCookie(PICK_COOKIE, restaurantId);
     // From the chooser: the handoff Retails started is still waiting in the resume cookie.
     if (decodeResume(readCookie(request.headers, RESUME_COOKIE))) return redirectTo(CONTINUE_PATH, [pick]);
-    return redirectTo(`${baseUrl}${RETAIL_START_PATH}`, [pick]);
+    // Retails' start at the address of the shop's own product (RETAIL_URL when that product has none).
+    return redirectTo(`${config.baseUrlFor(shop.activity)}${RETAIL_START_PATH}`, [pick]);
   });
 }

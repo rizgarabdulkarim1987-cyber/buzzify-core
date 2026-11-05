@@ -17,3 +17,6 @@ export const CHOOSE_PATH = '/studio/retail/choose';
 
 /** Retails' own start of the handoff (it makes the state): the way into Retail from the Studio's side. */
 export const RETAIL_START_PATH = '/api/core/v1/handoff/start';
+
+/** Retails' own sign-in page (email and password, checked by Studio through `/api/retail/v1/credentials`). */
+export const RETAIL_SIGN_IN_PATH = '/login';

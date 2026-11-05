@@ -226,7 +226,8 @@ describe('Studio and Retails, end to end against a fake Retails', () => {
     expect(provision).toMatchObject({
       coreBusinessId: restaurantId,
       name: 'Acceptance Shop',
-      activityType: 'MIXED',
+      // Every shop made before the three products, and every shop made without one, is a Supermarket.
+      activityType: 'MARKET',
       branches: [{ name: 'Main' }, { name: 'Ankawa' }],
       currencies: ['IQD', 'USD'],
     });

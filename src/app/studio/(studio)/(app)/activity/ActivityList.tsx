@@ -9,7 +9,7 @@ import type { AuditRow, Named } from '@/server/studio/services/activity';
 import { formatDateTime } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { spaceT } from '@/studio/space-words';
-import { businessBase } from '@/studio/spaces';
+import { businessBase, isRetailSpace, type BusinessSpaceId } from '@/studio/spaces';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { Pagination } from '@/studio/ui/Pagination';
@@ -56,13 +56,13 @@ export async function ActivityList({
   space,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-  space: 'food' | 'pharmacy' | 'retail';
+  space: BusinessSpaceId;
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   const t = spaceT(getStudioTranslator(actor.locale), space);
   // A retail shop has no menus: the Retail space's log has no Menu column.
-  const withMenu = space !== 'retail';
+  const withMenu = !isRetailSpace(space);
   const columns = withMenu ? COLUMNS : COLUMNS.filter((column) => column !== 'menu');
   const input = { ...activityInput(await searchParams), space };
   const log = await query(listActivity, input);

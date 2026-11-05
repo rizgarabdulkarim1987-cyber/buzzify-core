@@ -181,6 +181,9 @@ secrets are right. Each value is the same as its twin in Retails:
 | Here | In Retails | Value |
 |---|---|---|
 | `RETAIL_URL` | `APP_URL` | Retails' address, written identically on both sides: `https://`, lowercase, no path, no trailing slash, no port |
+| `RETAIL_URL_SUPERMARKET` | one of `PACK_HOSTS` | Optional. The Supermarket's own Retails address (planned `https://supermarket.buzzify.tech`), written by the same rules as `RETAIL_URL`. Unset: `RETAIL_URL` |
+| `RETAIL_URL_ELECTRONICS` | one of `PACK_HOSTS` | Optional. Electronics' own address (planned `https://electronics.buzzify.tech`). Unset: `RETAIL_URL` |
+| `RETAIL_URL_CLOTHING` | one of `PACK_HOSTS` | Optional. Clothing's own address (planned `https://clothing.buzzify.tech`). Unset: `RETAIL_URL` |
 | `RETAIL_SYNC_SECRET` | `CORE_SYNC_SECRET` | `openssl rand -base64 32` |
 | `RETAIL_CALLER_SECRET` | `CORE_OUT_SECRET` | `openssl rand -base64 32` |
 | `RETAIL_CALLER_SECRET_PREVIOUS` | | empty, except while `RETAIL_CALLER_SECRET` is being changed |
@@ -188,6 +191,19 @@ secrets are right. Each value is the same as its twin in Retails:
 | | `CORE_BASE_URL` | `https://studio.buzzify-menu.online`, the Studio address. Not `buzzify-menu.online`: there `/api/retail/...` is a 404, which Retails reads as "no AI key" |
 
 Each secret differs from the others and from `CRON_SECRET` and `BETTER_AUTH_SECRET`. A changed variable needs a new build.
+
+**The three Retail products.** One Retails app serves Supermarket, Electronics and Clothing, so there is one set of
+secrets and every call from the Studio goes to `RETAIL_URL`. Each product may have its own address
+(`RETAIL_URL_SUPERMARKET`, `RETAIL_URL_ELECTRONICS`, `RETAIL_URL_CLOTHING`): an owner opening Retails is sent to the
+address of their shop's product, and a sign-in may return to `RETAIL_URL` or any of these addresses, compared exactly,
+and to no other. Set a product address only once Retails serves it (its host is in Retails' `PACK_HOSTS`). A product
+address without `RETAIL_URL` stops the build; so does one not written like `RETAIL_URL` (`https://`, lowercase, no path,
+no trailing slash, no port).
+
+**Before the merge of the three products** (`20261104100000_retail_activity`). That migration is additive: it creates the
+enum type `RetailActivity` (`SUPERMARKET`, `ELECTRONICS`, `CLOTHING`) and adds the column `RetailLink.activity`,
+`NOT NULL DEFAULT 'SUPERMARKET'`. No row is changed or removed: every existing retail shop (the test shop "Rizgar"
+among them) reads as a Supermarket. Take a fresh Neon snapshot of `production` before the merge all the same.
 
 **Two more cron jobs** (hPanel -> Advanced -> Cron Jobs -> Custom), with the same `CRON_SECRET` and header as the jobs
 above:

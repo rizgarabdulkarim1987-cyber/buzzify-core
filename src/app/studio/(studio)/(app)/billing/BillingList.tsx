@@ -7,7 +7,7 @@ import { billingRestaurants } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
 import { getStudioTranslator } from '@/studio/messages';
 import { spaceT } from '@/studio/space-words';
-import { businessBase } from '@/studio/spaces';
+import { businessBase, type BusinessSpaceId } from '@/studio/spaces';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -23,7 +23,7 @@ export async function BillingList({
   space,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-  space: 'food' | 'pharmacy' | 'retail';
+  space: BusinessSpaceId;
 }) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);

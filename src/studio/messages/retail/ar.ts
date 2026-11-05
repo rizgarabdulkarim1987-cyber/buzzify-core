@@ -1,4 +1,5 @@
 import type { Messages } from '@/lib/i18n';
+import products from './products/ar';
 
 const retail: Messages = {
   'retail.choose.title': 'اختر متجرًا',
@@ -139,6 +140,7 @@ const retail: Messages = {
   'retail.as.error.text.deleteHasTillHistory': 'لهذا الحساب سجل في منتج آخر، لذلك يبقى معطَّلًا فقط',
   'retail.as.restaurants.branches.emptyBody': 'أضف فرعًا إذا كان للمحل أكثر من موقع.',
   'retail.as.media.picker.intro': 'من مكتبة هذا المحل والمكتبة المشتركة.',
+  ...products,
 };
 
 export default retail;

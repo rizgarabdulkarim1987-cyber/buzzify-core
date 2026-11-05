@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { pickAnnouncement, type ActiveAnnouncement, type AnnouncementRow } from '@/lib/announcements';
 import { defineQuery } from '@/server/studio/framework/query';
-import { businessSpace } from '@/server/studio/services/space-scope';
+import { announcementSpaces, businessSpace } from '@/server/studio/services/space-scope';
 
 /**
  * (Pharmacy announcements are kept for the pharmacy app; no till or Studio reader shows them.)
@@ -37,7 +37,7 @@ export const listAnnouncements = defineQuery({
   target: () => ({ kind: 'platform' }),
   run: async ({ db }, { space }): Promise<AnnouncementRow[]> => {
     const now = Date.now();
-    const rows = await db.announcement.findMany({ where: { archivedAt: null, space }, orderBy: { startsAt: 'desc' }, take: 200 });
+    const rows = await db.announcement.findMany({ where: { archivedAt: null, space: { in: announcementSpaces(space) } }, orderBy: { startsAt: 'desc' }, take: 200 });
     return rows.map((row) => ({
       id: row.id,
       titles: row.titles as Record<string, string>,

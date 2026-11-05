@@ -2344,6 +2344,13 @@ enum BusinessSector {
   RETAIL
 }
 
+/// Which Buzzify Retail product a RETAIL business is. Beside the sector, not in it: BusinessSector never grows.
+enum RetailActivity {
+  SUPERMARKET
+  ELECTRONICS
+  CLOTHING
+}
+
 /// What a person may do in a pharmacy.
 enum PhRole {
   OWNER
@@ -4399,6 +4406,8 @@ model RetailLink {
   currencies       Currency[] @default([IQD])
   /// The per-shop AI master switch Retails applies as its `ai.intake` override.
   aiIntake         Boolean    @default(false)
+  /// Which Retail product the shop is (its space in the hub; Retails' activityType). Set at creation; support changes it.
+  activity         RetailActivity @default(SUPERMARKET)
   /// Grows by one in the transaction of every change that alters the snapshot. 0 = nothing to send yet.
   stateVersion     Int        @default(0)
   /// The highest version Retails answered 200 for (applied or not).

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { jump } from '@/app/studio/_actions/search';
 import { SpaceWords, useT } from '@/studio/i18n';
 import { spaceT } from '@/studio/space-words';
-import { businessPath, sectorOfSpace } from '@/studio/spaces';
+import { businessPath, type BusinessSpaceId } from '@/studio/spaces';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
 import { isJumpShortcut } from './jump-shortcut';
 
@@ -18,7 +18,7 @@ const MAX_TYPED = 80;
  * result opens the restaurant's profile or the menu's page. When it closes, focus goes back where it was (the button, when
  * the shortcut was pressed with nothing focused).
  */
-export function JumpTo({ space }: { space?: 'food' | 'pharmacy' | 'retail' }) {
+export function JumpTo({ space }: { space?: BusinessSpaceId }) {
   // In the words of the space: Retail's Jump to finds shops, never restaurants or menus.
   const t = spaceT(useT(), space);
   const [open, setOpen] = useState(false);
@@ -80,7 +80,7 @@ export function JumpTo({ space }: { space?: 'food' | 'pharmacy' | 'retail' }) {
             id: `restaurant:${restaurant.id}`,
             label: restaurant.name,
             detail: [restaurant.clientId, restaurant.city].filter(Boolean).join(' · '),
-            href: businessPath((space && sectorOfSpace(space)) ?? 'FOOD', restaurant.id),
+            href: businessPath(space ?? 'food', restaurant.id),
           })),
         });
       }

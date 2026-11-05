@@ -1,4 +1,4 @@
-import { Plus, ShoppingBag } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -10,42 +10,48 @@ import { formatDate, numberFormat } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { syncLabel } from '@/studio/retail-sync';
-import { businessPath } from '@/studio/spaces';
+import { SPACE_ICONS } from '@/studio/space-icons';
+import { spaceT } from '@/studio/space-words';
+import { businessBase, businessPath, isRetailSpace } from '@/studio/spaces';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
-import { RestaurantStatusBadge } from '../../restaurants/RestaurantStatusBadge';
+import { RestaurantStatusBadge } from '../restaurants/RestaurantStatusBadge';
+import { productOf, type ProductPageProps } from './product';
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: getStudioTranslator(await requestStudioLocale())('retail.title') };
+export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
+  const { product } = await params;
+  const t = getStudioTranslator(await requestStudioLocale());
+  return { title: (isRetailSpace(product) ? spaceT(t, product) : t)('retail.title') };
 }
 
-const NEW_SHOP = '/studio/retail/new';
-
 /**
- * The retail shops on the platform, the way the Pharmacy page is for pharmacies: every RETAIL-sector business linked to
- * Buzzify Retail with its branches, status, Retail subscription and how far delivery to Retails has got. `?failed=1`
- * keeps the shops whose delivery failed. It is the Retail space's list: each row opens the shop's Retail tab there. Super
+ * The shops of one Retail product (Supermarket, Electronics or Clothing), the way the Pharmacy page is for pharmacies:
+ * every RETAIL-sector business of that product linked to Buzzify Retail with its branches, status, Retail subscription and how far delivery to Retails has got. `?failed=1`
+ * keeps the shops whose delivery failed. It is the product space's list, and no other product's shop is on it: each row opens the shop's Retail tab there. Super
  * Admins read it; anyone else gets the not-found page.
  */
-export default async function RetailPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function RetailPage({ params, searchParams }: ProductPageProps) {
+  const product = await productOf(params);
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
-  const t = getStudioTranslator(actor.locale);
+  const t = spaceT(getStudioTranslator(actor.locale), product);
+  const base = businessBase(product);
+  const Icon = SPACE_ICONS[product];
   const number = numberFormat(actor.locale);
   const failedOnly = (await searchParams).failed === '1';
-  const { rows } = await query(retailList, { failedOnly });
+  const { rows } = await query(retailList, { failedOnly, space: product });
 
   const newShop = (
-    <Link href={NEW_SHOP} className={buttonClasses('primary')}>
+    <Link href={`${base}/new`} className={buttonClasses('primary')}>
       <Plus aria-hidden />
       {t('retail.new')}
     </Link>
   );
   const filters = [
-    { id: 'all', href: '/studio/retail', label: t('retail.filter.all'), current: !failedOnly },
-    { id: 'failed', href: '/studio/retail?failed=1', label: t('retail.filter.failed'), current: failedOnly },
+    { id: 'all', href: base, label: t('retail.filter.all'), current: !failedOnly },
+    { id: 'failed', href: `${base}?failed=1`, label: t('retail.filter.failed'), current: failedOnly },
   ];
 
   return (
@@ -66,9 +72,9 @@ export default async function RetailPage({ searchParams }: { searchParams: Promi
         </nav>
         {rows.length === 0 ? (
           failedOnly ? (
-            <EmptyState icon={<ShoppingBag aria-hidden />} title={t('retail.emptyFailedTitle')} body={t('retail.emptyFailedBody')} />
+            <EmptyState icon={<Icon aria-hidden />} title={t('retail.emptyFailedTitle')} body={t('retail.emptyFailedBody')} />
           ) : (
-            <EmptyState icon={<ShoppingBag aria-hidden />} title={t('retail.emptyTitle')} body={t('retail.emptyBody')} action={newShop} />
+            <EmptyState icon={<Icon aria-hidden />} title={t('retail.emptyTitle')} body={t('retail.emptyBody')} action={newShop} />
           )
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line">
@@ -89,7 +95,7 @@ export default async function RetailPage({ searchParams }: { searchParams: Promi
                   return (
                     <tr key={row.id}>
                       <td className="px-4 py-3">
-                        <Link href={businessPath('RETAIL', row.id, 'retail')} className="font-medium text-text underline-offset-2 hover:underline">
+                        <Link href={businessPath(product, row.id, 'retail')} className="font-medium text-text underline-offset-2 hover:underline">
                           {row.name}
                         </Link>
                         <p className="text-xs text-muted">{formatDate(row.createdAt.toISOString(), actor.locale)}</p>

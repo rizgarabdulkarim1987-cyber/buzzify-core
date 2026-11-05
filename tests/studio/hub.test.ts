@@ -8,14 +8,24 @@ import { SPACES } from '@/studio/spaces';
 const markup = (locale: 'en' | 'ar' | 'ckb' = 'en', spaces = SPACES) => renderToStaticMarkup(createElement(ProjectHub, { t: getStudioTranslator(locale), spaces }));
 
 describe('ProjectHub', () => {
-  it('shows three large project links, Menu and Cashier, Pharmacy and Retail, and a small Platform link', () => {
+  it('shows five large product links, Menu and Cashier, Pharmacy and the three Retail products, and a small Platform link', () => {
     const html = markup();
-    expect(html).toContain('href="/studio/overview"');
-    expect(html).toContain('href="/studio/pharmacy"');
-    expect(html).toContain('href="/studio/retail"');
-    expect(html).toContain('href="/studio/team"');
-    expect(html.match(/data-project="large"/g)).toHaveLength(3);
+    for (const home of ['/studio/overview', '/studio/pharmacy', '/studio/supermarket', '/studio/electronics', '/studio/clothing', '/studio/team']) {
+      expect(html).toContain(`href="${home}"`);
+    }
+    expect(html).not.toContain('href="/studio/retail"');
+    expect(html.match(/data-project="large"/g)).toHaveLength(5);
     expect(html.match(/data-project="small"/g)).toHaveLength(1);
+  });
+
+  it('draws each Retail product with its own icon: a cart, a phone and a shirt', () => {
+    const html = markup();
+    for (const icon of ['lucide-shopping-cart', 'lucide-smartphone', 'lucide-shirt', 'lucide-pill', 'lucide-utensils-crossed']) expect(html, icon).toContain(icon);
+  });
+
+  it('sits two to a row on a phone and keeps every tile one width from a tablet up', () => {
+    const html = markup();
+    expect(html.match(/w-\[calc\(50%-0\.375rem\)\][^"]*sm:w-44/g)).toHaveLength(5);
   });
 
   it('centres the icons on both axes of the screen', () => {
@@ -27,7 +37,7 @@ describe('ProjectHub', () => {
     for (const locale of ['en', 'ar', 'ckb'] as const) {
       const t = getStudioTranslator(locale);
       const html = markup(locale);
-      for (const key of ['hub.food', 'hub.pharmacy', 'hub.retail', 'hub.platform']) {
+      for (const key of ['hub.food', 'hub.pharmacy', 'hub.supermarket', 'hub.electronics', 'hub.clothing', 'hub.platform']) {
         expect(t(key)).not.toBe(key);
         expect(html).toContain(t(key));
       }
@@ -36,6 +46,6 @@ describe('ProjectHub', () => {
 
   it('draws a new project as one more large icon without any other change', () => {
     const extra = { ...SPACES[1]!, id: 'clinic' as never, home: '/studio/clinic', prefix: '/studio/clinic' };
-    expect(markup('en', [...SPACES, extra]).match(/data-project="large"/g)).toHaveLength(4);
+    expect(markup('en', [...SPACES, extra]).match(/data-project="large"/g)).toHaveLength(6);
   });
 });
