@@ -69,7 +69,7 @@ const MORE: Entry[] = [
 
 const DOCTOR: PhNavItem = { key: 'doctor', href: '/pharmacy/doctor', labelKey: 'pharmacy.nav.doctor', icon: 'stethoscope' };
 
-const strip = ({ allow: _allow, ...item }: Entry): PhNavItem => item;
+const strip = ({ key, href, labelKey, icon, badge }: Entry): PhNavItem => ({ key, href, labelKey, icon, ...(badge ? { badge } : {}) });
 
 /** The places this role may open: a short primary row and the rest under "more". `null` (support) sees home only. */
 export function phNav(
