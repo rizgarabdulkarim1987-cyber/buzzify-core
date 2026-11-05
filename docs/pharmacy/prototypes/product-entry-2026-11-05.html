@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إدخال سريع للمواد</title>
+<style>
+body{--bg:#eef2f3;--panel:#fff;--ink:#16202a;--mute:#42505c;--line:#cdd8da;--soft:#f3f7f7;--head:#0f3d3e;--head-ink:#fff;--brand:#0f3d3e;--brand-ink:#fff;--accent:#0b7a75;--warn:#a4161a;--warn-bg:#fde8e8;--ok:#17633a;--ok-bg:#e3f5ea;--info-bg:#e0ecff;--info-ink:#143a7a;--rx-bg:#ffe0e0;--rx-ink:#7a1414;--hl:#fff4cf}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,"Segoe UI",Tahoma,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #ffb300;outline-offset:1px}
+b,td{font-variant-numeric:tabular-nums}
+.wrap{max-width:1360px;margin:0 auto;padding:8px;display:grid;gap:8px}
+.bar{background:var(--head);color:var(--head-ink);border-radius:10px;display:flex;align-items:center;gap:14px;padding:6px 14px;min-height:48px}
+.bar b{font-size:16px}.bar .sp{flex:1}
+.bar .sess{background:rgba(255,255,255,.15);border-radius:8px;padding:4px 12px}
+.scanbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:8px}
+.scanrow{display:flex;gap:8px}
+#scan{flex:1;min-height:56px;font-size:20px;border:2px solid var(--accent);border-radius:10px;padding:0 14px;background:#fff}
+.btn{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-weight:600}
+.btn.pri{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn.pri[disabled]{opacity:.45;cursor:not-allowed}
+.state{border-radius:10px;padding:10px 14px;font-weight:700;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.state.idle{background:var(--soft);color:var(--mute);font-weight:500}
+.state.known{background:var(--ok-bg);color:var(--ok)}
+.state.new{background:var(--info-bg);color:var(--info-ink)}
+.state .pill{background:#fff;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:600;color:var(--ink)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:8px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--mute)}
+.form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.f{display:grid;gap:3px;align-content:start}
+.f label{font-size:12px;color:var(--mute)}
+.f label em{color:var(--warn);font-style:normal}
+.f input,.f select{min-height:44px;border:1px solid var(--line);border-radius:8px;padding:0 10px;background:#fff;width:100%}
+.f.w2{grid-column:span 2}.f.w4{grid-column:1/-1}
+.f small{color:var(--mute);font-size:11px}
+.f.hint input{background:var(--hl)}
+.sep{grid-column:1/-1;border-top:1px dashed var(--line);margin:2px 0;font-size:12px;color:var(--mute);padding-top:6px}
+.tog{display:flex;gap:6px}
+.tog button{flex:1;min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.tog button[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.msg{flex:1;min-width:200px;font-weight:600}.msg.ok{color:var(--ok)}.msg.err{color:var(--warn)}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.summary div{background:var(--soft);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--mute)}
+.summary b{display:block;font-size:16px;color:var(--ink)}
+.hist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--soft);text-align:start;padding:5px 6px;color:var(--mute);font-weight:600}
+td{padding:5px 6px;border-top:1px solid var(--line)}
+.empty{color:var(--mute);padding:14px;text-align:center}
+ol{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+ol li{border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:grid;gap:2px;font-size:13px}
+ol li small{color:var(--mute)}
+ol li.new{border-color:var(--info-ink)}
+.tag{font-size:11px;background:var(--info-bg);color:var(--info-ink);border-radius:5px;padding:0 6px;margin-inline-start:6px}
+.rx{background:var(--rx-bg);color:var(--rx-ink)}
+.demo{font-size:12px;color:var(--mute)}
+.demo code{background:#fff;border:1px solid var(--line);border-radius:5px;padding:1px 6px;cursor:pointer}
+@media(max-width:900px){.main{grid-template-columns:1fr}.form{grid-template-columns:repeat(2,minmax(0,1fr))}.hist{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar"><b>SPC</b><span>إدخال المواد</span><span class="sp"></span><span class="sess">أُدخل في هذه الجلسة: <b id="cnt">0</b></span><b>Yassamin Pharmacy</b></div>
+
+  <div class="scanbox">
+    <div class="scanrow">
+      <input id="scan" inputmode="numeric" autocomplete="off" placeholder="امسح الباركود، أو اكتب اسم المادة، ثم Enter" aria-label="الباركود أو الاسم" autofocus>
+      <button class="btn" id="clear">مسح / مادة أخرى <small>Esc</small></button>
+    </div>
+    <div class="state idle" id="state" role="status">جاهز. امسح أي مادة: إن كانت معروفة تظهر نموذج الدفعة، وإن كانت جديدة يظهر نموذج المادة الجديدة كاملاً.</div>
+    <div class="demo">للتجربة اضغط: <code data-c="6260147701596">Glucophage (معروفة)</code> <code data-c="6291003012345">Panadol Extra (معروفة)</code> <code data-c="1234500099">باركود جديد</code></div>
+  </div>
+
+  <div class="main">
+    <div style="display:grid;gap:8px">
+      <section class="card" id="formCard" hidden>
+        <div class="summary" id="sum"></div>
+        <div class="form" id="form"></div>
+        <div class="actions">
+          <button class="btn pri" id="save">حفظ <small>Enter في آخر حقل · F2</small></button>
+          <span class="msg" id="msg" role="status" aria-live="polite"></span>
+        </div>
+      </section>
+      <section class="card" id="histCard" hidden>
+        <h3>سجل المادة</h3>
+        <div class="hist" id="hist"></div>
+      </section>
+    </div>
+    <aside class="card"><h3>المُدخَل الآن</h3><ol id="done"><li class="empty">لا شيء بعد</li></ol></aside>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);const fmt=n=>Math.round(n).toLocaleString('en-US');
+const DB={
+ '6260147701596':{name:'Glucophage 500mg tab',ing:'metformin',rx:true,stock:71,spp:3,ups:10,lastBuy:{p:3.1,sell:20000,sup:'مذخر الحكيم',date:'04/10/2026'},
+  buy:[['04/10/2026','مذخر الحكيم','30','3.10$','2028-01'],['12/08/2026','مذخر الحكيم','50','3.05$','2027-07'],['01/06/2026','مذخر الشرق','40','3.20$','2027-03']],
+  sell:[['05/11/2026','شريط','2','2,000'],['04/11/2026','باكيت','1','6,000'],['03/11/2026','شريط','3','2,000'],['02/11/2026','شريط','1','2,000']],
+  ret:[['28/10/2026','شريط','1','2,000','خطأ في الصرف']]},
+ '6291003012345':{name:'Panadol Extra',ing:'paracetamol',rx:false,stock:3,spp:1,ups:12,lastBuy:{p:1.0,sell:1500,sup:'مذخر الشرق',date:'12/09/2026'},
+  buy:[['12/09/2026','مذخر الشرق','60','1.00$','2026-12']],
+  sell:[['05/11/2026','شريط','2','1,500'],['04/11/2026','شريط','4','1,500']],ret:[]}
+};
+let cur=null,done=[],isNew=false,rx=false;
+const state=$('#state'),msg=$('#msg');
+const f=(id,label,attrs='',opts={})=>`<div class="f ${opts.cls||''}"><label for="${id}">${label}${opts.req?' <em>*</em>':''}</label><input id="${id}" ${attrs}>${opts.hint?`<small>${opts.hint}</small>`:''}</div>`;
+
+function show(code){
+  const q=code.trim();if(!q)return;
+  const p=DB[q]||Object.entries(DB).map(e=>e[1]).find(x=>x.name.toLowerCase().includes(q.toLowerCase()));
+  const barcode=DB[q]?q:(p?Object.keys(DB).find(k=>DB[k]===p):q);
+  $('#formCard').hidden=false;msg.textContent='';msg.className='msg';
+  if(p){
+    cur={code:barcode,p};isNew=false;
+    state.className='state known';state.innerHTML=`مادة معروفة: <b>${p.name}</b><span class="pill">${p.ing}</span>${p.rx?'<span class="pill rx">وصفة</span>':''}<span class="pill">آخر شراء ${p.lastBuy.date}</span>`;
+    $('#sum').innerHTML=`<div>المخزون الحالي<b>${p.stock} باكيت</b></div><div>آخر سعر شراء<b>${p.lastBuy.p.toFixed(2)}$</b></div><div>سعر البيع الحالي<b>${fmt(p.lastBuy.sell)}</b></div><div>آخر مورّد<b>${p.lastBuy.sup}</b></div>`;
+    $('#form').innerHTML=f('qty','العدد (باكيت)','type="number" min="1" inputmode="numeric"',{req:1})+f('exp','تاريخ الانتهاء (شهر/سنة)','placeholder="MM/YY" inputmode="numeric" maxlength="5"',{req:1})+f('buyp','سعر الشراء للباكيت ($)',`type="number" step="0.01" value="${p.lastBuy.p}"`,{req:1,cls:'hint',hint:'معبّأ من آخر شراء'})+f('sell','سعر البيع للباكيت',`type="number" value="${p.lastBuy.sell}"`,{cls:'hint',hint:'معبّأ من السعر الحالي'})+f('lot','رقم الدفعة (اختياري)','',{})+f('sup','المورّد','value="'+p.lastBuy.sup+'"',{cls:'w2'})+`<div class="f"><label>&nbsp;</label><small>الباكيت = ${p.spp} شريط × ${p.ups} حبة</small></div>`;
+    renderHist(p);
+  }else{
+    cur={code:barcode,p:null};isNew=true;rx=false;
+    state.className='state new';state.innerHTML=`مادة جديدة: باركود <b>${barcode}</b><span class="pill">املأ الحقول الأربعة الأولى فقط ثم احفظ، والباقي اختياري ويمكن تعبئته الآن</span>`;
+    $('#sum').innerHTML='';
+    $('#form').innerHTML=f('nm','اسم المادة','autocomplete="off"',{req:1,cls:'w2'})+f('sell','سعر البيع للباكيت','type="number" inputmode="numeric"',{req:1})+f('qty','العدد (باكيت)','type="number" min="1"',{req:1})
+     +f('exp','تاريخ الانتهاء (شهر/سنة)','placeholder="MM/YY" maxlength="5" inputmode="numeric"',{req:1})
+     +'<div class="sep">اختياري (كله على نفس الشاشة)</div>'
+     +f('buyp','سعر الشراء للباكيت ($)','type="number" step="0.01"',{})+f('spp','أشرطة في الباكيت','type="number" value="1"',{})+f('ups','حبات في الشريط','type="number" value="10"',{})
+     +`<div class="f"><label>تحتاج وصفة؟</label><div class="tog"><button type="button" id="rxN" aria-pressed="true">لا</button><button type="button" id="rxY" aria-pressed="false">نعم</button></div></div>`
+     +f('ing','المادة الفعّالة','autocomplete="off"',{cls:'w2',hint:'لعرض البدائل في الكاشير'})+f('sup','المورّد','',{})+f('min','حدّ التنبيه (باكيت)','type="number" value="5"',{})+f('lot','رقم الدفعة','',{});
+    $('#rxN').onclick=()=>{rx=false;$('#rxN').setAttribute('aria-pressed','true');$('#rxY').setAttribute('aria-pressed','false')};
+    $('#rxY').onclick=()=>{rx=true;$('#rxY').setAttribute('aria-pressed','true');$('#rxN').setAttribute('aria-pressed','false')};
+    renderHist(null);
+  }
+  const first=isNew?$('#nm'):$('#qty');first.focus();
+  const inputs=[...$('#form').querySelectorAll('input')];
+  inputs.forEach((el,i)=>el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const reqDone=required().every(x=>x.value.trim());if(i===inputs.length-1||(reqDone&&e.ctrlKey))save();else inputs[i+1].focus()}}));
+  $('#exp').addEventListener('input',e=>{let v=e.target.value.replace(/\D/g,'').slice(0,4);if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2);e.target.value=v});
+}
+const required=()=>['#nm','#sell','#qty','#exp'].map(s=>$(s)).filter(Boolean).concat(isNew?[]:[$('#buyp')]);
+function renderHist(p){
+  $('#histCard').hidden=false;
+  const tbl=(h,rows)=>rows.length?`<table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<div class="empty">لا يوجد</div>';
+  $('#hist').innerHTML=`<div><h3>الشراء</h3>${p?tbl(['التاريخ','المورّد','العدد','السعر','الانتهاء'],p.buy):'<div class="empty">مادة جديدة: لا سجل بعد</div>'}</div><div><h3>المبيعات</h3>${p?tbl(['التاريخ','الوحدة','العدد','السعر'],p.sell):'<div class="empty">لا يوجد</div>'}</div><div><h3>المرتجعات</h3>${p?tbl(['التاريخ','الوحدة','العدد','السعر','السبب'],p.ret):'<div class="empty">لا يوجد</div>'}</div>`;
+}
+function validExp(v){const m=/^(\d\d)\/(\d\d)$/.exec(v);if(!m)return false;const mo=+m[1],y=2000+ +m[2];return mo>=1&&mo<=12&&(y>2026||(y===2026&&mo>=11))}
+function save(){
+  if(!cur)return;
+  const miss=required().find(x=>!x.value.trim());
+  if(miss){msg.className='msg err';msg.textContent='أكمل الحقل: '+miss.closest('.f').querySelector('label').textContent.replace('*','').trim();miss.focus();return}
+  if(!validExp($('#exp').value)){msg.className='msg err';msg.textContent='تاريخ الانتهاء غير صالح أو منتهٍ. اكتب شهر/سنة مثل 08/28';$('#exp').focus();return}
+  if(+$('#qty').value<1){msg.className='msg err';msg.textContent='العدد يجب أن يكون 1 أو أكثر';$('#qty').focus();return}
+  const name=isNew?$('#nm').value.trim():cur.p.name;
+  done.unshift({name,qty:$('#qty').value,exp:$('#exp').value,sell:$('#sell').value,isNew});
+  if(isNew){DB[cur.code]={name,ing:($('#ing')||{}).value||'',rx,stock:+$('#qty').value,spp:+$('#spp').value||1,ups:+$('#ups').value||10,lastBuy:{p:+($('#buyp').value||0),sell:+$('#sell').value,sup:$('#sup').value||'-',date:'05/11/2026'},buy:[['05/11/2026',$('#sup').value||'-',$('#qty').value,($('#buyp').value||'-')+'$',$('#exp').value]],sell:[],ret:[]}}
+  else{cur.p.stock+=+$('#qty').value;cur.p.buy.unshift(['05/11/2026',$('#sup').value||'-',$('#qty').value,(+$('#buyp').value).toFixed(2)+'$',$('#exp').value]);cur.p.lastBuy={p:+$('#buyp').value,sell:+$('#sell').value,sup:$('#sup').value,date:'05/11/2026'}}
+  renderDone();
+  $('#formCard').hidden=true;$('#histCard').hidden=true;cur=null;
+  state.className='state idle';state.textContent='تم الحفظ: '+name+'. امسح المادة التالية.';
+  $('#scan').value='';$('#scan').focus();
+}
+function renderDone(){
+  $('#cnt').textContent=done.length;
+  $('#done').innerHTML=done.map(d=>`<li class="${d.isNew?'new':''}"><b>${d.name}${d.isNew?'<span class="tag">جديدة</span>':''}</b><small>${d.qty} باكيت · ينتهي ${d.exp} · بيع ${fmt(+d.sell)}</small></li>`).join('')||'<li class="empty">لا شيء بعد</li>';
+}
+function reset(){cur=null;$('#formCard').hidden=true;$('#histCard').hidden=true;state.className='state idle';state.textContent='جاهز. امسح أي مادة.';$('#scan').value='';$('#scan').focus()}
+$('#scan').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();show(e.target.value)}});
+$('#save').onclick=save;$('#clear').onclick=reset;
+document.addEventListener('keydown',e=>{if(e.key==='F2'){e.preventDefault();save()}if(e.key==='Escape')reset()});
+document.querySelectorAll('[data-c]').forEach(c=>c.onclick=()=>{$('#scan').value=c.dataset.c;show(c.dataset.c)});
+</script>
+</body>
+</html>
