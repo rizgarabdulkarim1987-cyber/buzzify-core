@@ -7,6 +7,7 @@ import * as staffActions from '@/server/pharmacy/actions/staff';
 import { doctorUserText } from '@/server/pharmacy/doctor/prompt';
 import * as rxReviewQueries from '@/server/pharmacy/queries/rx-review';
 import * as staffQueries from '@/server/pharmacy/queries/staff';
+import { orderRxReview } from '@/server/pharmacy/staff-doctor';
 import { SERVER_TEXT } from '@/studio/errors';
 import { quiet } from './assistant-mock';
 import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
@@ -35,6 +36,10 @@ interface World {
   cashierStaffId: string;
   stock: Person;
   accountant: Person;
+  coOwner: Person;
+  ownerRowStaffId: string;
+  staffOwner: Person;
+  staffOwnerStaffId: string;
 }
 let w: World;
 
@@ -70,6 +75,9 @@ beforeAll(async () => {
   const cashier = await person('sdCashier', { staff: [biz.id, 'CASHIER', [a]] });
   const stock = await person('sdStock', { staff: [biz.id, 'STOCK', [a]] });
   const accountant = await person('sdAccountant', { staff: [biz.id, 'ACCOUNTANT', [a]] });
+  // A second Studio owner, who also has a pharmacist staff row of their own; and a staff row whose role is OWNER with no membership.
+  const coOwner = await person('sdCoOwner', { membership: [biz.id, 'OWNER'], staff: [biz.id, 'PHARMACIST', [a]] });
+  const staffOwner = await person('sdStaffOwner', { staff: [biz.id, 'OWNER', [a]] });
 
   const otherBiz = await pharmacy('StaffDoctorOther');
   await prisma().phSettings.create({ data: { restaurantId: otherBiz.id, enabledCurrencies: ['IQD'], defaultCurrency: 'IQD' } });
@@ -90,6 +98,10 @@ beforeAll(async () => {
     cashierStaffId: await staffIdOf(cashier, biz.id),
     stock,
     accountant,
+    coOwner,
+    ownerRowStaffId: await staffIdOf(coOwner, biz.id),
+    staffOwner,
+    staffOwnerStaffId: await staffIdOf(staffOwner, biz.id),
   };
 }, 180_000);
 beforeEach(() => {
@@ -148,6 +160,30 @@ describe('ph.staff.setDoctor: who may flip the switch', () => {
     expect(await switchOf(w.pharmacistStaffId)).toBe(false);
   });
 
+  it('lets a second owner switch a pharmacist, and refuses any owner’s own staff row (an owner always has the Doctor)', async () => {
+    expect(dataOf(await setDoctor(w.coOwner, w.pharmacistStaffId, true))).toEqual({ staffId: w.pharmacistStaffId, aiDoctor: true });
+    for (const who of [w.owner, w.coOwner]) {
+      expect(await setDoctor(who, w.ownerRowStaffId, true), who.email).toMatchObject({ ok: false, error: { code: 'INVALID', message: 'This role cannot use the AI Doctor' } });
+    }
+    expect(await switchOf(w.ownerRowStaffId)).toBe(false);
+  });
+
+  it('treats a staff row whose role is OWNER as no owner: it may not flip switches, and its own row cannot be switched', async () => {
+    expect(await setDoctor(w.staffOwner, w.pharmacistStaffId, true, { branchId: w.a })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', message: 'Only the owner can turn the AI Doctor on or off' } });
+    expect(await switchOf(w.pharmacistStaffId)).toBe(false);
+    expect(codeOf(await setDoctor(w.owner, w.staffOwnerStaffId, true))).toBe('INVALID');
+    expect(await switchOf(w.staffOwnerStaffId)).toBe(false);
+  });
+
+  it('records one change for two flips at once: the second finds it already on', async () => {
+    const before = await audits();
+    const results = await Promise.all([setDoctor(w.owner, w.pharmacistStaffId, true), setDoctor(w.coOwner, w.pharmacistStaffId, true)]);
+    for (const r of results) expect(codeOf(r)).toBe('OK');
+    const fresh = (await audits()).filter((x) => !before.some((y) => y.id === x.id)).map((x) => x.changes);
+    expect(fresh).toHaveLength(2);
+    expect(fresh).toEqual(expect.arrayContaining([{ aiDoctor: { before: false, after: true } }, { aiDoctor: { before: true, after: true } }]));
+  });
+
   it('has every refusal in SERVER_TEXT', () => {
     for (const text of ['Only the owner can turn the AI Doctor on or off', 'This role cannot use the AI Doctor', 'Staff member not found']) expect(SERVER_TEXT[text], text).toBeTruthy();
   });
@@ -176,7 +212,7 @@ describe('ph.staff.list', () => {
     const out = await list(w.owner);
     expect(out.canEdit).toBe(true);
     expect(out.inPlan).toBe(true);
-    const owner = out.rows.find((r) => r.kind === 'OWNER')!;
+    const owner = out.rows.find((r) => r.name === 'sdOwner person')!;
     expect(owner).toMatchObject({ staffId: null, name: 'sdOwner person', role: 'OWNER', allBranches: true, aiDoctor: true, eligible: true });
     expect(out.rows[0]!.kind, 'the owner first').toBe('OWNER');
     expect(out.rows.find((r) => r.staffId === w.pharmacistStaffId)).toMatchObject({ name: 'sdPharmacist person', role: 'PHARMACIST', aiDoctor: true, eligible: true, branches: [{ id: w.a, name: 'StaffDoctor branch 1' }] });
@@ -228,6 +264,12 @@ describe('ph.doctor.rxReview', () => {
     expect(listed, 'another business').not.toContain(ids.otherBiz);
     expect(out.items.find((i) => i.productId === ids.amoxOtc)!.matched).toBe('amoxicillin');
     expect(out.truncated).toBe(false);
+  });
+
+  it('orders antibiotics first (the list’s own order), then by name, so the 200-row cut keeps them', () => {
+    const item = (tradeName: string, matched: string) => ({ productId: tradeName, tradeName, genericName: '', activeIngredient: '', strength: '', form: '', matched });
+    const out = orderRxReview([item('Zolp', 'zolpidem'), item('Trama', 'tramadol'), item('Bmox', 'amoxicillin'), item('Amox', 'amoxicillin'), item('Cipro', 'ciprofloxacin')]);
+    expect(out.map((i) => i.tradeName)).toEqual(['Amox', 'Bmox', 'Cipro', 'Trama', 'Zolp']);
   });
 
   it('is the owner’s and a branch manager’s (staff.manage with catalog.manage) only', async () => {

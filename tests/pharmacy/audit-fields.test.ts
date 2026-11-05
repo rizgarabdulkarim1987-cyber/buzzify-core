@@ -54,6 +54,9 @@ describe('pharmacy audit redaction rule', () => {
     expect(() => assertAuditSafe('PhSale', { aiDoctor: { before: false, after: true } })).toThrow(PharmacyAuditError);
     expect(() => assertAuditSafe('PhStaff', { aiDoctor: { before: null, after: 'Dr Ahmed' } })).toThrow(PharmacyAuditError);
     expect(() => assertAuditSafe('PhStaff', { doctorName: change('Dr Ahmed') })).toThrow(PharmacyAuditError);
+    // Exactly before and after: an extra key on the change is not let through.
+    expect(() => assertAuditSafe('PhStaff', { aiDoctor: { before: false, after: true, doctorName: 'Dr X' } as never })).toThrow(PharmacyAuditError);
+    expect(() => assertAuditSafe('PhStaff', { aiDoctor: { before: false, after: true, note: 'x' } as never })).toThrow(PharmacyAuditError);
   });
 
   it('the markers that replace free text pass: hasReason, noteLength, reason codes', () => {

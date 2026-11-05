@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
-import { rxOnlyTermOf } from '@/server/domain/pharmacy/doctor';
+import { RX_ONLY_INGREDIENTS, rxOnlyTermOf } from '@/server/domain/pharmacy/doctor';
 import { canPh, type PhRole } from '@/server/domain/pharmacy/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -35,16 +35,23 @@ function assertPerson(ph: PhActor): asserts ph is PhActor & { role: PhRole } {
   if (ph.support !== null || ph.role === null) throw new StudioError('FORBIDDEN');
 }
 
+/** The owner of ruling 1: the Studio membership's OWNER, never a staff row that happens to carry the OWNER role. */
+function isStudioOwner(ph: PhActor): boolean {
+  return ph.role === 'OWNER' && ph.viaMembership;
+}
+
 /** Turns one person's switch on or off; returns the value before and after, for the audit. */
 export async function setStaffDoctor(tx: ScopedTx, ph: PhActor, input: z.infer<typeof setDoctorInput>): Promise<{ before: boolean; after: boolean }> {
   assertPerson(ph);
-  if (ph.role !== 'OWNER') throw new StudioError('FORBIDDEN', DOCTOR_SWITCH_TEXT.OWNER_ONLY);
+  if (!isStudioOwner(ph)) throw new StudioError('FORBIDDEN', DOCTOR_SWITCH_TEXT.OWNER_ONLY);
   const row = await tx.phStaff.findFirst({ where: { id: input.staffId, deactivatedAt: null }, select: { id: true, userId: true, role: true, aiDoctor: true } });
   if (!row) throw new StudioError('NOT_FOUND', DOCTOR_SWITCH_TEXT.NOT_FOUND);
   const owner = await tx.membership.findFirst({ where: { userId: row.userId, role: 'OWNER' }, select: { id: true } });
-  if (owner || !canPh(row.role, 'ai.use')) throw new StudioError('INVALID', DOCTOR_SWITCH_TEXT.NOT_ELIGIBLE);
-  if (row.aiDoctor !== input.on) await tx.phStaff.update({ where: { id: row.id }, data: { aiDoctor: input.on } });
-  return { before: row.aiDoctor, after: input.on };
+  if (owner || row.role === 'OWNER' || !canPh(row.role, 'ai.use')) throw new StudioError('INVALID', DOCTOR_SWITCH_TEXT.NOT_ELIGIBLE);
+  // Conditional: under two flips at once only one changes the row, and the other reads that it was already set, so the audit's
+  // `before` is what the row really held.
+  const { count } = await tx.phStaff.updateMany({ where: { id: row.id, aiDoctor: !input.on }, data: { aiDoctor: input.on } });
+  return { before: count === 1 ? !input.on : input.on, after: input.on };
 }
 
 export interface StaffDoctorRow {
@@ -109,7 +116,7 @@ export async function staffDoctorList(scoped: ScopedClient, ph: PhActor, inPlan:
       };
     })
     .sort(byName);
-  return { canEdit: ph.role === 'OWNER', inPlan, rows: [...ownerRows, ...staffRows] };
+  return { canEdit: isStudioOwner(ph), inPlan, rows: [...ownerRows, ...staffRows] };
 }
 
 /** How many OTC products the review reads at most; a bigger catalog is reviewed in part and says so (`truncated`). */
@@ -134,6 +141,7 @@ export async function rxReview(scoped: ScopedClient, ph: PhActor): Promise<{ ite
   if (!canPh(ph.role, 'catalog.manage')) throw new StudioError('FORBIDDEN');
   const items: RxReviewItem[] = [];
   let read = 0;
+  let scannedAll = true;
   let cursor: string | undefined;
   for (;;) {
     const rows = await scoped.phProduct.findMany({
@@ -149,9 +157,24 @@ export async function rxReview(scoped: ScopedClient, ph: PhActor): Promise<{ ite
     }
     read += rows.length;
     if (rows.length < PAGE) break;
-    if (read >= RX_REVIEW_SCAN_MAX || items.length > RX_REVIEW_LIST_MAX) return { items: items.slice(0, RX_REVIEW_LIST_MAX).sort((x, y) => x.tradeName.localeCompare(y.tradeName)), truncated: true };
     cursor = rows.at(-1)!.id;
+    if (read >= RX_REVIEW_SCAN_MAX) {
+      // The scan stops here; it is cut short only when a product is left unread.
+      scannedAll = (await scoped.phProduct.count({ where: { rxLevel: 'OTC', active: true, id: { gt: cursor } } })) === 0;
+      break;
+    }
   }
-  const truncated = items.length > RX_REVIEW_LIST_MAX;
-  return { items: items.slice(0, RX_REVIEW_LIST_MAX).sort((x, y) => x.tradeName.localeCompare(y.tradeName)), truncated };
+  return { items: orderRxReview(items).slice(0, RX_REVIEW_LIST_MAX), truncated: !scannedAll || items.length > RX_REVIEW_LIST_MAX };
+}
+
+/**
+ * The review's order, which also decides what the cut to `RX_REVIEW_LIST_MAX` keeps: by the place of the matched ingredient in
+ * `RX_ONLY_INGREDIENTS` (antibiotics first, as the list is written), then by trade name.
+ */
+export function orderRxReview(items: RxReviewItem[]): RxReviewItem[] {
+  const rank = (term: string) => {
+    const at = RX_ONLY_INGREDIENTS.indexOf(term);
+    return at === -1 ? RX_ONLY_INGREDIENTS.length : at;
+  };
+  return [...items].sort((x, y) => rank(x.matched) - rank(y.matched) || x.tradeName.localeCompare(y.tradeName));
 }

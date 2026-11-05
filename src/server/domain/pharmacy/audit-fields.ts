@@ -52,7 +52,9 @@ function findForbidden(value: unknown, depth = 0): string | null {
  * about who may use the app's assistant, never a doctor's name or anything a person typed.
  */
 function isDoctorSwitch(entityType: string, field: string, change: { before: unknown; after: unknown } | undefined): boolean {
-  return entityType === 'PhStaff' && field === 'aiDoctor' && !!change && typeof change.before === 'boolean' && typeof change.after === 'boolean';
+  if (entityType !== 'PhStaff' || field !== 'aiDoctor' || !change) return false;
+  const keys = Object.keys(change).sort();
+  return keys.length === 2 && keys[0] === 'after' && keys[1] === 'before' && typeof change.before === 'boolean' && typeof change.after === 'boolean';
 }
 
 export function assertAuditSafe(

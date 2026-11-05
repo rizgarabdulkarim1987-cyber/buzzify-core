@@ -23,7 +23,14 @@ export function StaffDoctorList({ rows, editable }: { rows: StaffDoctorRow[]; ed
   const { locale } = useLocale();
   const router = useRouter();
   const online = useOnline();
-  const [on, setOn] = useState<Record<string, boolean>>(() => Object.fromEntries(rows.filter((r) => r.staffId).map((r) => [r.staffId!, r.aiDoctor])));
+  // What a saved flip answered, until the refreshed server rows arrive: new rows (after `router.refresh()`, or a change made in
+  // another tab or by another owner) replace it, so the list always follows the server.
+  const [on, setOn] = useState<Record<string, boolean>>({});
+  const [seenRows, setSeenRows] = useState(rows);
+  if (seenRows !== rows) {
+    setSeenRows(rows);
+    setOn({});
+  }
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
   const lock = useRef(false);

@@ -22,27 +22,28 @@ import { StudioError } from '@/server/studio/framework/result';
 const AGE = 'Enter an age from 0 to 130';
 
 // The branch stays optional in the schema so that a pharmacy or branch that is not the person's is refused by the framework
-// (FORBIDDEN) before the input's other rules are read; the handler then asks for one (stock is a branch's).
-const place = phPlaceInput;
-
-const askInput = z.discriminatedUnion('mode', [
-  place.extend({
+// (FORBIDDEN) before the input's other rules are read; the handler then asks for one (stock is a branch's). The place and the
+// question are an intersection, so an empty input reports the missing place as well as the missing mode.
+const question = z.discriminatedUnion('mode', [
+  z.object({
     mode: z.literal('COMPLAINT'),
     text: z.string().trim().min(1, 'Enter a question').max(1000, 'Enter a question of up to 1000 characters'),
     ageYears: z.number(AGE).min(0, AGE).max(130, AGE).optional(),
     sex: z.enum(['F', 'M']).optional(),
     pregnant: z.boolean().optional(),
   }),
-  place.extend({
+  z.object({
     mode: z.literal('MEDICINE_NAME'),
     text: z.string().trim().min(1, 'Enter the medicine name').max(200, 'Use at most 200 characters'),
   }),
-  place.extend({
+  z.object({
     mode: z.literal('MEDICINE_PHOTO'),
     imageBase64: z.string().min(1, 'Add a photo of the box or strip').max(MAX_PHOTO_BASE64_CHARS, 'The photo is too large'),
     mime: z.enum(PHOTO_MIMES, 'Use a JPEG, PNG or WebP photo'),
   }),
 ]);
+
+const askInput = phPlaceInput.and(question);
 
 export const askAction = defineAction({
   name: 'ph.doctor.ask',
