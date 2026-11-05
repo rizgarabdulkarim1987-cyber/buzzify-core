@@ -21,6 +21,7 @@ export function ScanBar({
   onUnit,
   inquiry,
   onInquiry,
+  suggest,
 }: {
   inputRef: Ref<HTMLInputElement>;
   query: string;
@@ -31,6 +32,8 @@ export function ScanBar({
   onUnit: () => void;
   inquiry: boolean;
   onInquiry: () => void;
+  /** The suggestion list under the field: whether it has rows, its id, the active row's id, and the arrow keys. */
+  suggest: { open: boolean; listId: string; activeId: string | undefined; onMove: (delta: 1 | -1) => void };
 }) {
   const t = useT();
   return (
@@ -43,6 +46,11 @@ export function ScanBar({
           dir="auto"
           autoComplete="off"
           autoFocus
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggest.open}
+          aria-controls={suggest.open ? suggest.listId : undefined}
+          aria-activedescendant={suggest.open ? suggest.activeId : undefined}
           enterKeyHint="search"
           aria-label={t('pharmacy.cashier.scan.label')}
           placeholder={t('pharmacy.cashier.scan.placeholder')}
@@ -52,6 +60,11 @@ export function ScanBar({
           onChange={(event) => onQuery(event.target.value)}
           onKeyDown={(event) => {
             // A scanner's closing Enter was already taken by the scan capture (default prevented): it must not also add the top result.
+            if (suggest.open && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              suggest.onMove(event.key === 'ArrowDown' ? 1 : -1);
+              return;
+            }
             if (event.nativeEvent.defaultPrevented || event.nativeEvent.isComposing || event.shiftKey || event.key !== 'Enter') return;
             event.preventDefault();
             onEnter();

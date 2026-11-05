@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleAlert, CloudOff, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import { sellSearch } from '@/app/pharmacy/_actions/sales';
 import type { SellItem } from '@/server/pharmacy/sell-search';
 import { useLocale, useT } from '@/studio/i18n';
@@ -10,18 +10,21 @@ import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
 import { phMessage } from '../ph-failure';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { draftKey, estimateCart, formatMinor, isAddable, overSellable, scanOutcome, unitOf, type Currency } from '../sell-logic';
+import { emptyCart, estimateCart, formatMinor, isAddable, normalizeDigits, overSellable, scanOutcome, unitOf, type AddableItem, type Currency } from '../sell-logic';
 import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
-import { initialReceipts, MAX_RECEIPTS, receiptsKey, serializeReceipts } from '../sell-receipts';
+import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { addActionFor, cashierReducer, keyContextOf, lineKeyEffect, nextScanUnitPref, padQty, padText, restoreReceipts, unitKeyEffect, type CashierPulse, type ScanUnitPref } from './cashier-logic';
+import { addActionFor, addedKey, cashierReducer, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, padQty, padText, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
 import { SaleLinesTable } from './SaleLinesTable';
 import { ScanBar } from './ScanBar';
 import { SideColumn, type PayFlow } from './SideColumn';
+import { Suggestions, suggestionId } from './Suggestions';
 import { useScanQueue } from './use-scan-queue';
+import { useStoredReceipts } from './use-stored-receipts';
+import { useSuggestions } from './use-suggestions';
 
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
@@ -48,8 +51,6 @@ export function CashierScreen(props: CashierScreenProps) {
   const online = useOnline();
   const [shift, setShift] = useState<OpenShift | null>(props.shift);
   const [state, dispatch] = useReducer(cashierReducer, undefined, initialReceipts);
-  const [loaded, setLoaded] = useState(false);
-  const [restored, setRestored] = useState(false);
   const [notSent, setNotSent] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [query, setQuery] = useState('');
@@ -69,7 +70,17 @@ export function CashierScreen(props: CashierScreenProps) {
   const receipt = state.receipts[state.active] ?? state.receipts[0]!;
   const estimate = useMemo(() => estimateCart(receipt.cart, currency, step), [receipt.cart, currency, step]);
   const selected = receipt.cart.lines.some((l) => l.key === selections[receipt.key]) ? (selections[receipt.key] ?? null) : null;
-  const select = (key: string | null) => setSelections((all) => ({ ...all, [receipt.key]: key }));
+  // What the receipts and selections are right now, ahead of the next render: a scan that lands before React re-renders still selects the right line.
+  const mirror = useRef(state);
+  const picks = useRef(selections);
+  useEffect(() => {
+    mirror.current = state;
+    picks.current = selections;
+  });
+  const select = (key: string | null, receiptKey = receipt.key) => {
+    picks.current = { ...picks.current, [receiptKey]: key };
+    setSelections(picks.current);
+  };
   const selectedLine = receipt.cart.lines.find((l) => l.key === selected) ?? null;
   const flow = flowAsk?.receiptKey === receipt.key ? flowAsk.flow : null;
   const padAt = `${receipt.key}:${selected}`;
@@ -77,33 +88,7 @@ export function CashierScreen(props: CashierScreenProps) {
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
 
   // The receipts live on this device ------------------------------------------------------------------------------------
-  const storeKey = receiptsKey(restaurantId, branchId, userId, currency);
-  const legacyKey = draftKey(restaurantId, branchId, userId, currency);
-  useEffect(() => {
-    if (!shift || loaded) return;
-    try {
-      const kept = restoreReceipts(window.localStorage.getItem(storeKey), window.localStorage.getItem(legacyKey));
-      dispatch({ type: 'load', state: kept.state });
-      if (kept.migrated) {
-        // Written first, then the old key removed: the old draft can never come back as a second copy of a cart sold here.
-        window.localStorage.setItem(storeKey, serializeReceipts(kept.state));
-        window.localStorage.removeItem(legacyKey);
-      }
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- the receipts are read from this device's storage once, after the shift is known
-      if (kept.state.receipts.some((r) => r.cart.lines.length > 0)) setRestored(true);
-    } catch {
-      /* storage can be blocked: the receipts simply start empty */
-    }
-    setLoaded(true);
-  }, [shift, loaded, storeKey, legacyKey]);
-  useEffect(() => {
-    if (!shift || !loaded) return;
-    try {
-      window.localStorage.setItem(storeKey, serializeReceipts(state));
-    } catch {
-      /* the receipts on the device are a convenience */
-    }
-  }, [shift, loaded, state, storeKey]);
+  const { loaded, restored } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch);
 
   useEffect(() => {
     if (!anyLines) return;
@@ -118,6 +103,28 @@ export function CashierScreen(props: CashierScreenProps) {
     if (lost) setNotSent(true);
     setMessage({ tone: 'danger', text: lost ? t('pharmacy.sell.scan.failed', { code }) : phMessage(t, locale, error, 'pharmacy.sell') });
   };
+  /** Puts the item on the active receipt and selects the line it landed on (a new line, or the existing one whose quantity grew). The unit preference counts only while no line is selected. */
+  const addItem = (item: AddableItem) => {
+    const cur = mirror.current;
+    const r = cur.receipts[cur.active]!;
+    const hasSelection = r.cart.lines.some((l) => l.key === picks.current[r.key]);
+    const action: CashierAction = { type: 'line', action: addActionFor(item, hasSelection ? 'default' : scanUnit) };
+    const next = cashierReducer(cur, action);
+    mirror.current = next;
+    dispatch(action);
+    const landed = next.receipts[next.active]!;
+    const key = addedKey(r.done ? emptyCart() : r.cart, landed.cart);
+    if (key) select(key, landed.key);
+    setMessage(null);
+  };
+  /** A scanned or typed barcode: the one exact match is added; blocked, unknown and several matches are said. True when added. */
+  const takeBarcode = (code: string, items: SellItem[]): boolean => {
+    const outcome = scanOutcome(code, items);
+    if (outcome.kind === 'add') addItem(outcome.item);
+    else if (outcome.kind === 'blocked') setMessage({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
+    else setMessage({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
+    return outcome.kind === 'add';
+  };
   useScanQueue(async (code) => {
     const result = await settle(() => sellSearch({ q: code, currency }));
     if (!result.ok) {
@@ -125,32 +132,51 @@ export function CashierScreen(props: CashierScreenProps) {
       return;
     }
     setNotSent(false);
-    const outcome = scanOutcome(code, (result.data as { items: SellItem[] }).items);
-    if (outcome.kind === 'add') {
-      dispatch({ type: 'line', action: addActionFor(outcome.item, scanUnit) });
-      setMessage(null);
-    } else if (outcome.kind === 'blocked') setMessage({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
-    else setMessage({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
+    takeBarcode(code, (result.data as { items: SellItem[] }).items);
   }, shift !== null && loaded);
+
+  // Suggestions while typing (a list in the flow, never a dialog) ------------------------------------------------------------
+  const listId = useId();
+  const sugg = useSuggestions(query, currency, shift !== null && loaded);
+  const [closedFor, setClosedFor] = useState<string | null>(null);
+  const [activeAt, setActiveAt] = useState({ q: '', index: -1 });
+  const listOpen = sugg.status !== 'idle' && closedFor !== query.trim();
+  const rows: Suggestion[] = listOpen && sugg.status === 'ready' ? sugg.rows : [];
+  const activeIndex = activeAt.q === query ? activeAt.index : -1;
+  const pick = (row: Suggestion) => {
+    addItem(row.item);
+    setQuery('');
+    searchBox.current?.focus();
+  };
 
   // Enter in the field adds the top sellable result of what was typed ----------------------------------------------------------
   const addTop = async () => {
-    const q = query.trim();
-    if (q === '') return;
+    const typed = query.trim();
+    if (typed === '') return;
+    // Digits only is a barcode: it goes through the exact-match path a scanner uses.
+    const digits = normalizeDigits(typed);
+    const barcode = /^\d+$/.test(digits);
+    const q = barcode ? digits : typed;
     const result = await settle(() => sellSearch({ q, currency }));
     if (!result.ok) {
       lookupFailed(result.error, q);
       return;
     }
     setNotSent(false);
+    if (barcode) {
+      if (takeBarcode(q, (result.data as { items: SellItem[] }).items)) {
+        setQuery('');
+        searchBox.current?.focus();
+      }
+      return;
+    }
     const top = (result.data as { items: SellItem[] }).items.find(isAddable);
     if (!top) {
       setMessage({ tone: 'danger', text: t('pharmacy.sell.empty', { q }) });
       return;
     }
-    dispatch({ type: 'line', action: addActionFor(top, scanUnit) });
+    addItem(top);
     setQuery('');
-    setMessage(null);
     searchBox.current?.focus();
   };
 
@@ -181,6 +207,11 @@ export function CashierScreen(props: CashierScreenProps) {
     else if (key.kind === 'new') openReceipt();
     else if (key.kind === 'focusScan') focusSearch();
     else if (key.kind === 'escape') {
+      // An open suggestion list closes first; Escape does its other work (clear, back to the field) when the list is closed.
+      if (listOpen) {
+        setClosedFor(query.trim());
+        return true;
+      }
       setFlowAsk(null);
       setQuery('');
       setMessage(null);
@@ -279,10 +310,20 @@ export function CashierScreen(props: CashierScreenProps) {
             dispatch({ type: 'customer', customerId: customer?.id ?? null });
           }}
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
-          pad={{ text: pad, onKey: (k) => setPadState({ at: padAt, text: padText(pad, k) }), onEnter: applyPad, canEnter: pad !== '' }}
+          pad={{ text: pad, onKey: (k) => {
+              setPadState({ at: padAt, text: padText(pad, k) });
+              searchBox.current?.focus();
+            },
+            onEnter: () => {
+              applyPad();
+              searchBox.current?.focus();
+            }, canEnter: pad !== '' }}
           flow={flow}
           payable={!receipt.done && receipt.cart.lines.length > 0}
-          onPay={(f) => run({ kind: f })}
+          onPay={(f) => {
+            run({ kind: f });
+            searchBox.current?.focus();
+          }}
         />
 
         <section className="flex min-w-0 flex-col gap-2 lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
@@ -299,7 +340,12 @@ export function CashierScreen(props: CashierScreenProps) {
             inputRef={searchBox}
             query={query}
             onQuery={setQuery}
-            onEnter={() => void addTop()}
+            onEnter={() => {
+              const row = rows[activeIndex];
+              if (row && row.reason === null) pick(row);
+              else void addTop();
+            }}
+            suggest={{ open: rows.length > 0, listId, activeId: activeIndex >= 0 ? suggestionId(listId, activeIndex) : undefined, onMove: (d) => setActiveAt({ q: query, index: moveSuggestion(rows, activeIndex, d) }) }}
             unitLabel={selectedLine ? unitOf(selectedLine).label : t(`pharmacy.cashier.unit.pref.${scanUnit}`)}
             unitPrice={
               selectedLine ? (
@@ -321,6 +367,7 @@ export function CashierScreen(props: CashierScreenProps) {
             inquiry={inquiry}
             onInquiry={() => run({ kind: 'inquiry' })}
           />
+          <Suggestions state={listOpen ? sugg : { status: 'idle' }} query={query} currency={currency} listId={listId} active={activeIndex} onPick={pick} />
           {message && (
             <Note look="ph" icon={<CircleAlert aria-hidden />} tone={message.tone} role="status" testId="cashier-message">
               {message.text}

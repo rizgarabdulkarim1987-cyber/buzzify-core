@@ -3583,6 +3583,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.receipt.no': 'رقم الوصل',
   'pharmacy.cashier.pay.cash': 'نقداً (F2)',
   'pharmacy.cashier.pay.credit': 'آجل (F3)',
+  'pharmacy.cashier.sugg.region': 'المواد المطابقة',
+  'pharmacy.cashier.sugg.failed': 'لم ينجح البحث. حاول مرة أخرى.',
+  'pharmacy.cashier.sugg.reason.notSellable': 'لا يمكن بيعها',
+  'pharmacy.cashier.sugg.reason.noPrice': 'بلا سعر',
+  'pharmacy.cashier.sugg.reason.noStock': 'نفد المخزون',
+  'pharmacy.cashier.sugg.stock': 'الرصيد {qty}',
+  'pharmacy.cashier.sugg.mark.rx': 'وصفة',
+  'pharmacy.cashier.sugg.mark.restricted': 'خاضعة للرقابة',
 };
 
 export default pharmacy;

@@ -1,4 +1,4 @@
-import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, type AddableItem, type CartAction, type CartLine, type Currency } from '../sell-logic';
+import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, startUnit, type AddableItem, type CartAction, type CartLine, type CartState, type CartUnit, type Currency, type ScanItem } from '../sell-logic';
 import { parseReceipts, receiptsReducer, type ReceiptsAction, type ReceiptsState } from '../sell-receipts';
 import type { CashierKeyContext } from '../sell-keys';
 
@@ -140,4 +140,53 @@ export const padQty = (text: string): number | null => parseQtyText(text);
 export function usdEquivalent(totalMinor: bigint, currency: Currency, usdRate: number | null | undefined): string | null {
   if (currency !== 'IQD' || !usdRate || !Number.isFinite(usdRate) || usdRate <= 0) return null;
   return (Number(totalMinor) / usdRate).toFixed(2);
+}
+
+// Selecting the line just added --------------------------------------------------------------------------------------------
+
+/** The line an add touched: the new last line, or (same product and unit scanned again) the existing line whose quantity grew. */
+export function addedKey(before: CartState, after: CartState): string | null {
+  if (after.lines.length > before.lines.length) return after.lines[after.lines.length - 1]!.key;
+  const was = new Map(before.lines.map((l) => [l.key, l.qty]));
+  return after.lines.find((l) => was.get(l.key) !== l.qty)?.key ?? null;
+}
+
+// Suggestions while typing -----------------------------------------------------------------------------------------------
+
+export const SUGGESTION_DELAY_MS = 150;
+export const SUGGESTION_MAX = 8;
+
+/** Suggestions are for names: at least two characters, and not a run of digits (a scanner burst or a typed barcode goes to the exact barcode path). */
+export const wantsSuggestions = (query: string): boolean => {
+  const q = query.trim();
+  return q.length >= 2 && !/^[\d\u0660-\u0669\u06F0-\u06F9\s]+$/.test(q);
+};
+
+export type SuggestionReason = 'notSellable' | 'noPrice' | 'noStock';
+export interface Suggestion {
+  item: ScanItem;
+  /** Why the row cannot be added; null = it can. */
+  reason: SuggestionReason | null;
+  /** The unit an add would start in (shown with its price). */
+  unit: CartUnit | null;
+  mark: 'rx' | 'restricted' | null;
+}
+
+export function suggestionsFrom(items: readonly ScanItem[], limit = SUGGESTION_MAX): Suggestion[] {
+  return items.slice(0, limit).map((item) => ({
+    item,
+    reason: item.notSellable ? 'notSellable' : item.noPrice ? 'noPrice' : item.sellableQty <= 0 ? 'noStock' : null,
+    unit: startUnit(item),
+    mark: item.rxLevel === 'RESTRICTED' ? 'restricted' : item.rxLevel === 'RX' ? 'rx' : null,
+  }));
+}
+
+/** The next addable row from `from` (-1 = none yet) in the direction, wrapping; -1 when no row can be added. */
+export function moveSuggestion(rows: readonly Suggestion[], from: number, delta: 1 | -1): number {
+  const n = rows.length;
+  for (let step = 1; step <= n; step += 1) {
+    const at = (((from < 0 ? (delta === 1 ? -1 : n) : from) + delta * step) % n + n) % n;
+    if (rows[at]!.reason === null) return at;
+  }
+  return -1;
 }

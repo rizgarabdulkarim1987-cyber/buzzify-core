@@ -294,3 +294,189 @@ describe('the side column', () => {
     expect(press({ key: 'F2' }).defaultPrevented).toBe(false);
   });
 });
+
+// Fix round 1: select what was added, suggest while typing, exact typed barcodes, focus back to the field ----------------------
+
+const hit = (over: Partial<AddableItem> & { matchedOn?: string; notSellable?: boolean; noPrice?: boolean } = {}) => ({ ...item(), matchedOn: 'name', notSellable: false, noPrice: false, ...over });
+const setField = (text: string) => {
+  const search = byTest('cashier-search') as HTMLInputElement;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  act(() => {
+    setValue.call(search, text);
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  return search;
+};
+const wait = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
+const keyIn = async (target: HTMLElement, key: string) => {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  await act(async () => {
+    target.dispatchEvent(event);
+  });
+  return event;
+};
+const selectedLines = () => allTest('sale-line').filter((r) => r.getAttribute('aria-selected') === 'true').map((r) => r.querySelector('[data-testid="line-name"]')!.textContent);
+const answer = (...items: ReturnType<typeof hit>[]) => ({ ok: true, data: { items } });
+
+describe('the added line is selected', () => {
+  it('picks the new last line, or the existing line whose quantity grew', () => {
+    const one = cartOf(item());
+    const two = cartOf(item(), item({ productId: 'p2' }));
+    expect(logic.addedKey(one, two)).toBe(two.lines[1]!.key);
+    const again = cartReducer(two, { type: 'add', item: item() });
+    expect(again.lines).toHaveLength(2);
+    expect(logic.addedKey(two, again)).toBe(two.lines[0]!.key);
+    expect(logic.addedKey(two, two)).toBeNull();
+  });
+
+  it('selects the line after Enter, so the unit key and keypad act on it at once', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit({ matchedOn: 'barcode' })));
+    screenWith(emptyCart());
+    const search = setField('6221010001');
+    await keyIn(search, 'Enter');
+    expect(selectedLines()).toEqual(['Panadol']);
+    press({ key: 'F6' });
+    expect(lineUnit()).toContain('box');
+    digit('7');
+    click(byTest('keypad-enter'));
+    expect(lineQty()).toBe('7');
+  });
+
+  it('selects the existing line when the same item is added again, and the preference counts only with no selection', async () => {
+    screenWith(emptyCart());
+    click(byTest('unit-button')); // next item starts in its largest unit
+    sales.sellSearch.mockResolvedValueOnce(answer(hit({ matchedOn: 'barcode' })));
+    await keyIn(setField('6221010001'), 'Enter');
+    expect(lineUnit()).toContain('box');
+    sales.sellSearch.mockResolvedValueOnce(answer(hit({ matchedOn: 'barcode', productId: 'p2', tradeName: 'Adol' })));
+    await keyIn(setField('6221010002'), 'Enter');
+    // A line was selected, so the preference was not used for Adol: its own start unit (the smallest).
+    expect(allTest('sale-line')[1]!.querySelectorAll('td')[4]!.textContent).toContain('tablet');
+    expect(selectedLines()).toEqual(['Adol']);
+    sales.sellSearch.mockResolvedValueOnce(answer(hit({ matchedOn: 'barcode', units: [{ id: 'box', label: 'box', baseQty: 24, priceMinor: '3000' }] })));
+    await keyIn(setField('6221010001'), 'Enter');
+    expect(allTest('sale-line')).toHaveLength(2);
+    expect(selectedLines()).toEqual(['Panadol']);
+    expect(lineQty()).toBe('2');
+  });
+});
+
+describe('suggestions while typing', () => {
+  it('lists the hits in a listbox (not a dialog) with price and stock, disabled rows saying why', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit(), hit({ productId: 'p2', tradeName: 'Panadol Extra', noPrice: true }), hit({ productId: 'p3', tradeName: 'Panadol Cold', sellableQty: 0 })));
+    screenWith(emptyCart());
+    setField('pana');
+    expect(byTest('suggestions')).toBeNull();
+    await wait(300);
+    const list = byTest('suggestions')!;
+    expect(list.getAttribute('role')).toBe('listbox');
+    expect(container.querySelector('[role="dialog"], dialog')).toBeNull();
+    const rows = allTest('suggestion');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.className).toMatch(/min-h-11/);
+    expect(rows[0]!.textContent).toContain('Panadol');
+    expect(rows[0]!.textContent).toMatch(/1,?500/);
+    expect(rows[0]!.textContent).toContain('100');
+    expect(rows[1]!.getAttribute('aria-disabled')).toBe('true');
+    expect(rows[1]!.textContent).toMatch(/no price/i);
+    expect(rows[2]!.textContent).toMatch(/out of stock/i);
+    expect(document.activeElement).toBe(byTest('cashier-search'));
+  });
+
+  it('adds the row chosen with the arrows and Enter, not the first one, and selects it', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit(), hit({ productId: 'p2', tradeName: 'Adol' })));
+    screenWith(emptyCart());
+    const search = setField('pa');
+    await wait(300);
+    await keyIn(search, 'ArrowDown');
+    await keyIn(search, 'ArrowDown');
+    expect(search.getAttribute('aria-activedescendant')).toBe(allTest('suggestion')[1]!.id);
+    await keyIn(search, 'Enter');
+    expect(allTest('sale-line').map((r) => r.querySelector('[data-testid="line-name"]')!.textContent)).toEqual(['Adol']);
+    expect(selectedLines()).toEqual(['Adol']);
+    expect(search.value).toBe('');
+  });
+
+  it('adds a clicked row', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit(), hit({ productId: 'p2', tradeName: 'Adol' })));
+    screenWith(emptyCart());
+    setField('pa');
+    await wait(300);
+    click(allTest('suggestion')[1]!);
+    expect(selectedLines()).toEqual(['Adol']);
+  });
+
+  it('never lets an older answer replace a newer list', async () => {
+    let resolveOld!: (v: unknown) => void;
+    sales.sellSearch.mockImplementationOnce(() => new Promise((r) => (resolveOld = r)));
+    sales.sellSearch.mockResolvedValueOnce(answer(hit({ tradeName: 'Newer' })));
+    screenWith(emptyCart());
+    setField('pa');
+    await wait(300);
+    setField('pan');
+    await wait(300);
+    expect(allTest('suggestion')[0]!.textContent).toContain('Newer');
+    await act(async () => resolveOld(answer(hit({ tradeName: 'Older' }))));
+    expect(allTest('suggestion')).toHaveLength(1);
+    expect(allTest('suggestion')[0]!.textContent).toContain('Newer');
+  });
+
+  it('says so inline when nothing matches, and stays quiet for one character or digits only', async () => {
+    sales.sellSearch.mockResolvedValue(answer());
+    screenWith(emptyCart());
+    setField('p');
+    await wait(300);
+    setField('6221010001');
+    await wait(300);
+    expect(sales.sellSearch).not.toHaveBeenCalled();
+    setField('zzz');
+    await wait(300);
+    expect(byTest('suggestions-empty')!.textContent).toMatch(/zzz/);
+  });
+
+  it('closes on Escape without clearing the field, and Escape clears once the list is closed', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit()));
+    screenWith(emptyCart());
+    const search = setField('pana');
+    await wait(300);
+    expect(press({ key: 'Escape' }, search).defaultPrevented).toBe(true);
+    expect(byTest('suggestions')).toBeNull();
+    expect(search.value).toBe('pana');
+    press({ key: 'Escape' }, search);
+    expect(search.value).toBe('');
+  });
+});
+
+describe('a typed barcode', () => {
+  it('goes through the exact barcode path: an unknown code is said, not added', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit({ matchedOn: 'name' })));
+    screenWith(emptyCart());
+    await keyIn(setField('6221010001'), 'Enter');
+    expect(allTest('sale-line')).toHaveLength(0);
+    expect(byTest('cashier-message')!.textContent).toContain('6221010001');
+  });
+
+  it('adds the exact match', async () => {
+    sales.sellSearch.mockResolvedValue(answer(hit({ matchedOn: 'barcode' })));
+    screenWith(emptyCart());
+    await keyIn(setField('6221010001'), 'Enter');
+    expect(selectedLines()).toEqual(['Panadol']);
+  });
+});
+
+describe('focus goes back to the scan field', () => {
+  it('after a keypad digit, the check key and a pay button', () => {
+    screenWith(cartOf(item()));
+    selectFirst();
+    const search = byTest('cashier-search');
+    (document.activeElement as HTMLElement | null)?.blur();
+    digit('3');
+    expect(document.activeElement).toBe(search);
+    (search as HTMLElement).blur();
+    click(byTest('keypad-enter'));
+    expect(document.activeElement).toBe(search);
+    (search as HTMLElement).blur();
+    click(byTest('pay-cash'));
+    expect(document.activeElement).toBe(search);
+  });
+});

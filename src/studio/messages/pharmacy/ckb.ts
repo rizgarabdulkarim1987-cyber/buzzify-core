@@ -3544,6 +3544,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.receipt.no': 'ژمارەی وەصڵ',
   'pharmacy.cashier.pay.cash': 'نەقد (F2)',
   'pharmacy.cashier.pay.credit': 'قەرز (F3)',
+  'pharmacy.cashier.sugg.region': 'کاڵا هاوتاکان',
+  'pharmacy.cashier.sugg.failed': 'گەڕانەکە سەرنەکەوت. دووبارە هەوڵبدەرەوە.',
+  'pharmacy.cashier.sugg.reason.notSellable': 'ناتوانرێت بفرۆشرێت',
+  'pharmacy.cashier.sugg.reason.noPrice': 'بێ نرخ',
+  'pharmacy.cashier.sugg.reason.noStock': 'کۆگا بەتاڵە',
+  'pharmacy.cashier.sugg.stock': 'کۆگا {qty}',
+  'pharmacy.cashier.sugg.mark.rx': 'ڕەچەتە',
+  'pharmacy.cashier.sugg.mark.restricted': 'کۆنتڕۆڵکراو',
 };
 
 export default pharmacy;

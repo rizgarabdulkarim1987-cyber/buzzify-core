@@ -3551,6 +3551,14 @@ const pharmacy: Messages = {
   'pharmacy.cashier.receipt.no': 'Receipt number',
   'pharmacy.cashier.pay.cash': 'Cash (F2)',
   'pharmacy.cashier.pay.credit': 'Credit (F3)',
+  'pharmacy.cashier.sugg.region': 'Matching items',
+  'pharmacy.cashier.sugg.failed': 'The search did not go through. Try again.',
+  'pharmacy.cashier.sugg.reason.notSellable': 'Cannot be sold',
+  'pharmacy.cashier.sugg.reason.noPrice': 'No price',
+  'pharmacy.cashier.sugg.reason.noStock': 'Out of stock',
+  'pharmacy.cashier.sugg.stock': 'Stock {qty}',
+  'pharmacy.cashier.sugg.mark.rx': 'Rx',
+  'pharmacy.cashier.sugg.mark.restricted': 'Controlled',
 };
 
 export default pharmacy;
