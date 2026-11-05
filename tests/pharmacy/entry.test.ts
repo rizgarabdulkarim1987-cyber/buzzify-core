@@ -18,6 +18,7 @@ const actor: PhActor = {
   allBranches: true,
   branchIds: ['b1', 'b2'],
   viaMembership: true,
+  aiDoctor: false,
   support: null,
   locale: 'en',
 };

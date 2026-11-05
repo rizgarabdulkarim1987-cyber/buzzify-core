@@ -110,7 +110,7 @@ async function main(): Promise<number> {
         version: 1,
       },
     });
-    const ph: PhActor = { userId: 'eval', name: 'Evaluation', restaurantId, restaurantName: 'Evaluation', role: 'OWNER', allBranches: true, branchIds: [branch.id], viaMembership: true, support: null, locale: 'en' };
+    const ph: PhActor = { userId: 'eval', name: 'Evaluation', restaurantId, restaurantName: 'Evaluation', role: 'OWNER', allBranches: true, branchIds: [branch.id], viaMembership: true, aiDoctor: false, support: null, locale: 'en' };
     const scoped = phScopedClient(prisma, ph);
     const writer = scopedClient(prisma, { restaurantId, allBranches: true });
 

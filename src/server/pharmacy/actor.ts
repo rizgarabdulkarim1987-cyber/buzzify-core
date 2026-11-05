@@ -27,6 +27,8 @@ export interface PhActor {
   branchIds: string[];
   /** True when the role comes from being the restaurant's Studio OWNER rather than from a staff row. */
   viaMembership: boolean;
+  /** The staff row's AI Doctor switch; false for an owner through the membership (no row: the owner is allowed by role) and for support. */
+  aiDoctor: boolean;
   support: { grantId: string; scopes: ReadonlySet<string>; expiresAt: Date } | null;
   locale: Locale;
 }
@@ -72,6 +74,7 @@ export async function phGate(prisma: PrismaClient, restaurantId: string, now: Da
 interface Candidate {
   role: PhRole | null;
   viaMembership: boolean;
+  aiDoctor: boolean;
   allBranches: boolean;
   branchIds: string[];
   joined: Date;
@@ -122,6 +125,7 @@ export async function resolvePhActor(
     allBranches: chosen[1].allBranches,
     branchIds,
     viaMembership: chosen[1].viaMembership,
+    aiDoctor: chosen[1].aiDoctor,
     support: chosen[1].support,
     locale: isLocale(user.locale) ? user.locale : 'en',
   };
@@ -135,7 +139,7 @@ async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: 
       memberships: { where: { role: 'OWNER' }, select: { restaurantId: true, createdAt: true } },
       phStaffs: {
         where: { deactivatedAt: null },
-        select: { restaurantId: true, role: true, createdAt: true, branches: { select: { branchId: true } } },
+        select: { restaurantId: true, role: true, aiDoctor: true, createdAt: true, branches: { select: { branchId: true } } },
       },
     },
   });
@@ -152,6 +156,7 @@ async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: 
       candidates.set(grant.restaurantId, {
         role: null,
         viaMembership: false,
+        aiDoctor: false,
         allBranches: true,
         branchIds: [],
         joined: grant.createdAt,
@@ -164,6 +169,7 @@ async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: 
       candidates.set(staff.restaurantId, {
         role: staff.role,
         viaMembership: false,
+        aiDoctor: staff.aiDoctor,
         allBranches: false,
         branchIds: staff.branches.map((b) => b.branchId),
         joined: staff.createdAt,
@@ -175,6 +181,7 @@ async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: 
       candidates.set(member.restaurantId, {
         role: 'OWNER',
         viaMembership: true,
+        aiDoctor: false,
         allBranches: true,
         branchIds: [],
         joined: member.createdAt,

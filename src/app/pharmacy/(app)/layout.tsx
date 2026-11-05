@@ -1,6 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { limitsOf } from '@/server/domain/pharmacy/limits';
+import { getPrisma } from '@/server/data/prisma';
 import { getPhAccess, getPhPlaces } from '@/server/pharmacy/actor';
+import { doctorEnabledFor } from '@/server/pharmacy/doctor/access';
 import { phEntry } from '@/server/pharmacy/entry';
 import { getNavCounts } from '@/server/pharmacy/nav-counts';
 import { getStudioTranslator } from '@/studio/messages';
@@ -35,8 +38,11 @@ export default async function PharmacyAppLayout({ children }: { children: ReactN
   const notice = entry.kind === 'readOnly' ? <StateNotice kind="readOnly" until={entry.until} t={t} /> : null;
   // The counters on Stock and Expiry, for the chosen place; a closed pharmacy (above) draws its nav without them.
   const counts = await getNavCounts({ branchId: access.place.branchId, now: new Date() });
+  // The Doctor's nav item: the plan carries an AI budget, the person is allowed (owner or switch on), and the page exists.
+  const limits = await limitsOf(getPrisma(), access.actor.restaurantId, new Date());
+  const doctorEnabled = doctorEnabledFor({ actor: access.actor, aiBudgetMinor: limits?.aiMonthlyBudgetMinor ?? 0 });
   return (
-    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t} counts={counts}>
+    <Shell actor={access.actor} branchName={branchName} notice={notice} t={t} counts={counts} doctorEnabled={doctorEnabled}>
       {children}
     </Shell>
   );
