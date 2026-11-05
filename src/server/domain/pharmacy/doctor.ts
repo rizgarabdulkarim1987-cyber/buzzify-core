@@ -138,21 +138,26 @@ export const RED_FLAG_TERMS: Readonly<Record<TermCode, RedFlagEntry>> = {
       'overdose', 'took too many', 'too many pills', 'poison', 'swallowed bleach', 'drank bleach', 'swallowed chemical', 'drank chemical', 'swallowed a battery', 'drank kerosene',
       'suicid', 'self-harm', 'self harm', 'harm himself', 'harm herself', 'harm myself', 'kill himself', 'kill herself', 'kill myself', 'end my life', 'end his life', 'end her life',
       'heavy bleeding', 'bleeding heavily', 'severe bleeding', 'bleeding a lot', 'bleeding will not stop', "bleeding won't stop", "won't stop bleeding", 'will not stop bleeding', 'bleeding does not stop',
+      'having a fit', 'had a fit', 'has a fit', 'have a fit', 'fitting=', 'want to die', 'wants to die', 'wanted to die',
+      'throat feels tight', 'throat is tight', 'throat tight', 'tight throat',
     ],
     ar: [
       'صدمة تحسسية', 'حساسية شديدة', 'حساسية قوية', 'تورم اللسان', 'تورم الشفاه', 'تورم الشفايف', 'تورم الحلق', 'تورم الوجه', 'انتفاخ اللسان', 'انتفاخ الوجه',
       'تشنج', 'صرع', 'إغماء', 'مغمى عليه', 'فقد الوعي', 'فقدان الوعي', 'فاقد الوعي', 'غائب عن الوعي',
       'جرعة زائدة', 'بلع حبوب كثيرة', 'تسمم', 'مسموم', 'شرب كلور', 'بلع كلور', 'شرب قاصر', 'شرب مادة كيميائية', 'بلع بطارية', 'شرب نفط',
       'انتحار', 'ينتحر', 'إيذاء النفس', 'يؤذي نفسه', 'تؤذي نفسها', 'نزيف شديد', 'نزيف قوي', 'نزيف حاد', 'نزيف لا يتوقف',
+      'أغمي', 'عن الوعي', 'فقد وعي',
+      'نزيف ما يوقف', 'نزيف ما يتوقف', 'نزيف ما يقف', 'نزيف كثير', 'نزيف غزير', 'نزيف مستمر', 'ينزف كثير', 'ينزف بشدة', 'ينزف بقوة',
+      '=ابتلع سم=', '=بلع سم=', '=شرب سم=', '=أكل سم=', '=تناول سم=', '=ابتلع السم=', '=بلع السم=', '=شرب السم=', 'سم فئران', 'شرب مبيد', 'ابتلع مبيد', 'بلع مبيد',
     ],
     ckb: [
       'هەستیاری توند', 'هەستیاری زۆر', 'ئاوسانی زمان', 'ئاوسانی لێو', 'ئاوسانی گەروو', 'ئاوسانی دەموچاو', 'گرژبوون', 'پەرکەم',
-      'بێهۆش', 'لەهۆش چوو', 'هۆشی نەماوە', 'بورانەوە', 'دەرمانی زۆری خواردووە', 'ژەهراوی', 'ژەهر خواردن', 'کلۆر',
+      'بێهۆش', 'لەهۆش چوو', 'هۆشی نەماوە', 'بورانەوە', 'دەرمانی زۆری خواردووە', 'ژەهر', 'ژهر', 'کلۆر', 'خوێنی زۆر',
       'خۆکوشتن', 'خۆی بکوژێت', 'خۆم بکوژم', 'ئازاردانی خۆ', 'خوێنبەربوونی زۆر', 'خوێنبەربوونی توند', 'خوێن ناوەستێت',
     ],
     together: {
       en: [['swell', 'swollen'], ['tongue', 'lip', 'throat', 'face']],
-      ar: [['تورم', 'متورم', 'انتفاخ', 'منفوخ', 'وارم'], ['لسان', 'شفا', 'شفه', 'شفايف', 'حلق', '=وجه']],
+      ar: [['تورم', 'متورم', 'انتفاخ', 'منتفخ', 'انتفخ', 'منفوخ', 'وارم'], ['لسان', 'شفا', 'شفه', 'شفايف', '=شفته', '=شفتها', '=شفتي', 'حلق', '=وجه']],
       ckb: [['ئاوس', 'پەنەمی'], ['زمان', 'لێو', 'گەروو', 'دەموچاو']],
     },
   },
@@ -170,16 +175,16 @@ export const RED_FLAG_TERMS: Readonly<Record<TermCode, RedFlagEntry>> = {
   BREATHING: {
     meaning: 'Trouble breathing, or breathing that has stopped',
     en: [
-      'shortness of breath', 'short of breath', 'out of breath', 'breathless', 'no breath', 'not breathing', 'not breathe', 'stopped breathing', 'stop breathing',
+      'shortness of breath', 'short of breath', 'out of breath', 'breathless', 'no breath', 'not breathing', 'not breathe', 'stopped breathing', 'stop breathing', 'without breathing',
       'difficulty breathing', 'trouble breathing', 'hard to breathe', "can't breathe", 'cant breathe', 'cannot breathe', 'can not breathe', 'struggling to breathe',
       'wheez', 'gasping', 'blue lips', 'lips are blue', 'blue in the face', 'turning blue', 'turned blue', 'went blue', 'choking',
     ],
     ar: [
       'ضيق تنفس', 'ضيق في التنفس', 'ضيق بالتنفس', 'ضيق النفس', 'صعوبة في التنفس', 'صعوبة التنفس', 'صعوبة بالتنفس', 'لا يستطيع التنفس', 'ما يقدر يتنفس', 'ما يكدر يتنفس',
-      'لا يتنفس', 'ما يتنفس', 'توقف عن التنفس', 'توقف التنفس', 'انقطاع النفس', 'ازرق وجهه', 'ازرق لونه', 'ازرقاق',
+      'لا يتنفس', 'ما يتنفس', 'بلا نفس', 'بدون نفس', 'بلا تنفس', 'بدون تنفس','توقف عن التنفس', 'توقف التنفس', 'انقطاع النفس', 'ازرق وجهه', 'ازرق لونه', 'ازرقاق',
       'نهجان', 'لهاث', 'اختناق', 'يختنق', 'كتمة',
     ],
-    ckb: ['هەناسە تەنگی', 'تەنگە هەناسە', 'هەناسەی تەنگە', 'هەناسە بڕکێ', 'ناتوانێت هەناسە بدات', 'ناتوانم هەناسە بدەم', 'هەناسە نادات', 'هەناسەی وەستاوە', 'هەناسەی بڕاوە', 'شین بووەتەوە', 'شین هەڵگەڕاوە', 'خنکان'],
+    ckb: ['هەناسە تەنگی', 'تەنگە هەناسە', 'هەناسەی تەنگە', 'هەناسە بڕکێ', 'ناتوانێت هەناسە بدات', 'ناتوانم هەناسە بدەم', 'هەناسە نادا', 'هەناسەی نی', 'هەناسە نی', 'بێ هەناسە','هەناسەی وەستاوە', 'هەناسەی بڕاوە', 'شین بووەتەوە', 'شین هەڵگەڕاوە', 'خنکان'],
     together: {
       en: [['breath'], ['trouble', 'difficult', 'hard', 'short', 'struggl', 'problem', "can't", 'cant', 'cannot', 'unable', 'fast', 'rapid', 'heavy', 'labo', 'noisy']],
       ar: [['تنفس', '=نفس='], ['=ضيق', 'صعوب', '=صعب', 'مشكل', 'لا يقدر', 'ما يقدر', 'ما يكدر', 'لا يستطيع', '=سريع', '=ثقيل']],
@@ -426,7 +431,8 @@ export function mentionsAgeUpTo3Months(text: string): boolean {
 export const SCREEN_MAX_CHARS = 20_000;
 /** The screen reads overlapping windows of this size, so the work grows with the length of the text and nothing is skipped. */
 const WINDOW = 4_000;
-const OVERLAP = 400;
+/** Windows start every 3,000 characters: any two words up to 1,000 characters apart always share one window. */
+const OVERLAP = 1_000;
 const TAIL = 1_000;
 
 export interface ScreenInput {
@@ -474,8 +480,16 @@ function screenWindow(raw: string, age: number | undefined, found: Set<RedFlagCo
 /**
  * The deterministic red-flag screen. Pure and total: any string (hostile, huge, mixed scripts) gets an answer in time that
  * grows with its length, and text inside the complaint can never switch a rule off, because nothing in it is read as an
- * instruction, only matched against the table. Up to SCREEN_MAX_CHARS the whole text is screened (in overlapping windows; a
- * fever word and its duration must then fall within one 4,000-character window). A longer text also refers as TOO_LONG.
+ * instruction, only matched against the table.
+ *
+ * Windows: the first SCREEN_MAX_CHARS characters are read as 4,000-character windows starting every 3,000 characters, so
+ * every character is read and any two words up to 1,000 characters apart always share a window. Rules that combine two
+ * things (a fever word and a duration, a fever word and an age, a `together` pair) only see them together inside one window:
+ * two words more than 1,000 characters apart MAY be missed together, though each still trips its own rules.
+ *
+ * A text longer than SCREEN_MAX_CHARS refers as TOO_LONG. Its first SCREEN_MAX_CHARS characters and its last 1,000 are still
+ * screened; everything between them is NOT read, and for that part TOO_LONG is the only reason given (a red flag written only
+ * there shows as TOO_LONG, never as its own code).
  */
 export function screenComplaint(input: ScreenInput): ScreenResult {
   const raw = typeof input.text === 'string' ? input.text : '';
@@ -611,6 +625,9 @@ function finalizeMedicine(a: MedicineAnswer): FinalizeResult<MedicineAnswer> {
     confident: a.confident,
   };
   if (!answer.confident) {
+    // An unsure answer must still say what it read: with no product name at all it is refused (a confident answer with no
+    // name stays EMPTY below; both are rejections).
+    if (answer.productName === '') return { ok: false, code: 'INVALID' };
     // Not sure what the product is: nothing about uses or doses may be shown, only the name read and the warnings.
     return {
       ok: true,

@@ -291,10 +291,16 @@ describe('finalizeAnswer', () => {
     ).toEqual({ ok: false, code: 'EMPTY' });
   });
 
-  it('keeps an unconfident medicine answer (the app asks for a clearer photo)', () => {
-    const blank = medicine({ productName: '', activeIngredient: '', uses: [], doseAsLabelled: '', contraindications: [], interactions: [], sideEffects: [], warnings: [], storage: '', confident: false });
-    const out = finalizeAnswer(blank, 'MEDICINE_PHOTO');
+  it('keeps an unconfident medicine answer that names what it read (the app asks for a clearer photo)', () => {
+    const partial = medicine({ productName: 'Pana...', activeIngredient: '', uses: [], doseAsLabelled: '', contraindications: [], interactions: [], sideEffects: [], warnings: [], storage: '', confident: false });
+    const out = finalizeAnswer(partial, 'MEDICINE_PHOTO');
     expect(out.ok && 'confident' in out.answer && out.answer.confident).toBe(false);
+  });
+
+  it('rejects a medicine answer with no product name as INVALID, even when not confident', () => {
+    const blank = medicine({ productName: ' ', activeIngredient: '', uses: [], doseAsLabelled: '', contraindications: [], interactions: [], sideEffects: [], warnings: [], storage: '', confident: false });
+    expect(finalizeAnswer(blank, 'MEDICINE_PHOTO')).toEqual({ ok: false, code: 'INVALID' });
+    expect(finalizeAnswer(medicine({ productName: '', confident: false }), 'MEDICINE_NAME')).toEqual({ ok: false, code: 'INVALID' });
   });
 
   it('rejects oversized lists and strings instead of cutting them', () => {
@@ -497,5 +503,55 @@ describe('RX_ONLY_INGREDIENTS', () => {
 describe('prompt: simple Arabic', () => {
   it('asks for simple, widely understood Arabic', () => {
     expect(buildSystemPrompt('ar', 'COMPLAINT')).toMatch(/simple, widely understood Arabic/);
+  });
+});
+
+// Review round 2 --------------------------------------------------------------------------------------------------------
+
+describe('round 2: missed emergency and breathing phrasings, with near variants', () => {
+  const emergency = [
+    // Arabic: fainting, unconscious
+    'أغمي عليه', 'اغمي عليها', 'أُغْمِيَ عليه', 'اغمى عليه', 'غاب عن الوعي', 'غائب عن الوعي', 'غايب عن الوعي', 'فقد الوعي', 'فقد وعيه',
+    // Arabic: swelling of tongue, lips, face, throat
+    'لسانه منتفخ', 'لسانها متورم', 'شفايفه منتفخة', 'شفته وارمة', 'وجهه وارم', 'حلقه متورم', 'انتفخ لسانه', 'تورم في الشفاه',
+    // Arabic: heavy bleeding
+    'نزيف ما يوقف', 'نزيف ما يتوقف', 'نزيف كثير', 'نزيف شديد', 'ينزف كثير', 'نزيف غزير', 'نزيف مستمر',
+    // Arabic: poison
+    'ابتلع سم', 'إبتلع سم', 'بلع سم', 'شرب سم', 'شرب السم', 'اكل سم فئران', 'شرب مبيد',
+    // English
+    'having a fit', 'he had a fit', 'she has a fit', 'fitting since this morning', 'I want to die', 'he wants to die', 'she wanted to die',
+    'throat feels tight', 'my throat is tight', 'tight throat', 'throat closing up', 'throat tightness after peanuts',
+    // Kurdish (Sorani)
+    'ژەهر', 'ژەهری خواردووە', 'ژهر', 'خوێنی زۆر دەڕوات', 'خوێنی زۆر دەڕوا', 'خوێنبەربوونی زۆر', 'خوينبەربووني زۆر',
+  ];
+  for (const text of emergency) it(`"${text}" trips EMERGENCY`, () => expect(reasons(text)).toContain('EMERGENCY'));
+
+  const breathing = ['ما يتنفس', 'ما يتنفّس', 'بلا نفس', 'بدون نفس', 'بلا تنفس', 'without breathing', 'هەناسەی نییە', 'هەناسەی نیە', 'هەناسە نادات', 'هەناسە نادا', 'بێ هەناسە'];
+  for (const text of breathing) it(`"${text}" trips BREATHING`, () => expect(reasons(text)).toContain('BREATHING'));
+
+  it('ordinary complaints still trip nothing (en, ar, ckb)', () => {
+    const ordinary = [
+      'headache since yesterday', 'sore throat for 2 days', 'dry cough at night', 'heartburn after meals', 'my stomach hurts after eating', 'fitted for new glasses, eyes tired',
+      'صداع من امس', 'التهاب في الحلق', 'كحة ناشفة', 'سعال', 'حرقة في المعدة', 'حرقة بالصدر بعد الاكل', 'بطني يوجعني بعد الاكل', 'انتفاخ في البطن', 'شرب ماء كثير',
+      'سەرئێشە', 'گەروو ئێشە', 'کۆکە', 'سووتانەوەی گەدە', 'سکم دێشێت دوای خواردن', 'سکم پڕ با بووە',
+    ];
+    for (const text of ordinary) expect(screenComplaint({ text }), text).toEqual({ mustRefer: false, reasons: [] });
+  });
+});
+
+describe('round 2: window boundaries', () => {
+  it('a fever word and a duration up to 1,000 characters apart are always seen together, wherever they fall', () => {
+    const filler = (n: number) => 'sore throat. '.repeat(Math.ceil(n / 13)).slice(0, n);
+    for (let at = 2_000; at <= 13_000; at += 97) {
+      const text = `${filler(at)} fever. ${filler(985)} 5 days. ${filler(2_000)}`;
+      expect(text.length).toBeLessThanOrEqual(20_000);
+      expect(reasons(text), `fever at ${at}`).toContain('HIGH_FEVER_LONG');
+    }
+  });
+
+  it('between 20,000 characters and the last 1,000, nothing is read: TOO_LONG is the only reason given', () => {
+    const filler = 'sore throat. '.repeat(3_000); // 39,000 characters
+    const text = `${filler.slice(0, 25_000)} chest pain. ${filler.slice(0, 5_000)}`;
+    expect(screenComplaint({ text })).toEqual({ mustRefer: true, reasons: ['TOO_LONG'] });
   });
 });
