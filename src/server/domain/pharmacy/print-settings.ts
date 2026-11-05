@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { printerAddressAllowed } from '@/server/domain/pos/bridge-protocol';
 
 /**
  * Printing settings per workstation (phase 7, R7-8), kept in `PhSettings.print` (JSON, no migration). A workstation is a name the
@@ -23,12 +24,34 @@ const margin = z
   .min(MARGIN_MIN_MM, 'Enter a margin from 0 to 40 mm')
   .max(MARGIN_MAX_MM, 'Enter a margin from 0 to 40 mm');
 
+/**
+ * The thermal receipt printer of a workstation, reached through the print bridge on this PC (same program and same ESC/POS jobs as
+ * the restaurant cashier). Optional: a workstation without one prints through the browser only.
+ */
+export const receiptPrinter = z
+  .object({
+    transport: z.enum(['NETWORK', 'FILE'], 'Choose how the printer is connected'),
+    address: z.string('Enter the printer address').trim().max(100, 'Enter the printer address'),
+    paperWidth: z.union([z.literal(58), z.literal(80)], 'Choose 58 or 80 mm'),
+    cut: z.boolean(),
+    /** The drawer port pin (2 or 5) when a cash drawer hangs off this printer. */
+    drawerPin: z.union([z.literal(2), z.literal(5), z.null()], 'Choose pin 2, pin 5 or none'),
+    /** Open the drawer when a sale took cash. */
+    drawerOnCash: z.boolean(),
+  })
+  .strict()
+  .refine((p) => printerAddressAllowed(p.transport, p.address), { message: 'Enter a printer address on this network, or a printer shared on this PC', path: ['address'] });
+export type ReceiptPrinterSettings = z.infer<typeof receiptPrinter>;
+
+export const DEFAULT_RECEIPT_PRINTER: ReceiptPrinterSettings = { transport: 'NETWORK', address: '', paperWidth: 80, cut: true, drawerPin: 2, drawerOnCash: true };
+
 export const workstationSettings = z
   .object({
     paper: z.enum(PAPERS, 'Choose a paper size'),
     marginMm: z.object({ top: margin, right: margin, bottom: margin, left: margin }).strict(),
     labelSize: z.enum(LABEL_SIZES, 'Choose a label size'),
     showPrice: z.boolean(),
+    receiptPrinter: receiptPrinter.optional(),
   })
   .strict();
 export type WorkstationSettings = z.infer<typeof workstationSettings>;
