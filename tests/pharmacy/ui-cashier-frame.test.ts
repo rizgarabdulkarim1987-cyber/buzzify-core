@@ -13,7 +13,7 @@ import { STUDIO_MESSAGES } from '@/studio/messages';
  */
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }), usePathname: () => '/pharmacy/sell' }));
-const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn() }));
+const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn(), listHolds: vi.fn(async () => ({ ok: true, data: { items: [], hasMore: false } })) }));
 vi.mock('@/app/pharmacy/_actions/sales', () => sales);
 vi.mock('@/app/pharmacy/_actions/shifts', () => ({ openShift: vi.fn() }));
 

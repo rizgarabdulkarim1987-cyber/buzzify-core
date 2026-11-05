@@ -13,7 +13,7 @@ import { prescriptionKept } from '../prescription-logic';
 import { blockedLines, formatMinor, outcomeUnknown, parseMoney, refreshCart, saleAttemptFor, saleSignature, TOTAL_MOVED_CODES, type Currency, type PayDraft } from '../sell-logic';
 import type { OpenReceipt, ReceiptsState } from '../sell-receipts';
 import { cashierReducer, type CashierAction } from './cashier-logic';
-import { flowOfAttempt, rxLinesOf, RX_DROP_CODES, saleRequestOf, type WorkFlow } from './sale-flow-logic';
+import { flowOfAttempt, isPayFlow, rxLinesOf, RX_DROP_CODES, saleRequestOf, type WorkFlow } from './sale-flow-logic';
 
 /** A finished sale, shown on the receipt it was made for until the next receipt replaces it. */
 export interface Sold {
@@ -28,7 +28,7 @@ export interface Sold {
 /** What the screen needs to pay: the flow asked for on the active receipt, the sale call, its state and the receipt after it. */
 export interface SaleFlow {
   flow: WorkFlow | null;
-  /** Opens a flow on the active receipt; a receipt with a sale in flight opens that sale's own flow, filled in as it was sent. */
+  /** Opens a flow on the active receipt; a payment on a receipt with a sale in flight opens that sale's own flow, filled in as it was sent. */
   open: (kind: WorkFlow) => void;
   /** Esc / back: closes the flow or the receipt panel of the active receipt (never while its sale is being sent). */
   close: () => void;
@@ -46,6 +46,8 @@ export interface SaleFlow {
   elsewhere: boolean;
   problem: string | null;
   sold: Sold | null;
+  /** The last sale made on this screen (memory only, as the old screen's receipt): what "copy of the last receipt" prints. */
+  last: SaleResult | null;
   noPrint: boolean;
   setNoPrint: (on: boolean) => void;
 }
@@ -81,6 +83,7 @@ export function useSaleFlow(opts: {
   const lock = useRef(false);
   const [problem, setProblem] = useState<{ receiptKey: string; text: string } | null>(null);
   const [sold, setSold] = useState<Sold | null>(null);
+  const [last, setLast] = useState<SaleResult | null>(null);
   // One "no print" tick for the screen, remembering the receipt it was set on: a finished sale clears it only when that sale's
   // receipt set it, so a tick made on another receipt while a sale was in flight stays.
   const [print, setPrint] = useState<{ off: boolean; by: string | null }>({ off: false, by: null });
@@ -159,6 +162,7 @@ export function useSaleFlow(opts: {
       act({ type: 'sold', receiptKey: key });
       closeAsk(key);
       setSold({ receiptKey: key, sale: result.data as SaleResult, credit, noPrint: printOff });
+      setLast(result.data as SaleResult);
       setPrint((p) => (p.by === key ? { off: false, by: null } : p));
       router.refresh();
     } finally {
@@ -213,7 +217,7 @@ export function useSaleFlow(opts: {
   return {
     flow: ask?.receiptKey === receipt.key ? ask.flow : null,
     open: (kind) => {
-      setAsk({ receiptKey: receipt.key, flow: receipt.attempt ? flowOfAttempt(receipt.attempt) : kind });
+      setAsk({ receiptKey: receipt.key, flow: receipt.attempt && isPayFlow(kind) ? flowOfAttempt(receipt.attempt) : kind });
       if (problem?.receiptKey === receipt.key && !busy) setProblem(null);
     },
     close: () => {
@@ -233,6 +237,7 @@ export function useSaleFlow(opts: {
     elsewhere: busyKey !== null && !busy,
     problem: problem?.receiptKey === receipt.key ? problem.text : null,
     sold: sold?.receiptKey === receipt.key && receipt.done ? sold : null,
+    last,
     noPrint: print.off,
     setNoPrint: (off) => setPrint({ off, by: receipt.key }),
   };

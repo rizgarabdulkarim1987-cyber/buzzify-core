@@ -21,8 +21,11 @@ import {
  * The request is the old sale screen's (`SellWorkspace.submitPay`) to the letter: same cart body, same payments, same keys.
  */
 
-/** The payment flows of the work panel (discount, held receipts, prescription and the rest come with Task 9b). */
-export type WorkFlow = 'cash' | 'credit';
+/** The payment flows of the work panel. */
+export type PayFlow = 'cash' | 'credit';
+/** Every flow of the work panel: the two payments, the receipt discount, the held receipts, the prescription, all operations and the copy of the last receipt. */
+export type WorkFlow = PayFlow | 'discount' | 'held' | 'rx' | 'ops' | 'copy';
+export const isPayFlow = (flow: WorkFlow | null): flow is PayFlow => flow === 'cash' || flow === 'credit';
 
 /** The receipt's lines as the prescription rules read them. */
 export const rxLinesOf = (cart: CartState): RxLine[] => cart.lines.map((l) => ({ productId: l.productId, name: l.name, rxLevel: l.rxLevel, qty: l.qty, unitBaseQty: unitOf(l).baseQty }));
@@ -52,7 +55,7 @@ export function payBlockKey(
 }
 
 /** The flow a sale in flight was sent from: a retry opens it again, filled in as it was sent (so its keys still match). */
-export const flowOfAttempt = (attempt: SaleAttempt): WorkFlow => (attempt.credit ? 'credit' : 'cash');
+export const flowOfAttempt = (attempt: SaleAttempt): PayFlow => (attempt.credit ? 'credit' : 'cash');
 
 /** The cash flow's starting draft: empty (the exact total), or the payment of a cash attempt in flight as it was sent. */
 export function cashDraftOf(attempt: SaleAttempt | null, currency: Currency): PayDraft {

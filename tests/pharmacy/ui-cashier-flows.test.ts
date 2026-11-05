@@ -14,7 +14,7 @@ import { STUDIO_MESSAGES } from '@/studio/messages';
 
 const nav = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => nav, usePathname: () => '/pharmacy/sell' }));
-const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn() }));
+const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn(), listHolds: vi.fn(async () => ({ ok: true, data: { items: [], hasMore: false } })) }));
 vi.mock('@/app/pharmacy/_actions/sales', () => sales);
 vi.mock('@/app/pharmacy/_actions/shifts', () => ({ openShift: vi.fn() }));
 const customers = vi.hoisted(() => ({ listCustomers: vi.fn(async () => ({ ok: true, data: { items: [] } })), getCustomer: vi.fn() }));
@@ -139,6 +139,7 @@ beforeEach(() => {
   window.localStorage.setItem('ph.print.workstation', 'Counter 1');
   for (const fn of [...Object.values(sales), ...Object.values(receipts), nav.refresh, customers.getCustomer, bridge.printDoc, bridge.kickDrawer]) fn.mockReset();
   bridge.printDoc.mockResolvedValue({ ok: true });
+  sales.listHolds.mockResolvedValue({ ok: true, data: { items: [], hasMore: false } });
   print.getPrintSettings.mockResolvedValue({ ok: true, data: { print: { workstations: { 'Counter 1': WORKSTATION } } } });
   receipts.saleReceipt.mockResolvedValue(receiptOf([{ method: 'CASH', amountMinor: 5000n }]));
   container = document.createElement('div');

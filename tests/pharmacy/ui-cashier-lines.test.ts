@@ -13,7 +13,7 @@ import { STUDIO_MESSAGES } from '@/studio/messages';
  */
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }), usePathname: () => '/pharmacy/sell' }));
-const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn() }));
+const sales = vi.hoisted(() => ({ sellSearch: vi.fn(), holdSale: vi.fn(), createSale: vi.fn(), discardHold: vi.fn(), resumeHold: vi.fn(), listHolds: vi.fn(async () => ({ ok: true, data: { items: [], hasMore: false } })) }));
 vi.mock('@/app/pharmacy/_actions/sales', () => sales);
 vi.mock('@/app/pharmacy/_actions/shifts', () => ({ openShift: vi.fn() }));
 
@@ -314,10 +314,12 @@ describe('the line keys in the cashier screen', () => {
 
   it('takes a key from the browser exactly when it did something (every wired key, none forgotten)', () => {
     screenWith(three());
-    // Wired and acting: prevented. Not wired yet: left to the browser. A new wiring in run() is prevented by construction (run says true).
-    // F3 (credit) needs the credit permission this screen does not have; hold and discount arrive later.
-    for (const key of ['F3', 'F8', 'F9']) expect(press({ key }).defaultPrevented, key).toBe(false);
-    for (const key of ['F2', 'F6', 'F7']) expect(press({ key }).defaultPrevented, key).toBe(true);
+    // Wired and acting: prevented. Not acting: left to the browser. A new wiring in run() is prevented by construction (run says true).
+    // F3 (credit) needs the credit permission this screen does not have. F8 holds (its answer never comes here) and F9 opens the discount.
+    sales.holdSale.mockReturnValue(new Promise(() => {}));
+    expect(press({ key: 'F3' }).defaultPrevented, 'F3').toBe(false);
+    for (const key of ['F9', 'F2', 'F6', 'F7']) expect(press({ key }).defaultPrevented, key).toBe(true);
+    expect(press({ key: 'F8' }).defaultPrevented, 'F8').toBe(true);
     for (const key of ['ArrowDown', '+', '-']) expect(press({ key }).defaultPrevented, key).toBe(true);
     for (const key of ['/', 'Escape', 'F4']) expect(press({ key }).defaultPrevented, key).toBe(true);
   });

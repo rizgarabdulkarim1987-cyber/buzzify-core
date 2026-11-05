@@ -1,6 +1,7 @@
 'use client';
 
-import { TriangleAlert, Undo2 } from 'lucide-react';
+import { FilePlus2, TriangleAlert, Undo2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import type { PickedCustomer } from '../CustomerPicker';
 import type { SellPerms } from '../sell-props';
@@ -10,15 +11,15 @@ import type { OpenReceipt } from '../sell-receipts';
 import type { SellSettings } from '@/server/pharmacy/sell-search';
 import { PayCash } from './PayCash';
 import { PayCredit } from './PayCredit';
-import { payBlockKey } from './sale-flow-logic';
+import { isPayFlow, payBlockKey } from './sale-flow-logic';
 import { SaleReceipt } from './SaleReceipt';
 import type { SaleFlow } from './use-sale-flow';
 
 /**
- * The work panel under the pay buttons (layout A's pay box): idle, the cash flow, the credit flow, or the receipt after a sale.
- * Everything is inline: no dialog, no motion, 44px controls; Esc or "Back" returns to idle (never while the sale is being sent).
- * Idle with a sale in flight on this receipt says so. Task 9b adds the other flows (discount, held receipts, prescription,
- * all operations) as more cases here.
+ * The work panel under the pay buttons (layout A's pay box): idle, the cash flow, the credit flow, the receipt after a sale, or one
+ * of the other flows (discount, held receipts, prescription, all operations, the copy of the last receipt: `other`, built by the
+ * screen). Everything is inline: no dialog, no motion, 44px controls; Esc or "Back" returns to idle (never while the sale is being
+ * sent). Idle with a sale in flight on this receipt says so, and shows the receipt's prescription row (`idle`).
  */
 export function WorkPanel({
   sale,
@@ -31,6 +32,8 @@ export function WorkPanel({
   customer,
   onCustomer,
   onNext,
+  other,
+  idle,
 }: {
   sale: SaleFlow;
   receipt: OpenReceipt;
@@ -43,9 +46,13 @@ export function WorkPanel({
   onCustomer: (customer: PickedCustomer) => void;
   /** The next receipt (replaces this paid one). */
   onNext: () => void;
+  /** The body of a flow that is not a payment (discount, held, prescription, operations, copy). */
+  other: ReactNode;
+  /** What idle shows under the in-flight note: the receipt's prescription row. */
+  idle: ReactNode;
 }) {
   const t = useT();
-  const kind = sale.sold ? 'receipt' : (sale.flow ?? 'idle');
+  const kind = sale.flow && !isPayFlow(sale.flow) ? sale.flow : sale.sold ? 'receipt' : (sale.flow ?? 'idle');
   if (kind === 'idle') {
     return (
       <section className="flex flex-col gap-2 empty:hidden" data-testid="work-panel" data-flow="idle" aria-label={t('pharmacy.cashier.flow.region')}>
@@ -54,6 +61,7 @@ export function WorkPanel({
             {t('pharmacy.sell.attempt.unknown')}
           </Note>
         )}
+        {idle}
       </section>
     );
   }
@@ -84,7 +92,14 @@ export function WorkPanel({
           {...common}
         />
       )}
+      {(kind === 'cash' || kind === 'credit') && block === 'pharmacy.sell.blocked.rxMissing' && perms.rx && (
+        <button type="button" className={PH_BTN} data-testid="flow-rx" onClick={() => sale.open('rx')}>
+          <FilePlus2 aria-hidden className="size-4" />
+          {t('pharmacy.rx.add')}
+        </button>
+      )}
       {kind === 'receipt' && sale.sold && <SaleReceipt key={sale.sold.sale.id} sold={sale.sold} onNext={onNext} />}
+      {kind !== 'cash' && kind !== 'credit' && kind !== 'receipt' && other}
     </section>
   );
 }
