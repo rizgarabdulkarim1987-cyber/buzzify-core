@@ -38,6 +38,20 @@ export type DoctorCallOptions = AssistantCallOptions;
 
 export type DoctorCallResult = { ok: true; response: AiResponse; costMicroUsd: bigint } | { ok: false; code: AiFailureCode };
 
+/** The photo types the providers take. */
+export const PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+/** The largest photo payload accepted, in base64 characters (about 5 MB of bytes, the providers' per-image limit). Task 7 resizes far below it. */
+export const MAX_PHOTO_BASE64_CHARS = 6_990_000;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/** Why a photo cannot be sent, or null when it can (checked at run time: the type is only a promise of the caller). */
+function photoProblem(image: { mime: string; base64: string }): string | null {
+  if (!(PHOTO_MIMES as readonly string[]).includes(image.mime)) return 'the photo type is not jpeg, png or webp';
+  if (image.base64.length === 0 || image.base64.length > MAX_PHOTO_BASE64_CHARS) return 'the photo is empty or larger than the cap';
+  if (image.base64.length % 4 !== 0 || !BASE64.test(image.base64)) return 'the photo is not base64';
+  return null;
+}
+
 /** The model purpose of a mode: the reading model for a photo, the answer model otherwise. */
 export const doctorPurposeFor = (mode: DoctorMode): AiPurpose => (mode === 'MEDICINE_PHOTO' ? 'extract' : 'ask');
 
@@ -57,9 +71,18 @@ function withPhoto(messages: AiMessage[], image: NonNullable<DoctorCallArgs['ima
 }
 
 export async function runDoctorAi(db: Parameters<typeof runBudgetedCall>[0], args: DoctorCallArgs, opts: DoctorCallOptions = {}): Promise<DoctorCallResult> {
-  // A photo belongs to photo mode and photo mode needs one: anything else is an input this call does not take.
+  const ids = { restaurantId: args.restaurantId };
+  // A photo belongs to photo mode and photo mode needs one: anything else is an input this call does not take (a caller's bug, so logged).
   const photo = args.mode === 'MEDICINE_PHOTO';
-  if (photo !== (args.image !== undefined)) return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
+  if (photo !== (args.image !== undefined)) {
+    logError('the doctor call got a photo outside photo mode, or photo mode without a photo', ids);
+    return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
+  }
+  const problem = args.image ? photoProblem(args.image) : null;
+  if (problem) {
+    logError(`the doctor call refused its photo: ${problem}`, ids);
+    return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
+  }
   try {
     return await runBudgetedCall(
       db,
@@ -75,7 +98,7 @@ export async function runDoctorAi(db: Parameters<typeof runBudgetedCall>[0], arg
       opts,
     );
   } catch (error) {
-    logError('the doctor call failed outside the budget steps', { restaurantId: args.restaurantId }, error);
+    logError('the doctor call failed outside the budget steps', ids, error);
     return { ok: false, code: 'AI_PROVIDER_ERROR' };
   }
 }

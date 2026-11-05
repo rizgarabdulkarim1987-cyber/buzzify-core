@@ -5,7 +5,7 @@ import { resolveAiProvider } from '@/server/ai/settings';
 import { delegates, scopedClient } from '@/server/data/tenant-db';
 import { baghdadMonth, budgetMicroUsdFromCents, estimateCostMicroUsd, fitsContext, type MediaHint } from '@/server/domain/pharmacy/intake';
 import { limitsOf } from '@/server/domain/pharmacy/limits';
-import { book, estimateInputTokens, isTimeout, isUnique, lockUsage, logError, pricingOf, type AiFailureCode, type AiPricing, type RunOptions } from './ai';
+import { book, estimateInputTokens, isTimeout, isUnique, lockUsage, logError, pricingOf, type AiFailureCode, type AiPricing, type FilelessPurpose, type RunOptions } from './ai';
 
 /**
  * The assistant's call under the SAME budget as invoice reading (R7-6; budget kind ASSISTANT): `PhAiUsageMonth`,
@@ -39,7 +39,7 @@ export interface BudgetedCallArgs extends AssistantCallArgs {
   /** The model purpose sent to the provider (and the model whose price is checked). */
   purpose: AiPurpose;
   /** `PhAiCall.purpose`, and the prefix of the reservation's `fileId` (`<logPurpose>:<uuid>`), which the sweeper reads back. */
-  logPurpose: 'assistant' | 'doctor';
+  logPurpose: FilelessPurpose;
   /** One hint per image or PDF part of `input` (see `estimateInputTokens`). */
   media?: readonly MediaHint[];
 }

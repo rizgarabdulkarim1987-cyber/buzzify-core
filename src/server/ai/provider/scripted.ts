@@ -7,7 +7,8 @@ import type { AiRequest, AiResponse } from './types';
 /**
  * A test provider that answers a document with the answer scripted for it: the script is keyed by the SHA-256 of the file's
  * bytes (the image or PDF part of the request). A request with no image or PDF (the AI Doctor's typed question) is keyed by
- * the SHA-256 of its last user message's text instead (`textScriptKey`). It is injected by tests (`opts.provider`,
+ * the SHA-256 of its last user message's text instead (`textScriptKey`), and falls back to the empty key `''` when that text
+ * is not scripted. It is injected by tests (`opts.provider`,
  * `setAiProviderForTests`); nothing in production builds it, and the cashier's `FakeProvider` is untouched.
  */
 
@@ -51,7 +52,10 @@ export class ScriptedProvider extends FakeProvider {
 
   override async complete(req: AiRequest): Promise<AiResponse> {
     this.calls.push(req);
-    const key = scriptKeyOf(req);
+    let key = scriptKeyOf(req);
+    // A text-only request whose text nobody scripted falls back to the empty key, which older scripts (the assistant e2e) use for every text request.
+    const hasMedia = req.messages.some((m) => m.content.some((c) => c.type === 'document' || c.type === 'image'));
+    if (!hasMedia && !this.script.has(key) && this.script.has('')) key = '';
     this.reached.push(key);
     if (this.delayMs) await new Promise((resolve) => setTimeout(resolve, this.delayMs));
     const answer = this.script.get(key);
