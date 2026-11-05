@@ -10,6 +10,7 @@ import {
   mentionsAgeUpTo3Months,
   mentionsOver3Days,
   normalizeForScreening,
+  rxOnlyTermOf,
   RED_FLAG_CODES,
   RED_FLAG_KIND,
   RED_FLAG_TERMS,
@@ -553,5 +554,22 @@ describe('round 2: window boundaries', () => {
     const filler = 'sore throat. '.repeat(3_000); // 39,000 characters
     const text = `${filler.slice(0, 25_000)} chest pain. ${filler.slice(0, 5_000)}`;
     expect(screenComplaint({ text })).toEqual({ mustRefer: true, reasons: ['TOO_LONG'] });
+  });
+});
+
+describe('rxOnlyTermOf (the owner’s prescription-only review, plan Task 9)', () => {
+  it('names the listed ingredient a product names, in English, Arabic and Sorani, at the start of a word', () => {
+    expect(rxOnlyTermOf('Amoxil 500', 'Amoxicillin')).toBe('amoxicillin');
+    expect(rxOnlyTermOf('Augmentin 1g')).toBe('augmentin');
+    expect(rxOnlyTermOf('', 'amoxicillin trihydrate')).toBe('amoxicillin');
+    expect(rxOnlyTermOf('كبسولات', 'اموكسيسيلين')).not.toBeNull();
+    expect(rxOnlyTermOf('أموكسيسيلين')).not.toBeNull();
+    expect(rxOnlyTermOf('حەب', 'ئەمۆکسیسیلین')).toBe('ئەمۆکسیسیلین');
+  });
+
+  it('finds nothing in paracetamol, an empty product, or a term inside another word', () => {
+    expect(rxOnlyTermOf('Panadol', 'paracetamol', 'paracetamol')).toBeNull();
+    expect(rxOnlyTermOf('', '', '')).toBeNull();
+    expect(rxOnlyTermOf('Xcipro gel')).toBeNull();
   });
 });

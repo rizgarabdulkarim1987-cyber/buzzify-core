@@ -1,5 +1,6 @@
-import { Lock } from 'lucide-react';
+import { ChevronRight, ClipboardCheck, Lock, Stethoscope } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { phGate } from '@/app/pharmacy/_ui/ph-gate';
 import { PharmacySettings } from '@/app/pharmacy/_ui/PharmacySettings';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
@@ -43,6 +44,32 @@ export default async function SettingsPage() {
       <PageHeader className="max-sm:px-4" title={t('pharmacy.settings.title')} description={t('pharmacy.settings.intro')} />
       <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 sm:px-8">
         {owner && !writable.ok && <WriteBlocked writable={writable} scope="sales" />}
+        {roleMay(access.actor, 'staff.manage') && (
+          <nav aria-labelledby="set-doctor-h" className="flex min-w-0 max-w-2xl flex-col gap-2" data-testid="settings-doctor-links">
+            <h2 id="set-doctor-h" className="text-lg font-semibold text-text">
+              {t('pharmacy.settings.links.title')}
+            </h2>
+            <ul className="flex min-w-0 flex-col divide-y divide-ph-line rounded-[22px] bg-ph-card px-4">
+              {[
+                { href: '/pharmacy/settings/staff', icon: <Stethoscope aria-hidden className="size-5 shrink-0 text-ph-g6" />, title: 'pharmacy.settings.links.staff', hint: 'pharmacy.settings.links.staffHint', testid: 'settings-link-staff', show: true },
+                { href: '/pharmacy/settings/doctor-review', icon: <ClipboardCheck aria-hidden className="size-5 shrink-0 text-ph-g6" />, title: 'pharmacy.settings.links.review', hint: 'pharmacy.settings.links.reviewHint', testid: 'settings-link-review', show: roleMay(access.actor, 'catalog.manage') },
+              ]
+                .filter((link) => link.show)
+                .map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} data-testid={link.testid} className="flex min-h-14 min-w-0 items-center gap-3 py-2 hover:bg-ph-canvas">
+                      {link.icon}
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="font-semibold text-ph-text">{t(link.title)}</span>
+                        <span className="text-sm text-ph-muted">{t(link.hint)}</span>
+                      </span>
+                      <ChevronRight aria-hidden className="size-4 shrink-0 text-ph-muted rtl:rotate-180" />
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </nav>
+        )}
         <PharmacySettings
           initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, version: controlled.version }}
           editable={owner && writable.ok}

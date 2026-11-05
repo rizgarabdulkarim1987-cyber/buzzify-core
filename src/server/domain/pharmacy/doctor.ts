@@ -282,6 +282,34 @@ export const RX_ONLY_INGREDIENTS: readonly string[] = [
   'ترامادۆڵ', 'کۆدایین', 'دیازێپام', 'پرێگابالین', 'پرێدنیزۆلۆن', 'دێکسامیسازۆن', 'وارفارین', 'ئینسولین', 'مێتفۆرمین',
 ];
 
+const LATIN_TERM = /^[a-z0-9 .+\-/]+$/;
+
+/**
+ * Whether a normalized text holds a normalized term: a Latin term at the start of a word, an Arabic or Kurdish one anywhere (a
+ * prefix such as ال or و is common). Both sides must already be `normalizeForScreening` forms.
+ */
+export function containsScreeningTerm(text: string, term: string): boolean {
+  if (!LATIN_TERM.test(term)) return text.includes(term);
+  for (let at = text.indexOf(term); at !== -1; at = text.indexOf(term, at + 1)) {
+    if (at === 0 || !/[a-z0-9]/.test(text[at - 1]!)) return true;
+  }
+  return false;
+}
+
+let rxOnlyTerms: { raw: string; term: string }[] | null = null;
+
+/**
+ * The first `RX_ONLY_INGREDIENTS` entry (as written in the list) that any of the texts names, or null: the owner's review of
+ * OTC products that should be prescription-only (plan Task 9). Spelling is folded the way the red-flag screen folds it.
+ */
+export function rxOnlyTermOf(...texts: readonly string[]): string | null {
+  rxOnlyTerms ??= RX_ONLY_INGREDIENTS.map((raw) => ({ raw, term: normalizeForScreening(raw) })).filter((x) => x.term.length >= 3);
+  const plain = texts.map(normalizeForScreening).filter((t) => t !== '');
+  if (plain.length === 0) return null;
+  for (const { raw, term } of rxOnlyTerms) if (plain.some((t) => containsScreeningTerm(t, term))) return raw;
+  return null;
+}
+
 // Compiling the table ---------------------------------------------------------------------------------------------------
 
 const LETTER = '\\p{L}\\p{M}';

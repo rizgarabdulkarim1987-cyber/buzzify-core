@@ -49,6 +49,13 @@ describe('pharmacy audit redaction rule', () => {
     expect(() => assertAuditSafe('PhReturn', { lines: change({ items: [{ reason: 'x' }] }) })).toThrow(/reason/);
   });
 
+  it('the AI Doctor switch passes on a staff row only, as a yes or no: aiDoctor (plan Task 9)', () => {
+    expect(() => assertAuditSafe('PhStaff', { aiDoctor: { before: false, after: true } })).not.toThrow();
+    expect(() => assertAuditSafe('PhSale', { aiDoctor: { before: false, after: true } })).toThrow(PharmacyAuditError);
+    expect(() => assertAuditSafe('PhStaff', { aiDoctor: { before: null, after: 'Dr Ahmed' } })).toThrow(PharmacyAuditError);
+    expect(() => assertAuditSafe('PhStaff', { doctorName: change('Dr Ahmed') })).toThrow(PharmacyAuditError);
+  });
+
   it('the markers that replace free text pass: hasReason, noteLength, reason codes', () => {
     expect(() => assertAuditSafe('PhReturn', { hasReason: change(true), noteLength: change(4), degradeReason: change('NO_TOOL'), status: change('OK') })).not.toThrow();
   });

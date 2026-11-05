@@ -2,6 +2,7 @@ import { MAX_TOKENS } from '@/server/ai/provider/models';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import {
   answerJsonSchemaFor,
+  containsScreeningTerm,
   DOCTOR_DISCLAIMER_KEY,
   finalizeAnswer,
   normalizeForScreening,
@@ -121,16 +122,7 @@ function loggedAnswer(result: DoctorResult): DoctorJsonObject {
 
 // The prescription-only name screen ---------------------------------------------------------------------------------------
 
-const LATIN = /^[a-z0-9 .+\-/]+$/;
-
-/** A term found in a normalized text: a Latin term at the start of a word, an Arabic or Kurdish one anywhere (a prefix such as ال or و is common). */
-function contains(text: string, term: string): boolean {
-  if (!LATIN.test(term)) return text.includes(term);
-  for (let at = text.indexOf(term); at !== -1; at = text.indexOf(term, at + 1)) {
-    if (at === 0 || !/[a-z0-9]/.test(text[at - 1]!)) return true;
-  }
-  return false;
-}
+const contains = containsScreeningTerm;
 
 /**
  * Whether a text names a prescription-only medicine: any term of `RX_ONLY_INGREDIENTS`, or the trade name, generic name or

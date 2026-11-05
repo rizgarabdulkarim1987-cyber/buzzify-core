@@ -47,12 +47,21 @@ function findForbidden(value: unknown, depth = 0): string | null {
   return null;
 }
 
+/**
+ * The one field the `doctor` rule lets through: a staff row's AI Doctor switch (`PhStaff.aiDoctor`, plan Task 9), a yes or no
+ * about who may use the app's assistant, never a doctor's name or anything a person typed.
+ */
+function isDoctorSwitch(entityType: string, field: string, change: { before: unknown; after: unknown } | undefined): boolean {
+  return entityType === 'PhStaff' && field === 'aiDoctor' && !!change && typeof change.before === 'boolean' && typeof change.after === 'boolean';
+}
+
 export function assertAuditSafe(
   entityType: string,
   changes: Record<string, { before: unknown; after: unknown }> | undefined,
 ): void {
   if (!changes) return;
   for (const [field, change] of Object.entries(changes)) {
+    if (isDoctorSwitch(entityType, field, change)) continue;
     if (FORBIDDEN_AUDIT_FIELDS.some((re) => re.test(field))) throw new PharmacyAuditError(entityType, field);
     const nested = findForbidden(change);
     if (nested) throw new PharmacyAuditError(entityType, nested);
