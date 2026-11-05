@@ -42,6 +42,30 @@ export function safeNote(note: string): string {
   return note.trim().slice(0, DOCTOR_NOTE_MAX);
 }
 
+/** English money and stock words, as whole words ("$" anywhere). */
+const MONEY_OR_STOCK_EN = /\$|(?<![a-z])(?:iqd|usd|dinars?|dollars?|bucks|thousands?|prices?|priced|costs?|cheap|expensive|in\s+stock|out\s+of\s+stock)(?![a-z])/i;
+/**
+ * Arabic and Kurdish money and stock words as whole words (an optional و ب ل and ال before, a short grammatical ending
+ * after), so "الفم" (the mouth) is not read as "الف" (a thousand), which the note rule above would drop.
+ */
+const MONEY_OR_STOCK_AR = new RegExp(
+  `(?<![\\p{L}])(?:[وبل])?(?:ال)?(?:دينار|دنانير|دیناڕ|دینار|دولار|دۆلار|ألف|الف|آلاف|الاف|هەزار|متوفر|متوفرة|بەردەست|سعر|سعره|ثمن|نرخ)(?:ە|ی|ات|ان|ه)?(?![\\p{L}])|د\\.ع`,
+  'u',
+);
+
+/**
+ * Whether a line of the model's answer claims a price or a stock level (in English, Arabic or Kurdish). Prices and quantities
+ * come from the database alone, so such a line is never shown. Digits alone do not count here (a line may say "3 days" or
+ * "39 degrees"); the service adds the digit rule where a number has no clinical use.
+ */
+export function claimsPriceOrStock(text: string): boolean {
+  const plain = text.normalize('NFKC');
+  return MONEY_OR_STOCK_EN.test(plain) || MONEY_OR_STOCK_AR.test(plain);
+}
+
+/** Any digit of any script, after NFKC (the note rule's digit test, for the lines where a number has no clinical use). */
+export const hasAnyDigit = (text: string): boolean => ANY_DIGIT.test(text.normalize('NFKC'));
+
 export interface MatchedItem {
   productId: string;
   unitId: string;

@@ -17,10 +17,10 @@ import {
 import { limitsOf } from '@/server/domain/pharmacy/limits';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
-import type { AiFailureCode } from '../intake/ai';
+import { logError, type AiFailureCode } from '../intake/ai';
 import { doctorAccess, type DoctorAccessReason } from './access';
 import { runDoctorAi, type DoctorCallOptions } from './doctor-ai';
-import { matchOptions, type MatchedOption } from './matcher';
+import { claimsPriceOrStock, hasAnyDigit, matchOptions, type MatchedOption } from './matcher';
 import { buildSystemPrompt, cleanDoctorText, doctorUserText, type DoctorQuestion } from './prompt';
 
 /**
@@ -179,7 +179,7 @@ export async function askDoctor(env: DoctorEnv, input: AskDoctorInput): Promise<
       branchId: input.branchId,
       staffId: ph.userId,
       mode: input.mode,
-      questionText: typed === null ? null : typed.slice(0, DOCTOR_LOG_TEXT_MAX),
+      questionText: typed === null ? null : Array.from(typed).slice(0, DOCTOR_LOG_TEXT_MAX).join(''),
       answer: loggedAnswer(result),
       ...usage,
       outcome: outcomeOf(result),
@@ -212,46 +212,86 @@ export async function askDoctor(env: DoctorEnv, input: AskDoctorInput): Promise<
   usage.outputTokens = called.response.outputTokens;
   const text = called.response.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('');
 
+  // The model was paid for: whatever goes wrong from here (a database read, the matcher), the request is still logged once, as
+  // FAILED, and the person sees the calm message. The budget was settled inside runDoctorAi and is not touched again.
+  let shown: DoctorResult;
+  try {
+    shown = await decide(scoped, ph, input, text, now);
+  } catch (error) {
+    logError('the doctor answer could not be prepared after the model call', { restaurantId: ph.restaurantId }, error);
+    shown = { kind: 'UNAVAILABLE', reason: 'FAILED' };
+  }
+  return finish(shown);
+}
+
+/** Lines of the model whose text names a price or a stock level are never shown (prices and quantities come from the database). */
+const priceFree = (list: readonly string[], digitsToo = false) => list.filter((line) => !claimsPriceOrStock(line) && !(digitsToo && hasAnyDigit(line)));
+const priceFreeLine = (line: string) => (claimsPriceOrStock(line) ? '' : line);
+
+/** A name the catalog can be matched against: no letter outside the Latin script (an Arabic or Kurdish spelling is matched by nothing, so it fails closed). */
+const LATIN_NAME = /^[\p{Script=Latin}\p{N}\p{P}\p{S}\p{Zs}\p{M}]*$/u;
+const latinName = (name: string) => LATIN_NAME.test(name.normalize('NFKC'));
+
+/** What is shown for the model's reply (steps 4 and 5 of the header). */
+async function decide(scoped: ScopedClient, ph: PhActor, input: AskDoctorInput, text: string, now: Date): Promise<DoctorResult> {
   if (input.mode !== 'COMPLAINT') {
     const checked = finalizeAnswer(text, input.mode);
-    if (!checked.ok) return finish({ kind: 'UNAVAILABLE', reason: 'FAILED' });
-    if (!checked.answer.confident) return finish({ kind: 'UNSURE', hint: input.mode === 'MEDICINE_PHOTO' ? 'CLEARER_PHOTO' : 'MORE_DETAIL' });
-    return finish({ kind: 'ANSWER', mode: input.mode, answer: checked.answer, options: [], mustRefer: false });
+    if (!checked.ok) return { kind: 'UNAVAILABLE', reason: 'FAILED' };
+    if (!checked.answer.confident) return { kind: 'UNSURE', hint: input.mode === 'MEDICINE_PHOTO' ? 'CLEARER_PHOTO' : 'MORE_DETAIL' };
+    const a = checked.answer;
+    // Medicine answers keep their numbers (strength, leaflet dose, storage temperature); a price or stock claim is dropped from every field.
+    const answer: MedicineAnswer = {
+      productName: priceFreeLine(a.productName),
+      activeIngredient: priceFreeLine(a.activeIngredient),
+      uses: priceFree(a.uses, true),
+      doseAsLabelled: priceFreeLine(a.doseAsLabelled),
+      contraindications: priceFree(a.contraindications),
+      interactions: priceFree(a.interactions),
+      sideEffects: priceFree(a.sideEffects),
+      warnings: priceFree(a.warnings),
+      storage: priceFreeLine(a.storage),
+      confident: true,
+    };
+    return { kind: 'ANSWER', mode: input.mode, answer, options: [], mustRefer: false };
   }
 
   const checked = finalizeAnswer(text, 'COMPLAINT');
-  if (!checked.ok) return finish({ kind: 'UNAVAILABLE', reason: 'FAILED' });
+  if (!checked.ok) return { kind: 'UNAVAILABLE', reason: 'FAILED' };
   const answer = checked.answer;
-  if (answer.unsure) return finish({ kind: 'UNSURE', hint: 'MORE_DETAIL' });
+  if (answer.unsure) return { kind: 'UNSURE', hint: 'MORE_DETAIL' };
 
   const namesRx = await rxScreen(scoped);
   let safetyLineDropped = false;
-  const keep = (list: readonly string[], safety: boolean) =>
+  // A line is dropped when it names a prescription-only medicine or claims a price or stock level. Likely causes have no use for a number.
+  const keep = (list: readonly string[], safety: boolean, digitsToo = false) =>
     list.filter((line) => {
-      const drop = line !== REFER_GENERIC && namesRx(line);
+      const drop = line !== REFER_GENERIC && (namesRx(line) || claimsPriceOrStock(line) || (digitsToo && hasAnyDigit(line)));
       if (drop && safety) safetyLineDropped = true;
       return !drop;
     });
   const shown: ShownComplaintAnswer = {
     redFlags: keep(answer.redFlags, true),
-    likelyCauses: keep(answer.likelyCauses, false),
+    likelyCauses: keep(answer.likelyCauses, false, true),
     askNext: keep(answer.askNext, false),
     tellCustomer: keep(answer.tellCustomer, false),
     referIf: keep(answer.referIf, true),
     cautions: keep(answer.cautions, true),
     unsure: false,
   };
-  // A red flag, a referral or a caution that named a prescription-only medicine is gone: the answer refers instead.
-  if (safetyLineDropped && !shown.referIf.includes(REFER_GENERIC)) shown.referIf.push(REFER_GENERIC);
 
+  // An option is kept only with a Latin name that names no prescription-only medicine (deny list and catalog), in its ingredient or any brand.
   const allowed: ComplaintOption[] = answer.options
-    .filter((o) => !namesRx(o.ingredient) && !o.tradeNames.some(namesRx))
+    .filter((o) => latinName(o.ingredient) && o.tradeNames.every(latinName) && !namesRx(o.ingredient) && !o.tradeNames.some(namesRx))
     .map((o) => ({ ...o, note: namesRx(o.note) ? '' : o.note }));
   const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true } });
   const options = allowed.length === 0 ? [] : await matchOptions({ scoped, ph, branchId: input.branchId, currency: settings?.defaultCurrency ?? 'IQD', now }, allowed);
   // The model suggested something and none of it may be shown: it needed a prescription-only medicine, so the answer refers.
-  if (answer.options.length > 0 && options.length === 0) return finish({ kind: 'REFER', reasons: ['NEEDS_PRESCRIPTION'] });
+  if (answer.options.length > 0 && options.length === 0) return { kind: 'REFER', reasons: ['NEEDS_PRESCRIPTION'] };
+  // Some of it was dropped (here, or by the matcher's catalog check): the model thought a prescription medicine fits, so the answer refers too.
+  const optionDropped = options.length < answer.options.length;
 
-  const mustRefer = answer.redFlags.length > 0 || safetyLineDropped || options.length === 0;
-  return finish({ kind: 'ANSWER', mode: 'COMPLAINT', answer: shown, options, mustRefer });
+  // A safety line that was dropped, or a dropped option: the answer refers with the app's generic line.
+  if ((safetyLineDropped || optionDropped) && !shown.referIf.includes(REFER_GENERIC)) shown.referIf.push(REFER_GENERIC);
+  const mustRefer = answer.redFlags.length > 0 || safetyLineDropped || optionDropped || options.length === 0;
+  return { kind: 'ANSWER', mode: 'COMPLAINT', answer: shown, options, mustRefer };
 }

@@ -666,9 +666,11 @@ const CASES: Record<string, Case> = {
   },
   'ph.assistant.proposal.accept': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.assistant.proposal.dismiss': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
-  // The AI Doctor (Task 6). It names no row: the branch is the place's (none: INVALID), the provider is switched off in this file (UNAVAILABLE),
-  // and the log row it writes is the caller's own branch's. Another business or branch is refused by the framework before anything runs.
-  'ph.doctor.ask': { body: () => ({ mode: 'COMPLAINT', text: 'Mild headache since this morning' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // The AI Doctor (Task 6). The body names a branch of the side (a place's own branch replaces it), so with no branch in the place the
+  // framework's branch check runs on it: another business's or branch's is refused before anything runs. This world's plan has no AI
+  // budget, so a call in one's own branch is refused by the Doctor's own access rule (FORBIDDEN) and writes nothing: both outcomes are
+  // harmless; the paths that answer are proven in doctor-action.test.ts and doctor-service.test.ts.
+  'ph.doctor.ask': { body: (ids, n) => ({ mode: 'COMPLAINT', text: 'Mild headache since this morning', branchId: n === 1 ? ids.b1 : ids.b2 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {

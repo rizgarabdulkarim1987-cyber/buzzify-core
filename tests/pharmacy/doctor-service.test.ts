@@ -4,7 +4,7 @@ import { scriptedProvider, textScriptKey, type ScriptedAnswer, type ScriptedProv
 import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { REFER_GENERIC } from '@/server/domain/pharmacy/doctor';
 import type { PhActor } from '@/server/pharmacy/actor';
-import { doctorUserText } from '@/server/pharmacy/doctor/prompt';
+import { buildSystemPrompt, doctorUserText } from '@/server/pharmacy/doctor/prompt';
 import { askDoctor, type AskDoctorInput, type DoctorEnv, type DoctorLogRow, type DoctorResult } from '@/server/pharmacy/doctor/service';
 import type { AiPricing } from '@/server/pharmacy/intake/ai';
 import { phScopedClient } from '@/server/studio/framework/access';
@@ -358,5 +358,95 @@ describe('who may ask', () => {
   it('refuses without a pharmacy identity', async () => {
     const env = await envOf(w.owner, null);
     await expect(askDoctor({ ...env, ph: null }, complaint('mild headache'))).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'You cannot use the AI Doctor here' });
+  });
+});
+
+describe('review round 1', () => {
+  it('F1: drops an option named in Arabic or Kurdish script (unmatchable against the Latin catalog), and refers', async () => {
+    const only = complaint('runny nose and sneezing');
+    const alone = await askDoctor(await envOf(w.onA, scriptFor(only, answerOf({ options: [{ ingredient: 'ليفوسيتريزين', tradeNames: [], note: '' }] }))), only);
+    expect(alone).toEqual({ kind: 'REFER', reasons: ['NEEDS_PRESCRIPTION'] });
+    const mixed = complaint('runny nose and sneezing at night');
+    const out = await askDoctor(
+      await envOf(w.onA, scriptFor(mixed, answerOf({ options: [{ ingredient: 'paracetamol', tradeNames: [], note: '' }, { ingredient: 'antihistamine', tradeNames: ['زيزال'], note: '' }, { ingredient: 'لۆراتادین', tradeNames: [], note: '' }] }))),
+      mixed,
+    );
+    if (out.kind !== 'ANSWER' || out.mode !== 'COMPLAINT') throw new Error(`expected an answer, got ${out.kind}`);
+    expect(out.options.map((o) => o.ingredient)).toEqual(['paracetamol']);
+    expect(out.answer.referIf).toContain(REFER_GENERIC);
+    expect(out.mustRefer).toBe(true);
+    expect(json(out)).not.toMatch(/ليفوسيتريزين|زيزال|لۆراتادین/);
+  });
+
+  it('F1: the prompt requires medicine and ingredient names in Latin letters', () => {
+    for (const locale of ['en', 'ar', 'ckb'] as const) expect(buildSystemPrompt(locale, 'COMPLAINT')).toMatch(/must be written in Latin letters/);
+  });
+
+  it('F2: one dropped Rx option makes the answer refer, even when an OTC option remains and no line names it', async () => {
+    const input = complaint('sore throat since yesterday');
+    const out = await askDoctor(
+      await envOf(w.onA, scriptFor(input, answerOf({ options: [{ ingredient: 'amoxicillin', tradeNames: [], note: '' }, { ingredient: 'paracetamol', tradeNames: [], note: '' }], referIf: [], cautions: [] }))),
+      input,
+    );
+    if (out.kind !== 'ANSWER' || out.mode !== 'COMPLAINT') throw new Error(`expected an answer, got ${out.kind}`);
+    expect(out.options.map((o) => o.ingredient)).toEqual(['paracetamol']);
+    expect(out.answer.referIf).toEqual([REFER_GENERIC]);
+    expect(out.mustRefer).toBe(true);
+  });
+
+  it('F3: drops complaint lines that claim a price or stock, in any language, and keeps clinical numbers', async () => {
+    const input = complaint('headache and a sore mouth');
+    const out = await askDoctor(
+      await envOf(w.onA, scriptFor(input, answerOf({
+        likelyCauses: ['Tension headache', 'Costs about 3 thousand'],
+        tellCustomer: ['Panadol is in stock, about 2000 IQD', 'Rest well', 'السعر 2000 دينار', 'ألم في الفم يزول عادة', 'نرخی 2000 دینارە'],
+        referIf: ['Fever above 39 for more than 3 days'],
+        options: [{ ingredient: 'paracetamol', tradeNames: [], note: '' }],
+      }))),
+      input,
+    );
+    if (out.kind !== 'ANSWER' || out.mode !== 'COMPLAINT') throw new Error(`expected an answer, got ${out.kind}`);
+    expect(out.answer.likelyCauses).toEqual(['Tension headache']);
+    expect(out.answer.tellCustomer).toEqual(['Rest well', 'ألم في الفم يزول عادة']);
+    expect(out.answer.referIf).toEqual(['Fever above 39 for more than 3 days']);
+    // The model's lines say nothing of money; the matched item's price is the catalog's own.
+    expect(json(out.answer)).not.toMatch(/2000|IQD|دينار|دینار/);
+  });
+
+  it('F3: blanks medicine fields that claim a price or stock, and keeps the leaflet dose', async () => {
+    const input: AskDoctorInput = { mode: 'MEDICINE_NAME', text: 'Panadol Extra', branchId: w.a };
+    const out = await askDoctor(
+      await envOf(w.onA, scriptFor(input, medicineOf({ storage: 'Sold at 1500 IQD', warnings: ['متوفر في المخزن', 'Liver disease: ask a doctor'], doseAsLabelled: '500 mg every 6 hours, at most 4 g a day; check the leaflet', uses: ['Pain', 'Cheap: 2 dollars'] }))),
+      input,
+    );
+    if (out.kind !== 'ANSWER' || out.mode === 'COMPLAINT') throw new Error(`expected a medicine answer, got ${out.kind}`);
+    expect(out.answer.storage).toBe('');
+    expect(out.answer.warnings).toEqual(['Liver disease: ask a doctor']);
+    expect(out.answer.uses).toEqual(['Pain']);
+    expect(out.answer.doseAsLabelled).toBe('500 mg every 6 hours, at most 4 g a day; check the leaflet');
+    expect(json(out)).not.toMatch(/IQD|متوفر|dollars/);
+  });
+
+  it('F4: an error after the paid call still writes the log row as FAILED, with the budget settled once', async () => {
+    const input = complaint('mild back pain since this morning');
+    const provider = scriptFor(input, answerOf({ options: [{ ingredient: 'paracetamol', tradeNames: [], note: '' }] }));
+    const env = await envOf(w.onA, provider);
+    const broken = new Proxy(env.scoped, { get: (target, key, receiver) => (key === 'phSettings' ? { findFirst: () => Promise.reject(new Error('db down')) } : Reflect.get(target, key, receiver)) });
+    const before = (await calls()).length;
+    lastId = '';
+    const out = await askDoctor({ ...env, scoped: broken as typeof env.scoped }, input);
+    expect(out).toEqual({ kind: 'UNAVAILABLE', reason: 'FAILED' });
+    expect((await calls()).length - before).toBe(1);
+    expect((await usage())!.reservedMicroUsd).toBe(0n);
+    expect(await lastLog()).toMatchObject({ outcome: 'FAILED', model: 'scripted' });
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('F8: cuts the logged question by code points, never inside an emoji', async () => {
+    const input = complaint(`${'a'.repeat(279)}😀 mild headache`);
+    await askDoctor(await envOf(w.onA, scriptFor(input, answerOf())), input);
+    const kept = (await lastLog()).questionText!;
+    expect(Array.from(kept)).toHaveLength(280);
+    expect(kept.endsWith('😀')).toBe(true);
   });
 });

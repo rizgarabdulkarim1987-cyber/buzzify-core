@@ -34,6 +34,7 @@ const COMMON = [
   'Doses: give only the dose written on the product leaflet or the widely published label range, and always add "check the leaflet". For children, pregnancy, breastfeeding, kidney or liver disease and elderly customers, state the caution and refer to a doctor: never a dose number.',
   'When the input is unclear, say "I am not sure" (written in the answer language) and ask for what you need. Never guess.',
   'Never state a price, a stock level or a quantity in the shop: the app adds those from the pharmacy\'s own records.',
+  'Every medicine name, trade name and active ingredient must be written in Latin letters (the international name, such as paracetamol), never spelled out in Arabic or Kurdish script: the app matches names against its catalog and drops any other.',
   'Do not add a disclaimer or a sign-off: the app adds its own.',
   'Reply with JSON that matches the given schema only, no other text. Keep every line short and plain.',
 ];
@@ -87,6 +88,6 @@ export function buildSystemPrompt(locale: DoctorLocale, mode: DoctorMode): strin
   return [
     ...COMMON,
     ...MODE_LINES[mode](locale),
-    `Write every value in ${LANGUAGE[locale]}, the language of the pharmacist's screen, whatever language the input is in. Medicine and ingredient names may stay in Latin letters. When unclear, say "${NOT_SURE[locale]}".`,
+    `Write every value in ${LANGUAGE[locale]}, the language of the pharmacist's screen, whatever language the input is in. Medicine and ingredient names stay in Latin letters. When unclear, say "${NOT_SURE[locale]}".`,
   ].join('\n');
 }
