@@ -108,7 +108,7 @@ Layout A. Keypad on the physical right. Unit as a converting button. No popups. 
 
 - **Currency (owner, 2026-11-05).** The customer does not pay in USD. The USD figure and the exchange rate in the header are display only. The pharmacist can change the rate in settings. No currency toggle in the payment panel; shift and drawer totals stay in IQD. Purchase prices are in USD as in the prototype.
 
-- **Simpler side navigation (owner, 2026-11-05).** The side menu is too complex. Five primary items (Sell, Stock, Products, Customers, Reports) and one "More" grouped Daily / Stock / Purchasing. Routes unchanged. Stock opens the fast entry first.
+- **Simpler side navigation (owner, 2026-11-05).** The side menu is too complex. Five primary items (Sell, Stock, Products, Customers, Reports) and one "More" grouped Daily / Stock / Purchasing. Routes unchanged. Stock opens the fast entry first. The AI Doctor keeps its own nav item (when enabled) and its existing slots on the cashier screen; it stays postponed as a feature and is not redesigned here.
 
 ## More calls made after the builder check (owner to confirm)
 

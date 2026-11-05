@@ -150,7 +150,7 @@
 
 **Interfaces:**
 - Consumes: `receiptsReducer`, `receiptsKey`/`parseReceipts`/`serializeReceipts`, `cashierKeyOf`, `pulse` result type, the props `SellWorkspace` takes today (`restaurantId`, `branchId`, `userId`, `shift`, `settings`, `perms`).
-- Produces: `CashierScreen(props: SellWorkspaceProps)` (same props as the old workspace plus `pulse`), grid `"side main"` in RTL with side column 370px; `ReceiptTabs` shows number, running total (`estimateCart`), item count, a `＋` button, X per tab; `PulseStrip` shows the six chips from the prototype; clicking a warning chip puts that product's name in the search field.
+- Produces: `CashierScreen(props: SellWorkspaceProps)` (same props as the old workspace plus `pulse`), keeps the existing `aside` and `phoneAside` AI Doctor slots (rendered only when the Doctor is enabled, never taking space from the table); grid `"side main"` in RTL with side column 370px; `ReceiptTabs` shows number, running total (`estimateCart`), item count, a `＋` button, X per tab; `PulseStrip` shows the six chips from the prototype; clicking a warning chip puts that product's name in the search field.
 
 - [ ] **Step 1: Write failing tests**: tabs render one per receipt with totals; `＋` at 6 receipts is absent; X is disabled on a receipt with items; Alt+2 switches; the side column is the first grid child; no element with `role="dialog"`.
 - [ ] **Step 2: Run** `npx vitest run tests/pharmacy/ui-cashier-frame.test.ts`. Expected: FAIL.
@@ -305,9 +305,9 @@ The owner finds the side menu too complex (Home, Sell, Stock, Expiry, Reports, A
 - Test: `tests/pharmacy/ui-nav.test.ts`
 
 **Interfaces:**
-- Produces: five primary items only: Sell, Stock, Products (catalog), Customers, Reports. Everything else (Expiry, Shifts, Sales, Returns, Prescriptions, Stock counts, Receiving, Transfers, Purchasing, Stock movements, AI Doctor when enabled) sits behind one "More" entry, grouped under three headings (Daily, Stock, Purchasing). The Stock item opens the new fast entry screen first, with links to expiry, counts, receiving, transfers and movements as secondary links on the stock page. The red count badges (stock, expiry) stay on the items they belong to or on "More" when hidden. No page is removed.
+- Produces: five primary items only: Sell, Stock, Products (catalog), Customers, Reports. The AI Doctor keeps its own item right after Reports whenever it is enabled for the pharmacy (it is postponed, not removed; hidden exactly as today when disabled). Everything else (Expiry, Shifts, Sales, Returns, Prescriptions, Stock counts, Receiving, Transfers, Purchasing, Stock movements) sits behind one "More" entry, grouped under three headings (Daily, Stock, Purchasing). The Stock item opens the new fast entry screen first, with links to expiry, counts, receiving, transfers and movements as secondary links on the stock page. The red count badges (stock, expiry) stay on the items they belong to or on "More" when hidden. No page is removed.
 
-- [ ] **Step 1: Write failing tests**: primary list has exactly 5 entries in this order; every previously reachable route is still reachable from More or Stock; count badges still show for stock and expiry; role-hidden items stay hidden.
+- [ ] **Step 1: Write failing tests**: primary list has exactly 5 entries in this order (plus AI Doctor as a sixth only when enabled); every previously reachable route is still reachable from More or Stock; count badges still show for stock and expiry; role-hidden items stay hidden.
 - [ ] **Step 2: Run** `npx vitest run tests/pharmacy/ui-nav.test.ts`. Expected: FAIL.
 - [ ] **Step 3: Implement** by editing the nav definition; ar/ckb/en labels for the new group headings.
 - [ ] **Step 4: Run.** Expected: PASS; check the rail and the phone bottom bar in the browser pane.
