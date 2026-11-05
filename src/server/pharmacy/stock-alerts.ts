@@ -1,4 +1,3 @@
-import type { Prisma } from '@/generated/prisma/client';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 
@@ -23,8 +22,11 @@ export const expiryToday = (now: Date) => utcDay(utcToday(now));
 
 type Branch = { branchId?: string };
 
-/** The stock balances (batch, branch) that count as expiring within 90 days and not yet expired. */
-export function expiringWhere(branch: Branch, now: Date): Prisma.PhStockBalanceWhereInput {
+/**
+ * The stock balances (batch, branch) that count as expiring within 90 days and not yet expired. Its type is inferred: this
+ * file reads Ph models, so it does not import the Prisma client module for one (enforcement rule 8).
+ */
+export function expiringWhere(branch: Branch, now: Date) {
   const today = expiryToday(now);
   const horizon = utcDay(utcToday(now), EXPIRING_DAYS);
   // A MONTH batch (stored as its last day) alerts from its first day: it is in once its month starts by the horizon.
@@ -34,8 +36,8 @@ export function expiringWhere(branch: Branch, now: Date): Prisma.PhStockBalanceW
     OR: WITH_STOCK,
     batch: {
       OR: [
-        { expiryPrecision: 'DAY', expiryDate: { gte: today, lte: horizon } },
-        { expiryPrecision: 'MONTH', expiryDate: { gte: today, lte: horizonMonthEnd } },
+        { expiryPrecision: 'DAY' as const, expiryDate: { gte: today, lte: horizon } },
+        { expiryPrecision: 'MONTH' as const, expiryDate: { gte: today, lte: horizonMonthEnd } },
       ],
     },
   };

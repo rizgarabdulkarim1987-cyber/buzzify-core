@@ -1,6 +1,4 @@
-/* eslint-disable no-restricted-properties -- one read-only aggregate: bound to the actor's restaurantId and branch ids (scopeOf), and it writes nothing */
 import { z } from 'zod';
-import { Prisma } from '@/generated/prisma/client';
 import { baghdadDay, baghdadDayOf, DAY_MS } from '@/lib/baghdad';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import { urgencyDays, utcToday } from '@/server/domain/pharmacy/expiry';
@@ -8,7 +6,8 @@ import { homeWindow, mixAttention, type HomeAttention, type HomeFigures } from '
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { assertStaff } from '@/server/pharmacy/receipts';
-import { dayOf, scopeOf, SOLD, stamp } from '@/server/pharmacy/reports-common';
+import { soldByDay } from '@/server/pharmacy/reports';
+import { scopeOf } from '@/server/pharmacy/reports-common';
 import { expiringWhere, expiryToday, lowStockCount, lowStockRows } from '@/server/pharmacy/stock-alerts';
 import { defineQuery } from '@/server/studio/framework/query';
 
@@ -28,13 +27,6 @@ import { defineQuery } from '@/server/studio/framework/query';
  */
 
 const ATTENTION_EACH = 6;
-
-interface DayRow {
-  day: string;
-  cur: 'IQD' | 'USD';
-  n: number;
-  total: bigint;
-}
 
 export const homeFigures = defineQuery({
   name: 'ph.home.figures',
@@ -64,16 +56,10 @@ export const homeFigures = defineQuery({
     ]);
     const currency = settings?.defaultCurrency ?? 'IQD';
 
-    let rows: DayRow[] = [];
+    let rows: Awaited<ReturnType<typeof soldByDay>> = [];
     if (salesVisible) {
-      const scope = scopeOf(ph, input.branchId);
       const start = new Date(Math.min(window.start.getTime(), baghdadDay(yesterday).start.getTime()));
-      rows = await scoped.$queryRaw<DayRow[]>(Prisma.sql`
-        SELECT ${dayOf(Prisma.sql`s."completedAt"`)} AS "day", s."currency"::text AS "cur", COUNT(*)::int AS "n", SUM(s."totalMinor")::bigint AS "total"
-        FROM "PhSale" s
-        WHERE s."restaurantId" = ${scope.restaurantId} AND s."branchId" = ANY(${scope.branchIds}::text[]) AND s."status"::text IN ${SOLD}
-          AND s."completedAt" >= ${stamp(start)} AND s."completedAt" < ${stamp(window.end)}
-        GROUP BY 1, 2`);
+      rows = await soldByDay(scoped, scopeOf(ph, input.branchId), start, window.end);
     }
     const mine = rows.filter((r) => r.cur === currency);
     const totalOn = (key: (day: string) => boolean) => Number(mine.filter((r) => key(r.day)).reduce((sum, r) => sum + r.total, 0n));
