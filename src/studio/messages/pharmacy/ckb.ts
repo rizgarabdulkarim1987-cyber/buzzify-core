@@ -3508,6 +3508,22 @@ const pharmacy: Messages = {
   'pharmacy.cashier.lines.empty': 'بارکۆدی کاڵایەک سکان بکە بۆ دەستپێکردن',
   'pharmacy.cashier.restored': 'وەسڵە کراوەکانی ئەم ئامێرە گەڕێندرانەوە. نرخەکان لە کاتی پارەدان دووبارە دەپشکنرێن.',
   'pharmacy.cashier.offline': 'پەیوەندی نییە. هیچ نانێردرێت: وەسڵەکان لەسەر ئەم ئامێرە دەمێننەوە و فرۆشتن ناکرێت تا پەیوەندی دەگەڕێتەوە.',
+  'pharmacy.cashier.col.row': 'ژ',
+  'pharmacy.cashier.col.code': 'ژمارەی کاڵا',
+  'pharmacy.cashier.col.name': 'ناوی کاڵا',
+  'pharmacy.cashier.col.qty': 'ژمارە',
+  'pharmacy.cashier.col.unit': 'یەکە',
+  'pharmacy.cashier.col.price': 'نرخی یەکە',
+  'pharmacy.cashier.col.total': 'کۆی گشتی',
+  'pharmacy.cashier.col.discount': 'داشکاندن',
+  'pharmacy.cashier.col.netPrice': 'یەکە دوای داشکاندن',
+  'pharmacy.cashier.col.netTotal': 'کۆ دوای داشکاندن',
+  'pharmacy.cashier.col.batch': 'پارت',
+  'pharmacy.cashier.col.expiry': 'بەسەرچوون',
+  'pharmacy.cashier.col.balance': 'ماوە',
+  'pharmacy.cashier.col.cost': 'نرخی کڕین',
+  'pharmacy.cashier.col.profit': 'قازانج',
+  'pharmacy.cashier.lines.table': 'خشتەی کاڵاکانی وەصڵ',
 };
 
 export default pharmacy;

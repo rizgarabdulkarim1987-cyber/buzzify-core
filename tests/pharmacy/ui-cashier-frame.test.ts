@@ -165,10 +165,10 @@ describe('the receipt tabs', () => {
 // Keys --------------------------------------------------------------------------------------------------------------------
 
 describe('the cashier keys', () => {
-  it('prevents the browser default for every function key the cashier uses', () => {
+  it('prevents the browser default only for keys that do something (the rest arrive with their features)', () => {
     mount(screen());
-    for (const key of ['F2', 'F3', 'F6', 'F7', 'F8', 'F9']) expect(press({ key }).defaultPrevented, key).toBe(true);
-    expect(press({ key: 'F5' }).defaultPrevented).toBe(false);
+    expect(press({ key: 'F4' }).defaultPrevented).toBe(true);
+    for (const key of ['F2', 'F3', 'F6', 'F7', 'F8', 'F9', 'F5']) expect(press({ key }).defaultPrevented, key).toBe(false);
   });
 
   it('reads an empty search from the field itself at the moment of the key', () => {

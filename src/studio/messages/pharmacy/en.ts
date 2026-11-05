@@ -3515,6 +3515,22 @@ const pharmacy: Messages = {
   'pharmacy.cashier.lines.empty': 'Scan an item barcode to start',
   'pharmacy.cashier.restored': 'The open receipts on this device were restored. Prices are checked again when you pay.',
   'pharmacy.cashier.offline': 'No connection. Nothing is sent: the receipts stay on this device and no sale is made until the connection is back.',
+  'pharmacy.cashier.col.row': '#',
+  'pharmacy.cashier.col.code': 'Item code',
+  'pharmacy.cashier.col.name': 'Item name',
+  'pharmacy.cashier.col.qty': 'Qty',
+  'pharmacy.cashier.col.unit': 'Unit',
+  'pharmacy.cashier.col.price': 'Unit price',
+  'pharmacy.cashier.col.total': 'Line total',
+  'pharmacy.cashier.col.discount': 'Discount',
+  'pharmacy.cashier.col.netPrice': 'Unit after discount',
+  'pharmacy.cashier.col.netTotal': 'Total after discount',
+  'pharmacy.cashier.col.batch': 'Batch',
+  'pharmacy.cashier.col.expiry': 'Expiry',
+  'pharmacy.cashier.col.balance': 'Balance',
+  'pharmacy.cashier.col.cost': 'Cost',
+  'pharmacy.cashier.col.profit': 'Profit',
+  'pharmacy.cashier.lines.table': 'Receipt lines',
 };
 
 export default pharmacy;

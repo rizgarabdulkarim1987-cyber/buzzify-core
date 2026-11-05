@@ -9,19 +9,24 @@ import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
 import { phMessage } from '../ph-failure';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { draftKey, estimateCart, formatMinor, scanOutcome, type Currency } from '../sell-logic';
+import { draftKey, estimateCart, formatMinor, overSellable, scanOutcome, type Currency } from '../sell-logic';
 import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS, receiptsKey, serializeReceipts } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { cashierReducer, keyContextOf, restoreReceipts, type CashierPulse } from './cashier-logic';
+import { cashierReducer, keyContextOf, lineKeyEffect, restoreReceipts, type CashierPulse } from './cashier-logic';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
+import { SaleLinesTable } from './SaleLinesTable';
 import { useScanQueue } from './use-scan-queue';
 
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
   pulse: CashierPulse;
+  /** Cost and profit columns: pharmacist and owner only. The lines carry no cost today, so the cells stay empty. */
+  canSeeCost?: boolean;
+  /** Price edit: pharmacist and owner only. */
+  canEditPrice?: boolean;
 }
 
 type Message = { tone: 'danger' | 'info'; text: string };
@@ -34,7 +39,7 @@ type Message = { tone: 'danger' | 'info'; text: string };
  * The lines table, side column, inline flows and inquiry come in later tasks; this is the frame they fill.
  */
 export function CashierScreen(props: CashierScreenProps) {
-  const { restaurantId, branchId, userId, settings, pulse } = props;
+  const { restaurantId, branchId, userId, settings, pulse, canSeeCost = false, canEditPrice = false } = props;
   const t = useT();
   const { locale } = useLocale();
   const online = useOnline();
@@ -45,12 +50,16 @@ export function CashierScreen(props: CashierScreenProps) {
   const [notSent, setNotSent] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [query, setQuery] = useState('');
+  // Each receipt keeps its own selected line.
+  const [selections, setSelections] = useState<Record<string, string | null>>({});
   const searchBox = useRef<HTMLInputElement>(null);
 
   const currency: Currency = shift?.currency ?? settings.defaultCurrency;
   const step = Number(settings.roundingStepMinor);
   const receipt = state.receipts[state.active] ?? state.receipts[0]!;
   const estimate = useMemo(() => estimateCart(receipt.cart, currency, step), [receipt.cart, currency, step]);
+  const selected = receipt.cart.lines.some((l) => l.key === selections[receipt.key]) ? (selections[receipt.key] ?? null) : null;
+  const select = (key: string | null) => setSelections((all) => ({ ...all, [receipt.key]: key }));
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
 
   // The receipts live on this device ------------------------------------------------------------------------------------
@@ -131,14 +140,29 @@ export function CashierScreen(props: CashierScreenProps) {
       setMessage(null);
       searchBox.current?.focus();
     }
-    // Pay, credit, unit, inquiry, hold, discount and the line keys arrive with the side column, table and work panel.
+    else {
+      const effect = lineKeyEffect(key.kind as 'lineUp', receipt.cart.lines.map((l) => l.key), selected);
+      if (!effect) return;
+      if ('select' in effect) select(effect.select);
+      else if ('step' in effect) dispatch({ type: 'line', action: { type: 'step', ...effect.step } });
+      else {
+        dispatch({ type: 'line', action: { type: 'remove', key: effect.remove } });
+        select(effect.next);
+      }
+    }
+    // Pay, credit, unit, inquiry, hold and discount arrive with the side column and work panel.
+  };
+  /** Whether a key does anything now: only those keys are taken from the browser. */
+  const handles = (key: CashierKey) => {
+    if (['lineUp', 'lineDown', 'qtyUp', 'qtyDown', 'remove'].includes(key.kind)) return lineKeyEffect(key.kind as 'lineUp', receipt.cart.lines.map((l) => l.key), selected) !== null;
+    return ['switch', 'switchRel', 'new', 'focusScan', 'escape'].includes(key.kind);
   };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!shift) return;
       const key = cashierKeyOf(event, keyContextOf(event.target, searchBox.current));
-      if (!key || key.kind === 'addTop') return;
-      // Every cashier key is ours: the browser must not search (F3), focus its address bar (F6), go back (Alt+Left) or switch its own tabs (Alt+1..6).
+      if (!key || key.kind === 'addTop' || !handles(key)) return;
+      // A key that does something is ours: the browser must not focus its address bar (F6), go back (Alt+Left) or switch its own tabs (Alt+1..6). A key that does nothing yet is left alone.
       event.preventDefault();
       run(key);
     };
@@ -219,20 +243,27 @@ export function CashierScreen(props: CashierScreenProps) {
               {message.text}
             </Note>
           )}
-          <div className="min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card" data-testid="cashier-lines">
-            {receipt.cart.lines.length === 0 ? (
+          {receipt.cart.lines.length === 0 ? (
+            <div className="min-h-[210px] min-w-0 rounded-ph-xl border border-ph-line bg-ph-card" data-testid="cashier-lines">
               <p className="px-4 py-8 text-center text-sm text-ph-muted">{t('pharmacy.cashier.lines.empty')}</p>
-            ) : (
-              <ol className="divide-y divide-ph-line text-sm text-ph-text">
-                {receipt.cart.lines.map((line) => (
-                  <li key={line.key} className="flex min-w-0 justify-between gap-3 px-3 py-2">
-                    <span className="min-w-0 truncate">{line.name}</span>
-                    <Num>× {line.qty}</Num>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
+            </div>
+          ) : (
+            <SaleLinesTable
+              lines={receipt.cart.lines}
+              results={estimate.lines}
+              currency={currency}
+              selected={selected}
+              over={overSellable(receipt.cart)}
+              onSelect={select}
+              onQty={(key, qty) => dispatch({ type: 'line', action: { type: 'qty', key, qty } })}
+              onRemove={(key) => {
+                dispatch({ type: 'line', action: { type: 'remove', key } });
+                if (key === selected) select(null);
+              }}
+              canSeeCost={canSeeCost}
+              canEditPrice={canEditPrice}
+            />
+          )}
         </section>
       </div>
     </div>

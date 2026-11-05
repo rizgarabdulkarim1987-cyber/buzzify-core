@@ -3547,6 +3547,22 @@ const pharmacy: Messages = {
   'pharmacy.cashier.lines.empty': 'امسح باركود مادة للبدء',
   'pharmacy.cashier.restored': 'استُعيدت الوصولات المفتوحة من هذا الجهاز. تُراجَع الأسعار عند الدفع.',
   'pharmacy.cashier.offline': 'لا يوجد اتصال. لا يُرسل شيء: تبقى الوصولات على هذا الجهاز ولا يتم أي بيع حتى يعود الاتصال.',
+  'pharmacy.cashier.col.row': 'ت',
+  'pharmacy.cashier.col.code': 'رقم المادة',
+  'pharmacy.cashier.col.name': 'اسم المادة',
+  'pharmacy.cashier.col.qty': 'العدد',
+  'pharmacy.cashier.col.unit': 'الوحدة',
+  'pharmacy.cashier.col.price': 'سعر الوحدة',
+  'pharmacy.cashier.col.total': 'الكلي',
+  'pharmacy.cashier.col.discount': 'الخصم',
+  'pharmacy.cashier.col.netPrice': 'الوحدة بعد الخصم',
+  'pharmacy.cashier.col.netTotal': 'الكلي بعد الخصم',
+  'pharmacy.cashier.col.batch': 'الدفعة',
+  'pharmacy.cashier.col.expiry': 'الانتهاء',
+  'pharmacy.cashier.col.balance': 'الرصيد',
+  'pharmacy.cashier.col.cost': 'سعر الشراء',
+  'pharmacy.cashier.col.profit': 'الربح',
+  'pharmacy.cashier.lines.table': 'جدول مواد الوصل',
 };
 
 export default pharmacy;
