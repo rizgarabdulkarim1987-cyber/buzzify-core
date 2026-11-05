@@ -7,10 +7,16 @@ import {
   finalizeAnswer,
   medicineAnswerJsonSchema,
   medicineAnswerSchema,
+  mentionsAgeUpTo3Months,
+  mentionsOver3Days,
   normalizeForScreening,
   RED_FLAG_CODES,
+  RED_FLAG_KIND,
   RED_FLAG_TERMS,
+  REFER_GENERIC,
+  RX_ONLY_INGREDIENTS,
   screenComplaint,
+  TERM_CODES,
   type RedFlagCode,
 } from '@/server/domain/pharmacy/doctor';
 import { buildSystemPrompt } from '@/server/pharmacy/doctor/prompt';
@@ -92,7 +98,6 @@ describe('screenComplaint: every red-flag rule in en, ar and ckb', () => {
 describe('screenComplaint: negation (conservative)', () => {
   it('skips only the clearly negated English forms "no X" and "without X"', () => {
     expect(refers('sore throat, no chest pain')).toBe(false);
-    expect(refers('cough without trouble breathing')).toBe(false);
     expect(refers('no fever for 5 days? no, just a cough')).toBe(false);
   });
 
@@ -159,8 +164,9 @@ describe('screenComplaint: adversarial text', () => {
 
 describe('RED_FLAG_TERMS: one reviewable table', () => {
   it('has en, ar and ckb terms for every code', () => {
-    expect(Object.keys(RED_FLAG_TERMS).sort()).toEqual([...RED_FLAG_CODES].sort());
-    for (const code of RED_FLAG_CODES) {
+    expect(Object.keys(RED_FLAG_TERMS).sort()).toEqual([...TERM_CODES].sort());
+    expect(RED_FLAG_CODES.filter((c) => c !== 'TOO_LONG')).toEqual([...TERM_CODES]);
+    for (const code of TERM_CODES) {
       const entry = RED_FLAG_TERMS[code];
       for (const lang of ['en', 'ar', 'ckb'] as const) expect(entry[lang].length, `${code} ${lang}`).toBeGreaterThan(0);
     }
@@ -338,5 +344,158 @@ describe('buildSystemPrompt', () => {
 
   it('holds no text from the person and is the same on every call', () => {
     expect(buildSystemPrompt('ar', 'COMPLAINT')).toBe(buildSystemPrompt('ar', 'COMPLAINT'));
+  });
+});
+
+// Review fixes ----------------------------------------------------------------------------------------------------------
+
+const timed = (fn: () => unknown) => {
+  const t0 = performance.now();
+  fn();
+  return performance.now() - t0;
+};
+
+describe('review fix 1: linear time on hostile input', () => {
+  const inputs: Array<[string, string]> = [
+    ['50k digits', '9'.repeat(50_000)],
+    ['200k digits', '4'.repeat(200_000)],
+    ['50k letters', 'a'.repeat(50_000)],
+    ['50k mixed Arabic', 'عمره ستست ٤٤٤٫٥ حمى ئێش سنگ تەمەن 9'.repeat(2_000).slice(0, 50_000)],
+    ['50k digits with dots', '1.'.repeat(25_000)],
+  ];
+  for (const [name, text] of inputs) {
+    it(`screens ${name} in under 100 ms`, () => {
+      screenComplaint({ text: 'warm-up' });
+      expect(timed(() => screenComplaint({ text }))).toBeLessThan(100);
+    });
+  }
+
+  it('the number patterns themselves are anchored (no cap involved)', () => {
+    const digits = '7'.repeat(50_000);
+    expect(timed(() => mentionsOver3Days(digits))).toBeLessThan(100);
+    expect(timed(() => mentionsAgeUpTo3Months(digits))).toBeLessThan(100);
+    expect(mentionsOver3Days('fever for 2.5 days')).toBe(false);
+    expect(mentionsOver3Days('fever for 4.5 days')).toBe(true);
+  });
+
+  it('a text over 20,000 characters refers as TOO_LONG, and its red flags are still found', () => {
+    expect(screenComplaint({ text: 'sore throat. '.repeat(2_000) })).toEqual({ mustRefer: true, reasons: ['TOO_LONG'] });
+    expect(reasons(`chest pain. ${'sore throat. '.repeat(2_000)}`)).toEqual(['CHEST_PAIN', 'TOO_LONG']);
+  });
+
+  it('a text up to 20,000 characters is screened in full, the middle too', () => {
+    const pad = 'sore throat. '.repeat(500); // 6,500 characters; three of them stay under 20,000
+    expect(reasons(`${pad}chest pain. ${pad}`)).toEqual(['CHEST_PAIN']);
+    expect(reasons(`${pad}${pad}${pad}`)).toEqual([]);
+  });
+});
+
+describe('review fix 2 and 5: breathing, stroke and emergency are never negated', () => {
+  it('trips on stopped or absent breathing', () => {
+    for (const text of ['he is not breathing', 'she stopped breathing', 'no breath sounds', 'breathless', 'turned blue in the face', 'لا يتنفس', 'توقف عن التنفس', 'هەناسە نادات', 'هەناسەی وەستاوە']) {
+      expect(reasons(text), text).toContain('BREATHING');
+    }
+  });
+
+  it('"no"/"without" do not skip breathing, stroke or emergency terms', () => {
+    expect(refers('cough without trouble breathing')).toBe(true);
+    expect(refers('no shortness of breath')).toBe(true);
+    expect(refers('no slurred speech')).toBe(true);
+    expect(refers('no seizure')).toBe(true);
+  });
+
+  it('keeps the English negation for the other codes', () => {
+    expect(refers('sore throat, no chest pain')).toBe(false);
+    expect(reasons('no fever but chest pain')).toEqual(['CHEST_PAIN']);
+  });
+});
+
+describe('review fix 3: phrasing gaps', () => {
+  it.each([
+    ['temp 40 for 5 days', 'HIGH_FEVER_LONG'],
+    ['temperature is 39.5, 4 days now', 'HIGH_FEVER_LONG'],
+    ['arm weak on one side', 'STROKE'],
+    ['his left side is numb', 'STROKE'],
+    ['ضعف في اليد من جهة واحدة', 'STROKE'],
+    ['دەستی لە یەک لاوە لاوازە', 'STROKE'],
+    ['she is expecting, has nausea', 'PREGNANCY'],
+    ['pooping blood', 'BLOOD_IN_STOOL'],
+    ['passing blood from behind', 'BLOOD_IN_STOOL'],
+    ['دم بالخروج', 'BLOOD_IN_STOOL'],
+    ['خروج مع دم', 'BLOOD_IN_STOOL'],
+    ['baby 2 months hot', 'INFANT_FEVER'],
+    ['my son is 6 weeks and feels hot', 'INFANT_FEVER'],
+    ['رضيع حار', 'INFANT_FEVER'],
+    ['کۆرپە گەرمە', 'INFANT_FEVER'],
+  ] as const)('"%s" trips %s', (text, code) => {
+    expect(reasons(text)).toContain(code);
+  });
+
+  it('"hot" alone is a fever only for an infant', () => {
+    expect(refers('hot drinks help my sore throat')).toBe(false);
+    expect(reasons('hot', { ageYears: 0.1 })).toContain('INFANT_FEVER');
+  });
+
+  it('"temp" does not match "temporary"', () => {
+    expect(refers('temporary rash for 5 days')).toBe(false);
+  });
+});
+
+describe('review fix 4: EMERGENCY', () => {
+  const texts = [
+    'anaphylaxis after a bee sting', 'severe allergic reaction', 'her lips are swollen', 'tongue is swelling', 'throat is closing',
+    'had a seizure', 'convulsions', 'he fainted', 'passed out', 'unconscious', 'took an overdose', 'swallowed bleach', 'poisoning',
+    'wants to kill himself', 'self-harm', 'suicidal', 'heavy bleeding', 'bleeding will not stop',
+    'صدمة تحسسية', 'تورم اللسان', 'تشنجات', 'اغماء', 'فقد الوعي', 'جرعة زائدة', 'شرب كلور', 'تسمم', 'يريد الانتحار', 'نزيف شديد',
+    'ئاوسانی زمان', 'پەرکەم', 'بێهۆش بوو', 'ژەهراوی بووە', 'خۆکوشتن', 'خوێنبەربوونی زۆر',
+  ];
+  for (const text of texts) it(`"${text}" trips EMERGENCY`, () => expect(reasons(text)).toContain('EMERGENCY'));
+
+  it('is a clinical red flag; NEEDS_PRESCRIPTION and TOO_LONG are labelled apart', () => {
+    expect(RED_FLAG_KIND.EMERGENCY).toBe('RED_FLAG');
+    expect(RED_FLAG_KIND.CHEST_PAIN).toBe('RED_FLAG');
+    expect(RED_FLAG_KIND.NEEDS_PRESCRIPTION).toBe('NEEDS_PRESCRIPTION');
+    expect(RED_FLAG_KIND.TOO_LONG).toBe('UNSCREENED');
+    expect(Object.keys(RED_FLAG_KIND).sort()).toEqual([...RED_FLAG_CODES].sort());
+  });
+});
+
+describe('review fix 6 and 7: finalizeAnswer', () => {
+  it('an unsure complaint with no referral gets the generic referral marker', () => {
+    const out = finalizeAnswer(complaint({ unsure: true, options: [], referIf: [], redFlags: [], likelyCauses: [], askNext: [], tellCustomer: [], cautions: [] }), 'COMPLAINT');
+    expect(REFER_GENERIC).toBe('__REFER_GENERIC__');
+    expect(out.ok && 'referIf' in out.answer && out.answer.referIf).toEqual([REFER_GENERIC]);
+  });
+
+  it('an unsure complaint that refers keeps its own referral', () => {
+    const out = finalizeAnswer(complaint({ unsure: true, referIf: ['See a doctor today'] }), 'COMPLAINT');
+    expect(out.ok && 'referIf' in out.answer && out.answer.referIf).toEqual(['See a doctor today']);
+  });
+
+  it('an unconfident medicine answer keeps only the product name and the warnings', () => {
+    const out = finalizeAnswer(medicine({ confident: false }), 'MEDICINE_PHOTO');
+    expect(out.ok).toBe(true);
+    if (out.ok && 'confident' in out.answer) {
+      expect(out.answer).toEqual({
+        productName: 'Panadol 500 mg', activeIngredient: '', uses: [], doseAsLabelled: '', contraindications: [], interactions: [], sideEffects: [],
+        warnings: ['Do not take with other paracetamol products'], storage: '', confident: false,
+      });
+    }
+  });
+});
+
+describe('RX_ONLY_INGREDIENTS', () => {
+  it('lists the main antibiotics and other prescription-only medicines in en, ar and ckb', () => {
+    for (const name of ['amoxicillin', 'azithromycin', 'ciprofloxacin', 'metronidazole', 'tramadol', 'diazepam', 'prednisolone', 'أموكسيسيلين', 'ئەمۆکسیسیلین']) {
+      expect(RX_ONLY_INGREDIENTS, name).toContain(name);
+    }
+    expect(RX_ONLY_INGREDIENTS).not.toContain('paracetamol');
+    expect(new Set(RX_ONLY_INGREDIENTS).size).toBe(RX_ONLY_INGREDIENTS.length);
+  });
+});
+
+describe('prompt: simple Arabic', () => {
+  it('asks for simple, widely understood Arabic', () => {
+    expect(buildSystemPrompt('ar', 'COMPLAINT')).toMatch(/simple, widely understood Arabic/);
   });
 });

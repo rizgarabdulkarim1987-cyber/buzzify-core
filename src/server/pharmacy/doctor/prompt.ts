@@ -13,7 +13,7 @@ export type DoctorLocale = 'en' | 'ar' | 'ckb';
 
 const LANGUAGE: Record<DoctorLocale, string> = {
   en: 'English',
-  ar: 'Arabic (Modern Standard Arabic, plain words)',
+  ar: 'simple, widely understood Arabic (not a heavy formal register)',
   ckb: 'Central Kurdish (Sorani), in Arabic script',
 };
 
