@@ -83,6 +83,8 @@ export interface SellItem {
   packLabel: string;
   rxLevel: 'OTC' | 'RX' | 'RESTRICTED';
   matchedOn: string;
+  /** The barcode shown as the item code: the matched unit's own, else the product's first (empty when it has none). */
+  code: string;
   /** The unit a barcode named, else the product's largest sellable unit. */
   matchedUnitId: string | null;
   sellableQty: number;
@@ -189,13 +191,14 @@ async function sellItemsOf(
   const { branchId, currency, found, now } = args;
   if (found.length === 0) return [];
   const ids = found.map((f) => f.productId);
-  const [products, balances, flags] = await Promise.all([
+  const [products, balances, flags, barcodes] = await Promise.all([
     scoped.phProduct.findMany({
       where: { id: { in: ids } },
       select: { id: true, genericName: true, rxLevel: true, units: { where: { sellable: true }, select: { id: true, label: true, level: true, baseQty: true }, orderBy: { level: 'asc' } } },
     }),
     scoped.phStockBalance.findMany({ where: { branchId, productId: { in: ids }, available: { gt: 0 } }, select: { productId: true, batchId: true, available: true } }),
     scoped.phSettings.findFirst({ select: { controlledEnabled: true } }),
+    scoped.phBarcode.findMany({ where: { productId: { in: ids } }, select: { productId: true, unitId: true, code: true }, orderBy: { code: 'asc' } }),
   ]);
   // A controlled medicine is sellable only while the owner has switched controlled sales on (phase 7); off, it is shown as not available.
   const controlledOn = flags?.controlledEnabled ?? false;
@@ -244,6 +247,7 @@ async function sellItemsOf(
       packLabel: hit.packLabel,
       rxLevel: product.rxLevel,
       matchedOn: hit.matchedOn,
+      code: (barcodes.find((b) => b.productId === product.id && b.unitId === hit.unitId) ?? barcodes.find((b) => b.productId === product.id))?.code ?? '',
       matchedUnitId: hit.unitId ?? null,
       sellableQty: stock?.total ?? 0,
       notSellable: product.rxLevel === 'RESTRICTED' && !controlledOn,

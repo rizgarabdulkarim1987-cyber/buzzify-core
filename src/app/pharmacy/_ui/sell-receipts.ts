@@ -1,4 +1,4 @@
-import { CURRENCIES, emptyCart, isDiscount, isLine, MAX_LINES, newClientKey, parseDraft, type CartState, type Currency } from './sell-logic';
+import { CURRENCIES, emptyCart, isDiscount, isLine, MAX_LINES, newClientKey, parseDraft, withCode, type CartState, type Currency } from './sell-logic';
 
 /**
  * The cashier's open receipts, pure (no DOM, no React): up to MAX_RECEIPTS carts side by side, one active. A receipt
@@ -97,7 +97,7 @@ const orNull = (v: unknown): string | null => (typeof v === 'string' && v.length
 function toReceipt(r: unknown): OpenReceipt | null {
   const x = r as Partial<OpenReceipt> | null;
   if (!x || typeof x !== 'object' || typeof x.key !== 'string' || x.key.length === 0 || x.key.length > 80 || !isCart(x.cart)) return null;
-  return { key: x.key, cart: x.cart, customerId: orNull(x.customerId), fromHoldId: orNull(x.fromHoldId), prescriptionId: orNull(x.prescriptionId), done: false };
+  return { key: x.key, cart: withCode(x.cart), customerId: orNull(x.customerId), fromHoldId: orNull(x.fromHoldId), prescriptionId: orNull(x.prescriptionId), done: false };
 }
 
 /**

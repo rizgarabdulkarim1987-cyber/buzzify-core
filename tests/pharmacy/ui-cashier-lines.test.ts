@@ -58,6 +58,7 @@ afterEach(() => {
 const item = (over: Partial<AddableItem> = {}): AddableItem => ({
   productId: 'p1',
   tradeName: 'Panadol',
+  code: '6221010001',
   strength: '500 mg',
   form: 'tablet',
   packLabel: 'box of 24',
@@ -82,7 +83,6 @@ function table(cart: CartState, over: Partial<ComponentProps<typeof SaleLinesTab
     currency: 'IQD',
     selected: null,
     onSelect: noop,
-    onQty: noop,
     onRemove: noop,
     canSeeCost: false,
     canEditPrice: false,
@@ -118,6 +118,7 @@ describe('the sale-lines table', () => {
     mount(table(cartOf(item())));
     const cells = [...container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')].map((td) => td.textContent);
     expect(cells[0]).toBe('1');
+    expect(cells[1]).toBe('6221010001');
     expect(cells[2]).toContain('Panadol');
     expect(cells[3]).toBe('1');
     expect(cells[4]).toBe('tablet');
@@ -126,6 +127,30 @@ describe('the sale-lines table', () => {
     expect(cells[10]).toBe('L1');
     expect(cells[11]).toBe('2027-03');
     expect(cells[12]).toBe('100');
+  });
+
+  it('shows the dash for a line kept before codes existed', () => {
+    const cart = cartOf(item());
+    const old: CartState = { ...cart, lines: cart.lines.map((l) => ({ ...l, code: '' })) };
+    mount(table(old));
+    expect(container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[1]!.textContent).toBe('—');
+  });
+
+  it('shows the unit price after discount exactly when it divides, else with ≈', () => {
+    const exact = cartReducer(emptyCart(), { type: 'add', item: item(), qty: 3 });
+    mount(table(exact));
+    expect(container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[8]!.textContent).toBe('1,500');
+    const cut = { ...exact, lines: exact.lines.map((l) => ({ ...l, discount: { kind: 'amount' as const, value: '1' } })) };
+    mount(table(cut));
+    // 4,500 - 1 = 4,499 over 3 units: 1,499.67, shown rounded down with the approximate sign
+    expect(container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[8]!.textContent).toBe('≈ 1,499');
+  });
+
+  it('shows the balance in the unit of the line', () => {
+    mount(table(cartReducer(emptyCart(), { type: 'add', item: item(), unitId: 'box' })));
+    const cells = [...container.querySelectorAll('tbody tr')[0]!.querySelectorAll('td')].map((td) => td.textContent);
+    expect(cells[4]).toBe('box');
+    expect(cells[12]).toBe('4');
   });
 
   it('marks a blocked line inline', () => {
@@ -275,5 +300,23 @@ describe('the line keys in the cashier screen', () => {
   it('prevents the default for a line key that acts', () => {
     screenWith(three());
     expect(press({ key: 'ArrowDown' }).defaultPrevented).toBe(true);
+  });
+
+  it('leaves the default alone for an arrow that cannot move', () => {
+    screenWith(three());
+    press({ key: 'ArrowDown' });
+    expect(press({ key: 'ArrowUp' }).defaultPrevented).toBe(false);
+    press({ key: 'ArrowDown' });
+    press({ key: 'ArrowDown' });
+    expect(selectedName()).toBe('Gamma');
+    expect(press({ key: 'ArrowDown' }).defaultPrevented).toBe(false);
+  });
+
+  it('takes a key from the browser exactly when it did something (every wired key, none forgotten)', () => {
+    screenWith(three());
+    // Wired and acting: prevented. Not wired yet: left to the browser. A new wiring in run() is prevented by construction (run says true).
+    for (const key of ['F2', 'F3', 'F6', 'F7', 'F8', 'F9']) expect(press({ key }).defaultPrevented, key).toBe(false);
+    for (const key of ['ArrowDown', '+', '-']) expect(press({ key }).defaultPrevented, key).toBe(true);
+    for (const key of ['/', 'Escape', 'F4']) expect(press({ key }).defaultPrevented, key).toBe(true);
   });
 });

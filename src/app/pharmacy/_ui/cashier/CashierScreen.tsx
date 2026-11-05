@@ -130,7 +130,13 @@ export function CashierScreen(props: CashierScreenProps) {
     setMessage(null);
     searchBox.current?.focus();
   };
-  const run = (key: CashierKey) => {
+  /**
+   * Does what the key means and says whether it did anything. The caller takes the key from the browser (preventDefault) only
+   * when this returns true, so a key wired here can never be forgotten there; a key not wired yet (pay, credit, unit,
+   * inquiry, hold, discount: later tasks) returns false and keeps its browser meaning, as does a line key with nothing to do
+   * (arrow up on the first row, arrow down on the last, + - Delete with no selection).
+   */
+  const run = (key: CashierKey): boolean => {
     if (key.kind === 'switch') dispatch({ type: 'switch', index: key.index });
     else if (key.kind === 'switchRel') dispatch({ type: 'switch', index: state.active + key.delta });
     else if (key.kind === 'new') openReceipt();
@@ -139,32 +145,27 @@ export function CashierScreen(props: CashierScreenProps) {
       setQuery('');
       setMessage(null);
       searchBox.current?.focus();
-    }
-    else {
-      const effect = lineKeyEffect(key.kind as 'lineUp', receipt.cart.lines.map((l) => l.key), selected);
-      if (!effect) return;
-      if ('select' in effect) select(effect.select);
-      else if ('step' in effect) dispatch({ type: 'line', action: { type: 'step', ...effect.step } });
+    } else if (key.kind === 'lineUp' || key.kind === 'lineDown' || key.kind === 'qtyUp' || key.kind === 'qtyDown' || key.kind === 'remove') {
+      const effect = lineKeyEffect(key.kind, receipt.cart.lines.map((l) => l.key), selected);
+      if (!effect) return false;
+      if ('select' in effect) {
+        if (effect.select === selected) return false;
+        select(effect.select);
+      } else if ('step' in effect) dispatch({ type: 'line', action: { type: 'step', ...effect.step } });
       else {
         dispatch({ type: 'line', action: { type: 'remove', key: effect.remove } });
         select(effect.next);
       }
-    }
-    // Pay, credit, unit, inquiry, hold and discount arrive with the side column and work panel.
-  };
-  /** Whether a key does anything now: only those keys are taken from the browser. */
-  const handles = (key: CashierKey) => {
-    if (['lineUp', 'lineDown', 'qtyUp', 'qtyDown', 'remove'].includes(key.kind)) return lineKeyEffect(key.kind as 'lineUp', receipt.cart.lines.map((l) => l.key), selected) !== null;
-    return ['switch', 'switchRel', 'new', 'focusScan', 'escape'].includes(key.kind);
+    } else return false;
+    return true;
   };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!shift) return;
       const key = cashierKeyOf(event, keyContextOf(event.target, searchBox.current));
-      if (!key || key.kind === 'addTop' || !handles(key)) return;
-      // A key that does something is ours: the browser must not focus its address bar (F6), go back (Alt+Left) or switch its own tabs (Alt+1..6). A key that does nothing yet is left alone.
-      event.preventDefault();
-      run(key);
+      if (!key || key.kind === 'addTop') return;
+      // A key that did something is ours: the browser must not focus its address bar (F6), go back (Alt+Left) or switch its own tabs (Alt+1..6).
+      if (run(key)) event.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -255,7 +256,6 @@ export function CashierScreen(props: CashierScreenProps) {
               selected={selected}
               over={overSellable(receipt.cart)}
               onSelect={select}
-              onQty={(key, qty) => dispatch({ type: 'line', action: { type: 'qty', key, qty } })}
               onRemove={(key) => {
                 dispatch({ type: 'line', action: { type: 'remove', key } });
                 if (key === selected) select(null);

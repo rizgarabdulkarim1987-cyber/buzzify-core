@@ -45,6 +45,7 @@ import {
 const item = (over: Partial<AddableItem> = {}): AddableItem => ({
   productId: 'p1',
   tradeName: 'Panadol',
+  code: '6221010001',
   strength: '500 mg',
   form: 'tablet',
   packLabel: 'box of 24',

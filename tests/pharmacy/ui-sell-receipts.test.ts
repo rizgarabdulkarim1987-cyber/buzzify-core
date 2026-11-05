@@ -5,6 +5,7 @@ import { canClose, initialReceipts, MAX_RECEIPTS, receiptsReducer, type Receipts
 const line = (key: string): CartLine => ({
   key,
   productId: `p-${key}`,
+  code: `c-${key}`,
   name: 'Paracetamol',
   detail: '500 mg',
   rxLevel: 'OTC',

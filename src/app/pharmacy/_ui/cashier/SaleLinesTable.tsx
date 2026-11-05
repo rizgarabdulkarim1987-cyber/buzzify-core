@@ -20,12 +20,10 @@ export interface SaleLinesTableProps {
   /** The key of the selected line, or null. */
   selected: string | null;
   onSelect: (key: string) => void;
-  /** Sets a line's quantity (the screen's keys use it for + and -). */
-  onQty: (key: string, qty: number) => void;
   onRemove: (key: string) => void;
   /** Cost and profit columns exist only for those who may see them (pharmacist, owner). */
   canSeeCost: boolean;
-  /** Price edit is for pharmacist and owner; the table only records it for the price cell. */
+  /** Reserved for the price-edit task: today it only marks the rows (`data-price-editable`). */
   canEditPrice: boolean;
   /** Products whose lines together ask for more than the sellable stock (`overSellable`). */
   over?: ReadonlySet<string>;
@@ -110,8 +108,9 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
               </td>
             );
             const cost = costs?.[line.key];
-            // The unit price after the line's discount: a plain division of the line total, an estimate like the rest.
+            // The unit price after the line's discount: the line total divided by the quantity; marked "≈" when it does not divide evenly.
             const netUnit = priced && line.qty > 0 ? result.totalMinor / BigInt(line.qty) : null;
+            const netExact = priced && line.qty > 0 && result.totalMinor % BigInt(line.qty) === 0n;
             return (
               <tr
                 key={line.key}
@@ -124,7 +123,7 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
                 className={`cursor-pointer border-b border-ph-line align-middle ${isSelected ? 'bg-ph-g1 outline outline-2 -outline-offset-2 outline-ph-accent' : 'hover:bg-ph-canvas'}`}
               >
                 {tail('row', index + 1, 'text-ph-muted')}
-                {tail('code', MUTED, 'text-ph-muted')}
+                {tail('code', line.code ? <bdi dir="ltr" className="block truncate" title={line.code}>{line.code}</bdi> : MUTED, line.code ? '' : 'text-ph-muted')}
                 <td key="name" className="min-w-0 px-2 py-1.5 align-middle">
                   <div className="flex min-w-0 items-center gap-1">
                     <span className="min-w-0 flex-1 truncate font-semibold" dir="auto" title={line.detail ? `${line.name} · ${line.detail}` : line.name} data-testid="line-name">
@@ -168,11 +167,11 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
                 {tail('price', unit.priceMinor === null ? MUTED : moneyText(unit.priceMinor))}
                 {tail('total', priced ? money(result.grossMinor) : MUTED)}
                 {tail('discount', priced && result.discountMinor > 0n ? money(result.discountMinor) : MUTED)}
-                {tail('netPrice', netUnit === null ? MUTED : money(netUnit))}
+                {tail('netPrice', netUnit === null ? MUTED : netExact ? money(netUnit) : <>≈ {money(netUnit)}</>)}
                 {tail('netTotal', priced ? money(result.totalMinor) : MUTED, 'font-bold')}
                 {tail('batch', line.batchId ? line.batchLot : (batch?.lot ?? MUTED))}
                 {tail('expiry', batch ? batch.expiryDate.slice(0, 7) : MUTED)}
-                {tail('balance', line.sellableQty)}
+                {tail('balance', Math.floor(line.sellableQty / Math.max(1, unit.baseQty)))}
                 {canSeeCost && tail('cost', moneyText(cost?.costMinor))}
                 {canSeeCost && tail('profit', moneyText(cost?.profitMinor))}
               </tr>

@@ -14,6 +14,7 @@ import {
 const line = (key: string): CartLine => ({
   key,
   productId: `p-${key}`,
+  code: `c-${key}`,
   name: 'Paracetamol',
   detail: '500 mg',
   rxLevel: 'OTC',

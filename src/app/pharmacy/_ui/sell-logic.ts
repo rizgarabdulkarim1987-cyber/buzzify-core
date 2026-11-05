@@ -116,6 +116,8 @@ export interface CartLine {
   key: string;
   productId: string;
   name: string;
+  /** The item code (a barcode) shown in the cashier's table; '' when the product has none or the line was kept before codes existed. */
+  code: string;
   /** Strength, form and pack, for the cashier to tell products apart. */
   detail: string;
   rxLevel: RxLevel;
@@ -150,6 +152,8 @@ export const MAX_QTY = 1_000_000;
 export interface AddableItem {
   productId: string;
   tradeName: string;
+  /** The item code (barcode), '' when none. */
+  code: string;
   strength: string;
   form: string;
   packLabel: string;
@@ -201,6 +205,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         key: `l${state.seq + 1}`,
         productId: action.item.productId,
         name: action.item.tradeName,
+        code: action.item.code,
         detail: itemDetail(action.item),
         rxLevel: action.item.rxLevel,
         units: action.item.units.map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty, priceMinor: u.priceMinor })),
@@ -690,6 +695,9 @@ const isUnit = (u: unknown): u is CartUnit => {
   return !!x && typeof x.id === 'string' && typeof x.label === 'string' && Number.isInteger(x.baseQty) && (x.priceMinor === null || (typeof x.priceMinor === 'string' && /^\d+$/.test(x.priceMinor)));
 };
 
+/** A kept line from before codes existed has no `code`: it reads as ''. */
+export const withCode = (cart: CartState): CartState => (cart.lines.every((l) => typeof l.code === 'string') ? cart : { ...cart, lines: cart.lines.map((l) => (typeof l.code === 'string' ? l : { ...l, code: '' })) });
+
 export const isLine = (l: unknown): l is CartLine => {
   const x = l as CartLine;
   return (
@@ -697,6 +705,7 @@ export const isLine = (l: unknown): l is CartLine => {
     typeof x.key === 'string' &&
     typeof x.productId === 'string' &&
     typeof x.name === 'string' &&
+    (x.code === undefined || typeof x.code === 'string') &&
     typeof x.detail === 'string' &&
     ['OTC', 'RX', 'RESTRICTED'].includes(x.rxLevel) &&
     Array.isArray(x.units) &&
@@ -743,7 +752,7 @@ export function parseDraft(text: string | null): Draft | null {
     const c = raw.cart;
     if (!c || !Array.isArray(c.lines) || c.lines.length === 0 || c.lines.length > MAX_LINES || !c.lines.every(isLine)) return null;
     if (!isDiscount(c.invoiceDiscount) || typeof c.discountReason !== 'string' || !Number.isInteger(c.seq)) return null;
-    return { v: raw.v, currency: raw.currency, cart: c, fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null, ...(typeof raw.prescriptionId === 'string' && raw.prescriptionId.length <= 64 ? { prescriptionId: raw.prescriptionId } : {}) };
+    return { v: raw.v, currency: raw.currency, cart: withCode(c), fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null, ...(typeof raw.prescriptionId === 'string' && raw.prescriptionId.length <= 64 ? { prescriptionId: raw.prescriptionId } : {}) };
   } catch {
     return null;
   }
@@ -849,6 +858,7 @@ export function cartFromResume(
       key: `l${(seq += 1)}`,
       productId,
       name: String(raw.tradeName ?? productId),
+      code: item?.code ?? '',
       detail: '',
       rxLevel: 'OTC',
       units: [heldUnit(unitId)],
