@@ -1,6 +1,6 @@
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { normalizeForSearch } from '@/server/domain/pharmacy/product-identity';
-import type { ComplaintAnswer } from '@/server/domain/pharmacy/doctor';
+import type { ComplaintOption } from '@/server/domain/pharmacy/doctor';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
 import { searchProducts } from '../search';
@@ -23,8 +23,12 @@ export const DOCTOR_NOTE_MAX = 140;
 /** How many catalog hits are read per ingredient to look for RX/RESTRICTED products. */
 const SCREEN_LIMIT = 100;
 
-/** One option of a complaint answer; derived from the answer schema so it cannot drift. `tradeNames` is intentionally unused here: the shop's own catalog decides what is shown, never the model's brand names. */
-export type ComplaintOption = ComplaintAnswer['options'][number];
+/**
+ * One option of a complaint answer: the ONE type, defined with the answer schema in the domain (re-exported here for the
+ * matcher's callers). `tradeNames` is intentionally unused here: the shop's own catalog decides what is shown, never the
+ * model's brand names (the service drops an option whose brand name is prescription-only before it gets here).
+ */
+export type { ComplaintOption };
 
 /** Any digit of any script (Latin, Arabic-Indic, Extended Arabic-Indic, fullwidth...), after NFKC. */
 const ANY_DIGIT = /\p{Nd}/u;

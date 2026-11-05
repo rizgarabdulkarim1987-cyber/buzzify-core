@@ -10,11 +10,12 @@ import * as returnActions from '@/server/pharmacy/actions/supplier-returns';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { setAiProviderForTests } from '@/server/ai/provider';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
+import { phScopedClient } from '@/server/studio/framework/access';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { dataOf, makeBatch, makeProduct, META } from './stock-helpers';
-import { NOW, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, asPh, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 
 /**
  * Isolation of the stock definitions (phase 2): a person of business A with a valid session who sends a hand-made input
@@ -665,6 +666,9 @@ const CASES: Record<string, Case> = {
   },
   'ph.assistant.proposal.accept': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.assistant.proposal.dismiss': { body: (ids, n) => ({ proposalId: pick(ids, n).proposalId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // The AI Doctor (Task 6). It names no row: the branch is the place's (none: INVALID), the provider is switched off in this file (UNAVAILABLE),
+  // and the log row it writes is the caller's own branch's. Another business or branch is refused by the framework before anything runs.
+  'ph.doctor.ask': { body: () => ({ mode: 'COMPLAINT', text: 'Mild headache since this morning' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -821,6 +825,28 @@ describe('the pharmacy isolation sweep', () => {
     expect(manager).toContain(a.proposal1);
     expect(manager, 'a branch-1 manager does not see branch 2').not.toContain(a.proposal2);
     expect(manager).not.toContain(b.proposal1);
+  });
+
+  it('covers the AI Doctor definition with a sweep case of its own', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.doctor.'));
+    expect(names.sort()).toEqual(['ph.doctor.ask']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('has real Doctor log rows to guard: a scoped read sees its own branch only, and never the other business', async () => {
+    const { a, b, ownerA, managerA1 } = world;
+    const owner = (await asPh(ownerA.userId, a.restaurantId))!;
+    const manager = (await asPh(managerA1.userId, a.restaurantId))!;
+    const ownerRows = await phScopedClient(prisma(), owner).phDoctorLog.findMany({ select: { id: true } });
+    expect(ownerRows.map((r) => r.id)).toEqual(expect.arrayContaining([a.doctorLog1, a.doctorLog2]));
+    expect(ownerRows.map((r) => r.id)).not.toContain(b.doctorLog1);
+    expect(ownerRows.map((r) => r.id)).not.toContain(b.doctorLog2);
+    const managerRows = (await phScopedClient(prisma(), manager).phDoctorLog.findMany({ select: { id: true } })).map((r) => r.id);
+    expect(managerRows).toContain(a.doctorLog1);
+    expect(managerRows, 'a branch-1 manager does not see branch 2').not.toContain(a.doctorLog2);
+    expect(managerRows).not.toContain(b.doctorLog1);
+    // Naming the other business's or branch's row outright finds nothing.
+    expect(await phScopedClient(prisma(), manager).phDoctorLog.findMany({ where: { id: { in: [a.doctorLog2, b.doctorLog1, b.doctorLog2] } } })).toEqual([]);
   });
 
   it('covers every phase 6 transfer definition', () => {

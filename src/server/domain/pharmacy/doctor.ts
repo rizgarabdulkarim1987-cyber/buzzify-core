@@ -585,6 +585,24 @@ export type FinalizeResult<T extends DoctorAnswer = DoctorAnswer> = { ok: true; 
  */
 export const REFER_GENERIC = '__REFER_GENERIC__';
 
+/**
+ * The message keys of every fixed line the app shows for a Doctor result (en/ar/ckb in src/studio/messages/pharmacy). None is
+ * model text: a referral reason, an unsure hint and an unavailable reason are codes the server returns, `referGeneric` stands
+ * in for `REFER_GENERIC`, and `unsureRefer` is the fixed "see a doctor" line under every UNSURE result.
+ */
+export const DOCTOR_MESSAGE_KEYS = {
+  referGeneric: 'pharmacy.doctor.refer.generic',
+  unsureRefer: 'pharmacy.doctor.unsure.refer',
+  reason: Object.fromEntries(RED_FLAG_CODES.map((code) => [code, `pharmacy.doctor.reason.${code}`])) as Readonly<Record<RedFlagCode, string>>,
+  unsure: { CLEARER_PHOTO: 'pharmacy.doctor.unsure.CLEARER_PHOTO', MORE_DETAIL: 'pharmacy.doctor.unsure.MORE_DETAIL' },
+  unavailable: {
+    NOT_IN_PLAN: 'pharmacy.doctor.unavailable.NOT_IN_PLAN',
+    NOT_CONFIGURED: 'pharmacy.doctor.unavailable.NOT_CONFIGURED',
+    LIMIT: 'pharmacy.doctor.unavailable.LIMIT',
+    FAILED: 'pharmacy.doctor.unavailable.FAILED',
+  },
+} as const;
+
 const lines = (list: readonly string[]) => list.map((s) => s.trim()).filter((s) => s.length > 0);
 
 function finalizeComplaint(a: ComplaintAnswer): FinalizeResult<ComplaintAnswer> {

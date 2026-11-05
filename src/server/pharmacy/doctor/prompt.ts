@@ -1,4 +1,6 @@
+import { untrusted } from '@/server/ai/untrusted';
 import type { DoctorMode } from '@/server/domain/pharmacy/doctor';
+import { cleanQuestion } from '../assistant/injection';
 
 /**
  * The AI Doctor's system text (spec "Safety framing"). It holds NO text from a person or the database: the caller puts the
@@ -51,6 +53,34 @@ const MODE_LINES: Record<DoctorMode, (locale: DoctorLocale) => string[]> = {
     `If the photo is unclear, the name or strength cannot be read, or it could be several products, set confident to false, leave the fields empty, and write "${NOT_SURE[locale]}" and a request for a clearer photo in warnings. Never guess from a partial name.`,
   ],
 };
+
+/** What a person asks, as the service receives it (the branch does not reach the model). */
+export type DoctorQuestion =
+  | { mode: 'COMPLAINT'; text: string; ageYears?: number; sex?: 'F' | 'M'; pregnant?: boolean }
+  | { mode: 'MEDICINE_NAME'; text: string }
+  | { mode: 'MEDICINE_PHOTO'; imageBase64: string; mime: string };
+
+/** The user text of a photo request: fixed, the photo itself is the image part. */
+export const DOCTOR_PHOTO_TEXT = 'Read the medicine box or strip in this photo.';
+
+/** A typed question made safe for the model: control characters out, phone numbers redacted, capped (the assistant's clean-up). */
+export const cleanDoctorText = (text: string): string => cleanQuestion(text);
+
+/**
+ * The EXACT text of the request's one user message. The service sends this and nothing else, and the scripted provider keys a
+ * text-only request by its SHA-256 (`textScriptKey(doctorUserText(input))`), so tests and the browser tests compute the key
+ * from this same builder. The form's facts are written by the app; the person's text is cleaned and wrapped as untrusted data.
+ */
+export function doctorUserText(input: DoctorQuestion): string {
+  if (input.mode === 'MEDICINE_PHOTO') return DOCTOR_PHOTO_TEXT;
+  if (input.mode === 'MEDICINE_NAME') return `Medicine name:\n${untrusted('question', cleanDoctorText(input.text))}`;
+  const facts: string[] = [];
+  const age = input.ageYears;
+  if (typeof age === 'number' && Number.isFinite(age) && age >= 0 && age <= 130) facts.push(`Age: ${age} years`);
+  if (input.sex === 'F' || input.sex === 'M') facts.push(`Sex: ${input.sex === 'F' ? 'female' : 'male'}`);
+  if (typeof input.pregnant === 'boolean') facts.push(`Pregnant: ${input.pregnant ? 'yes' : 'no'}`);
+  return [...facts, `Complaint:\n${untrusted('complaint', cleanDoctorText(input.text))}`].join('\n');
+}
 
 /** The system text for a locale and mode. The same on every call; nothing a person typed is ever in it. */
 export function buildSystemPrompt(locale: DoctorLocale, mode: DoctorMode): string {
