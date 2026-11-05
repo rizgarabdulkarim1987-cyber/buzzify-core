@@ -5,13 +5,12 @@ import type { PhActor } from '@/server/pharmacy/actor';
 import { matchOptions } from '@/server/pharmacy/doctor/matcher';
 import { NOW, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
 
-useTestDatabase();
-
 interface World {
   restaurantId: string;
   a: string;
   b: string;
   paracetamol: { productId: string; unitId: string };
+  ladder: { productId: string; tablet: string; box: string };
 }
 
 async function product(
@@ -49,7 +48,25 @@ beforeAll(async () => {
   await product(b.id, { tradeName: 'Ibuprofen 800', genericName: 'ibuprofen', rxLevel: 'RX', strength: '800mg' });
   await product(b.id, { tradeName: 'Cetrizine Plain', genericName: 'cetirizine', priced: false, stock: [[a, 5]] });
   for (const n of ['One', 'Two', 'Three', 'Four']) await product(b.id, { tradeName: `Vit C ${n}`, genericName: 'ascorbic acid', stock: [[a, 3]], strength: `${n}mg` });
-  w = { restaurantId: b.id, a, b: bb, paracetamol };
+  // A two-level ladder: a box is 10 tablets. 25 tablets in stock; the tablet costs 250, the box 2500.
+  const ladder = await prisma().phProduct.create({
+    data: { restaurantId: b.id, tradeName: 'Claritin', genericName: 'loratadine', activeIngredient: 'loratadine', strength: '10mg', form: 'tablet', manufacturer: 'X', identityKey: 'Claritin|loratadine|10mg', searchText: searchTextOf({ tradeName: 'Claritin', genericName: 'loratadine', activeIngredient: 'loratadine', strength: '10mg', form: 'tablet', manufacturer: 'X' }) },
+  });
+  const tablet = await prisma().phProductUnit.create({ data: { restaurantId: b.id, productId: ladder.id, level: 0, label: 'tablet', baseQty: 1, sellable: true } });
+  const box = await prisma().phProductUnit.create({ data: { restaurantId: b.id, productId: ladder.id, level: 1, label: 'box', baseQty: 10, sellable: true } });
+  for (const [unit, amount] of [[tablet.id, 250n], [box.id, 2500n]] as const) {
+    await prisma().phPrice.create({ data: { restaurantId: b.id, productId: ladder.id, unitId: unit, currency: 'IQD', amountMinor: amount, validFrom: new Date('2026-01-01T00:00:00Z'), changedById: 'seed' } });
+  }
+  const ladderBatch = await prisma().phBatch.create({ data: { restaurantId: b.id, productId: ladder.id, lot: 'L-ladder', expiryDate: new Date('2028-01-01T00:00:00Z') } });
+  await prisma().phStockBalance.create({ data: { restaurantId: b.id, branchId: a, productId: ladder.id, batchId: ladderBatch.id, available: 25 } });
+  // 101 OTC products of one ingredient: more than the screen reads.
+  await prisma().phProduct.createMany({
+    data: Array.from({ length: 101 }, (_, i) => {
+      const f = { tradeName: `Zinc ${i}`, genericName: 'zincum', activeIngredient: 'zincum', strength: `${i}mg`, form: 'tablet', manufacturer: 'X' };
+      return { restaurantId: b.id, ...f, identityKey: `${f.tradeName}|zincum`, searchText: searchTextOf(f) };
+    }),
+  });
+  w = { restaurantId: b.id, a, b: bb, paracetamol, ladder: { productId: ladder.id, tablet: tablet.id, box: box.id } };
 });
 afterAll(resetWorld);
 
@@ -71,6 +88,8 @@ const env = (branchId: string, ph = actorFor([w.a, w.b])) => ({ scoped: scopedCl
 const opt = (ingredient: string, note = 'one tablet') => ({ ingredient, tradeNames: [] as string[], note });
 
 describe('matchOptions', () => {
+  useTestDatabase();
+
   it('shows an in-stock OTC option with the price and quantity from the database', async () => {
     const [m] = await matchOptions(env(w.a), [opt('paracetamol')]);
     expect(m?.status).toBe('IN_STOCK');
@@ -108,10 +127,40 @@ describe('matchOptions', () => {
     expect(m?.items).toHaveLength(3);
   });
 
-  it('keeps the note as given and never takes a price or quantity from the model text', async () => {
+  it('takes the price and quantity from the database whatever the note says', async () => {
     const [m] = await matchOptions(env(w.a), [opt('paracetamol', 'costs 999 IQD, 77 in stock')]);
     expect(m?.items[0]).toMatchObject({ priceMinor: '2500', sellableQty: 12 });
     expect(JSON.stringify(m?.items)).not.toMatch(/999|77/);
+  });
+
+  it('keeps a plain note (at most 140 characters) and drops one that states a price or a quantity', async () => {
+    const keep = await matchOptions(env(w.a), [opt('paracetamol', 'x'.repeat(200))]);
+    expect(keep[0]?.note).toHaveLength(140);
+    expect((await matchOptions(env(w.a), [opt('paracetamol', 'one tablet every 6 hours')]))[0]?.note).toBe('one tablet every 6 hours');
+    for (const note of ['costs 999 IQD', '1,500 دينار', '$5 only', '5 USD', 'IQD 500', '١٥٠٠ د.ع', '٥ دۆلار', '77 in stock', 'In Stock now', 'متوفر', 'بەردەست']) {
+      expect((await matchOptions(env(w.a), [opt('paracetamol', note)]))[0]?.note, note).toBe('');
+    }
+  });
+
+  it('shows the smallest sellable unit with its own price, label, base quantity and a quantity in that unit', async () => {
+    const [m] = await matchOptions(env(w.a), [opt('loratadine')]);
+    expect(m?.items[0]).toMatchObject({ productId: w.ladder.productId, unitId: w.ladder.tablet, unitLabel: 'tablet', baseQty: 1, priceMinor: '250', sellableQty: 25 });
+    // Adding ?add=<unitId>:1 starts a line in exactly that unit.
+    const { startUnit } = await import('@/app/pharmacy/_ui/sell-logic');
+    const unit = { id: w.ladder.tablet, label: 'tablet', level: 0, baseQty: 1, priceMinor: '250', currency: 'IQD' as const, noPrice: false };
+    const box = { id: w.ladder.box, label: 'box', level: 1, baseQty: 10, priceMinor: '2500', currency: 'IQD' as const, noPrice: false };
+    expect(startUnit({ matchedUnitId: null, units: [box, unit] } as never, m?.items[0]?.unitId)?.id).toBe(w.ladder.tablet);
+  });
+
+  it('fails closed when the screen read hits its limit: the ingredient is dropped', async () => {
+    expect(await matchOptions(env(w.a), [opt('zincum')])).toEqual([]);
+  });
+
+  it('reads at most 8 options', async () => {
+    const many = Array.from({ length: 12 }, () => opt('paracetamol'));
+    expect(await matchOptions(env(w.a), many)).toHaveLength(1);
+    const distinct = ['paracetamol', 'loratadine', 'ascorbic acid', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'].map((n) => opt(n));
+    expect(await matchOptions(env(w.a), distinct)).toHaveLength(8);
   });
 
   it('refuses a branch the actor may not use, and a support actor', async () => {
