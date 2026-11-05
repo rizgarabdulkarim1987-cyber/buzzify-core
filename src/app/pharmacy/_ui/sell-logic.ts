@@ -415,16 +415,20 @@ export function buildPayment(draft: PayDraft, amountMinor: bigint, paymentKey: s
 // Items handed to the sale screen ---------------------------------------------------------------------------------------
 
 export const SELL_ADD_MAX_QTY = 999;
+/** The most items one address hands over: as many unit ids as `ph.sell.search` reads in one call (`SELL_SEARCH_MAX`). */
+export const SELL_ADD_MAX_ITEMS = 30;
 
 /**
  * `add=<unitId>:<qty>,<unitId>:<qty>` from the sale screen's address (with or without the leading `?`): the units to put in
- * the cart. An entry with no unit id, or a quantity that is not a whole number from 1 to 999, is dropped; the rest stay.
+ * the cart. An entry with no unit id, or a quantity that is not a whole number from 1 to 999, is dropped; the rest stay,
+ * up to the first SELL_ADD_MAX_ITEMS valid ones (a longer list is cut there, never refused).
  */
 export function parseSellAdd(search: string): { unitId: string; qty: number }[] {
   const raw = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('add');
   if (!raw) return [];
   const out: { unitId: string; qty: number }[] = [];
   for (const entry of raw.split(',')) {
+    if (out.length >= SELL_ADD_MAX_ITEMS) break;
     const cut = entry.lastIndexOf(':');
     if (cut < 0) continue;
     const unitId = entry.slice(0, cut).trim();
