@@ -27,7 +27,7 @@ const MONTH = '2026-10';
 const SCHEMA = { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'], additionalProperties: false };
 const QUESTION = 'Customer has a mild headache since this morning';
 const ANSWER = JSON.stringify({ summary: 'Mild headache' });
-const PHOTO = Buffer.from('a medicine box photo');
+const PHOTO = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('a medicine box photo')])]);
 const PHOTO_SHA = createHash('sha256').update(PHOTO).digest('hex');
 
 let seq = 0;
@@ -254,6 +254,14 @@ describe('a call that fails', () => {
     expect(await usage()).toBeNull();
   });
 
+  it('sends the type read from the bytes, not the declared one (PNG bytes declared as jpeg go as png)', async () => {
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('png body')]);
+    const provider = scriptedProvider({ [createHash('sha256').update(png).digest('hex')]: ANSWER });
+    const out = await runDoctorAi(prisma(), photoArgs({ image: { mime: 'image/jpeg', base64: png.toString('base64') } }), { provider, pricing: PRICE });
+    expect(out.ok).toBe(true);
+    expect(provider.calls[0]!.messages.at(-1)!.content.at(-1)).toMatchObject({ type: 'image', mediaType: 'image/png' });
+  });
+
   it('refuses a photo with a type outside jpeg/png/webp, a payload over the cap, or text that is not base64, without reserving', async () => {
     const provider = scriptedProvider({ [PHOTO_SHA]: ANSWER });
     const bad = [
@@ -261,6 +269,7 @@ describe('a call that fails', () => {
       { mime: 'image/jpeg', base64: 'A'.repeat(MAX_PHOTO_BASE64_CHARS + 4) },
       { mime: 'image/png', base64: 'not base64 at all!' },
       { mime: 'image/webp', base64: '' },
+      { mime: 'image/jpeg', base64: Buffer.from([0x4d, 0x5a, 0x90, 0x00, 1, 2, 3, 4]).toString('base64') },
     ];
     for (const image of bad) {
       expect(await runDoctorAi(prisma(), photoArgs({ image: image as DoctorCallArgs['image'] }), { provider, pricing: PRICE }), image.mime).toEqual({ ok: false, code: 'AI_INPUT_TOO_LARGE' });

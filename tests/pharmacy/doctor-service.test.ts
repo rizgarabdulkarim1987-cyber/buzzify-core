@@ -20,7 +20,7 @@ import { asPh, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type 
 
 const PRICE: AiPricing = { inputPerMtok: 1_000_000n, outputPerMtok: 1_000_000n };
 const MONTH = '2026-10';
-const PHOTO = Buffer.from('a medicine box photo, jpeg bytes');
+const PHOTO = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('a medicine box photo, jpeg bytes')]);
 const PHOTO_SHA = createHash('sha256').update(PHOTO).digest('hex');
 
 interface World {

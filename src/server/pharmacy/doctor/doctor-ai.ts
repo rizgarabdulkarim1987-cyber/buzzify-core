@@ -3,6 +3,10 @@ import type { DoctorMode } from '@/server/domain/pharmacy/doctor';
 import { INPUT_BOUND, type MediaHint } from '@/server/domain/pharmacy/intake';
 import { logError, type AiFailureCode } from '../intake/ai';
 import { runBudgetedCall, type AssistantCallOptions } from '../intake/assistant-ai';
+import { checkPhoto, MAX_PHOTO_BASE64_CHARS, PHOTO_MIMES, type PhotoMime } from './photo';
+
+// The photo rules live in photo.ts (`checkPhoto`, the one validator); the action reads these two from here.
+export { MAX_PHOTO_BASE64_CHARS, PHOTO_MIMES };
 
 /**
  * The AI Doctor's one model call, under the pharmacy's AI budget (`PhAiUsageMonth`), exactly as the assistant's: the worst case
@@ -29,7 +33,7 @@ export interface DoctorCallArgs {
   /** The answer schema of the mode (`answerJsonSchemaFor`). */
   jsonSchema: Record<string, unknown>;
   /** MEDICINE_PHOTO only (and required there): the photo, already validated and resized by the caller. */
-  image?: { mime: 'image/jpeg' | 'image/png' | 'image/webp'; base64: string };
+  image?: { mime: PhotoMime; base64: string };
   maxOutputTokens: number;
   now: Date;
 }
@@ -37,20 +41,6 @@ export interface DoctorCallArgs {
 export type DoctorCallOptions = AssistantCallOptions;
 
 export type DoctorCallResult = { ok: true; response: AiResponse; costMicroUsd: bigint } | { ok: false; code: AiFailureCode };
-
-/** The photo types the providers take. */
-export const PHOTO_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-/** The largest photo payload accepted, in base64 characters (about 5 MB of bytes, the providers' per-image limit). Task 7 resizes far below it. */
-export const MAX_PHOTO_BASE64_CHARS = 6_990_000;
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-
-/** Why a photo cannot be sent, or null when it can (checked at run time: the type is only a promise of the caller). */
-function photoProblem(image: { mime: string; base64: string }): string | null {
-  if (!(PHOTO_MIMES as readonly string[]).includes(image.mime)) return 'the photo type is not jpeg, png or webp';
-  if (image.base64.length === 0 || image.base64.length > MAX_PHOTO_BASE64_CHARS) return 'the photo is empty or larger than the cap';
-  if (image.base64.length % 4 !== 0 || !BASE64.test(image.base64)) return 'the photo is not base64';
-  return null;
-}
 
 /** The model purpose of a mode: the reading model for a photo, the answer model otherwise. */
 export const doctorPurposeFor = (mode: DoctorMode): AiPurpose => (mode === 'MEDICINE_PHOTO' ? 'extract' : 'ask');
@@ -78,10 +68,15 @@ export async function runDoctorAi(db: Parameters<typeof runBudgetedCall>[0], arg
     logError('the doctor call got a photo outside photo mode, or photo mode without a photo', ids);
     return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
   }
-  const problem = args.image ? photoProblem(args.image) : null;
-  if (problem) {
-    logError(`the doctor call refused its photo: ${problem}`, ids);
-    return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
+  // The type is the one `checkPhoto` reads from the bytes, not the caller's claim.
+  let image: DoctorCallArgs['image'];
+  if (args.image) {
+    const checked = checkPhoto(args.image);
+    if (!checked.ok) {
+      logError(`the doctor call refused its photo: ${checked.code}`, ids);
+      return { ok: false, code: 'AI_INPUT_TOO_LARGE' };
+    }
+    image = { mime: checked.mime, base64: args.image.base64 };
   }
   try {
     return await runBudgetedCall(
@@ -90,8 +85,8 @@ export async function runDoctorAi(db: Parameters<typeof runBudgetedCall>[0], arg
         restaurantId: args.restaurantId,
         purpose: doctorPurposeFor(args.mode),
         logPurpose: 'doctor',
-        input: { system: args.system, messages: args.image ? withPhoto(args.messages, args.image) : args.messages, jsonSchema: args.jsonSchema },
-        media: args.image ? [DOCTOR_PHOTO_HINT] : [],
+        input: { system: args.system, messages: image ? withPhoto(args.messages, image) : args.messages, jsonSchema: args.jsonSchema },
+        media: image ? [DOCTOR_PHOTO_HINT] : [],
         maxOutputTokens: args.maxOutputTokens,
         now: args.now,
       },
