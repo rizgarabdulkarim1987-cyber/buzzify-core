@@ -2,11 +2,11 @@ import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { exchangeRateInput, setExchangeRate } from '@/server/pharmacy/exchange-rate';
 import { defineAction } from '@/server/studio/framework/action';
 
-/** The display-only USD exchange rate: the owner's, like the other settings. The audit carries the rate only. */
+/** The display-only USD exchange rate: the owner's and the pharmacists' (`rate.set`), nothing else in the settings. The audit carries the rate only. */
 export const set = defineAction({
   name: 'ph.exchangeRate.set',
   permission: null,
-  ph: 'settings.manage',
+  ph: 'rate.set',
   input: exchangeRateInput.extend(phPlaceInput.shape),
   target: phTargetOf,
   run(ctx, input) {

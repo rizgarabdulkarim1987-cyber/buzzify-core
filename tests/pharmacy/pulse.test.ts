@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import * as exchangeRateActions from '@/server/pharmacy/actions/exchange-rate';
 import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as saleActions from '@/server/pharmacy/actions/sales';
+import * as navQueries from '@/server/pharmacy/queries/nav-counts';
 import * as pulseQueries from '@/server/pharmacy/queries/pulse';
 import { creditWorld, key, makeCustomer, sellOnCredit, type CreditWorld } from './credit-world';
 import { NOW, person, prisma, resetWorld, useTestDatabase } from './fixture';
@@ -85,23 +86,25 @@ describe('near-expiry and low-stock chips', () => {
     expect(got.nearExpiry).toEqual({ count: 1, firstProductName: 'Nearcillin', firstProductId: near.id });
   });
 
-  it('counts a product at its reorder level as low, and not above it', async () => {
+  it('follows the navigation badge: below the reorder level is low, at it is not, no reorder level is never counted', async () => {
     const low = await makeProduct(w.a.id, 'Lowcillin');
-    const fine = await makeProduct(w.a.id, 'Finecillin');
-    await makeBatch(w.a.id, w.b1, low.id, { lot: 'L9', buckets: { available: 20 } });
-    await makeBatch(w.a.id, w.b1, fine.id, { lot: 'F9', buckets: { available: 21 } });
-    for (const p of [low, fine]) await prisma().phProductBranch.create({ data: { restaurantId: w.a.id, branchId: w.b1, productId: p.id, minQty: 20 } });
+    const edge = await makeProduct(w.a.id, 'Edgecillin');
+    const plain = await makeProduct(w.a.id, 'Plaincillin');
+    await makeBatch(w.a.id, w.b1, low.id, { lot: 'L9', buckets: { available: 19 } });
+    await makeBatch(w.a.id, w.b1, edge.id, { lot: 'E9', buckets: { available: 20 } });
+    await makeBatch(w.a.id, w.b1, plain.id, { lot: 'P9', buckets: { available: 1 } });
+    for (const p of [low, edge]) await prisma().phProductBranch.create({ data: { restaurantId: w.a.id, branchId: w.b1, productId: p.id, minQty: 20 } });
     const got = await pulse();
     expect(got.lowStock).toEqual({ count: 1, firstProductName: 'Lowcillin', firstProductId: low.id });
+    const badge = dataOf(await ask(w.owner, navQueries.navCounts, { ...at(), now: NOW })) as { lowStock: number };
+    expect(got.lowStock.count).toBe(badge.lowStock);
   });
 
-  it('falls back to 5 when the product has no reorder level, and ignores other branches', async () => {
-    const few = await makeProduct(w.a.id, 'Fewcillin');
-    await makeBatch(w.a.id, w.b1, few.id, { lot: 'S1', buckets: { available: 5 } });
+  it('ignores other branches', async () => {
     const other = await makeProduct(w.a.id, 'Elsewhere');
     await makeBatch(w.a.id, w.b2, other.id, { lot: 'S2', buckets: { available: 1 } });
-    const got = await pulse();
-    expect(got.lowStock).toEqual({ count: 1, firstProductName: 'Fewcillin', firstProductId: few.id });
+    await prisma().phProductBranch.create({ data: { restaurantId: w.a.id, branchId: w.b2, productId: other.id, minQty: 10 } });
+    expect((await pulse()).lowStock.count).toBe(0);
     expect((await pulse(w.owner, w.b2)).lowStock.firstProductName).toBe('Elsewhere');
   });
 
@@ -119,11 +122,13 @@ describe('usdRate setting', () => {
     for (const bad of [0, -5, 1.5, 1_000_001, '1450x']) {
       expect(codeOf(await act(w.owner, exchangeRateActions.set, { ...at(), usdRate: bad, version })), String(bad)).toBe('INVALID');
     }
-    for (const who of [w.manager, w.cashier, w.pharmacist, w.accountant]) {
+    for (const who of [w.manager, w.cashier, w.accountant, w.stockClerk]) {
       expect(codeOf(await act(who, exchangeRateActions.set, { ...at(), usdRate: 1500, version })), who.userId).toBe('FORBIDDEN');
     }
-    const saved = dataOf(await act(w.owner, exchangeRateActions.set, { ...at(), usdRate: 1500, version })) as { usdRate: number; version: number };
-    expect(saved).toEqual({ usdRate: 1500, version: version + 1 });
+    expect(dataOf(await act(w.pharmacist, exchangeRateActions.set, { ...at(), usdRate: 1480, version }))).toEqual({ usdRate: 1480, version: version + 1 });
+    expect(dataOf(await act(w.pic, exchangeRateActions.set, { ...at(), usdRate: 1490, version: version + 1 }))).toEqual({ usdRate: 1490, version: version + 2 });
+    const saved = dataOf(await act(w.owner, exchangeRateActions.set, { ...at(), usdRate: 1500, version: version + 2 })) as { usdRate: number; version: number };
+    expect(saved).toEqual({ usdRate: 1500, version: version + 3 });
     expect((await pulse(w.cashier)).usdRate).toBe(1500);
     expect(codeOf(await act(w.owner, exchangeRateActions.set, { ...at(), usdRate: 1600, version }))).toBe('CONFLICT');
     expect((await pulse()).usdRate).toBe(1500);

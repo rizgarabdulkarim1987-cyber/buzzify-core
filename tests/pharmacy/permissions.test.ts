@@ -60,10 +60,14 @@ describe('pharmacy permissions', () => {
       STOCK: ['catalog.view', 'catalog.manage', 'cost.view', 'stock.count', 'transfer.manage', 'purchase.manage', 'import.apply'],
       ACCOUNTANT: ['catalog.view', 'cost.view', 'profit.view', 'report.view', 'purchase.manage'],
     };
-    const added: Record<string, string[]> = { CASHIER: [], PHARMACIST: ['credit.sell'], STOCK: [], ACCOUNTANT: ['customer.manage'] };
+    const added: Record<string, string[]> = { CASHIER: [], PHARMACIST: ['credit.sell', 'rate.set'], STOCK: [], ACCOUNTANT: ['customer.manage'] };
     for (const [role, list] of Object.entries(before)) {
       expect([...phPermissionsOf(role as (typeof PH_ROLES)[number])].sort(), role).toEqual([...list, ...added[role]!].sort());
     }
+  });
+
+  it('rate.set (the display-only dollar rate) is for the owner, the pharmacist in charge and pharmacists only', () => {
+    for (const role of PH_ROLES) expect(canPh(role, 'rate.set'), role).toBe(['OWNER', 'PHARMACIST_IN_CHARGE', 'PHARMACIST'].includes(role));
   });
 
   it('a permission string not in the list is refused by canPh', () => {

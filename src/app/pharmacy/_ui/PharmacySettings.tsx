@@ -36,7 +36,7 @@ const whole = (text: string, min: number, max: number): number | null => {
  * and keeps the one the server answers with, so saving the second group right after the first is not a false conflict. Switching
  * controlled sales ON asks first and says what it means; switching it off, or changing the numbers, does not.
  */
-export function PharmacySettings({ initial, editable }: { initial: SettingsIn; editable: boolean }) {
+export function PharmacySettings({ initial, editable, rateEditable = editable, rateOnly = false }: { initial: SettingsIn; editable: boolean; rateEditable?: boolean; rateOnly?: boolean }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -58,6 +58,7 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
   const days = whole(retention, 1, 36_500);
   const rate = whole(rateText, 1, 1_000_000);
   const can = editable && online && busy === null;
+  const canRate = rateEditable && online && busy === null;
 
   const run = async (group: Group, call: () => Promise<unknown>, after?: () => void) => {
     if (lock.current) return;
@@ -108,11 +109,13 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
   return (
     <div className="flex min-w-0 max-w-2xl flex-col gap-8" data-testid="pharmacy-settings">
       <OfflineNotice />
-      {!editable && (
+      {!editable && !rateOnly && (
         <Note icon={<Info aria-hidden />} tone="info" role="status" testId="settings-readonly">
           {t('pharmacy.settings.readOnly')}
         </Note>
       )}
+      {!rateOnly && (
+      <>
       <section aria-labelledby="set-controlled-h" className="flex flex-col gap-4" data-testid="settings-controlled">
         <h2 id="set-controlled-h" className="text-lg font-semibold text-text">
           {t('pharmacy.settings.controlled.title')}
@@ -154,17 +157,19 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
         )}
       </section>
 
+      </>
+      )}
       <section aria-labelledby="set-rate-h" className="flex flex-col gap-4" data-testid="settings-rate">
         <h2 id="set-rate-h" className="text-lg font-semibold text-text">
           {t('pharmacy.settings.rate.title')}
         </h2>
         <Field label={t('pharmacy.settings.rate.label')} hint={t('pharmacy.settings.rate.hint')} error={rate === null ? t('pharmacy.settings.problem.rate') : undefined}>
-          <FieldInput className={FIELD} dir="ltr" inputMode="numeric" autoComplete="off" data-testid="settings-usd-rate" value={rateText} disabled={!editable} onChange={(e) => setRateText(e.target.value)} />
+          <FieldInput className={FIELD} dir="ltr" inputMode="numeric" autoComplete="off" data-testid="settings-usd-rate" value={rateText} disabled={!rateEditable} onChange={(e) => setRateText(e.target.value)} />
         </Field>
         {notice('rate')}
-        {editable && (
+        {rateEditable && (
           <div>
-            <button type="button" className={TOUCH_PRIMARY} data-testid="settings-rate-save" disabled={!can || rate === null} onClick={() => rate !== null && void run('rate', () => setExchangeRate({ usdRate: rate, version }))}>
+            <button type="button" className={TOUCH_PRIMARY} data-testid="settings-rate-save" disabled={!canRate || rate === null} onClick={() => rate !== null && void run('rate', () => setExchangeRate({ usdRate: rate, version }))}>
               <Save aria-hidden className="size-4" />
               {busy === 'rate' ? t('pharmacy.settings.saving') : t('pharmacy.settings.save')}
             </button>

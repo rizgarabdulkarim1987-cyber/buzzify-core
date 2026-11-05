@@ -39,10 +39,10 @@ describe('phNav', () => {
     expect(more(2)).toContain('chain');
   });
 
-  it('shows settings only to owner and branch manager', () => {
+  it('shows settings to owner, branch manager and the pharmacists (who see only the dollar rate)', () => {
     for (const role of PH_ROLES) {
       const has = keys(phNav(role, opts).more).includes('settings');
-      expect(has).toBe(role === 'OWNER' || role === 'BRANCH_MANAGER');
+      expect(has).toBe(role === 'OWNER' || role === 'BRANCH_MANAGER' || role === 'PHARMACIST_IN_CHARGE' || role === 'PHARMACIST');
     }
   });
 

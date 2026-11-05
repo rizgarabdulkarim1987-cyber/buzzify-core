@@ -64,7 +64,7 @@ const MORE: Entry[] = [
     key: 'chain', href: '/pharmacy/chain', labelKey: 'pharmacy.nav.chain', icon: 'network',
     allow: (role, ctx) => canPh(role, 'report.view') && ctx.branchCount > 1,
   },
-  { key: 'settings', href: '/pharmacy/settings', labelKey: 'pharmacy.nav.settings', icon: 'settings', allow: (role) => role === 'OWNER' || role === 'BRANCH_MANAGER' },
+  { key: 'settings', href: '/pharmacy/settings', labelKey: 'pharmacy.nav.settings', icon: 'settings', allow: (role) => role === 'OWNER' || role === 'BRANCH_MANAGER' || role === 'PHARMACIST_IN_CHARGE' || role === 'PHARMACIST' },
 ];
 
 const DOCTOR: PhNavItem = { key: 'doctor', href: '/pharmacy/doctor', labelKey: 'pharmacy.nav.doctor', icon: 'stethoscope' };
