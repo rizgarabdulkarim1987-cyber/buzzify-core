@@ -315,7 +315,9 @@ describe('the line keys in the cashier screen', () => {
   it('takes a key from the browser exactly when it did something (every wired key, none forgotten)', () => {
     screenWith(three());
     // Wired and acting: prevented. Not wired yet: left to the browser. A new wiring in run() is prevented by construction (run says true).
-    for (const key of ['F2', 'F3', 'F6', 'F7', 'F8', 'F9']) expect(press({ key }).defaultPrevented, key).toBe(false);
+    // F3 (credit) needs the credit permission this screen does not have; hold and discount arrive later.
+    for (const key of ['F3', 'F8', 'F9']) expect(press({ key }).defaultPrevented, key).toBe(false);
+    for (const key of ['F2', 'F6', 'F7']) expect(press({ key }).defaultPrevented, key).toBe(true);
     for (const key of ['ArrowDown', '+', '-']) expect(press({ key }).defaultPrevented, key).toBe(true);
     for (const key of ['/', 'Escape', 'F4']) expect(press({ key }).defaultPrevented, key).toBe(true);
   });

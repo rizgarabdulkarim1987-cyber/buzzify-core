@@ -1,28 +1,31 @@
 'use client';
 
-import { Barcode, CircleAlert, CloudOff, Undo2 } from 'lucide-react';
+import { CircleAlert, CloudOff, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { sellSearch } from '@/app/pharmacy/_actions/sales';
 import type { SellItem } from '@/server/pharmacy/sell-search';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
+import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
 import { phMessage } from '../ph-failure';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { draftKey, estimateCart, formatMinor, overSellable, scanOutcome, type Currency } from '../sell-logic';
+import { draftKey, estimateCart, formatMinor, isAddable, overSellable, scanOutcome, unitOf, type Currency } from '../sell-logic';
 import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS, receiptsKey, serializeReceipts } from '../sell-receipts';
 import { useOnline } from '../use-online';
-import { cashierReducer, keyContextOf, lineKeyEffect, restoreReceipts, type CashierPulse } from './cashier-logic';
+import { addActionFor, cashierReducer, keyContextOf, lineKeyEffect, nextScanUnitPref, padQty, padText, restoreReceipts, unitKeyEffect, type CashierPulse, type ScanUnitPref } from './cashier-logic';
 import { PulseStrip } from './PulseStrip';
 import { ReceiptTabs } from './ReceiptTabs';
 import { SaleLinesTable } from './SaleLinesTable';
+import { ScanBar } from './ScanBar';
+import { SideColumn, type PayFlow } from './SideColumn';
 import { useScanQueue } from './use-scan-queue';
 
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
-  pulse: CashierPulse;
+  pulse?: CashierPulse;
   /** Cost and profit columns: pharmacist and owner only. The lines carry no cost today, so the cells stay empty. */
   canSeeCost?: boolean;
   /** Price edit: pharmacist and owner only. */
@@ -52,6 +55,13 @@ export function CashierScreen(props: CashierScreenProps) {
   const [query, setQuery] = useState('');
   // Each receipt keeps its own selected line.
   const [selections, setSelections] = useState<Record<string, string | null>>({});
+  // The unit the next scanned item starts in while no line is selected: one preference for the whole screen, not per receipt.
+  const [scanUnit, setScanUnit] = useState<ScanUnitPref>('default');
+  const [inquiry, setInquiry] = useState(false);
+  // The payment flow asked for (the flows themselves are the next task), tied to the receipt it was asked on.
+  const [flowAsk, setFlowAsk] = useState<{ receiptKey: string; flow: PayFlow } | null>(null);
+  const [padState, setPadState] = useState<{ at: string; text: string }>({ at: '', text: '' });
+  const [customers, setCustomers] = useState<Record<string, PickedCustomer | null>>({});
   const searchBox = useRef<HTMLInputElement>(null);
 
   const currency: Currency = shift?.currency ?? settings.defaultCurrency;
@@ -60,6 +70,10 @@ export function CashierScreen(props: CashierScreenProps) {
   const estimate = useMemo(() => estimateCart(receipt.cart, currency, step), [receipt.cart, currency, step]);
   const selected = receipt.cart.lines.some((l) => l.key === selections[receipt.key]) ? (selections[receipt.key] ?? null) : null;
   const select = (key: string | null) => setSelections((all) => ({ ...all, [receipt.key]: key }));
+  const selectedLine = receipt.cart.lines.find((l) => l.key === selected) ?? null;
+  const flow = flowAsk?.receiptKey === receipt.key ? flowAsk.flow : null;
+  const padAt = `${receipt.key}:${selected}`;
+  const pad = padState.at === padAt ? padState.text : '';
   const anyLines = state.receipts.some((r) => !r.done && r.cart.lines.length > 0);
 
   // The receipts live on this device ------------------------------------------------------------------------------------
@@ -99,22 +113,46 @@ export function CashierScreen(props: CashierScreenProps) {
   }, [anyLines]);
 
   // Scans go to the active receipt, one at a time, in order ------------------------------------------------------------
+  const lookupFailed = (error: Parameters<typeof phMessage>[2], code: string) => {
+    const lost = error.message === NETWORK_FAILURE;
+    if (lost) setNotSent(true);
+    setMessage({ tone: 'danger', text: lost ? t('pharmacy.sell.scan.failed', { code }) : phMessage(t, locale, error, 'pharmacy.sell') });
+  };
   useScanQueue(async (code) => {
     const result = await settle(() => sellSearch({ q: code, currency }));
     if (!result.ok) {
-      const lost = result.error.message === NETWORK_FAILURE;
-      if (lost) setNotSent(true);
-      setMessage({ tone: 'danger', text: lost ? t('pharmacy.sell.scan.failed', { code }) : phMessage(t, locale, result.error, 'pharmacy.sell') });
+      lookupFailed(result.error, code);
       return;
     }
     setNotSent(false);
     const outcome = scanOutcome(code, (result.data as { items: SellItem[] }).items);
     if (outcome.kind === 'add') {
-      dispatch({ type: 'line', action: { type: 'add', item: outcome.item } });
+      dispatch({ type: 'line', action: addActionFor(outcome.item, scanUnit) });
       setMessage(null);
     } else if (outcome.kind === 'blocked') setMessage({ tone: 'danger', text: t('pharmacy.sell.scan.blocked', { code, name: outcome.item.tradeName }) });
     else setMessage({ tone: 'danger', text: t(`pharmacy.sell.scan.${outcome.kind}`, { code }) });
   }, shift !== null && loaded);
+
+  // Enter in the field adds the top sellable result of what was typed ----------------------------------------------------------
+  const addTop = async () => {
+    const q = query.trim();
+    if (q === '') return;
+    const result = await settle(() => sellSearch({ q, currency }));
+    if (!result.ok) {
+      lookupFailed(result.error, q);
+      return;
+    }
+    setNotSent(false);
+    const top = (result.data as { items: SellItem[] }).items.find(isAddable);
+    if (!top) {
+      setMessage({ tone: 'danger', text: t('pharmacy.sell.empty', { q }) });
+      return;
+    }
+    dispatch({ type: 'line', action: addActionFor(top, scanUnit) });
+    setQuery('');
+    setMessage(null);
+    searchBox.current?.focus();
+  };
 
   // Keys -----------------------------------------------------------------------------------------------------------------
   const focusSearch = () => {
@@ -132,8 +170,9 @@ export function CashierScreen(props: CashierScreenProps) {
   };
   /**
    * Does what the key means and says whether it did anything. The caller takes the key from the browser (preventDefault) only
-   * when this returns true, so a key wired here can never be forgotten there; a key not wired yet (pay, credit, unit,
-   * inquiry, hold, discount: later tasks) returns false and keeps its browser meaning, as does a line key with nothing to do
+   * when this returns true, so a key wired here can never be forgotten there; a key not wired yet (hold, discount: later
+   * tasks) returns false and keeps its browser meaning, as do pay / credit with nothing to pay for (or no credit
+   * permission) and a line key with nothing to do
    * (arrow up on the first row, arrow down on the last, + - Delete with no selection).
    */
   const run = (key: CashierKey): boolean => {
@@ -142,6 +181,7 @@ export function CashierScreen(props: CashierScreenProps) {
     else if (key.kind === 'new') openReceipt();
     else if (key.kind === 'focusScan') focusSearch();
     else if (key.kind === 'escape') {
+      setFlowAsk(null);
       setQuery('');
       setMessage(null);
       searchBox.current?.focus();
@@ -156,8 +196,33 @@ export function CashierScreen(props: CashierScreenProps) {
         dispatch({ type: 'line', action: { type: 'remove', key: effect.remove } });
         select(effect.next);
       }
+    } else if (key.kind === 'unit') {
+      // The unit key converts: the selected line to its next priced unit, or (no line selected) the unit the next item starts in.
+      // Saying "nothing to change" is an answer too, so the key is taken from the browser either way.
+      const effect = unitKeyEffect(selectedLine, currency);
+      if ('set' in effect) {
+        dispatch({ type: 'line', action: { type: 'unit', ...effect.set } });
+        setMessage(null);
+      } else if ('none' in effect) setMessage({ tone: 'info', text: t('pharmacy.cashier.unit.none') });
+      else setScanUnit(nextScanUnitPref);
+    } else if (key.kind === 'inquiry') setInquiry((on) => !on);
+    else if (key.kind === 'cash' || key.kind === 'credit') {
+      // Only the ask is recorded here; the payment flows come next. Nothing to pay for (or no credit permission): the key keeps its browser meaning.
+      if (receipt.done || receipt.cart.lines.length === 0 || (key.kind === 'credit' && !props.perms.credit)) return false;
+      setFlowAsk({ receiptKey: receipt.key, flow: key.kind });
     } else return false;
     return true;
+  };
+  const applyPad = () => {
+    const qty = padQty(pad);
+    if (!selectedLine) {
+      setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.noLine') });
+      return;
+    }
+    if (qty === null) return;
+    dispatch({ type: 'line', action: { type: 'qty', key: selectedLine.key, qty } });
+    setPadState({ at: padAt, text: '' });
+    setMessage(null);
   };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -185,7 +250,7 @@ export function CashierScreen(props: CashierScreenProps) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 sm:p-3" data-testid="cashier-screen">
       <h1 className="sr-only">{t('pharmacy.cashier.title')}</h1>
       <header className="min-w-0">
-        <PulseStrip pulse={pulse} currency={currency} onFind={find} />
+        {pulse && <PulseStrip pulse={pulse} currency={currency} onFind={find} />}
       </header>
       {(!online || notSent) && (
         <Note look="ph" icon={<CloudOff aria-hidden />} tone="danger" role="alert" testId="cashier-offline">
@@ -200,17 +265,25 @@ export function CashierScreen(props: CashierScreenProps) {
 
       {/* The side column is the grid's FIRST child: in RTL the first column is on the physical right, where the keypad belongs. */}
       <div className="grid min-w-0 items-start gap-2 lg:grid-cols-[370px_minmax(0,1fr)] lg:[grid-template-areas:'side_main']" data-testid="cashier-grid">
-        <aside className="flex min-w-0 flex-col gap-2 lg:[grid-area:side]" aria-label={t('pharmacy.cashier.side.region')} data-testid="cashier-side">
-          <div className="flex flex-col gap-0.5 rounded-ph-2xl bg-ph-g8 px-4 py-3 text-ph-on-green" data-testid="cashier-total">
-            <span className="text-sm text-ph-on-green-muted">{t('pharmacy.cashier.total.due')}</span>
-            <span className="break-words text-[44px] font-extrabold leading-tight tabular-nums">
-              <Num>{formatMinor(estimate.totalMinor, currency)}</Num> <span className="text-base font-semibold">{currency}</span>
-            </span>
-            <span className="text-sm text-ph-on-green-muted">
-              {t('pharmacy.cashier.total.count')}: <Num>{receipt.cart.lines.length}</Num>
-            </span>
-          </div>
-        </aside>
+        <SideColumn
+          currency={currency}
+          totalMinor={estimate.totalMinor}
+          discountMinor={estimate.lineDiscountMinor + estimate.invoiceDiscountMinor}
+          lineCount={receipt.cart.lines.length}
+          usdRate={pulse?.usdRate ?? null}
+          receiptNo={state.active + 1}
+          canCredit={props.perms.credit}
+          customer={customers[receipt.key] ?? null}
+          onCustomer={(customer) => {
+            setCustomers((all) => ({ ...all, [receipt.key]: customer }));
+            dispatch({ type: 'customer', customerId: customer?.id ?? null });
+          }}
+          stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
+          pad={{ text: pad, onKey: (k) => setPadState({ at: padAt, text: padText(pad, k) }), onEnter: applyPad, canEnter: pad !== '' }}
+          flow={flow}
+          payable={!receipt.done && receipt.cart.lines.length > 0}
+          onPay={(f) => run({ kind: f })}
+        />
 
         <section className="flex min-w-0 flex-col gap-2 lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
           <ReceiptTabs
@@ -222,23 +295,32 @@ export function CashierScreen(props: CashierScreenProps) {
             onClose={(index) => dispatch({ type: 'close', index })}
             onOpen={openReceipt}
           />
-          <div className="relative min-w-0">
-            <Barcode aria-hidden className="pointer-events-none absolute start-3.5 top-1/2 size-5 -translate-y-1/2 text-ph-muted" />
-            <input
-              ref={searchBox}
-              type="search"
-              dir="auto"
-              autoComplete="off"
-              autoFocus
-              enterKeyHint="search"
-              aria-label={t('pharmacy.cashier.scan.label')}
-              placeholder={t('pharmacy.cashier.scan.placeholder')}
-              className="min-h-12 w-full min-w-0 rounded-ph-xl border-2 border-ph-accent bg-ph-card pe-4 ps-11 text-[17px] text-ph-text"
-              data-testid="cashier-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
+          <ScanBar
+            inputRef={searchBox}
+            query={query}
+            onQuery={setQuery}
+            onEnter={() => void addTop()}
+            unitLabel={selectedLine ? unitOf(selectedLine).label : t(`pharmacy.cashier.unit.pref.${scanUnit}`)}
+            unitPrice={
+              selectedLine ? (
+                unitOf(selectedLine).priceMinor === null ? (
+                  t('pharmacy.sell.chip.noPrice')
+                ) : (
+                  <>
+                    <Num>{formatMinor(BigInt(unitOf(selectedLine).priceMinor!), currency)}</Num> {currency}
+                  </>
+                )
+              ) : (
+                t('pharmacy.cashier.unit.next')
+              )
+            }
+            onUnit={() => {
+              run({ kind: 'unit' });
+              searchBox.current?.focus();
+            }}
+            inquiry={inquiry}
+            onInquiry={() => run({ kind: 'inquiry' })}
+          />
           {message && (
             <Note look="ph" icon={<CircleAlert aria-hidden />} tone={message.tone} role="status" testId="cashier-message">
               {message.text}

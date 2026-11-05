@@ -1,4 +1,4 @@
-import { cartReducer, emptyCart, parseDraft, type CartAction } from '../sell-logic';
+import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, type AddableItem, type CartAction, type CartLine, type Currency } from '../sell-logic';
 import { parseReceipts, receiptsReducer, type ReceiptsAction, type ReceiptsState } from '../sell-receipts';
 import type { CashierKeyContext } from '../sell-keys';
 
@@ -86,4 +86,58 @@ export function lineKeyEffect(kind: 'lineUp' | 'lineDown' | 'qtyUp' | 'qtyDown' 
   if (kind === 'qtyDown') return { step: { key: keys[at]!, delta: -1 } };
   // After a removal the next line takes the place (or, at the end, the one before it).
   return { remove: keys[at]!, next: keys[at + 1] ?? keys[at - 1] ?? null };
+}
+
+// The unit button -------------------------------------------------------------------------------------------------------
+
+/**
+ * The unit the NEXT scanned item starts in when no line is selected. A screen-level preference (not per receipt) that does not
+ * name a unit id (ids belong to one item): `largest` and `smallest` pick the priced unit with the most or fewest base pieces.
+ */
+export type ScanUnitPref = 'default' | 'largest' | 'smallest';
+
+export const nextScanUnitPref = (pref: ScanUnitPref): ScanUnitPref => (pref === 'default' ? 'largest' : pref === 'largest' ? 'smallest' : 'default');
+
+/** The unit id to add an item in under the preference; undefined = the item's own start unit (a barcode that named a unit always wins). */
+export function scanUnitId(item: Pick<AddableItem, 'units' | 'matchedUnitId'>, pref: ScanUnitPref): string | undefined {
+  if (pref === 'default' || item.matchedUnitId) return undefined;
+  const priced = item.units.filter((u) => u.priceMinor !== null);
+  if (priced.length < 2) return undefined;
+  const sorted = [...priced].sort((a, b) => a.baseQty - b.baseQty);
+  return (pref === 'largest' ? sorted[sorted.length - 1] : sorted[0])!.id;
+}
+
+/** The cart action that adds a scanned or typed item, in the preferred unit. */
+export const addActionFor = (item: AddableItem, pref: ScanUnitPref): CartAction => ({ type: 'add', item, unitId: scanUnitId(item, pref) });
+
+/** What the unit key does: move the selected line to its next priced unit, say there is none, or (no line selected) turn the next-item preference. */
+export type UnitEffect = { set: { key: string; unitId: string } } | { none: true } | { pref: true };
+
+export function unitKeyEffect(line: CartLine | null, currency: Currency): UnitEffect {
+  if (!line) return { pref: true };
+  const unitId = nextUnitId(line, currency);
+  return unitId ? { set: { key: line.key, unitId } } : { none: true };
+}
+
+// The keypad ------------------------------------------------------------------------------------------------------------
+
+export const PAD_MAX_DIGITS = 6;
+
+/** A key on the pad: a digit appends (leading zeros dropped, six digits at most), `C` clears. Quantities are whole numbers: there is no decimal point. */
+export function padText(text: string, key: string): string {
+  if (key === 'C') return '';
+  if (!/^[0-9]$/.test(key)) return text;
+  const next = (text + key).replace(/^0+/, '');
+  return next.length > PAD_MAX_DIGITS ? text : next;
+}
+
+/** The quantity the pad's enter key applies (same reading as a quantity typed in a line); null = nothing usable. */
+export const padQty = (text: string): number | null => parseQtyText(text);
+
+// The total box ---------------------------------------------------------------------------------------------------------
+
+/** The amount due in dollars, for display only (total / IQD per USD, two places); null when the sale is already in dollars or there is no rate. */
+export function usdEquivalent(totalMinor: bigint, currency: Currency, usdRate: number | null | undefined): string | null {
+  if (currency !== 'IQD' || !usdRate || !Number.isFinite(usdRate) || usdRate <= 0) return null;
+  return (Number(totalMinor) / usdRate).toFixed(2);
 }
