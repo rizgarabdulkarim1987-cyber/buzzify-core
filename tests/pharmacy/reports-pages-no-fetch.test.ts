@@ -60,7 +60,7 @@ beforeEach(() => {
 describe('a role without report.view', () => {
   it.each(['CASHIER', 'PHARMACIST', 'STOCK'])('%s sees the blocked state on the index, every report and the chain, and nothing is read', async (role) => {
     state.role = role;
-    expect(text(await ReportsIndexPage())).toContain('reports-forbidden');
+    expect(text(await ReportsIndexPage({}))).toContain('reports-forbidden');
     for (const slug of SLUGS) expect(text(await page(slug)), `${role} ${slug}`).toContain('reports-forbidden');
     expect(text(await ChainPage({ searchParams: Promise.resolve({}) }))).toContain('reports-forbidden');
     expect(fetched).not.toHaveBeenCalled();
