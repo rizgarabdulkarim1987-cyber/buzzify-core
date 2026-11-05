@@ -84,7 +84,7 @@ function TopProducts({ rows, allHref, t }: { rows: Array<{ key: string; name: st
  * covers all of the person's branches (ruling R6-15) in the pharmacy's primary currency; other currencies are left out and a note says so
  * (Ruling 6). Nothing is read for a role without `report.view` (Ruling 7), and the margin is not read without `profit.view` and `cost.view`.
  */
-export default async function ReportsIndexPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
+export default async function ReportsIndexPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const g = await reportsGate('pharmacy.reports.title');
   if (g.blocked) return g.blocked;
   const { t, access } = g;
