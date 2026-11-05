@@ -298,7 +298,9 @@ test.describe('Pharmacy sell @desktop', () => {
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser);
     await signInAndChoose(page, owner, shop, 1);
-    await page.getByRole('navigation').getByRole('link', { name: 'Sell', exact: true }).click();
+    // The desktop rail (inside the frame's <header>), never the phone's bottom bar: both are named "Main navigation", and before
+    // the dev server's stylesheet applies the bar's md:hidden the two can both be in the accessibility tree for a moment.
+    await page.locator('header').getByRole('navigation').getByRole('link', { name: 'Sell', exact: true }).click();
 
     // No shift, no sale: the gate asks for the opening cash first.
     await expect(page.getByTestId('open-shift')).toBeVisible();
