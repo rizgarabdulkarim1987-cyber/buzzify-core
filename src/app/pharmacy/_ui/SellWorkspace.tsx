@@ -1261,11 +1261,6 @@ function DiscountEditor({
 }
 
 /** The line's tile: green for an over-the-counter product, blue for a prescription one, amber for a controlled one (the chips say it in words). */
-const THUMB: Record<CartLine['rxLevel'], string> = {
-  OTC: 'bg-ph-g1 text-ph-g6',
-  RX: 'bg-ph-blue-wash text-ph-blue',
-  RESTRICTED: 'bg-ph-amber-wash text-ph-amber-ink',
-};
 /** A 44 px stepper button on the quantity's cream pill. */
 const STEP = 'grid size-11 shrink-0 place-items-center rounded-ph-xl text-ph-text hover:bg-ph-line disabled:cursor-not-allowed disabled:opacity-45';
 
@@ -1288,11 +1283,8 @@ function CartRow({
 }) {
   const unit = unitOf(line);
   return (
-    <li data-testid="cart-line" data-blocked={line.blocked ?? undefined} className="flex min-w-0 flex-col gap-2 py-3 first:pt-0">
-      <div className="flex min-w-0 items-start gap-3">
-        <span aria-hidden className={`mt-0.5 grid size-[38px] shrink-0 place-items-center rounded-ph-xl [&_svg]:size-5 ${THUMB[line.rxLevel]}`}>
-          {line.rxLevel === 'RESTRICTED' ? <ShieldAlert /> : <Pill />}
-        </span>
+    <li data-testid="cart-line" data-blocked={line.blocked ?? undefined} className="flex min-w-0 flex-col gap-1.5 py-2.5 first:pt-0">
+      <div className="flex min-w-0 items-start gap-2">
         <p className="min-w-0 flex-1">
           <span className="block break-words text-base font-semibold text-ph-text" dir="auto">
             {line.name}
@@ -1303,6 +1295,15 @@ function CartRow({
             </span>
           )}
         </p>
+        <span className="shrink-0 pt-2.5 text-md font-bold tabular-nums text-ph-text" data-testid="line-total">
+          {total && !total.unpriced ? (
+            <>
+              <Num>{formatMinor(total.totalMinor, currency)}</Num> {currency}
+            </>
+          ) : (
+            '—'
+          )}
+        </span>
         <button type="button" className={`${PH_BTN} shrink-0`} aria-label={t('pharmacy.sell.cart.remove', { name: line.name })} data-testid="remove-line" onClick={() => dispatch({ type: 'remove', key: line.key })}>
           <Trash2 aria-hidden className="size-4" />
         </button>
@@ -1345,18 +1346,9 @@ function CartRow({
             <Plus aria-hidden className="size-4" />
           </button>
         </div>
-        <span className="ms-auto text-md font-bold tabular-nums text-ph-text" data-testid="line-total">
-          {total && !total.unpriced ? (
-            <>
-              <Num>{formatMinor(total.totalMinor, currency)}</Num> {currency}
-            </>
-          ) : (
-            '—'
-          )}
-        </span>
         {line.units.length > 1 ? (
           <select
-            className={`${PH_FIELD} basis-full pe-8`}
+            className={`${PH_FIELD} min-w-0 flex-1 basis-28 pe-8`}
             aria-label={t('pharmacy.sell.cart.unit')}
             data-testid="unit-select"
             value={line.unitId}
@@ -1374,55 +1366,55 @@ function CartRow({
             {unit.label}
           </span>
         )}
-      </div>
-      {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
-        <details className="min-w-0" data-testid="line-more">
-          <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
-            <Tag aria-hidden className="size-4 shrink-0" />
-            {t('pharmacy.sell.cart.more.open')}
-          </summary>
-          <div className="mt-2 flex flex-col gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas p-3">
-            {perms.discount && (
-              <DiscountEditor label={t('pharmacy.sell.discount.line')} value={line.discount} currency={currency} testId="line-discount" t={t} onChange={(discount) => dispatch({ type: 'discount', key: line.key, discount })} />
-            )}
-            {perms.batchOverride && line.batches.length > 0 && (
-              <>
-                <Field label={t('pharmacy.sell.batch.label')} hint={t('pharmacy.sell.batch.hint')}>
-                  <FieldSelect
-                    className={`${PH_FIELD} pe-8 bg-ph-card`}
-                    data-testid="batch-select"
-                    value={line.batchId ?? ''}
-                    onChange={(event) => {
-                      const b = line.batches.find((x) => x.batchId === event.target.value);
-                      dispatch({ type: 'batch', key: line.key, batchId: b?.batchId ?? null, lot: b?.lot ?? '', reason: line.batchReason });
-                    }}
-                  >
-                    <option value="">{t('pharmacy.sell.batch.auto')}</option>
-                    {line.batches.map((b) => (
-                      <option key={b.batchId} value={b.batchId}>
-                        {b.lot} · {b.expiryDate.slice(0, 7)} · {b.available}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </Field>
-                {line.batchId && (
-                  <Field label={t('pharmacy.sell.batch.reason')} error={line.batchReason.trim().length < 3 ? t('pharmacy.sell.batch.reasonNeeded') : undefined}>
-                    <FieldInput
-                      className={`${PH_FIELD} bg-ph-card`}
-                      dir="auto"
-                      autoComplete="off"
-                      maxLength={300}
-                      data-testid="batch-reason"
-                      value={line.batchReason}
-                      onChange={(event) => dispatch({ type: 'batch', key: line.key, batchId: line.batchId, lot: line.batchLot, reason: event.target.value })}
-                    />
+        {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
+          <details className="min-w-0 [&[open]]:basis-full" data-testid="line-more">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-text underline underline-offset-2 hover:bg-ph-canvas">
+              <Tag aria-hidden className="size-4 shrink-0" />
+              {t('pharmacy.sell.cart.more.open')}
+            </summary>
+            <div className="mt-2 flex flex-col gap-3 rounded-ph-xl border border-ph-line bg-ph-canvas p-3">
+              {perms.discount && (
+                <DiscountEditor label={t('pharmacy.sell.discount.line')} value={line.discount} currency={currency} testId="line-discount" t={t} onChange={(discount) => dispatch({ type: 'discount', key: line.key, discount })} />
+              )}
+              {perms.batchOverride && line.batches.length > 0 && (
+                <>
+                  <Field label={t('pharmacy.sell.batch.label')} hint={t('pharmacy.sell.batch.hint')}>
+                    <FieldSelect
+                      className={`${PH_FIELD} pe-8 bg-ph-card`}
+                      data-testid="batch-select"
+                      value={line.batchId ?? ''}
+                      onChange={(event) => {
+                        const b = line.batches.find((x) => x.batchId === event.target.value);
+                        dispatch({ type: 'batch', key: line.key, batchId: b?.batchId ?? null, lot: b?.lot ?? '', reason: line.batchReason });
+                      }}
+                    >
+                      <option value="">{t('pharmacy.sell.batch.auto')}</option>
+                      {line.batches.map((b) => (
+                        <option key={b.batchId} value={b.batchId}>
+                          {b.lot} · {b.expiryDate.slice(0, 7)} · {b.available}
+                        </option>
+                      ))}
+                    </FieldSelect>
                   </Field>
-                )}
-              </>
-            )}
-          </div>
-        </details>
-      )}
+                  {line.batchId && (
+                    <Field label={t('pharmacy.sell.batch.reason')} error={line.batchReason.trim().length < 3 ? t('pharmacy.sell.batch.reasonNeeded') : undefined}>
+                      <FieldInput
+                        className={`${PH_FIELD} bg-ph-card`}
+                        dir="auto"
+                        autoComplete="off"
+                        maxLength={300}
+                        data-testid="batch-reason"
+                        value={line.batchReason}
+                        onChange={(event) => dispatch({ type: 'batch', key: line.key, batchId: line.batchId, lot: line.batchLot, reason: event.target.value })}
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
+            </div>
+          </details>
+        )}
+      </div>
     </li>
   );
 }
