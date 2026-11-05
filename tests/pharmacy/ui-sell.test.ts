@@ -333,6 +333,11 @@ describe('keys', () => {
     for (const key of ['F2', 'F4', 'F8', 'Escape', 'Enter']) expect(shortcutOf(press(key), true, true)).toBeNull();
     expect(shortcutOf(press('Escape'), false, false)).toBe('escape');
   });
+
+  it('leaves Escape typed in the Doctor side panel alone (the sale search stays), and keeps the other keys', () => {
+    expect(shortcutOf(press('Escape'), false, false, true)).toBeNull();
+    expect(shortcutOf(press('F4'), false, false, true)).toBe('pay');
+  });
 });
 
 describe('the draft on the device', () => {

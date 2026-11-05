@@ -111,7 +111,7 @@ const complaint = (over: Partial<Extract<DoctorResponse, { mode: 'COMPLAINT' }>>
   kind: 'ANSWER',
   mode: 'COMPLAINT',
   answer: {
-    redFlags: ['Stiff neck with the fever'],
+    redFlags: [],
     likelyCauses: ['A common cold'],
     askNext: ['Any allergies?'],
     tellCustomer: ['Drink fluids'],
@@ -124,6 +124,11 @@ const complaint = (over: Partial<Extract<DoctorResponse, { mode: 'COMPLAINT' }>>
   disclaimerKey: DOCTOR_DISCLAIMER_KEY,
   ...over,
 });
+/** A complaint answer with a red flag. The server never sends options with one; passing `options` forces them, to prove the UI drops them too. */
+const flagged = (over: Partial<Extract<DoctorResponse, { mode: 'COMPLAINT' }>> = {}): DoctorResponse => {
+  const base = complaint() as Extract<DoctorResponse, { mode: 'COMPLAINT' }>;
+  return { ...base, answer: { ...base.answer, redFlags: ['Stiff neck with the fever'] }, options: [], ...over };
+};
 const medicine: DoctorResponse = {
   kind: 'ANSWER',
   mode: 'MEDICINE_NAME',
@@ -149,6 +154,7 @@ const unavailable: DoctorResponse = { kind: 'UNAVAILABLE', reason: 'LIMIT', disc
 const ALL: Array<[string, DoctorResponse]> = [
   ['complaint answer', complaint()],
   ['complaint answer that must refer', complaint({ mustRefer: true })],
+  ['complaint answer with a red flag', flagged({ mustRefer: true })],
   ['medicine answer', medicine],
   ['REFER', refer],
   ['UNSURE', unsure],
@@ -164,12 +170,17 @@ describe('answerSections', () => {
     expect(sections.filter((s) => s.id === 'disclaimer')).toHaveLength(1);
   });
 
-  it('puts red flags first, then the referral when the answer must refer, all before any option', () => {
+  it('puts red flags first, then the referral when the answer must refer', () => {
+    expect(logic.answerSections(flagged({ mustRefer: true })).map((s) => s.id)).toEqual(['redFlags', 'referIf', 'likelyCauses', 'askNext', 'tellCustomer', 'cautions', 'disclaimer']);
     const ids = logic.answerSections(complaint({ mustRefer: true })).map((s) => s.id);
-    expect(ids[0]).toBe('redFlags');
     expect(ids.indexOf('referIf')).toBeLessThan(ids.indexOf('options'));
-    expect(ids).toEqual(['redFlags', 'referIf', 'likelyCauses', 'askNext', 'options', 'tellCustomer', 'cautions', 'disclaimer']);
-    expect(logic.answerSections(complaint()).map((s) => s.id)).toEqual(['redFlags', 'likelyCauses', 'askNext', 'options', 'tellCustomer', 'referIf', 'cautions', 'disclaimer']);
+    expect(logic.answerSections(complaint()).map((s) => s.id)).toEqual(['likelyCauses', 'askNext', 'options', 'tellCustomer', 'referIf', 'cautions', 'disclaimer']);
+  });
+
+  it('never offers a product beside a red flag, even if options arrive with one (a second guard after the server)', () => {
+    const ids = logic.answerSections(flagged({ options: [inStock, notInStock] })).map((s) => s.id);
+    expect(ids[0]).toBe('redFlags');
+    expect(ids).not.toContain('options');
   });
 
   it('turns the generic referral code into the app’s own line, never shows the code', () => {
@@ -193,7 +204,7 @@ describe('answerSections', () => {
   it('leaves empty sections out and keeps the red flags red', () => {
     const sections = logic.answerSections(complaint({ answer: { redFlags: [], likelyCauses: [], askNext: [], tellCustomer: [], referIf: [REFER_GENERIC], cautions: [], unsure: false }, options: [] }));
     expect(sections.map((s) => s.id)).toEqual(['referIf', 'disclaimer']);
-    expect(logic.answerSections(complaint())[0]!.tone).toBe('danger');
+    expect(logic.answerSections(flagged())[0]!.tone).toBe('danger');
   });
 
   it('orders a medicine answer as the spec does, with the leaflet reminder under the dose', () => {
@@ -259,13 +270,15 @@ describe('<DoctorAnswer>', () => {
     expect(last.textContent).toBe(en(DOCTOR_DISCLAIMER_KEY));
   });
 
-  it('draws red flags before any option, in red', () => {
-    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'link' }));
+  it('draws red flags first, in red, and no option or Add beside them even if the server sent some', () => {
+    mount(createElement(DoctorAnswer, { result: flagged({ options: [inStock, notInStock] }), addMode: 'bridge' }));
+    const answer = byTest('doctor-answer')!;
     const flags = byTest('doctor-section-redFlags')!;
-    const options = byTest('doctor-section-options')!;
-    expect(flags.compareDocumentPosition(options) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(answer.firstElementChild).toBe(flags);
     expect(flags.className).toMatch(/text-ph-red|bg-ph-red-wash/);
     expect(flags.textContent).toContain('Stiff neck with the fever');
+    expect(byTest('doctor-section-options')).toBeNull();
+    expect(byTest('doctor-add')).toBeNull();
   });
 
   it('shows a not-in-stock option by name with "not in your stock" only: no price, no quantity, no Add button', () => {
@@ -306,6 +319,27 @@ describe('<DoctorAnswer>', () => {
     expect(byTest('doctor-add')!.textContent).toContain(en('pharmacy.doctor.option.added'));
   });
 
+  it('adds once: a second tap on the same option adds nothing more, and the button says it is in the cart', async () => {
+    const got: unknown[] = [];
+    const off = bridge.onAddToCart((x) => got.push(x));
+    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'bridge' }));
+    await click(byTest('doctor-add')!);
+    await click(byTest('doctor-add')!);
+    off();
+    expect(got).toHaveLength(1);
+    expect((byTest('doctor-add') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('for a person who cannot sell, shows the price and quantity but no Add', () => {
+    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'none' }));
+    const row = byTest('doctor-option-IN_STOCK')!;
+    expect(row.querySelector('[data-testid="doctor-item-price"]')).not.toBeNull();
+    expect(byTest('doctor-add')).toBeNull();
+    expect(logic.doctorAddMode('PHARMACIST')).toBe('link');
+    expect(logic.doctorAddMode('STOCK')).toBe('none');
+    expect(logic.doctorAddMode(null)).toBe('none');
+  });
+
   it('on Home, Add to cart is a link that opens Sell with the item', () => {
     mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'link' }));
     const link = byTest('doctor-add')!;
@@ -327,11 +361,21 @@ describe('<DoctorPanel>', () => {
   it('asks the server and announces the answer in a live region, with the disclaimer last', async () => {
     actions.askDoctor.mockResolvedValue({ ok: true, data: complaint() });
     mount(createElement(DoctorPanel, { branchId: 'b1', addMode: 'link' }));
-    expect(byTest('doctor-live')!.getAttribute('aria-live')).toBe('polite');
+    const live = byTest('doctor-live')!;
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    // In the accessibility tree before anything arrives, or a screen reader may not announce the first answer.
+    expect(live.className).not.toMatch(/(^|\s)(empty:)?hidden(\s|$)/);
+    let finish: (v: unknown) => void = () => {};
+    actions.askDoctor.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
     type(byTest('doctor-complaint')!, 'Headache since this morning');
     type(byTest('doctor-age')!, '30');
     await click(byTest('doctor-ask')!);
+    // While asking, the live region itself carries the status: no second live region inserted inside it.
+    expect(live.textContent).toContain(en('pharmacy.doctor.asking'));
+    expect(live.querySelector('[role="status"]')).toBeNull();
+    await act(async () => finish({ ok: true, data: complaint() }));
     await settle();
+    expect(byTest('doctor-live')).toBe(live);
     expect(actions.askDoctor).toHaveBeenCalledWith({ mode: 'COMPLAINT', text: 'Headache since this morning', ageYears: 30, branchId: 'b1' });
     expect(byTest('doctor-live')!.contains(byTest('doctor-answer'))).toBe(true);
     expect(byTest('doctor-answer')!.lastElementChild!.getAttribute('data-testid')).toBe('doctor-disclaimer');
@@ -387,7 +431,36 @@ describe('<DoctorSheet> (phone)', () => {
       dialog.dispatchEvent(new Event('close'));
     });
     expect(document.activeElement).toBe(open);
-    expect(dialog.querySelector('[data-testid="doctor-complaint"]')).toBeNull();
+  });
+
+  it('puts the focus in the first field when it opens, and keeps what was typed when it is closed and opened again', async () => {
+    mount(createElement(DoctorSheet, { branchId: 'b1' }));
+    await click(byTest('doctor-fab')!);
+    const dialog = container.querySelector('dialog')!;
+    const field = dialog.querySelector('[data-testid="doctor-complaint"]')!;
+    expect(document.activeElement).toBe(field);
+    type(field, 'Dry cough');
+    await click(dialog.querySelector('[data-testid="doctor-sheet-close"]')!);
+    await click(byTest('doctor-fab')!);
+    expect((dialog.querySelector('[data-testid="doctor-complaint"]') as HTMLTextAreaElement).value).toBe('Dry cough');
+  });
+
+  it('closes itself when the screen grows wide enough for the side panel, so the sheet is never open and unseen', async () => {
+    const listeners: Array<(e: { matches: boolean }) => void> = [];
+    const mql = { matches: false, addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => listeners.push(fn), removeEventListener: vi.fn() };
+    const was = window.matchMedia;
+    window.matchMedia = vi.fn(() => mql) as never;
+    try {
+      mount(createElement(DoctorSheet, { branchId: 'b1' }));
+      await click(byTest('doctor-fab')!);
+      const dialog = container.querySelector('dialog')!;
+      expect(dialog.hasAttribute('open')).toBe(true);
+      expect(vi.mocked(window.matchMedia).mock.calls[0]![0]).toBe(logic.DOCTOR_SIDE_PANEL_QUERY);
+      await act(async () => listeners.forEach((fn) => fn({ matches: true })));
+      expect(dialog.hasAttribute('open')).toBe(false);
+    } finally {
+      window.matchMedia = was;
+    }
   });
 });
 

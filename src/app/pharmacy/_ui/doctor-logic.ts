@@ -1,3 +1,4 @@
+import { canPh, type PhRole } from '@/server/domain/pharmacy/permissions';
 import type { MatchedItem } from '@/server/pharmacy/doctor/matcher';
 import type { DoctorResponse } from '@/server/pharmacy/doctor/service';
 import type { CartBridgeItem } from './cart-bridge';
@@ -6,7 +7,8 @@ import type { CartBridgeItem } from './cart-bridge';
  * The AI Doctor's screen rules, pure (plan Task 8; spec "Answer structure", "Safety framing"):
  *  - `answerSections`: what an answer shows and in what order. Red flags come first (and a must-refer answer's referral right
  *    after them), before any option; the app's own "consult a doctor" line is ALWAYS the last section, whatever the result.
- *    REFER, UNSURE and UNAVAILABLE carry codes only, so they show fixed app lines and never model text.
+ *    REFER, UNSURE and UNAVAILABLE carry codes only, so they show fixed app lines and never model text. An answer with a red
+ *    flag never shows options, even if some arrive (the server already empties them; this is the second guard).
  *  - `cartItemOf` / `sellAddHref`: one of the matched unit to the Sell cart (the bridge on Sell, `?add=` from Home).
  *  - `askInputOf`: the form as the `ph.doctor.ask` input.
  * The message keys mirror `DOCTOR_MESSAGE_KEYS` and `REFER_GENERIC` of the server domain (tests/pharmacy/ui-doctor.test.ts
@@ -14,6 +16,14 @@ import type { CartBridgeItem } from './cart-bridge';
  */
 
 export const DISCLAIMER_KEY = 'pharmacy.doctor.disclaimer';
+
+/** Where the Sell screen has room for the Doctor's side panel (Tailwind's `2xl`, 96rem). Below it the Doctor is a sheet. */
+export const DOCTOR_SIDE_PANEL_QUERY = '(min-width: 96rem)';
+
+/** How an in-stock option is added: a link to Sell for a person who can sell, else nothing to press (price and stock still show). */
+export function doctorAddMode(role: PhRole | null): 'link' | 'none' {
+  return role !== null && canPh(role, 'shift.use') ? 'link' : 'none';
+}
 export const REFER_GENERIC_CODE = '__REFER_GENERIC__';
 const K = {
   referGeneric: 'pharmacy.doctor.refer.generic',
@@ -62,7 +72,7 @@ export function answerSections(result: DoctorResponse): DoctorSection[] {
     push('likelyCauses', 'plain', model(a.likelyCauses));
     push('askNext', 'plain', model(a.askNext));
     // The options section holds no lines: the options themselves are drawn from `result.options` (catalog fields only).
-    if (result.options.length > 0) out.push({ id: 'options', tone: 'plain', lines: [] });
+    if (result.options.length > 0 && a.redFlags.length === 0) out.push({ id: 'options', tone: 'plain', lines: [] });
     push('tellCustomer', 'plain', model(a.tellCustomer));
     if (!result.mustRefer) push('referIf', 'warn', referIf);
     push('cautions', 'warn', model(a.cautions));

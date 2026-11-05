@@ -252,25 +252,32 @@ test.describe('Pharmacy sell @desktop', () => {
   const people: string[] = [];
   /** The platform's kill switch for the pharmacy product: switched on for this run and put back after. */
   let applicationWas: 'ACTIVE' | 'DISABLED' | null = null;
+  /** The shops' plan ('standard') runs with no AI budget here, so the AI Doctor never shows on Sell; put back after. */
+  const plan = { applicationId_code: { applicationId: 'pharmacy', code: 'standard' } } as const;
+  let planLimitsWas: unknown = null;
 
   test.beforeAll(async () => {
     const client = db();
     try {
       applicationWas = (await client.application.findUnique({ where: { id: 'pharmacy' }, select: { status: true } }))?.status ?? null;
       await client.application.update({ where: { id: 'pharmacy' }, data: { status: 'ACTIVE' } });
+      const row = await client.appPlan.findUnique({ where: plan, select: { limits: true } });
+      planLimitsWas = row?.limits ?? null;
+      if (row && row.limits && typeof row.limits === 'object') {
+        await client.appPlan.update({ where: plan, data: { limits: { ...(row.limits as Record<string, unknown>), aiMonthlyBudgetMinor: 0 } } });
+      }
     } finally {
       await client.$disconnect();
     }
   });
 
   test.afterAll(async () => {
-    if (applicationWas) {
-      const client = db();
-      try {
-        await client.application.update({ where: { id: 'pharmacy' }, data: { status: applicationWas } });
-      } finally {
-        await client.$disconnect();
-      }
+    const client = db();
+    try {
+      if (applicationWas) await client.application.update({ where: { id: 'pharmacy' }, data: { status: applicationWas } });
+      if (planLimitsWas !== null) await client.appPlan.update({ where: plan, data: { limits: planLimitsWas as never } });
+    } finally {
+      await client.$disconnect();
     }
     await removeStudioUsers(people.splice(0));
     await removeRestaurants(restaurants.splice(0));
@@ -736,10 +743,12 @@ test.describe('Pharmacy sell @desktop', () => {
       // Four lines: more than the phone's cart pane holds, so the cart scrolls inside its pane.
       await page.goto(`/pharmacy/sell?add=${units.map((u) => `${u}:1`).join(',')}`);
       await expect(page.getByTestId('cart-line')).toHaveCount(4);
-      // The AI Doctor's column is there, and takes no room while its slot renders nothing (a plan without an AI budget; with one,
-      // the owner sees the Doctor's panel there: tests/e2e/pharmacy-doctor.spec.ts).
+      // The AI Doctor's column is there, and takes no room while its slot renders nothing (this run's plan has no AI budget; with
+      // one, the Doctor shows: tests/e2e/pharmacy-doctor.spec.ts).
       await expect(page.getByTestId('sell-doctor-slot')).toHaveCount(1);
-      if ((await page.getByTestId('sell-doctor-slot').getByTestId('doctor-panel').count()) === 0) await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
+      await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
+      await expect(page.getByTestId('doctor-panel')).toHaveCount(0);
+      await expect(page.getByTestId('doctor-fab')).toHaveCount(0);
 
       for (const [width, height, payId] of [
         [1280, 800, 'pay-open'],

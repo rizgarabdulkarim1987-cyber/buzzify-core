@@ -7,8 +7,8 @@ import { DoctorPanel, DoctorSheet } from './DoctorPanel';
  * Where the AI Doctor appears on Home and on Sell. It draws nothing for a person without access (`enabled` is the layout's
  * `doctorEnabledThisRequest`: the plan's AI budget, the role and the owner's switch) and nothing on Sell without a branch.
  *  - `home`: the green card that opens the full page (/pharmacy/doctor);
- *  - `sell`: the side panel (the Sell screen's start-side column, shown from `lg:`), adding straight into the cart (`cart-bridge`);
- *  - `sell-phone`: the floating button and bottom sheet below `lg:`.
+ *  - `sell`: the side panel (the Sell screen's start-side column, shown from `2xl:`, where the search keeps its room), adding straight into the cart (`cart-bridge`);
+ *  - `sell-phone`: the floating button and bottom sheet below `2xl:`.
  */
 export function DoctorSlot({ where, enabled, branchId, t }: { where: 'home' | 'sell' | 'sell-phone'; enabled: boolean; branchId: string | null; t: Translate }) {
   if (!enabled) return null;

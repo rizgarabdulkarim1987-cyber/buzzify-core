@@ -25,6 +25,8 @@ const DAY = 86_400_000;
 const db = () => createPrisma(databaseUrl(DEV_DB));
 const COMPLAINT = 'Headache since this morning, no other medicines';
 const AGE = 34;
+/** A Sell search that finds the seeded product, to measure the results column. */
+const SEARCH = 'Panadol';
 
 /** The scripted model's answer for the complaint above: one option in this shop's stock, one that is not. */
 const ANSWER = {
@@ -73,7 +75,7 @@ async function makeShop(label: string): Promise<Shop> {
 }
 
 /** Panadol (paracetamol, OTC, 250 IQD a tablet, 2,000 a strip of 10) with 140 tablets at Main. No ibuprofen at all. */
-async function seedCatalog(shop: Shop, tag: string): Promise<{ name: string }> {
+async function seedCatalog(shop: Shop, tag: string): Promise<{ name: string; unitId: string }> {
   const client = db();
   try {
     const tradeName = `Panadol ${tag}`;
@@ -101,7 +103,7 @@ async function seedCatalog(shop: Shop, tag: string): Promise<{ name: string }> {
     await scoped.$transaction(async (tx) => {
       await applyMovement(tx, { restaurantId: shop.id, branchId: shop.branches[0]!.id, batchId: batch.id, userId: 'seed', type: 'RECEIPT', deltas: { available: 140 }, reason: '' });
     });
-    return { name: tradeName };
+    return { name: tradeName, unitId: tablet.id };
   } finally {
     await client.$disconnect();
   }
@@ -172,6 +174,28 @@ async function hydrated(page: Page, selector: string): Promise<void> {
     .toBe(true);
 }
 
+/** The width of the Sell screen's results column and of its result list (search first), and whether the Doctor's side panel shows. */
+async function sellRoom(page: Page): Promise<{ column: number; list: number; columns: number; panel: boolean; fabOverPay: boolean }> {
+  await page.getByTestId('sell-search').fill(SEARCH);
+  await expect(page.getByTestId('result').first()).toBeVisible();
+  return page.evaluate(() => {
+    const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+    const list = document.querySelector('[data-testid="result-list"]')!;
+    const tracks = getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length;
+    const fab = box('[data-testid="doctor-fab"]');
+    const pay = box('[data-testid="pay-open"]');
+    const overlaps = (a: DOMRect | null, b: DOMRect | null) => !!a && !!b && a.width > 0 && b.width > 0 && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const slot = box('[data-testid="sell-doctor-slot"]');
+    return {
+      column: Math.round(box('[data-testid="sell-results-column"]')!.width),
+      list: Math.round(list.getBoundingClientRect().width),
+      columns: tracks,
+      panel: !!slot && slot.width > 0,
+      fabOverPay: overlaps(fab, pay),
+    };
+  });
+}
+
 /** The answer's last element is the app's disclaimer. */
 async function disclaimerIsLast(page: Page, scope: string): Promise<void> {
   const last = await page.locator(`${scope} [data-testid="doctor-answer"]`).evaluate((el) => el.lastElementChild?.getAttribute('data-testid'));
@@ -187,7 +211,7 @@ test.describe('Pharmacy AI Doctor @desktop', () => {
   let planMade = false;
   let applicationWas: 'ACTIVE' | 'DISABLED' | null = null;
   let shop: Shop;
-  let catalog: { name: string };
+  let catalog: { name: string; unitId: string };
   let owner: StudioUser;
   let pharmacistOff: StudioUser;
 
@@ -240,10 +264,10 @@ test.describe('Pharmacy AI Doctor @desktop', () => {
   });
 
   for (const locale of ['en', 'ar'] as const) {
-    test(`desktop Sell (${locale}): a complaint is answered from the shop's stock and Add to cart puts it in the cart`, async ({ browser }) => {
+    test(`wide Sell (${locale}, 1600px): a complaint is answered from the shop's stock and Add to cart puts it in the cart`, async ({ browser }) => {
       test.setTimeout(180_000);
       await setUserLocale(owner.userId, locale);
-      const page = await session(browser, owner, shop, { width: 1280, height: 800 });
+      const page = await session(browser, owner, shop, { width: 1600, height: 900 });
       await page.goto('/pharmacy/sell');
       if (locale === 'ar') await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
       const panel = page.getByTestId('sell-doctor-slot').getByTestId('doctor-panel');
@@ -274,6 +298,45 @@ test.describe('Pharmacy AI Doctor @desktop', () => {
       expect(await frameScrolls(page)).toEqual({ page: false, sideways: false });
       expect(await smallControls(page, '[data-testid="sell-doctor-slot"]')).toEqual([]);
       expect(await seriousViolations(page)).toEqual([]);
+      await page.context().close();
+    });
+
+    test(`Sell keeps its search roomy (${locale}): the side panel only from 1536px, the floating button below, clear of Pay`, async ({ browser }) => {
+      test.setTimeout(180_000);
+      await setUserLocale(owner.userId, locale);
+      const page = await session(browser, owner, shop, { width: 1280, height: 800 });
+      await page.goto('/pharmacy/sell');
+      await hydrated(page, '[data-testid="sell-search"]');
+      const seen: Record<number, Awaited<ReturnType<typeof sellRoom>>> = {};
+      for (const [width, height] of [[1024, 768], [1280, 800], [1600, 900]] as const) {
+        await page.setViewportSize({ width, height });
+        seen[width] = await sellRoom(page);
+        expect(await frameScrolls(page), `${width}px`).toEqual({ page: false, sideways: false });
+      }
+      console.log(`[doctor e2e] Sell room (${locale}): ${JSON.stringify(seen)}`);
+      // Below 2xl: no side panel, the floating button instead; the results keep the room they had before the Doctor.
+      expect(seen[1024]!.panel).toBe(false);
+      expect(seen[1280]!.panel).toBe(false);
+      expect(seen[1280]!.column).toBeGreaterThanOrEqual(420);
+      expect(seen[1024]!.columns, 'one results column when narrow').toBe(1);
+      // From 2xl the panel shows, and the results column still has room, in one column.
+      expect(seen[1600]!.panel).toBe(true);
+      expect(seen[1600]!.column).toBeGreaterThanOrEqual(420);
+      // Two result columns only where each card keeps a usable width.
+      for (const w of [1024, 1280, 1600]) expect(seen[w]!.list / seen[w]!.columns, `${w}px card width`).toBeGreaterThanOrEqual(260);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await expect(page.getByTestId('doctor-fab')).toBeVisible();
+      await page.getByTestId('sell-search').fill('');
+      await page.goto(`/pharmacy/sell?add=${encodeURIComponent(catalog.unitId)}:1`);
+      await expect(page.getByTestId('cart-line')).toHaveCount(1);
+      await expect(page.getByTestId('doctor-fab')).toBeVisible();
+      const clear = await page.evaluate(() => {
+        const a = document.querySelector('[data-testid="doctor-fab"]')!.getBoundingClientRect();
+        const b = document.querySelector('[data-testid="pay-open"]')!.getBoundingClientRect();
+        return a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      });
+      expect(clear, 'the floating button never covers Pay').toBe(true);
+      await page.evaluate(() => localStorage.clear());
       await page.context().close();
     });
 

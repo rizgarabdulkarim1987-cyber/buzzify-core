@@ -554,14 +554,17 @@ export type Shortcut = 'search' | 'pay' | 'hold' | 'escape' | 'addTop';
  * browser's; a key held down (repeat) never fires twice; a key that someone already handled (`defaultPrevented`, as a
  * scanner's closing Enter is) and a key pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing.
  * Nor does any key while a modal sheet is open over the screen (`modalOpen`, the Doctor sheet on a phone): the sheet owns
- * the keys, and Escape must close it rather than clear the search behind it.
+ * the keys, and Escape must close it rather than clear the search behind it. Escape pressed inside the Doctor's side panel
+ * (`inDoctor`) is the panel's own too: it never clears the sale search or pulls the focus away.
  */
 export function shortcutOf(
   event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean },
   inSearch: boolean,
   modalOpen = false,
+  inDoctor = false,
 ): Shortcut | null {
   if (modalOpen) return null;
+  if (inDoctor && event.key === 'Escape') return null;
   if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented) return null;
   if (event.isComposing || event.keyCode === 229) return null;
   switch (event.key) {

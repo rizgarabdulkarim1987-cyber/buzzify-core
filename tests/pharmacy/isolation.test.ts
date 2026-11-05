@@ -861,7 +861,20 @@ describe('the pharmacy isolation sweep', () => {
       data: { restaurantId: a.restaurantId, branchId: a.b1, staffId: managerA1.userId, mode: 'COMPLAINT', questionText: mineText, answer: { summary: 'seed' }, model: 'seed', inputTokens: 1, outputTokens: 1, outcome: 'ANSWERED' },
       select: { id: true },
     });
+    // The history applies the Doctor's own rule (plan budget, owner or switch): open it for this test, put the world back after.
+    const where = { applicationId_code: { applicationId: 'pharmacy', code: 'standard' } } as const;
+    const planWas = await prisma().appPlan.findUnique({ where, select: { limits: true } });
+    const limits = { branches: 5, users: 20, storageMb: 50, aiMonthlyBudgetMinor: 1000 };
+    if (planWas) await prisma().appPlan.update({ where, data: { limits } });
+    else await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'standard', name: { en: 'Standard' }, limits } });
+    const staffWhere = { restaurantId: a.restaurantId, userId: managerA1.userId };
+    const switchWas = await prisma().phStaff.findMany({ where: staffWhere, select: { id: true, aiDoctor: true } });
+    await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: true } });
     try {
+      // With the switch off, the manager sees nothing at all.
+      await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: false } });
+      expect(json(await run(def, managerA1, { restaurantId: a.restaurantId })), 'the switch off: no history').toBe('{"ok":true,"data":{"items":[]}}');
+      await prisma().phStaff.updateMany({ where: staffWhere, data: { aiDoctor: true } });
       const owner = json(await run(def, ownerA, { restaurantId: a.restaurantId }));
       expect(owner).toContain(a.doctorLog1);
       expect(owner).toContain(a.doctorLog2);
@@ -884,6 +897,9 @@ describe('the pharmacy isolation sweep', () => {
       expect(json(await run(def, world.ownerB, { restaurantId: b.restaurantId }))).not.toContain(own.id);
     } finally {
       await prisma().phDoctorLog.delete({ where: { id: own.id } });
+      for (const row of switchWas) await prisma().phStaff.update({ where: { id: row.id }, data: { aiDoctor: row.aiDoctor } });
+      if (planWas) await prisma().appPlan.update({ where, data: { limits: planWas.limits as never } });
+      else await prisma().appPlan.delete({ where });
     }
   });
 

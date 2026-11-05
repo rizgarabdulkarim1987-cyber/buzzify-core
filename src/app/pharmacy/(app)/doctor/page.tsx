@@ -2,7 +2,7 @@ import { History, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DoctorPanel } from '@/app/pharmacy/_ui/DoctorPanel';
-import type { DoctorHistoryItem } from '@/app/pharmacy/_ui/doctor-logic';
+import { doctorAddMode, type DoctorHistoryItem } from '@/app/pharmacy/_ui/doctor-logic';
 import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { getPhAccess } from '@/server/pharmacy/actor';
 import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
@@ -42,7 +42,7 @@ export default async function DoctorPage() {
       </div>
       <div className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
         {place.branchId ? (
-          <DoctorPanel branchId={place.branchId} addMode="link" header={false} />
+          <DoctorPanel branchId={place.branchId} addMode={doctorAddMode(actor.role)} header={false} />
         ) : (
           <p data-testid="doctor-pick-branch" className="flex items-start gap-2.5 rounded-[22px] bg-ph-card p-4 text-sm [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
             <MapPin aria-hidden className="text-ph-muted" />

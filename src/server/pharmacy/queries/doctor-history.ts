@@ -1,3 +1,4 @@
+import { doctorNavEnabled } from '@/server/pharmacy/doctor/nav';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { assertStaff } from '@/server/pharmacy/receipts';
@@ -11,7 +12,9 @@ const DOCTOR_HISTORY_LIMIT = 30;
  * everyone's in the pharmacy (the spec: the log is the owner's to review). Reads go through the branch-scoped client, so a
  * branch-limited person never sees another branch's rows and nobody sees another business's; the chosen branch narrows it
  * further. Only the stored question text (none for a photo), the mode, the outcome and the time are returned: never the
- * answer, the model, the tokens or who asked. Needs `ai.use`; readable while the pharmacy is read-only.
+ * answer, the model, the tokens or who asked. Needs `ai.use`; readable while the pharmacy is read-only. It applies the
+ * Doctor's own rule too (the plan's AI budget, the owner or the staff switch): a person the Doctor is closed to gets an empty
+ * list, with no log read, whoever calls it.
  */
 export const history = defineQuery({
   name: 'ph.doctor.history',
@@ -23,6 +26,7 @@ export const history = defineQuery({
   async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     assertStaff(ph);
+    if (!(await doctorNavEnabled(ph, new Date(), ctx.db))) return { items: [] };
     const owner = ph.role === 'OWNER';
     const rows = await scoped.phDoctorLog.findMany({
       where: { ...(owner ? {} : { staffId: ph.userId }), ...(input.branchId ? { branchId: input.branchId } : {}) },

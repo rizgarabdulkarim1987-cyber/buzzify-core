@@ -10,8 +10,11 @@ import { addToCart } from './cart-bridge';
 import { answerSections, cartItemOf, sellAddHref, type DoctorLine, type DoctorSection, type SectionTone } from './doctor-logic';
 import { Money } from './money-parts';
 
-/** Where an in-stock option goes: straight into the open Sell cart (`bridge`), or a link that opens Sell with it (`link`, Home and the full page). */
-export type AddMode = 'bridge' | 'link';
+/**
+ * Where an in-stock option goes: straight into the open Sell cart (`bridge`), a link that opens Sell with it (`link`, the full
+ * page), or nowhere for a person who cannot sell (`none`: the price and stock still show, with nothing to press).
+ */
+export type AddMode = 'bridge' | 'link' | 'none';
 
 const BOX: Record<SectionTone, string> = {
   danger: 'rounded-ph-xl bg-ph-red-wash px-3.5 py-3 text-ph-red',
@@ -57,8 +60,11 @@ function AddButton({ item, mode }: { item: MatchedItem; mode: AddMode }) {
     <button
       type="button"
       data-testid="doctor-add"
-      className={ADD}
+      className={`${ADD} disabled:cursor-default disabled:bg-ph-g1 disabled:text-ph-g9`}
+      // One tap adds one; after that the button says it is in the cart and stays so (a double tap must not sell two).
+      disabled={added}
       onClick={() => {
+        if (added) return;
         addToCart(cartItemOf(item));
         setAdded(true);
       }}
@@ -110,7 +116,7 @@ function OptionRow({ option, mode }: { option: MatchedOption; mode: AddMode }) {
                 <span data-testid="doctor-item-qty">{t('pharmacy.doctor.option.left', { qty: item.sellableQty, unit: item.unitLabel })}</span>
               </span>
             </span>
-            <AddButton item={item} mode={mode} />
+            {mode === 'none' ? null : <AddButton item={item} mode={mode} />}
           </li>
         ))}
       </ul>

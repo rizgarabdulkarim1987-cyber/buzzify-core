@@ -424,7 +424,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   useEffect(() => {
     scanQueue.current = createScanQueue((code) => scanHandler.current(code));
   }, []);
-  useScannerCapture((code) => scanQueue.current?.push(code), { enabled: shift !== null && !dialogOpen });
+  // A scan under a modal sheet (the Doctor's, on a phone) goes nowhere: the cart is behind it. The hook still restores the field.
+  useScannerCapture((code) => (document.querySelector('dialog[open]') ? undefined : scanQueue.current?.push(code)), { enabled: shift !== null && !dialogOpen });
   // Items handed in from outside (the cart bridge, `?add=`): looked up by unit id, then added through the same path as a scan.
   const handleHandedIn = async (code: string) => {
     const cut = code.lastIndexOf(':');
@@ -527,7 +528,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const inSearch = event.target === searchBox.current;
-      const key = shortcutOf(event, inSearch, document.querySelector('dialog[open]') !== null);
+      const inDoctor = event.target instanceof Element && event.target.closest('[data-testid="sell-doctor-slot"]') !== null;
+      const key = shortcutOf(event, inSearch, document.querySelector('dialog[open]') !== null, inDoctor);
       if (!key || key === 'addTop' || !shift) return;
       if (dialogOpen) return;
       event.preventDefault();
@@ -733,13 +735,14 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="sell-workspace">
       <h1 className="sr-only">{t('pharmacy.sell.title')}</h1>
       <div className="flex min-h-0 min-w-0 flex-1">
-        {/* The start-side column for the AI Doctor: it takes no room while the slot renders nothing. */}
-        <aside className="hidden min-h-0 w-[340px] shrink-0 flex-col gap-2.5 overflow-y-auto py-3 ps-3 sm:ps-6 lg:flex lg:empty:hidden" data-testid="sell-doctor-slot">
+        {/* The start-side column for the AI Doctor, only on screens wide enough to keep the search and results roomy (2xl, 1536px
+            and up; below that the Doctor is the floating button and its sheet). It takes no room while the slot renders nothing. */}
+        <aside className="hidden min-h-0 w-[340px] shrink-0 flex-col gap-2.5 overflow-y-auto py-3 ps-3 sm:ps-6 2xl:flex 2xl:empty:hidden" data-testid="sell-doctor-slot">
           {aside}
         </aside>
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
-          {/* Search and results */}
-          <div className="flex min-w-0 flex-col gap-3 px-3 pb-3 pt-3 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:pb-6 lg:pe-3">
+        <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${phoneAside ? 'pb-20 lg:pb-0' : ''} lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden`}>
+          {/* Search and results: a size container, so the results go to two columns only when this column itself is wide. */}
+          <div className={`@container flex min-w-0 flex-col gap-3 px-3 pb-3 pt-3 sm:px-6 lg:min-h-0 lg:overflow-y-auto lg:pe-3 ${phoneAside ? 'lg:pb-20 2xl:pb-6' : 'lg:pb-6'}`} data-testid="sell-results-column">
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
               <span className="inline-flex items-center gap-1.5 font-semibold text-ph-text">
                 <CircleCheck aria-hidden className="size-4 text-ph-g6" />
@@ -954,9 +957,10 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       </div>
 
       {phoneAside ? (
-        // A zero-height anchor: the button floats over the foot of the cart pane, never over the pay bar under it.
-        <div className="relative h-0 shrink-0 lg:hidden" data-testid="sell-doctor-float">
-          <div className="absolute bottom-3 end-3 z-10">{phoneAside}</div>
+        // A zero-height anchor below 2xl: on a phone the button floats over the foot of the cart pane (which leaves room for it),
+        // never over the pay bar under it; from lg it sits at the foot of the results column, clear of the cart's own pay bar.
+        <div className="relative h-0 shrink-0 2xl:hidden" data-testid="sell-doctor-float">
+          <div className="absolute bottom-3 end-3 z-10 lg:end-auto lg:start-3">{phoneAside}</div>
         </div>
       ) : null}
       {cart.lines.length > 0 && payBar(true)}
@@ -1045,7 +1049,7 @@ function ResultList({
   onDone?: () => void;
 }) {
   return (
-    <ul className="grid min-w-0 gap-2 xl:grid-cols-2" data-testid="result-list">
+    <ul className="grid min-w-0 gap-2 @xl:grid-cols-2" data-testid="result-list">
       {items.map((item) => {
         const ok = addable(item);
         return (
