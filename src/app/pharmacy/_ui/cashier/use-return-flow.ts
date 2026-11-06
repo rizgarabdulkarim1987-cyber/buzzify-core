@@ -38,7 +38,7 @@ export function useReturnFlow() {
 
   const send = async (body: ReturnBody): Promise<ActionResult<ReturnResult>> => {
     const sig = returnSignature(body.saleId, body.lines, body.reason, body.refundMethod);
-    if (lock.current || (kept.current && kept.current.sig !== sig)) return { ok: false, error: { code: 'CONFLICT', message: 'Another return is waiting for its answer' } };
+    if (lock.current || (kept.current && kept.current.sig !== sig)) return { ok: false, error: { code: 'CONFLICT', message: 'Another return is waiting for its answer', fields: { phCode: 'RETURN_WAITING' } } };
     lock.current = true;
     const key = keyFor(kept.current ? { sig: kept.current.sig, key: kept.current.request.clientKey } : null, sig, 'ret').key;
     const request: ReturnRequest = { ...body, clientKey: key };

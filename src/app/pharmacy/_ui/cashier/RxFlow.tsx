@@ -27,7 +27,7 @@ async function upload(file: File, place: { restaurantId: string; branchId: strin
       const body = (await response.json()) as { data?: unknown; error?: { code: string; message: string; fields?: Record<string, string> } };
       return body.error ? { ok: false, error: body.error } : { ok: true };
     } catch {
-      return { ok: false, error: { code: 'INVALID', message: `The upload was not accepted (HTTP ${response.status}).` } };
+      return { ok: false, error: { code: 'INVALID', message: `The upload was not accepted (HTTP ${response.status}).`, fields: { phCode: 'UPLOAD_REFUSED' } } };
     }
   } catch {
     return { ok: false, error: { code: 'INVALID', message: NETWORK_FAILURE } };

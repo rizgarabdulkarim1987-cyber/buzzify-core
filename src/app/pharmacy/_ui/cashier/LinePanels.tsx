@@ -200,7 +200,7 @@ export function LinePanels({ line, currency, canSeeCost, cost, refresh = '', onS
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm text-ph-text">
             <dt className="text-ph-muted">{t('pharmacy.cashier.col.cost')}</dt>
             <dd className="text-end" data-testid="panel-cost">{cost ? <Num>{formatMinor(BigInt(cost.costMinor), currency)}</Num> : '—'}</dd>
-            <dt className="text-ph-muted">{t('pharmacy.cashier.col.profit')}</dt>
+            <dt className="text-ph-muted">{t('pharmacy.cashier.panels.profit')}</dt>
             <dd className="text-end" data-testid="panel-profit">{cost?.profitMinor !== undefined ? <Num>{formatMinor(BigInt(cost.profitMinor), currency)}</Num> : '—'}</dd>
           </dl>
         )}
