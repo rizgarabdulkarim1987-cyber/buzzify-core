@@ -1,5 +1,6 @@
 import { creditPaymentsOf } from '../credit-logic';
 import { prescriptionGate, type RxLine } from '../prescription-logic';
+import { discountReasonNeeded } from './flows-logic';
 import {
   blockedLines,
   buildCartRequest,
@@ -33,12 +34,13 @@ export const rxLinesOf = (cart: CartState): RxLine[] => cart.lines.map((l) => ({
 /**
  * Why Pay is held back, as a message key; null when the receipt can be paid. The old screen's reasons in its order, plus a
  * quantity over the stock (the cashier blocks it before the server does). The prescription gate is the existing one: a
- * controlled line needs its recorded prescription, and any prescription line needs the dispensing permission.
+ * controlled line needs its recorded prescription, and any prescription line needs the dispensing permission. A discount over the
+ * limit with no reason is held back here too (with `maxDiscountPercent`), where the old screen let the server refuse it.
  */
 export function payBlockKey(
   cart: CartState,
-  estimate: Pick<Estimate, 'unpricedCount' | 'invalidCount' | 'totalMinor'>,
-  opts: { mayDispense: boolean; prescriptionId: string | null; controlledMaxQty: number; controlledEnabled: boolean },
+  estimate: Pick<Estimate, 'unpricedCount' | 'invalidCount' | 'totalMinor'> & Partial<Pick<Estimate, 'grossMinor' | 'lineDiscountMinor' | 'invoiceDiscountMinor'>>,
+  opts: { mayDispense: boolean; prescriptionId: string | null; controlledMaxQty: number; controlledEnabled: boolean; maxDiscountPercent?: number },
 ): string | null {
   if (cart.lines.length === 0) return 'pharmacy.sell.blocked.empty';
   if (blockedLines(cart).length > 0) return 'pharmacy.sell.blocked.heldLines';
@@ -51,6 +53,11 @@ export function payBlockKey(
   if (gate) return `pharmacy.sell.blocked.${gate}`;
   if (cart.lines.some((l) => l.batchId && l.batchReason.trim().length < 3)) return 'pharmacy.sell.batch.reasonNeeded';
   if (estimate.totalMinor <= 0n) return 'pharmacy.sell.blocked.zero';
+  // A discount over the pharmacy's limit needs its reason (the server refuses the sale without one): said before it is sent.
+  const { grossMinor, lineDiscountMinor, invoiceDiscountMinor } = estimate;
+  if (opts.maxDiscountPercent !== undefined && grossMinor !== undefined && discountReasonNeeded(cart, { grossMinor, lineDiscountMinor: lineDiscountMinor ?? 0n, invoiceDiscountMinor: invoiceDiscountMinor ?? 0n }, opts.maxDiscountPercent)) {
+    return 'pharmacy.cashier.blocked.discountReason';
+  }
   return null;
 }
 

@@ -199,6 +199,20 @@ export function padText(text: string, key: string): string {
   return next.length > PAD_MAX_DIGITS ? text : next;
 }
 
+/** The longest amount the pad types into a money field (twelve characters: far above any till amount). */
+export const PAD_MAX_MONEY = 12;
+
+/**
+ * A key on the pad while a payment or discount panel is open: it types into that panel's amount field instead of a quantity.
+ * A digit appends (a lone leading zero is dropped), `C` clears; anything already typed by hand (a decimal point) is kept.
+ */
+export function padMoney(text: string, key: string): string {
+  if (key === 'C') return '';
+  if (!/^[0-9]$/.test(key)) return text;
+  const next = (text + key).replace(/^0+(?=[0-9])/, '');
+  return next.length > PAD_MAX_MONEY ? text : next;
+}
+
 /** The quantity the pad's enter key applies (same reading as a quantity typed in a line); null = nothing usable. */
 export const padQty = (text: string): number | null => parseQtyText(text);
 
@@ -240,8 +254,14 @@ export interface Suggestion {
   mark: 'rx' | 'restricted' | null;
 }
 
+/**
+ * The item as a name search adds it: in its smallest priced unit (the spec's unit button runs tablet → strip → packet, and stock
+ * is counted in tablets), not the packet the server matched a name hit on. A barcode keeps the unit it is printed on.
+ */
+export const asTyped = <T extends ScanItem>(item: T): T => (item.matchedOn === 'barcode' || item.matchedUnitId === null ? item : { ...item, matchedUnitId: null });
+
 export function suggestionsFrom(items: readonly ScanItem[], limit = SUGGESTION_MAX): Suggestion[] {
-  return items.slice(0, limit).map((item) => ({
+  return items.slice(0, limit).map(asTyped).map((item) => ({
     item,
     reason: item.notSellable ? 'notSellable' : item.noPrice ? 'noPrice' : item.sellableQty <= 0 ? 'noStock' : null,
     unit: startUnit(item),

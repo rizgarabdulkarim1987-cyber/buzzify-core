@@ -75,8 +75,10 @@ export function useSaleFlow(opts: {
   say: (text: string) => void;
   /** True (and says why) while the open flow must stay: a return being sent keeps return mode on screen. */
   stay?: () => boolean;
+  /** A sale went through on the customer's account: their balance changed (the screen reads them again). */
+  charged?: (customerId: string) => void;
 }): SaleFlow {
-  const { receipt, currency, mirrorRef, dispatch, save, setNotSent, say, stay = () => false } = opts;
+  const { receipt, currency, mirrorRef, dispatch, save, setNotSent, say, stay = () => false, charged } = opts;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -166,6 +168,7 @@ export function useSaleFlow(opts: {
       setSold({ receiptKey: key, sale: result.data as SaleResult, credit, noPrint: printOff });
       setLast(result.data as SaleResult);
       setPrint((p) => (p.by === key ? { off: false, by: null } : p));
+      if ('customerId' in body && body.customerId) charged?.(body.customerId);
       router.refresh();
     } finally {
       lock.current = false;

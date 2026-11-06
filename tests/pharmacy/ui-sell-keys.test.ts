@@ -26,10 +26,14 @@ describe('cashierKeyOf', () => {
     expect(cashierKeyOf({ key: '/' }, cell)).toBeNull();
   });
 
-  it('+ and - change quantity only outside text fields', () => {
+  it('+, - and Delete change the line outside text fields and from the empty scan field (fix round 2)', () => {
     expect(cashierKeyOf({ key: '+' }, free)).toEqual({ kind: 'qtyUp' });
     expect(cashierKeyOf({ key: '-' }, free)).toEqual({ kind: 'qtyDown' });
-    for (const ctx of [search(true), search(false), cell]) {
+    expect(cashierKeyOf({ key: '+' }, search(true))).toEqual({ kind: 'qtyUp' });
+    expect(cashierKeyOf({ key: '-' }, search(true))).toEqual({ kind: 'qtyDown' });
+    expect(cashierKeyOf({ key: 'Delete' }, search(true))).toEqual({ kind: 'remove' });
+    expect(cashierKeyOf({ key: 'Delete' }, search(false))).toBeNull();
+    for (const ctx of [search(false), cell]) {
       expect(cashierKeyOf({ key: '+' }, ctx)).toBeNull();
       expect(cashierKeyOf({ key: '-' }, ctx)).toBeNull();
     }

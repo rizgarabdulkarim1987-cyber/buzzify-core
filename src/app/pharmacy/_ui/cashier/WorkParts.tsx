@@ -1,9 +1,27 @@
 'use client';
 
 import { CircleAlert, CircleCheck, Hourglass, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useT } from '@/studio/i18n';
 import { Note, PH_BTN, PH_PRIMARY } from '../sell-parts';
+
+/** Where the side keypad types while a panel that takes an amount is open (cash received, paid now, the discount): never a quantity. */
+export interface PadSink {
+  key: (key: string) => void;
+  /** The check key: confirms the panel (sends the payment, applies the discount). */
+  enter: () => void;
+}
+/** The screen's slot for the open panel's sink: a panel puts itself there while it is mounted and takes itself out when it goes. */
+export type PadSlot = (sink: PadSink | null) => void;
+
+/** While mounted, the keypad types into this panel (`mine`, this render's handlers, so it always sees the latest values). */
+export function usePadSink(slot: PadSlot | undefined, mine: PadSink) {
+  useEffect(() => {
+    if (!slot) return;
+    slot(mine);
+    return () => slot(null);
+  });
+}
 
 /** What every payment flow shows besides its own fields: why Pay is held back, the connection, a sale in flight, a refusal, "no print". */
 export interface FlowCommon {

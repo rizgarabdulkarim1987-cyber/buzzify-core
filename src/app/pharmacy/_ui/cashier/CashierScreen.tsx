@@ -1,8 +1,10 @@
 'use client';
 
 import { CircleAlert, CircleCheck, CloudOff, Undo2 } from 'lucide-react';
-import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
+import { getCustomer } from '@/app/pharmacy/_actions/customers';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
+import { settle } from '@/studio/settle';
 import { useLocale, useT } from '@/studio/i18n';
 import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
@@ -18,6 +20,7 @@ import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, mov
 import { CashierToolbar, LeaveNote } from './CashierToolbar';
 import { cashierOps } from './flows-logic';
 import { InquiryPanel } from './InquiryPanel';
+import type { PadLineKey } from './Keypad';
 import { LinePanels, type BatchOverride } from './LinePanels';
 import { OtherFlow } from './OtherFlow';
 import { PulseStrip } from './PulseStrip';
@@ -39,6 +42,7 @@ import { useStoredReceipts } from './use-stored-receipts';
 import { useSaleFlow } from './use-sale-flow';
 import { useSuggestions, type SuggestionState } from './use-suggestions';
 import { WorkPanel } from './WorkPanel';
+import type { PadSink, PadSlot } from './WorkParts';
 
 export interface CashierScreenProps extends SellScreenProps {
   /** The header chips, read by the page (`ph.pulse`). */
@@ -131,11 +135,31 @@ export function CashierScreen(props: CashierScreenProps) {
 
   // The receipts live on this device ------------------------------------------------------------------------------------
   const { loaded, restored, save } = useStoredReceipts({ restaurantId, branchId, userId }, currency, shift !== null, state, dispatch, anyLines);
+  // "Restored from this device" is said once: the first key or tap on the screen takes it away.
+  const [restoreSeen, setRestoreSeen] = useState(false);
+  const showRestored = restored && anyLines && !restoreSeen;
+  useEffect(() => {
+    if (!showRestored) return;
+    const seen = () => setRestoreSeen(true);
+    window.addEventListener('keydown', seen, true);
+    window.addEventListener('pointerdown', seen, true);
+    return () => {
+      window.removeEventListener('keydown', seen, true);
+      window.removeEventListener('pointerdown', seen, true);
+    };
+  }, [showRestored]);
   // Paying: the flow asked for on this receipt, its sale attempt (on the receipt, on the device) and the receipt after the sale.
   // A return being sent keeps return mode and this receipt on screen (`stuck` says why); its state outlives the panel (`useReturnFlow`).
   const returns = useReturnFlow();
   const stuck = () => returns.busy && (say({ tone: 'danger', text: t('pharmacy.cashier.return.sending') }), true);
-  const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }), stay: stuck });
+  // After a sale on the account the customer is read again: the card and the total box show the new balance and room left.
+  const recheck = (customerId: string) =>
+    void settle(() => getCustomer({ customerId })).then((result) => {
+      if (!result.ok) return;
+      const fresh = result.data as PickedCustomer;
+      setCustomers((all) => Object.fromEntries(Object.entries(all).map(([key, c]) => [key, c?.id === fresh.id ? fresh : c])));
+    });
+  const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }), stay: stuck, charged: recheck });
   const pickCustomer = (customer: PickedCustomer | null) => {
     if (edit({ type: 'customer', customerId: customer?.id ?? null })) setCustomers((all) => ({ ...all, [receipt.key]: customer }));
   };
@@ -242,6 +266,36 @@ export function CashierScreen(props: CashierScreenProps) {
     } else return false;
     return true;
   };
+  // The keypad: while a panel is open it never changes a quantity. A payment or discount panel takes its keys (`PadSink`: the
+  // amount received, paid now, the discount; the check key confirms it); any other panel says to close it first.
+  const padSink = useRef<PadSink | null>(null);
+  const padSlot = useCallback<PadSlot>((sink) => void (padSink.current = sink), []);
+  const panelOpen = sale.flow !== null || sale.sold !== null;
+  const padKey = (key: string) => {
+    if (panelOpen) {
+      if (padSink.current) padSink.current.key(key);
+      else setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.panelOpen') });
+      return;
+    }
+    setPadState({ at: padAt, text: padText(pad, key) });
+    focusField();
+  };
+  const padEnter = () => {
+    if (panelOpen) {
+      if (padSink.current) padSink.current.enter();
+      else setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.panelOpen') });
+      return;
+    }
+    applyPad();
+    focusField();
+  };
+  // The keypad's line buttons: the arrow, + - and Delete keys; a quantity never changes while a panel is open.
+  const padLine = (kind: PadLineKey) => {
+    const changes = kind === 'qtyUp' || kind === 'qtyDown' || kind === 'remove';
+    if (changes && panelOpen) setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.panelOpen') });
+    else if (changes && !selectedLine) setMessage({ tone: 'info', text: t('pharmacy.cashier.keypad.noLine') });
+    else run({ kind });
+  };
   const applyPad = () => {
     const qty = padQty(pad);
     if (!selectedLine) {
@@ -320,7 +374,7 @@ export function CashierScreen(props: CashierScreenProps) {
           {t('pharmacy.cashier.offline')}
         </Note>
       )}
-      {restored && anyLines && (
+      {showRestored && (
         <Note look="ph" icon={<Undo2 aria-hidden />} tone="info" role="status" testId="cashier-restored">
           {t('pharmacy.cashier.restored')}
         </Note>
@@ -339,13 +393,13 @@ export function CashierScreen(props: CashierScreenProps) {
           customer={customers[receipt.key] ?? null}
           onCustomer={pickCustomer}
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
-          pad={{ text: pad, onKey: (k) => void (setPadState({ at: padAt, text: padText(pad, k) }), focusField()), onEnter: () => void (applyPad(), focusField()), canEnter: pad !== '' }}
+          pad={{ text: panelOpen ? '' : pad, onKey: padKey, onEnter: padEnter, canEnter: panelOpen || pad !== '', onLine: padLine }}
           flow={sale.flow}
           payable={!receipt.done && receipt.cart.lines.length > 0 && !heldHere}
           onPay={(f) => run({ kind: f })}
         >
-          <WorkPanel sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
-            other={<OtherFlow flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
+          <WorkPanel padSlot={padSlot} sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
+            other={<OtherFlow padSlot={padSlot} flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
             idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
           />
         </SideColumn>

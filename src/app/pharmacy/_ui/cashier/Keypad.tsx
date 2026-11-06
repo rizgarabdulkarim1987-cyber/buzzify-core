@@ -1,24 +1,42 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Minus, Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { Num } from '../sell-parts';
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
+/** The line buttons (the prototype's row above the digits): the same work as the arrow, + - and Delete keys. */
+export type PadLineKey = 'lineUp' | 'lineDown' | 'qtyDown' | 'qtyUp' | 'remove';
+const LINE_KEYS: { kind: PadLineKey; testId: string; icon: ReactNode }[] = [
+  { kind: 'lineUp', testId: 'pad-line-up', icon: <ChevronUp aria-hidden className="size-5" /> },
+  { kind: 'lineDown', testId: 'pad-line-down', icon: <ChevronDown aria-hidden className="size-5" /> },
+  { kind: 'qtyDown', testId: 'pad-qty-down', icon: <Minus aria-hidden className="size-5" /> },
+  { kind: 'qtyUp', testId: 'pad-qty-up', icon: <Plus aria-hidden className="size-5" /> },
+  { kind: 'remove', testId: 'pad-remove', icon: <Trash2 aria-hidden className="size-5" /> },
+];
 const KEY = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-ph-xl border border-ph-line bg-ph-card text-xl font-bold tabular-nums text-ph-text hover:bg-ph-canvas disabled:cursor-not-allowed disabled:opacity-45';
 
 /**
  * The quantity pad: what is typed shows in the display, and the enter key puts it on the selected line (the screen reads it
  * with `parseQtyText`). Whole numbers only, so there is no decimal point. The keys sit in an `ltr` box so 1 2 3 read left to
- * right in an Arabic screen too (the prototype's `.keys`). Plain buttons; no motion.
+ * right in an Arabic screen too (the prototype's `.keys`). Above the digits, the line buttons move the selection, step its
+ * quantity and delete it (`onLine`), for a till without a keyboard. Plain buttons; no motion.
  */
-export function Keypad({ text, onKey, onEnter, canEnter }: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean }) {
+export function Keypad({ text, onKey, onEnter, canEnter, onLine }: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean; onLine: (key: PadLineKey) => void }) {
   const t = useT();
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-ph-2xl border border-ph-line bg-ph-card p-2.5" role="group" aria-label={t('pharmacy.cashier.keypad.region')} data-testid="keypad">
       <output className="flex min-h-12 items-center justify-end rounded-ph-xl border-2 border-ph-accent bg-ph-canvas px-3 text-[22px] font-bold tabular-nums text-ph-text" aria-label={t('pharmacy.cashier.keypad.display')} data-testid="keypad-display">
         <Num>{text}</Num>
       </output>
+      <div dir="ltr" className="grid grid-cols-5 gap-1.5" data-testid="keypad-lines">
+        {LINE_KEYS.map(({ kind, testId, icon }) => (
+          <button key={kind} type="button" className={`${KEY} text-base${kind === 'remove' ? ' text-ph-red' : ''}`} data-testid={testId} aria-label={t(`pharmacy.cashier.keypad.${kind}`)} title={t(`pharmacy.cashier.keypad.${kind}`)} onClick={() => onLine(kind)}>
+            {icon}
+          </button>
+        ))}
+      </div>
       <div dir="ltr" className="grid grid-cols-3 gap-1.5" data-testid="keypad-keys">
         {DIGITS.map((d) => (
           <button key={d} type="button" className={KEY} data-testid="key-digit" onClick={() => onKey(d)}>

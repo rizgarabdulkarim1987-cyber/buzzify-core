@@ -14,6 +14,7 @@ import { PayCredit } from './PayCredit';
 import { isPayFlow, payBlockKey } from './sale-flow-logic';
 import { SaleReceipt } from './SaleReceipt';
 import type { SaleFlow } from './use-sale-flow';
+import type { PadSlot } from './WorkParts';
 
 /**
  * The work panel under the pay buttons (layout A's pay box): idle, the cash flow, the credit flow, the receipt after a sale, or one
@@ -34,12 +35,15 @@ export function WorkPanel({
   onNext,
   other,
   idle,
+  padSlot,
 }: {
+  /** Where the side keypad types while a payment is open (the amount received / paid now). */
+  padSlot?: PadSlot;
   sale: SaleFlow;
   receipt: OpenReceipt;
   estimate: Estimate;
   currency: Currency;
-  settings: Pick<SellSettings, 'controlledMaxQty' | 'controlledEnabled'>;
+  settings: Pick<SellSettings, 'controlledMaxQty' | 'controlledEnabled' | 'maxDiscountPercent'>;
   perms: SellPerms;
   offline: boolean;
   customer: PickedCustomer | null;
@@ -65,7 +69,7 @@ export function WorkPanel({
       </section>
     );
   }
-  const block = payBlockKey(receipt.cart, estimate, { mayDispense: perms.rx, prescriptionId: receipt.prescriptionId, controlledMaxQty: settings.controlledMaxQty, controlledEnabled: settings.controlledEnabled });
+  const block = payBlockKey(receipt.cart, estimate, { mayDispense: perms.rx, prescriptionId: receipt.prescriptionId, controlledMaxQty: settings.controlledMaxQty, controlledEnabled: settings.controlledEnabled, maxDiscountPercent: settings.maxDiscountPercent });
   const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, elsewhere: sale.elsewhere, noPrint: sale.noPrint, onNoPrint: sale.setNoPrint };
   return (
     <section className="flex flex-col gap-2.5 rounded-ph-2xl border border-ph-line bg-ph-card p-3" data-testid="work-panel" data-flow={kind} aria-label={t('pharmacy.cashier.flow.region')}>
@@ -78,7 +82,7 @@ export function WorkPanel({
           </button>
         )}
       </div>
-      {kind === 'cash' && <PayCash key={`${receipt.key}:cash`} currency={currency} totalMinor={estimate.totalMinor} attempt={receipt.attempt} onSubmit={(draft, amount) => void sale.pay(draft, amount, null)} {...common} />}
+      {kind === 'cash' && <PayCash key={`${receipt.key}:cash`} currency={currency} totalMinor={estimate.totalMinor} attempt={receipt.attempt} onSubmit={(draft, amount) => void sale.pay(draft, amount, null)} padSlot={padSlot} {...common} />}
       {kind === 'credit' && (
         <PayCredit
           key={`${receipt.key}:credit`}
@@ -89,6 +93,7 @@ export function WorkPanel({
           customerId={receipt.customerId ?? receipt.attempt?.credit?.customerId ?? null}
           onCustomer={onCustomer}
           onSubmit={(draft, amount, onAccount) => void sale.pay(draft, amount, onAccount)}
+          padSlot={padSlot}
           {...common}
         />
       )}

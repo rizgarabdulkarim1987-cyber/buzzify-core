@@ -8,7 +8,7 @@ import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { phMessage } from '../ph-failure';
 import { emptyCart, isAddable, normalizeDigits, scanOutcome, type AddableItem, type Currency, type ScanItem } from '../sell-logic';
 import { MAX_RECEIPTS, type ReceiptsState } from '../sell-receipts';
-import { addActionFor, addedKey, cashierReducer, frozenEdit, frozenWhy, type CashierAction, type ScanUnitPref } from './cashier-logic';
+import { addActionFor, addedKey, asTyped, cashierReducer, frozenEdit, frozenWhy, type CashierAction, type ScanUnitPref } from './cashier-logic';
 import { handInPlace } from './flows-logic';
 import { useScanQueue } from './use-scan-queue';
 
@@ -139,7 +139,7 @@ export function useAdding(o: {
       o.inquire(top);
       say(null);
       o.used();
-    } else if (addItem(top)) o.used();
+    } else if (addItem(asTyped(top))) o.used();
     else o.focus();
   };
 

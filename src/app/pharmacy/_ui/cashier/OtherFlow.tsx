@@ -15,6 +15,7 @@ import { RxFlow } from './RxFlow';
 import { rxLinesOf, type WorkFlow } from './sale-flow-logic';
 import type { HoldFlow } from './use-hold-flow';
 import type { ReturnFlowState } from './use-return-flow';
+import type { PadSlot } from './WorkParts';
 
 /** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy, a return. */
 export function OtherFlow({
@@ -33,8 +34,11 @@ export function OtherFlow({
   close,
   canReturn,
   returns,
+  padSlot,
 }: {
   flow: WorkFlow | null;
+  /** Where the side keypad types while the discount is open. */
+  padSlot?: PadSlot;
   receipt: OpenReceipt;
   estimate: Estimate;
   currency: Currency;
@@ -66,6 +70,7 @@ export function OtherFlow({
         onLine={(key, discount) => line({ type: 'discount', key, discount })}
         onReason={(reason) => line({ type: 'discountReason', reason })}
         onApply={close}
+        padSlot={padSlot}
       />
     );
   }

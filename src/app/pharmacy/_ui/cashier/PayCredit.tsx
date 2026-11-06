@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleAlert, Hourglass, UserRound } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { getCustomer } from '@/app/pharmacy/_actions/customers';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
@@ -12,9 +12,10 @@ import { phMessage } from '../ph-failure';
 import { formatMinor, parseMoney, type Currency, type PayDraft, type SaleAttempt } from '../sell-logic';
 import { FieldInput, Note, Num, PH_FIELD } from '../sell-parts';
 import { isolate } from '../WriteBlocked';
+import { padMoney } from './cashier-logic';
 import { MethodButtons } from './PayCash';
 import { creditDraftOf, creditInputOf } from './sale-flow-logic';
-import { ConfirmBar, FlowNotes, type FlowCommon } from './WorkParts';
+import { ConfirmBar, FlowNotes, usePadSink, type FlowCommon, type PadSlot } from './WorkParts';
 
 /**
  * The credit flow (F3), inline: the receipt's customer is required (picked in the side column); what is paid now (cash by default,
@@ -31,8 +32,10 @@ export function PayCredit({
   customerId,
   onCustomer,
   onSubmit,
+  padSlot,
   ...common
 }: FlowCommon & {
+  padSlot?: PadSlot;
   currency: Currency;
   totalMinor: bigint;
   attempt: SaleAttempt | null;
@@ -46,6 +49,12 @@ export function PayCredit({
   const { locale } = useLocale();
   const [input, setInput] = useState(() => creditInputOf(attempt, currency));
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
+  const form = useRef<HTMLFormElement>(null);
+  // The side keypad types what is paid now, and its check key confirms (as Enter in the field does).
+  usePadSink(padSlot, {
+    key: (key) => void (!common.pending && setInput((i) => ({ ...i, now: padMoney(i.now, key) }))),
+    enter: () => form.current?.requestSubmit(),
+  });
   const wanted = customer ? null : customerId;
   useEffect(() => {
     if (!wanted) return;
@@ -85,7 +94,7 @@ export function PayCredit({
   );
 
   return (
-    <form className="flex flex-col gap-2.5" onSubmit={submit} data-testid="flow-credit">
+    <form ref={form} className="flex flex-col gap-2.5" onSubmit={submit} data-testid="flow-credit">
       {!customer && !wanted && (
         <Note look="ph" icon={<UserRound aria-hidden />} tone="danger" role="status" testId="flow-need-customer">
           {t('pharmacy.cashier.credit.needCustomer')}

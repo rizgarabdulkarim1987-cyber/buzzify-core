@@ -69,7 +69,8 @@ export function cashierKeyOf(event: KeyEventLike, ctx: CashierKeyContext): Cashi
   const fixed = FUNCTION_KEYS[event.key];
   if (fixed) return { kind: fixed } as CashierKey;
 
-  // `*` and `/` also work on an empty search field; every other plain key only outside a text field.
+  // `*`, `/`, + - and Delete also work on an empty search field (nothing is typed there to change); the arrows and every other
+  // plain key only outside a text field (in the search field the arrows move through the suggestions).
   const scanFieldFree = !ctx.inTextField || (ctx.inSearch && ctx.searchEmpty);
   switch (event.key) {
     case 'Enter':
@@ -79,11 +80,11 @@ export function cashierKeyOf(event: KeyEventLike, ctx: CashierKeyContext): Cashi
     case '/':
       return scanFieldFree ? { kind: 'focusScan' } : null;
     case '+':
-      return ctx.inTextField ? null : { kind: 'qtyUp' };
+      return scanFieldFree ? { kind: 'qtyUp' } : null;
     case '-':
-      return ctx.inTextField ? null : { kind: 'qtyDown' };
+      return scanFieldFree ? { kind: 'qtyDown' } : null;
     case 'Delete':
-      return ctx.inTextField ? null : { kind: 'remove' };
+      return scanFieldFree ? { kind: 'remove' } : null;
     case 'ArrowUp':
       return ctx.inTextField ? null : { kind: 'lineUp' };
     case 'ArrowDown':

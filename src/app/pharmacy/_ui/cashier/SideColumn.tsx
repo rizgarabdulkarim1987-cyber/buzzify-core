@@ -7,7 +7,7 @@ import { CustomerPicker, type PickedCustomer } from '../CustomerPicker';
 import { formatMinor, type Currency } from '../sell-logic';
 import { Num } from '../sell-parts';
 import { usdEquivalent } from './cashier-logic';
-import { Keypad } from './Keypad';
+import { Keypad, type PadLineKey } from './Keypad';
 import type { PayFlow, WorkFlow } from './sale-flow-logic';
 
 const PAY = 'inline-flex min-h-14 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-base font-bold disabled:cursor-not-allowed disabled:opacity-45';
@@ -45,7 +45,7 @@ export function SideColumn({
   onCustomer: (customer: PickedCustomer | null) => void;
   /** What is left of the selected line's product in its unit; null with no selection. */
   stockLeft: number | null;
-  pad: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean };
+  pad: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean; onLine: (key: PadLineKey) => void };
   flow: WorkFlow | null;
   /** The receipt has lines to pay for. */
   payable: boolean;

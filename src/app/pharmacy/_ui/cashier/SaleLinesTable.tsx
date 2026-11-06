@@ -1,6 +1,6 @@
 'use client';
 
-import { Ban, Trash2, TriangleAlert } from 'lucide-react';
+import { Ban, Pill, ShieldAlert, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { formatMinor, unitOf, type CartLine, type Currency, type Estimate } from '../sell-logic';
@@ -37,34 +37,41 @@ export interface SaleLinesTableProps {
 const COLUMNS = ['row', 'code', 'name', 'qty', 'unit', 'price', 'total', 'discount', 'netPrice', 'netTotal', 'batch', 'expiry', 'balance'] as const;
 const COST_COLUMNS = ['cost', 'profit'] as const;
 /** Fixed widths in rem for every column but the name, which takes what is left (and truncates). */
-const WIDTH: Record<string, string> = {
-  row: '2.5rem',
-  code: '6rem',
-  qty: '4.5rem',
-  unit: '5.5rem',
-  price: '6.5rem',
-  total: '6.5rem',
-  discount: '5.5rem',
-  netPrice: '6.5rem',
-  netTotal: '7rem',
-  batch: '6rem',
-  expiry: '5.5rem',
-  balance: '5rem',
-  cost: '6.5rem',
-  profit: '6.5rem',
+const WIDTH: Record<string, number> = {
+  row: 2.5,
+  code: 6,
+  qty: 4.5,
+  unit: 5.5,
+  price: 6.5,
+  total: 6.5,
+  discount: 5.5,
+  netPrice: 6.5,
+  netTotal: 7,
+  batch: 6,
+  expiry: 5.5,
+  balance: 5,
+  cost: 6.5,
+  profit: 6.5,
 };
+/** The name is the flexible column, never narrower than this (rem): a fixed table gives it only what the other columns leave. */
+export const NAME_MIN_REM = 14;
+const columnsOf = (canSeeCost: boolean): readonly string[] => (canSeeCost ? [...COLUMNS, ...COST_COLUMNS] : COLUMNS);
+/** What the fixed columns take together (rem). */
+export const FIXED_REM = (canSeeCost: boolean): number => columnsOf(canSeeCost).reduce((sum, c) => sum + (WIDTH[c] ?? 0), 0);
+/** The table's minimum width (rem): every fixed column plus the name's minimum, so the name always shows; wider screens give the name the rest. */
+export const linesTableMinRem = (canSeeCost: boolean): number => FIXED_REM(canSeeCost) + NAME_MIN_REM;
 const NUMERIC = new Set(['qty', 'price', 'total', 'discount', 'netPrice', 'netTotal', 'balance', 'cost', 'profit']);
 const MUTED = '—';
 
 /**
  * The cashier's sale lines (docs/pharmacy/prototypes/cashier-layouts-2026-11-05.html): one row per line, the thirteen
  * columns of the spec, cost and profit after them for those who may see cost. Selection is a state of the row
- * (`aria-selected`); the arrow, +, - and Delete keys are the screen's. A blocked or over-stock line is marked in words in
- * its name cell. The table scrolls in its own container; a long name truncates (the full name is its `title`).
+ * (`aria-selected`); the arrow, +, - and Delete keys are the screen's. A prescription, controlled, blocked or over-stock
+ * line is marked in words in its name cell (as the old screen's chips). The table scrolls in its own container; a long name truncates (the full name is its `title`).
  */
 export function SaleLinesTable({ lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs }: SaleLinesTableProps) {
   const t = useT();
-  const columns: readonly string[] = canSeeCost ? [...COLUMNS, ...COST_COLUMNS] : COLUMNS;
+  const columns = columnsOf(canSeeCost);
   const selectedRow = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
     // Keeps the selected row in view when the keys move it down a long cart (not every environment can scroll).
@@ -83,10 +90,10 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
 
   return (
     <div className="max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card" data-testid="sale-lines-scroll">
-      <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} className="w-full min-w-[68rem] table-fixed border-collapse text-sm tabular-nums text-ph-text">
+      <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} style={{ minWidth: `${linesTableMinRem(canSeeCost)}rem` }} className="w-full table-fixed border-collapse text-sm tabular-nums text-ph-text">
         <colgroup>
           {columns.map((c) => (
-            <col key={c} style={c === 'name' ? undefined : { width: WIDTH[c] }} />
+            <col key={c} style={c === 'name' ? undefined : { width: `${WIDTH[c]}rem` }} />
           ))}
         </colgroup>
         <thead className="sticky top-0 z-10 bg-ph-canvas">
@@ -145,8 +152,18 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
                       <Trash2 aria-hidden className="size-4" />
                     </button>
                   </div>
-                  {(line.blocked || over?.has(line.productId) || (unit.priceMinor === null && !line.blocked)) && (
+                  {(line.blocked || over?.has(line.productId) || (unit.priceMinor === null && !line.blocked) || line.rxLevel === 'RX' || line.rxLevel === 'RESTRICTED') && (
                     <div className="flex flex-wrap gap-1 pb-1">
+                      {line.rxLevel === 'RX' && (
+                        <Chip icon={<Pill aria-hidden />} look="ph" testId="line-rx">
+                          {t('pharmacy.sell.chip.rx')}
+                        </Chip>
+                      )}
+                      {line.rxLevel === 'RESTRICTED' && !line.blocked && (
+                        <Chip icon={<ShieldAlert aria-hidden />} tone="danger" look="ph" testId="line-controlled">
+                          {t('pharmacy.sell.chip.controlled')}
+                        </Chip>
+                      )}
                       {line.blocked && (
                         <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="line-blocked">
                           {t(`pharmacy.sell.line.blocked.${line.blocked}`)}

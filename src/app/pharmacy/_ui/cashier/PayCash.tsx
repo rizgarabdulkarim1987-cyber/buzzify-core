@@ -1,13 +1,14 @@
 'use client';
 
 import { Banknote, CreditCard, Landmark } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { cashShortcuts, formatMinor, paymentPreview, plainMinor, type Currency, type PayDraft, type PayMethod, type SaleAttempt } from '../sell-logic';
 import { FieldInput, Num, PH_BTN, PH_FIELD } from '../sell-parts';
+import { padMoney } from './cashier-logic';
 import { cashDraftOf } from './sale-flow-logic';
-import { ConfirmBar, FlowNotes, type FlowCommon } from './WorkParts';
+import { ConfirmBar, FlowNotes, usePadSink, type FlowCommon, type PadSlot } from './WorkParts';
 
 export const METHODS: { method: PayMethod; icon: ReactNode }[] = [
   { method: 'CASH', icon: <Banknote aria-hidden /> },
@@ -44,9 +45,15 @@ export function MethodButtons({ method, onMethod, disabled = false }: { method: 
  * Enter alone completes a no-change sale. A sale in flight comes back filled in as it was sent and locked: while its outcome is
  * not known Confirm sends it again with the same keys (Retry), and only Discard lets it go and the fields change again.
  */
-export function PayCash({ currency, totalMinor, attempt, onSubmit, ...common }: FlowCommon & { currency: Currency; totalMinor: bigint; attempt: SaleAttempt | null; onSubmit: (draft: PayDraft, amountMinor: bigint) => void }) {
+export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, ...common }: FlowCommon & { currency: Currency; totalMinor: bigint; attempt: SaleAttempt | null; onSubmit: (draft: PayDraft, amountMinor: bigint) => void; padSlot?: PadSlot }) {
   const t = useT();
   const [draft, setDraft] = useState<PayDraft>(() => cashDraftOf(attempt, currency));
+  const form = useRef<HTMLFormElement>(null);
+  // The side keypad types the amount received here, and its check key confirms (as Enter in the field does).
+  usePadSink(padSlot, {
+    key: (key) => void (!common.pending && setDraft((d) => ({ ...d, tendered: padMoney(d.tendered, key) }))),
+    enter: () => form.current?.requestSubmit(),
+  });
   const preview = paymentPreview(draft, totalMinor, currency);
   const cash = draft.method === 'CASH';
   const typed = draft.tendered.trim() === '' ? totalMinor : preview.amountMinor;
@@ -65,7 +72,7 @@ export function PayCash({ currency, totalMinor, attempt, onSubmit, ...common }: 
   };
   const fieldError = preview.amountMinor === null ? t('pharmacy.sell.pay.invalidAmount') : !preview.ok && !cash ? t('pharmacy.sell.pay.exactOnly') : undefined;
   return (
-    <form className="flex flex-col gap-2.5" onSubmit={submit} data-testid="flow-cash">
+    <form ref={form} className="flex flex-col gap-2.5" onSubmit={submit} data-testid="flow-cash">
       <p className="text-sm text-ph-muted" data-testid="flow-due">
         {t('pharmacy.cashier.flow.due')}:{' '}
         <b className="text-ph-text">
