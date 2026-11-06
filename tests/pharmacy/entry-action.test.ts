@@ -333,6 +333,100 @@ describe('finishEntry', () => {
   });
 });
 
+describe('fix round 1', () => {
+  it('never lets a costless batch of a new product absorb a later costed delivery of the same expiry month', async () => {
+    const w = await world();
+    const made = dataOf(await act(w.owner, entryActions.addEntryLine, newLine(w, { purchasePrice: undefined, supplierId: undefined })));
+    dataOf(await act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: made.receiptId }));
+    // The costless line got a lot of its own.
+    expect((await prisma().phReceiptLine.findFirstOrThrow({ where: { receiptId: made.receiptId } })).lot).toBe('EXP-202808-NC');
+    // The same product delivered with a cost, same month, default lot: a costed batch.
+    const costed = dataOf(await act(w.owner, entryActions.addEntryLine, knownLine(w, { product: { kind: 'known', productId: made.productId }, purchasePrice: '2.50', supplierId: undefined })));
+    dataOf(await act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: costed.receiptId }));
+    const line = await prisma().phReceiptLine.findFirstOrThrow({ where: { receiptId: costed.receiptId }, include: { batch: true } });
+    expect(line.batch).toMatchObject({ lot: 'EXP-202808', unitCostMinor: 250n, costCurrency: 'USD', costUnitId: line.unitId });
+  });
+
+  it('gives a costless batch the cost of the first costed line that lands on it', async () => {
+    const w = await world();
+    const made = dataOf(await act(w.owner, entryActions.addEntryLine, newLine(w, { purchasePrice: undefined, supplierId: undefined })));
+    dataOf(await act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: made.receiptId }));
+    const costed = dataOf(
+      await act(w.owner, entryActions.addEntryLine, knownLine(w, { product: { kind: 'known', productId: made.productId }, purchasePrice: '2.50', lot: 'EXP-202808-NC', supplierId: undefined })),
+    );
+    const done = dataOf(await act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: costed.receiptId }));
+    expect(done.warnings).toEqual([]);
+    const batches = await prisma().phBatch.findMany({ where: { productId: made.productId } });
+    expect(batches).toHaveLength(1);
+    expect(batches[0]).toMatchObject({ unitCostMinor: 250n, costCurrency: 'USD' });
+    expect(batches[0]!.costUnitId).not.toBeNull();
+  });
+
+  it('answers a double-clicked Finish without a receipt id with the receipt it just posted', async () => {
+    const w = await world();
+    const b1 = w.a.branchIds[0]!;
+    const added = dataOf(await act(w.owner, entryActions.addEntryLine, knownLine(w)));
+    const first = dataOf(await act(w.owner, entryActions.finishEntry, placeOf(w)));
+    const second = dataOf(await act(w.owner, entryActions.finishEntry, placeOf(w)));
+    expect(first).toMatchObject({ id: added.receiptId, replayed: false });
+    expect(second).toMatchObject({ id: added.receiptId, number: first.number, replayed: true });
+    expect(await available(w.known.id, b1)).toBe(60);
+    // Long after, there is nothing to finish.
+    vi.setSystemTime(new Date(NOW.getTime() + 10 * 60_000));
+    expect(phCodeOf(await act(w.owner, entryActions.finishEntry, placeOf(w)))).toBe('ENTRY_EMPTY');
+  });
+
+  it('posts once when two Finish calls race', async () => {
+    const w = await world();
+    const b1 = w.a.branchIds[0]!;
+    const added = dataOf(await act(w.owner, entryActions.addEntryLine, knownLine(w)));
+    const both = await Promise.all([
+      act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: added.receiptId }),
+      act(w.owner, entryActions.finishEntry, { ...placeOf(w), receiptId: added.receiptId }),
+    ]);
+    expect(both.map((r) => dataOf(r).replayed).sort()).toEqual([false, true]);
+    expect(await available(w.known.id, b1)).toBe(60);
+    expect(await prisma().phStockMovement.count({ where: { type: 'RECEIPT' } })).toBe(1);
+  });
+
+  it('refuses a replayed key whose receipt was voided, and a key reused for a different line', async () => {
+    const w = await world();
+    const body = knownLine(w);
+    const added = dataOf(await act(w.owner, entryActions.addEntryLine, body));
+    expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, { ...body, qty: 7 }))).toBe('CLIENT_KEY_MISMATCH');
+    dataOf(await act(w.owner, receiptActions.voidReceipt, { ...placeOf(w), receiptId: added.receiptId }));
+    expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, body))).toBe('NOT_DRAFT');
+  });
+
+  it('keeps a line’s request key when the receiving editor saves the entry draft unchanged', async () => {
+    const w = await world();
+    const body = knownLine(w);
+    const added = dataOf(await act(w.owner, entryActions.addEntryLine, body));
+    dataOf(
+      await act(w.owner, receiptActions.update, {
+        ...placeOf(w),
+        receiptId: added.receiptId,
+        expectedVersion: added.version,
+        supplierId: w.supplierId,
+        receivedOn: '2026-10-27',
+        lines: [{ productId: w.known.id, unitId: w.known.box, qty: 2, lot: 'EXP-202808', expiry: '08/2028', unitCostMinor: 310n, currency: 'USD' }],
+      }),
+    );
+    const again = dataOf(await act(w.owner, entryActions.addEntryLine, body));
+    expect(again.replayed).toBe(true);
+    expect(await prisma().phReceiptLine.count()).toBe(1);
+  });
+
+  it('settles two people racing with the same request key: one line, the other refused', async () => {
+    const w = await world();
+    const body = knownLine(w);
+    const both = await Promise.all([act(w.owner, entryActions.addEntryLine, body), act(w.stock, entryActions.addEntryLine, body)]);
+    expect(both.filter((r) => r.ok)).toHaveLength(1);
+    expect(both.map((r) => (r.ok ? 'OK' : phCodeOf(r)))).toContain('CLIENT_KEY_MISMATCH');
+    expect(await prisma().phReceiptLine.count()).toBe(1);
+  });
+});
+
 describe('entryLookup', () => {
   it('names a known product by barcode or by name, with its stock, price and last purchase pre-fill', async () => {
     const w = await world();

@@ -370,6 +370,18 @@ export async function updateDraft(
     if (now.status !== 'DRAFT') throw notDraft();
     throw new StudioError('CONFLICT', 'Someone else changed this receipt: reload it');
   }
+  // A fast entry line's request key stays on the same line saved unchanged, so a late retry of that request is still
+  // answered and never adds the line twice. A line the editor changed loses its key.
+  const keyed = await tx.phReceiptLine.findMany({
+    where: { receiptId: args.receiptId, clientKey: { not: null } },
+    select: { clientKey: true, productId: true, unitId: true, qty: true, bonusQty: true, lot: true, expiryDate: true },
+  });
+  for (const row of rows) {
+    const i = keyed.findIndex(
+      (k) => k.productId === row.productId && k.unitId === row.unitId && k.qty === row.qty && k.bonusQty === row.bonusQty && k.lot === row.lot && k.expiryDate.getTime() === row.expiryDate.getTime(),
+    );
+    if (i >= 0) row.clientKey = keyed.splice(i, 1)[0]!.clientKey;
+  }
   await tx.phReceiptLine.deleteMany({ where: { receiptId: args.receiptId } });
   await tx.phReceiptLine.createMany({ data: rows });
   return {
@@ -549,6 +561,14 @@ export async function confirmReceipt(
       batch.unitCostMinor !== null &&
       (batch.unitCostMinor !== line.unitCostMinor || batch.costCurrency !== line.costCurrency || batch.costUnitId !== line.unitId);
     if (differs) warnings.push({ code: 'COST_DIFFERS', lineNo: line.lineNo, batchId: batch.id });
+    // A batch without a cost (fast entry of a new product with no purchase price) takes the cost of the first costed line
+    // that lands on it, so the units sold from it later carry a cost.
+    if (!created && batch.unitCostMinor === null && line.unitCostMinor !== null) {
+      await tx.phBatch.updateMany({
+        where: { id: batch.id, unitCostMinor: null },
+        data: { unitCostMinor: line.unitCostMinor, costCurrency: line.costCurrency, costUnitId: line.unitId },
+      });
+    }
     await tx.phReceiptLine.update({ where: { id: line.id }, data: { batchId: batch.id } });
     planned.push({ batchId: batch.id, line, quarantine: iso(line.expiryDate) < today });
   }

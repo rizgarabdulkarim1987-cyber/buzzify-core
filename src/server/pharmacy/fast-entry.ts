@@ -435,12 +435,15 @@ export async function addEntryLine(tx: ScopedTx, ph: PhActor, args: { branchId: 
   // A repeated request: the line its key added (in a draft or since confirmed), never a second one.
   const prior = await tx.phReceiptLine.findFirst({
     where: { clientKey: input.requestKey },
-    select: { lineNo: true, productId: true, receipt: { select: { id: true, version: true, createdById: true, branchId: true, createdAt: true } } },
+    select: { lineNo: true, productId: true, qty: true, receipt: { select: { id: true, version: true, createdById: true, branchId: true, createdAt: true, status: true } } },
   });
   if (prior) {
-    if (prior.receipt.createdById !== ph.userId || prior.receipt.branchId !== branchId) {
+    const sameLine = prior.qty === input.qty && (input.product.kind === 'new' || input.product.productId === prior.productId);
+    if (prior.receipt.createdById !== ph.userId || prior.receipt.branchId !== branchId || !sameLine) {
       throw new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
     }
+    // The line's receipt was voided since: the line is gone, not saved.
+    if (prior.receipt.status === 'VOID') throw new StudioError('CONFLICT', 'Only a draft receipt can change', { phCode: 'NOT_DRAFT' });
     const [line] = await draftLines(tx, { receiptId: prior.receipt.id, branchId, since: prior.receipt.createdAt, now, lineNo: prior.lineNo });
     const lineCount = await tx.phReceiptLine.count({ where: { receiptId: prior.receipt.id } });
     return {
@@ -506,7 +509,8 @@ export async function addEntryLine(tx: ScopedTx, ph: PhActor, args: { branchId: 
     unitId: packet.id,
     qty: input.qty,
     bonusQty: 0,
-    lot: (input.lot === '' ? `EXP-${input.expiry.year}${month}` : input.lot).toUpperCase(),
+    // A line without a cost gets a lot of its own by default, so its costless batch never shares a batch with costed stock.
+    lot: (input.lot === '' ? `EXP-${input.expiry.year}${month}${unitCostMinor === null ? '-NC' : ''}` : input.lot).toUpperCase(),
     expiry: `${month}/${input.expiry.year}`,
     unitCostMinor,
     currency: unitCostMinor === null ? null : input.purchaseCurrency,
@@ -552,6 +556,9 @@ export async function addEntryLine(tx: ScopedTx, ph: PhActor, args: { branchId: 
   };
 }
 
+/** How long after a Finish a repeat without a receipt id is answered with the entry it posted. */
+const FINISH_REPEAT_MS = 60_000;
+
 export type EntryFinishResult =
   | (ConfirmResult & { replayed: false })
   | { id: string; status: 'CONFIRMED'; number: string | null; lines: number; baseQty: number; warnings: []; replayed: true };
@@ -562,13 +569,17 @@ export type EntryFinishResult =
  */
 export async function finishEntryDraft(tx: ScopedTx, ph: PhActor, args: { branchId: string; receiptId?: string; now: Date }): Promise<EntryFinishResult> {
   await lockEntry(tx, args.branchId, ph.userId);
+  const select = { id: true, branchId: true, createdById: true, clientKey: true, status: true, number: true } as const;
+  const mine = { branchId: args.branchId, createdById: ph.userId, clientKey: { startsWith: ENTRY_KEY_PREFIX } };
   const head = args.receiptId
-    ? await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { id: true, branchId: true, createdById: true, clientKey: true, status: true, number: true } })
-    : await tx.phReceipt.findFirst({
-        where: { branchId: args.branchId, createdById: ph.userId, status: 'DRAFT', clientKey: { startsWith: ENTRY_KEY_PREFIX } },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: { id: true, branchId: true, createdById: true, clientKey: true, status: true, number: true },
-      });
+    ? await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select })
+    : ((await tx.phReceipt.findFirst({ where: { ...mine, status: 'DRAFT' }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select })) ??
+      // No open entry: a repeat of a Finish just done (a double click) answers the entry it posted, not "nothing entered".
+      (await tx.phReceipt.findFirst({
+        where: { ...mine, status: 'CONFIRMED', confirmedAt: { gte: new Date(args.now.getTime() - FINISH_REPEAT_MS) } },
+        orderBy: [{ confirmedAt: 'desc' }, { id: 'desc' }],
+        select,
+      })));
   if (!head) {
     if (args.receiptId) throw receiptNotFound();
     throw entryEmpty();
