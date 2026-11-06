@@ -22,7 +22,7 @@ vi.mock('@/app/pharmacy/_actions/sales', () => sales);
 const returns = vi.hoisted(() => ({ returnableLines: vi.fn(), returnPreview: vi.fn(), createReturn: vi.fn(), cancelSale: vi.fn() }));
 vi.mock('@/app/pharmacy/_actions/returns', () => returns);
 vi.mock('@/app/pharmacy/_actions/shifts', () => ({ openShift: vi.fn() }));
-const customers = vi.hoisted(() => ({ listCustomers: vi.fn(async () => ({ ok: true, data: { items: [] } })), getCustomer: vi.fn() }));
+const customers = vi.hoisted(() => ({ listCustomers: vi.fn(async () => ({ ok: true, data: { items: [] as unknown[] } })), getCustomer: vi.fn() }));
 vi.mock('@/app/pharmacy/_actions/customers', () => customers);
 const receipts = vi.hoisted(() => ({ saleReceipt: vi.fn(), reprintReceipt: vi.fn(), returnSlip: vi.fn() }));
 vi.mock('@/app/pharmacy/_actions/receipts', () => receipts);
@@ -524,5 +524,71 @@ describe('the customer card after a credit sale', () => {
     expect(customers.getCustomer).toHaveBeenCalledTimes(2);
     expect(byTest('cashier-balance')!.textContent).toContain('6,500');
     expect(byTest('customer-figures')!.textContent).toContain('3,500');
+  });
+});
+
+// 5. One screen, no page scroll (layout A) ------------------------------------------------------------------------------------------
+
+describe('the layout fits one screen (the work panel opens in the main column)', () => {
+  it('opens the cash panel in the main column, under the lines, and leaves the side column’s pay row where it was', async () => {
+    screenWith([{}]);
+    await flush();
+    press({ key: 'F2' });
+    const panel = byTest('work-panel')!;
+    expect(byTest('cashier-main')!.contains(panel)).toBe(true);
+    expect(byTest('cashier-side')!.contains(panel)).toBe(false);
+    // The lines stay above the panel while paying.
+    const lines = byTest('sale-lines-scroll')!;
+    expect(lines.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The side column ends with the pay row, kept in view at the bottom of its own scroll.
+    expect(byTest('cashier-side')!.lastElementChild).toBe(byTest('cashier-pay'));
+    expect(byTest('cashier-pay')!.className).toContain('lg:sticky');
+  });
+
+  it('shows the prescription box in the main column when idle, with the line panels', async () => {
+    screenWith([{ cart: cartReducer(emptyCart(), { type: 'add', item: item({ rxLevel: 'RESTRICTED' }) }) }]);
+    await flush();
+    const rx = byTest('work-panel')!;
+    expect(rx.getAttribute('data-flow')).toBe('idle');
+    expect(byTest('cashier-main')!.contains(rx)).toBe(true);
+  });
+
+  it('on a wide screen the page does not scroll: the columns and the lines scroll inside themselves', async () => {
+    screenWith([{}]);
+    await flush();
+    expect(byTest('cashier-screen')!.className).toContain('lg:overflow-hidden');
+    expect(byTest('cashier-grid')!.className).toContain('lg:min-h-0');
+    expect(byTest('cashier-side')!.className).toContain('lg:overflow-y-auto');
+    expect(byTest('cashier-work')!.className).toContain('lg:overflow-y-auto');
+    expect(byTest('sale-lines-scroll')!.className).toContain('overflow-auto');
+  });
+});
+
+describe('the customer picker in the side column', () => {
+  it('lists customers only once something is typed (the column stays short), and reads them again after a credit sale', async () => {
+    customers.listCustomers.mockResolvedValue({ ok: true, data: { items: [CUSTOMER] } });
+    customers.getCustomer.mockResolvedValue({ ok: true, data: CUSTOMER });
+    sales.createSale.mockResolvedValue({ ok: true, data: { ...SALE, paidMinor: '0', changeMinor: '0' } });
+    receipts.saleReceipt.mockResolvedValue({ ok: false, error: { code: 'X', message: 'x' } });
+    screenWith([{}], { perms: { ...PERMS, credit: true } });
+    await wait(300);
+    await flush();
+    expect(customers.listCustomers).not.toHaveBeenCalled();
+    expect(byTest('customer-results')).toBeNull();
+    typeIn('customer-search', 'Ali');
+    await wait(300);
+    await flush();
+    expect(customers.listCustomers).toHaveBeenCalledTimes(1);
+    click(allTest('customer-option')[0]!);
+    press({ key: 'F3' });
+    await flush();
+    await act(async () => (byTest('flow-confirm') as HTMLButtonElement).click());
+    await flush();
+    click(byTest('receipt-next'));
+    await wait(300);
+    await flush();
+    // The list kept for "Ali" is read again: it shows the balance after the sale.
+    expect(customers.listCustomers).toHaveBeenCalledTimes(2);
+    expect(allTest('customer-option')).toHaveLength(1);
   });
 });

@@ -62,7 +62,8 @@ export interface CashierScreenProps extends SellScreenProps {
  * strip, and a grid whose FIRST child is the side column (370px), so in RTL it sits on the physical right (the keypad goes
  * there), with the main column beside it: receipt tabs, the scan field, an inline message line, the sale lines. No dialog,
  * no motion. Up to MAX_RECEIPTS receipts are open at once and kept on this device per pharmacy, branch, person and currency.
- * Every flow is the work panel under the pay buttons (`WorkPanel`): paying (`useSaleFlow`), the discount, hold and the held list
+ * Every flow is the work panel in the main column under the lines (`WorkPanel`), so on a wide screen the whole cashier fits one
+ * viewport: the columns, the lines and the work area scroll inside themselves, never the page: paying (`useSaleFlow`), the discount, hold and the held list
  * (`useHoldFlow`), the prescription, all operations and the copy of the last receipt, opened from the toolbar row or their keys.
  * Items handed in from other screens land like scans (`useHandIn`); leaving with lines asks first (`useLeaveGuard`). Inquiry mode
  * (F7) shows a scanned item instead of adding it; the panels under the lines show the selected line's batches, details and
@@ -153,11 +154,13 @@ export function CashierScreen(props: CashierScreenProps) {
   const returns = useReturnFlow();
   const stuck = () => returns.busy && (say({ tone: 'danger', text: t('pharmacy.cashier.return.sending') }), true);
   // After a sale on the account the customer is read again: the card and the total box show the new balance and room left.
+  const [customerVersion, setCustomerVersion] = useState(0);
   const recheck = (customerId: string) =>
     void settle(() => getCustomer({ customerId })).then((result) => {
       if (!result.ok) return;
       const fresh = result.data as PickedCustomer;
       setCustomers((all) => Object.fromEntries(Object.entries(all).map(([key, c]) => [key, c?.id === fresh.id ? fresh : c])));
+      setCustomerVersion((v) => v + 1);
     });
   const sale = useSaleFlow({ receipt, currency, mirrorRef: mirror, dispatch, save, setNotSent, say: (text) => setMessage({ tone: 'danger', text }), stay: stuck, charged: recheck });
   const pickCustomer = (customer: PickedCustomer | null) => {
@@ -348,9 +351,9 @@ export function CashierScreen(props: CashierScreenProps) {
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 sm:p-3" data-testid="cashier-screen">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 sm:p-3 lg:overflow-hidden" data-testid="cashier-screen">
       <h1 className="sr-only">{t('pharmacy.cashier.title')}</h1>
-      <header className="flex min-w-0 flex-col gap-2">
+      <header className="flex min-w-0 shrink-0 flex-col gap-2">
         <p className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
           <span className="inline-flex items-center gap-1.5 font-semibold text-ph-text">
             <CircleCheck aria-hidden className="size-4 text-ph-g6" />
@@ -381,7 +384,7 @@ export function CashierScreen(props: CashierScreenProps) {
       )}
 
       {/* The side column is the grid's FIRST child: in RTL the first column is on the physical right, where the keypad belongs. */}
-      <div className="grid min-w-0 items-start gap-2 lg:grid-cols-[370px_minmax(0,1fr)] lg:[grid-template-areas:'side_main']" data-testid="cashier-grid">
+      <div className="grid min-w-0 items-start gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[370px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch lg:[grid-template-areas:'side_main']" data-testid="cashier-grid">
         <SideColumn
           currency={currency}
           totalMinor={estimate.totalMinor}
@@ -392,19 +395,15 @@ export function CashierScreen(props: CashierScreenProps) {
           canCredit={props.perms.credit}
           customer={customers[receipt.key] ?? null}
           onCustomer={pickCustomer}
+          customerVersion={customerVersion}
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
           pad={{ text: panelOpen ? '' : pad, onKey: padKey, onEnter: padEnter, canEnter: panelOpen || pad !== '', onLine: padLine }}
           flow={sale.flow}
           payable={!receipt.done && receipt.cart.lines.length > 0 && !heldHere}
           onPay={(f) => run({ kind: f })}
-        >
-          <WorkPanel padSlot={padSlot} sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
-            other={<OtherFlow padSlot={padSlot} flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
-            idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
-          />
-        </SideColumn>
+        />
 
-        <section className="flex min-w-0 flex-col gap-2 lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
+        <section className="flex min-w-0 flex-col gap-2 lg:min-h-0 lg:overflow-y-auto lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
           <ReceiptTabs
             receipts={state.receipts}
             active={state.active}
@@ -439,7 +438,7 @@ export function CashierScreen(props: CashierScreenProps) {
           )}
           {inquiry.on && <InquiryPanel item={inquiry.item} currency={currency} onAdd={inquiry.add} onShow={inquiry.show} />}
           {receipt.cart.lines.length === 0 ? (
-            <div className="min-h-[210px] min-w-0 rounded-ph-xl border border-ph-line bg-ph-card" data-testid="cashier-lines">
+            <div className="min-h-[210px] min-w-0 rounded-ph-xl border border-ph-line bg-ph-card lg:min-h-[150px] lg:flex-1" data-testid="cashier-lines">
               <p className="px-4 py-8 text-center text-sm text-ph-muted">{t('pharmacy.cashier.lines.empty')}</p>
             </div>
           ) : (
@@ -456,7 +455,17 @@ export function CashierScreen(props: CashierScreenProps) {
               canSeeCost={canSeeCost} canEditPrice={canEditPrice} costs={costs}
             />
           )}
-          <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} cost={selected ? costs?.[selected] : undefined} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} override={props.perms.batchOverride && selectedLine ? batchOverrideOf(selectedLine) : undefined} />
+          {/* The work area under the lines (layout A): a flow opens here, beside the pay buttons, so the side column never grows and the
+              page never scrolls; idle, it holds the prescription box and the selected line's panels. */}
+          <div className="flex min-w-0 flex-col gap-2 lg:max-h-[64%] lg:shrink-0 lg:overflow-y-auto" data-testid="cashier-work">
+            <WorkPanel padSlot={padSlot} sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
+              other={<OtherFlow padSlot={padSlot} flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
+              idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rxNumbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
+            />
+            {!panelOpen && (
+              <LinePanels line={receipt.done ? null : selectedLine} refresh={sale.last?.id ?? ''} currency={currency} canSeeCost={canSeeCost} cost={selected ? costs?.[selected] : undefined} onSubstitute={(sub) => panels.replaceLine(selectedLine, sub)} override={props.perms.batchOverride && selectedLine ? batchOverrideOf(selectedLine) : undefined} />
+            )}
+          </div>
         </section>
       </div>
     </div>

@@ -17,7 +17,7 @@ import type { SaleFlow } from './use-sale-flow';
 import type { PadSlot } from './WorkParts';
 
 /**
- * The work panel under the pay buttons (layout A's pay box): idle, the cash flow, the credit flow, the receipt after a sale, or one
+ * The work panel, in the main column under the sale lines (layout A's work area; the side column keeps the pay buttons): idle, the cash flow, the credit flow, the receipt after a sale, or one
  * of the other flows (discount, held receipts, prescription, all operations, the copy of the last receipt: `other`, built by the
  * screen). Everything is inline: no dialog, no motion, 44px controls; Esc or "Back" returns to idle (never while the sale is being
  * sent). Idle with a sale in flight on this receipt says so, and shows the receipt's prescription row (`idle`).
@@ -72,7 +72,7 @@ export function WorkPanel({
   const block = payBlockKey(receipt.cart, estimate, { mayDispense: perms.rx, prescriptionId: receipt.prescriptionId, controlledMaxQty: settings.controlledMaxQty, controlledEnabled: settings.controlledEnabled, maxDiscountPercent: settings.maxDiscountPercent });
   const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, elsewhere: sale.elsewhere, noPrint: sale.noPrint, onNoPrint: sale.setNoPrint };
   return (
-    <section className="flex flex-col gap-2.5 rounded-ph-2xl border border-ph-line bg-ph-card p-3" data-testid="work-panel" data-flow={kind} aria-label={t('pharmacy.cashier.flow.region')}>
+    <section className="flex flex-col gap-2 rounded-ph-2xl border border-ph-line bg-ph-card p-2.5" data-testid="work-panel" data-flow={kind} aria-label={t('pharmacy.cashier.flow.region')}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold text-ph-text">{t(`pharmacy.cashier.flow.title.${kind}`)}</h2>
         {kind !== 'receipt' && (

@@ -89,7 +89,7 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
   };
 
   return (
-    <div className="max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card" data-testid="sale-lines-scroll">
+    <div className="max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:min-h-[150px] lg:flex-1" data-testid="sale-lines-scroll">
       <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} style={{ minWidth: `${linesTableMinRem(canSeeCost)}rem` }} className="w-full table-fixed border-collapse text-sm tabular-nums text-ph-text">
         <colgroup>
           {columns.map((c) => (
