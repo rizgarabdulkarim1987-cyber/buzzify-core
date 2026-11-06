@@ -424,6 +424,51 @@ async function applySellPrice(
   return setPrice(tx, ph, { productId: args.productId, unitId: args.unitId, currency, amount: args.text, validFrom: args.now, reason: ENTRY_PRICE_REASON, ...(branchId ? { branchId } : {}) });
 }
 
+/** The lot a line is stored with: the typed one, or `EXP-YYYYMM` of its expiry (`-NC` when it has no cost). Upper case. */
+function entryLot(input: EntryLineInput, unitCostMinor: bigint | null): string {
+  const month = String(input.expiry.month).padStart(2, '0');
+  return (input.lot === '' ? `EXP-${input.expiry.year}${month}${unitCostMinor === null ? '-NC' : ''}` : input.lot).toUpperCase();
+}
+
+/**
+ * Is a repeated request the line its key already added? Everything the request decides must match: the product (a known
+ * one's id, a new one's name and barcode), quantity, expiry, lot, cost and its currency, and the entry's supplier. A repeat
+ * that differs is refused (`CLIENT_KEY_MISMATCH`), so a corrected retry is never answered with the old line as if saved.
+ */
+function sameEntryLine(
+  prior: {
+    productId: string;
+    qty: number;
+    lot: string;
+    expiryDate: Date;
+    expiryPrecision: 'DAY' | 'MONTH';
+    unitCostMinor: bigint | null;
+    costCurrency: Currency | null;
+    product: { tradeName: string; barcodes: { code: string }[] };
+    receipt: { supplierId: string | null };
+  },
+  input: EntryLineInput,
+): boolean {
+  const cost = purchaseCostOf(input, input.product.kind === 'known');
+  const month = String(input.expiry.month).padStart(2, '0');
+  const wanted = input.product;
+  const product =
+    wanted.kind === 'known'
+      ? wanted.productId === prior.productId
+      : prior.product.tradeName === wanted.tradeName.trim() &&
+        (wanted.barcode ? prior.product.barcodes.some((b) => b.code === normalizeScan(wanted.barcode!)) : prior.product.barcodes.length === 0);
+  return (
+    product &&
+    prior.qty === input.qty &&
+    prior.expiryPrecision === 'MONTH' &&
+    prior.expiryDate.toISOString().slice(0, 7) === `${input.expiry.year}-${month}` &&
+    prior.lot === entryLot(input, cost) &&
+    prior.unitCostMinor === cost &&
+    prior.costCurrency === (cost === null ? null : input.purchaseCurrency) &&
+    prior.receipt.supplierId === (input.supplierId ?? null)
+  );
+}
+
 /**
  * Adds one line to the person's entry draft in `branchId` (creating the draft on the first line), and for a new product
  * first makes the product. Everything is checked before anything is written; it all runs in the caller's transaction.
@@ -435,10 +480,21 @@ export async function addEntryLine(tx: ScopedTx, ph: PhActor, args: { branchId: 
   // A repeated request: the line its key added (in a draft or since confirmed), never a second one.
   const prior = await tx.phReceiptLine.findFirst({
     where: { clientKey: input.requestKey },
-    select: { lineNo: true, productId: true, qty: true, receipt: { select: { id: true, version: true, createdById: true, branchId: true, createdAt: true, status: true } } },
+    select: {
+      lineNo: true,
+      productId: true,
+      qty: true,
+      lot: true,
+      expiryDate: true,
+      expiryPrecision: true,
+      unitCostMinor: true,
+      costCurrency: true,
+      product: { select: { tradeName: true, barcodes: { select: { code: true } } } },
+      receipt: { select: { id: true, version: true, createdById: true, branchId: true, createdAt: true, status: true, supplierId: true } },
+    },
   });
   if (prior) {
-    const sameLine = prior.qty === input.qty && (input.product.kind === 'new' || input.product.productId === prior.productId);
+    const sameLine = sameEntryLine(prior, input);
     if (prior.receipt.createdById !== ph.userId || prior.receipt.branchId !== branchId || !sameLine) {
       throw new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
     }
@@ -510,7 +566,7 @@ export async function addEntryLine(tx: ScopedTx, ph: PhActor, args: { branchId: 
     qty: input.qty,
     bonusQty: 0,
     // A line without a cost gets a lot of its own by default, so its costless batch never shares a batch with costed stock.
-    lot: (input.lot === '' ? `EXP-${input.expiry.year}${month}${unitCostMinor === null ? '-NC' : ''}` : input.lot).toUpperCase(),
+    lot: entryLot(input, unitCostMinor),
     expiry: `${month}/${input.expiry.year}`,
     unitCostMinor,
     currency: unitCostMinor === null ? null : input.purchaseCurrency,

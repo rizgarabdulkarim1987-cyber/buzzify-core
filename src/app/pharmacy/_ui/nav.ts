@@ -47,11 +47,9 @@ const any = (...p: PhPermission[]) => (role: PhRole) => p.some((x) => canPh(role
 
 /**
  * Where the primary "Stock" item opens: the fast product-entry screen (Task 14). The stock list stays reachable from the
- * entry screen's own link and from More (`stockList`), and Stock stays the current place on every page under `PH_STOCK_SECTION`.
+ * entry screen's own link and from More (`stockList`, the current place on the list itself).
  */
 export const PH_STOCK_HREF = '/pharmacy/stock/entry';
-/** The pages the Stock item stands for (the list and the entry screen); a longer place under it (expiry, counts, ...) wins. */
-const PH_STOCK_SECTION = '/pharmacy/stock';
 
 export type PhNavGroupKey = 'daily' | 'stock' | 'purchasing';
 
@@ -92,7 +90,7 @@ const GROUPS: { key: PhNavGroupKey; items: Entry[] }[] = [
     key: 'stock',
     items: [
       // The stock list: the Stock item opens fast entry, so the list has its own place here (and a link on the entry screen).
-      { key: 'stockList', href: PH_STOCK_SECTION, labelKey: 'pharmacy.nav.stockList', icon: 'boxes', allow: any('catalog.view') },
+      { key: 'stockList', href: '/pharmacy/stock', labelKey: 'pharmacy.nav.stockList', icon: 'boxes', allow: any('catalog.view') },
       { key: 'expiry', href: '/pharmacy/stock/expiry', labelKey: 'pharmacy.nav.expiry', icon: 'clock', badge: 'expiring', allow: any('catalog.view') },
       { key: 'counts', href: '/pharmacy/stock/counts', labelKey: 'pharmacy.nav.counts', icon: 'clipboard-check', allow: any('stock.count') },
       { key: 'transfers', href: '/pharmacy/stock/transfers', labelKey: 'pharmacy.nav.transfers', icon: 'arrow-left-right', allow: any('transfer.manage') },
@@ -136,12 +134,9 @@ const ALL: PhNavItem[] = [...PRIMARY, ...GROUPS.flatMap((g) => g.items), { ...DO
 /** The nav place a pathname belongs to: the longest matching href prefix, on segment boundaries. */
 export function phActiveKey(pathname: string): PhNavKey | null {
   let best: PhNavItem | null = null;
-  let bestLength = -1;
   for (const item of ALL) {
-    const base = item.key === 'stock' ? PH_STOCK_SECTION : item.href;
-    if ((pathname === base || pathname.startsWith(`${base}/`)) && base.length > bestLength) {
-      best = item;
-      bestLength = base.length;
+    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+      if (!best || item.href.length > best.href.length) best = item;
     }
   }
   return best ? best.key : null;

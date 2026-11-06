@@ -398,6 +398,27 @@ describe('fix round 1', () => {
     expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, body))).toBe('NOT_DRAFT');
   });
 
+  it('refuses a replayed key whose line differs in anything the request decides, and still replays an identical one', async () => {
+    const w = await world();
+    const body = knownLine(w, { lot: 'L-7' });
+    dataOf(await act(w.owner, entryActions.addEntryLine, body));
+    for (const over of [{ expiry: { month: 9, year: 2028 } }, { lot: 'L-8' }, { purchasePrice: '3.20' }, { purchaseCurrency: 'IQD', purchasePrice: '4000' }, { supplierId: w.otherSupplierId }]) {
+      expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, { ...body, ...over })), JSON.stringify(over)).toBe('CLIENT_KEY_MISMATCH');
+    }
+    expect(dataOf(await act(w.owner, entryActions.addEntryLine, body)).replayed).toBe(true);
+    // A default lot replays as the default it became.
+    const plain = knownLine(w, { qty: 4 });
+    dataOf(await act(w.owner, entryActions.addEntryLine, plain));
+    expect(dataOf(await act(w.owner, entryActions.addEntryLine, plain)).replayed).toBe(true);
+    // A new product: its name and barcode are part of the line.
+    const fresh = newLine(w);
+    dataOf(await act(w.owner, entryActions.addEntryLine, fresh));
+    expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, { ...fresh, product: { ...fresh.product, tradeName: 'Augmentin 625' } }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await act(w.owner, entryActions.addEntryLine, { ...fresh, product: { ...fresh.product, barcode: '1234500100' } }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(dataOf(await act(w.owner, entryActions.addEntryLine, fresh)).replayed).toBe(true);
+    expect(await prisma().phReceiptLine.count()).toBe(3);
+  });
+
   it('keeps a line’s request key when the receiving editor saves the entry draft unchanged', async () => {
     const w = await world();
     const body = knownLine(w);

@@ -36,7 +36,9 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  for (const fn of Object.values(actions)) fn.mockClear();
+  for (const fn of Object.values(actions)) fn.mockReset();
+  actions.readEntryDraft.mockImplementation(async () => ({ ok: true, data: { draft: null } }));
+  actions.readProductHistory.mockImplementation(async () => ({ ok: true, data: { purchases: [], sales: [], returns: [] } }));
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -301,6 +303,8 @@ describe('the entry screen', () => {
     typeIn(field('qty'), '4');
     typeIn(field('expiry'), '0228');
     actions.addEntryLine.mockRejectedValueOnce(new Error('network'));
+    // The re-read after the lost answer shows the entry as the server has it: the first line, the lost one not (yet).
+    actions.readEntryDraft.mockResolvedValueOnce({ ok: true, data: { draft: { receiptId: 'rc1', version: 1, supplierId: 's1', supplierName: 'Al-Hakeem store', createdAt: '2026-11-06T08:00:00Z', lineCount: 1, lines: [LINE] } } } as never);
     press({ key: 'F2' }, document);
     await flush();
     expect(byTest('entry-msg')?.textContent).toMatch(/no answer/i);
@@ -311,6 +315,7 @@ describe('the entry screen', () => {
     expect(keys).toHaveLength(3);
     expect(keys[2]).toBe(keys[1]);
     expect(keys[1]).not.toBe(keys[0]);
+    expect(actions.addEntryLine.mock.calls[2]![0]).toEqual(actions.addEntryLine.mock.calls[1]![0]);
     expect(allTest('entry-done-item')).toHaveLength(2);
   });
 
@@ -402,6 +407,147 @@ describe('the entry screen', () => {
     expect(byTest('history-purchases')?.textContent).toContain('01/2028');
     expect(byTest('history-sales')?.textContent).toContain('2,000');
     expect(byTest('history-returns')?.textContent).toContain('Wrong item');
+  });
+
+  it('freezes the form after a lost answer and resends the stored line unchanged, even when an edit is tried', async () => {
+    actions.lookupEntryProduct.mockResolvedValue(known());
+    actions.addEntryLine.mockRejectedValueOnce(new Error('network'));
+    screen();
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    press({ key: 'F2' }, document);
+    await flush();
+    expect(byTest('entry-msg')?.textContent).toMatch(/no answer/i);
+    expect(field('expiry').readOnly).toBe(true);
+    expect(field('qty').readOnly).toBe(true);
+    expect((byTest('entry-field-supplierId') as unknown as HTMLSelectElement).disabled).toBe(true);
+    // The person tries to correct the expiry: the frozen form keeps the line that was sent.
+    typeIn(field('expiry'), '0229');
+    expect(field('expiry').value).toBe('01/28');
+    // The draft is re-read (the list shows what landed) and Finish waits for the line.
+    expect(actions.readEntryDraft).toHaveBeenCalled();
+    expect((byTest('entry-finish') as HTMLButtonElement).disabled).toBe(true);
+    actions.addEntryLine.mockResolvedValueOnce(saved());
+    press({ key: 'F2' }, document);
+    await flush();
+    const [first, second] = actions.addEntryLine.mock.calls.map((c) => c[0]);
+    expect(second).toEqual(first);
+    expect(second.expiry).toEqual({ month: 1, year: 2028 });
+    expect(allTest('entry-done-item')).toHaveLength(1);
+  });
+
+  it('refuses a new scan while a lost line waits, and drops the line only on the armed drop button', async () => {
+    actions.lookupEntryProduct.mockResolvedValue(known());
+    actions.addEntryLine.mockRejectedValueOnce(new Error('network'));
+    screen();
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    press({ key: 'F2' }, document);
+    await flush();
+    const lookups = actions.lookupEntryProduct.mock.calls.length;
+    await scan('6291003012345');
+    expect(actions.lookupEntryProduct.mock.calls.length).toBe(lookups);
+    expect(byTest('entry-msg')?.textContent).toBe(STUDIO_MESSAGES.en['pharmacy.entry.msg.pendingFirst']);
+    expect((byTest('entry-scan') as HTMLInputElement).value).toBe('6291003012345');
+    const drop = byTest('entry-drop') as HTMLButtonElement;
+    act(() => drop.click());
+    expect(byTest('entry-form')).not.toBeNull();
+    act(() => drop.click());
+    await flush();
+    expect(byTest('entry-form')).toBeNull();
+    // A fresh save of the same product after the drop gets a new key.
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    actions.addEntryLine.mockResolvedValueOnce(saved());
+    press({ key: 'F2' }, document);
+    await flush();
+    const keys = actions.addEntryLine.mock.calls.map((c) => c[0].requestKey);
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it('says in entry words when the earlier save went through with other values, keeps the form and re-reads the list', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(known());
+    actions.addEntryLine.mockResolvedValueOnce({ ok: false, error: { code: 'CONFLICT', message: 'This key was already used for a different receipt', fields: { phCode: 'CLIENT_KEY_MISMATCH' } } });
+    screen();
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    actions.readEntryDraft.mockClear();
+    press({ key: 'F2' }, document);
+    await flush();
+    expect(byTest('entry-msg')?.textContent).toBe(STUDIO_MESSAGES.en['pharmacy.entry.msg.keyMismatch']);
+    expect(byTest('entry-form')).not.toBeNull();
+    expect(actions.readEntryDraft).toHaveBeenCalled();
+  });
+
+  it('queues a scan made while a save is on its way and opens it after the save', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(known());
+    let answer: (value: unknown) => void = () => {};
+    actions.addEntryLine.mockImplementationOnce(() => new Promise((r) => (answer = r)));
+    screen();
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    press({ key: 'F2' }, document);
+    actions.lookupEntryProduct.mockResolvedValueOnce(unknown());
+    await scan('1234500099');
+    expect(actions.lookupEntryProduct).toHaveBeenCalledTimes(1);
+    await act(async () => answer(saved()));
+    await flush();
+    expect(allTest('entry-done-item')).toHaveLength(1);
+    expect(actions.lookupEntryProduct).toHaveBeenLastCalledWith({ q: '1234500099' });
+    expect(byTest('entry-form')?.dataset.kind).toBe('new');
+  });
+
+  it('moves on from a focused read-only selling price on Enter instead of saving early', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(known({ canChangePrice: false }));
+    screen({ canChangePrice: false });
+    await scan('6260147701596');
+    act(() => field('sellPrice').focus());
+    press({ key: 'Enter' });
+    expect(document.activeElement).toBe(field('lot'));
+    expect(actions.addEntryLine).not.toHaveBeenCalled();
+  });
+
+  it('requires an editable selling price for a known product with no price yet', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(known({ sellPrice: null }));
+    screen();
+    await scan('6260147701596');
+    expect(allTest('entry-form-field').find((e) => e.dataset.field === 'sellPrice')?.dataset.required).toBe('true');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    press({ key: 'F2' }, document);
+    await flush();
+    expect(actions.addEntryLine).not.toHaveBeenCalled();
+    expect(byTest('entry-msg')?.textContent).toContain('Selling price per packet');
+    expect(document.activeElement).toBe(field('sellPrice'));
+  });
+
+  it('shows no purchase price to a role without cost.view', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(known({ lastPurchase: { receivedOn: '2026-10-04', supplierId: 's1', supplierName: 'Al-Hakeem store' } }));
+    actions.readProductHistory.mockResolvedValueOnce({
+      ok: true,
+      data: { purchases: [{ receiptNumber: 'GR-1', receivedOn: '2026-10-04', supplierName: 'Al-Hakeem store', qty: 30, bonusQty: 0, unitLabel: 'packet', lot: 'L1', expiryDate: '2028-01-31', expiryPrecision: 'MONTH' }], sales: [], returns: [] },
+    });
+    screen({ canSeeCost: false });
+    await scan('6260147701596');
+    expect(field('purchasePrice').value).toBe('');
+    expect(byTest('entry-summary')?.textContent).toContain('None');
+    const head = [...byTest('history-purchases')!.querySelectorAll('th')].map((th) => th.textContent);
+    expect(head).not.toContain('Price');
+    expect(head).toContain('Expiry');
+  });
+
+  it('tells a role that cannot add products so, instead of the new form', async () => {
+    actions.lookupEntryProduct.mockResolvedValueOnce(unknown({ canCreateProduct: false }));
+    screen();
+    await scan('1234500099');
+    expect(byTest('entry-status')?.textContent).toBe(STUDIO_MESSAGES.en['pharmacy.entry.state.noCreate']);
+    expect(byTest('entry-form')).toBeNull();
+    expect(press({ key: 'F2' }, document).defaultPrevented).toBe(false);
   });
 
   it('has every entry string in Arabic and Sorani too', () => {

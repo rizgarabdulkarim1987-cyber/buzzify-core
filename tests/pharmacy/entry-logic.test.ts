@@ -67,11 +67,14 @@ describe('requiredMissing', () => {
     expect(requiredMissing(form({ name: 'A', qty: '1', expiry: '08/28', sellPriceLocked: true }), false)).toBeNull();
   });
 
-  it('asks a known product for quantity, expiry and purchase price, never the name or selling price', () => {
+  it('asks a known product for quantity, expiry, purchase price and (when editable) selling price, never the name', () => {
     expect(requiredMissing(form(), true)).toBe('qty');
     expect(requiredMissing(form({ qty: '2' }), true)).toBe('expiry');
     expect(requiredMissing(form({ qty: '2', expiry: '08/28' }), true)).toBe('purchasePrice');
-    expect(requiredMissing(form({ qty: '2', expiry: '08/28', purchasePrice: '3.10' }), true)).toBeNull();
+    // The prototype's required() keeps the selling price for a known product: a product with no price yet must get one.
+    expect(requiredMissing(form({ qty: '2', expiry: '08/28', purchasePrice: '3.10' }), true)).toBe('sellPrice');
+    expect(requiredMissing(form({ qty: '2', expiry: '08/28', purchasePrice: '3.10', sellPrice: '20000' }), true)).toBeNull();
+    expect(requiredMissing(form({ qty: '2', expiry: '08/28', purchasePrice: '3.10', sellPriceLocked: true }), true)).toBeNull();
   });
 });
 
@@ -129,9 +132,9 @@ describe('entryRequest', () => {
 
   it('names the first missing field, then a bad expiry, then a bad quantity', () => {
     expect(entryRequest(form({ qty: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'expiry', problem: 'missing' });
-    expect(entryRequest(form({ qty: '1', expiry: '01/20', purchasePrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'expiry', problem: 'expiry' });
-    expect(entryRequest(form({ qty: '0', expiry: '08/28', purchasePrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'qty', problem: 'qty' });
-    expect(entryRequest(form({ qty: '1.5', expiry: '08/28', purchasePrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'qty', problem: 'qty' });
+    expect(entryRequest(form({ qty: '1', expiry: '01/20', purchasePrice: '1', sellPrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'expiry', problem: 'expiry' });
+    expect(entryRequest(form({ qty: '0', expiry: '08/28', purchasePrice: '1', sellPrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'qty', problem: 'qty' });
+    expect(entryRequest(form({ qty: '1.5', expiry: '08/28', purchasePrice: '1', sellPrice: '1' }), known, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'qty', problem: 'qty' });
     expect(entryRequest(form({ name: 'A', sellPrice: '1', qty: '1', expiry: '08/28', tabletsPerStrip: 'x' }), fresh, 'entry-key-0004', NOV_2026)).toEqual({ ok: false, field: 'tabletsPerStrip', problem: 'number' });
   });
 });

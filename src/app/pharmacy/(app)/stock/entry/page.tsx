@@ -16,6 +16,22 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pharmacy.entry.title') };
 }
 
+/** At most this many supplier pages are read for the picker; a pharmacy past that has far more suppliers than it buys from. */
+const SUPPLIER_PAGES = 20;
+
+/** Every live supplier, page after page (the list query pages them), for the entry's supplier picker. */
+async function liveSuppliers(placeInput: { restaurantId: string; branchId?: string }) {
+  const all: { id: string; name: string }[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < SUPPLIER_PAGES; i += 1) {
+    const page: { items: { id: string; name: string }[]; nextCursor: string | null } = await query(listSuppliers, { ...placeInput, active: true, ...(cursor ? { cursor } : {}) });
+    all.push(...page.items.map((s) => ({ id: s.id, name: s.name })));
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return all;
+}
+
 /**
  * Fast product entry (`EntryScreen`), where the nav's Stock item opens. It needs the receiving permission (`purchase.manage`)
  * in a writable pharmacy and one chosen branch; a role that may only look at stock is sent to the stock list (Stock is its
@@ -56,14 +72,14 @@ export default async function StockEntryPage() {
     );
   }
 
-  const [open, suppliers] = await Promise.all([query(entryDraft, placeInput), query(listSuppliers, { ...placeInput, active: true })]);
+  const [open, suppliers] = await Promise.all([query(entryDraft, placeInput), liveSuppliers(placeInput)]);
   return (
     <EntryScreen
       key={place.branchId}
       branchId={place.branchId}
       canChangePrice={roleMay(actor, 'price.change')}
       canSeeCost={access.showCost}
-      suppliers={suppliers.items.map((s) => ({ id: s.id, name: s.name }))}
+      suppliers={suppliers}
       initialDraft={open.draft}
     />
   );

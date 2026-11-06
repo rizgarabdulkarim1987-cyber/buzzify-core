@@ -76,14 +76,15 @@ export function formatExpiryInput(raw: string): string {
 }
 
 const NEW_REQUIRED = ['name', 'sellPrice', 'qty', 'expiry'] as const;
-const KNOWN_REQUIRED = ['qty', 'expiry', 'purchasePrice'] as const;
+const KNOWN_REQUIRED = ['qty', 'expiry', 'purchasePrice', 'sellPrice'] as const;
 
 /**
  * The first required field left blank, in the form's order, or null. A new product needs name, selling price, quantity
- * and expiry (the selling price not when it is read-only); a known one quantity, expiry and purchase price.
+ * and expiry; a known one quantity, expiry, purchase price and selling price (as the prototype's `required()`: a product
+ * with no price yet gets one). The selling price is never required when it is read-only.
  */
 export function requiredMissing(form: EntryForm, known: boolean): keyof EntryForm | null {
-  const fields = known ? KNOWN_REQUIRED : NEW_REQUIRED.filter((f) => !(f === 'sellPrice' && form.sellPriceLocked));
+  const fields = (known ? KNOWN_REQUIRED : NEW_REQUIRED).filter((f) => !(f === 'sellPrice' && form.sellPriceLocked));
   return fields.find((f) => form[f].trim() === '') ?? null;
 }
 

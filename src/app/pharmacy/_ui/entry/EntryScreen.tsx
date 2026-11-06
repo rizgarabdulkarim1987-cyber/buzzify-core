@@ -170,6 +170,8 @@ export function EntryScreen({ canChangePrice, canSeeCost, suppliers, initialDraf
                 draft={entry.draft}
                 msg={msg}
                 sending={entry.sending}
+                frozen={entry.frozen}
+                onDrop={() => entry.clear()}
                 register={register}
                 focus={focus}
                 onSave={() => void entry.save()}
@@ -178,7 +180,7 @@ export function EntryScreen({ canChangePrice, canSeeCost, suppliers, initialDraf
             </>
           )}
         </div>
-        <EntrySide draft={entry.draft} busy={entry.sending} finishing={entry.finishing} onFinish={() => void entry.finish()} />
+        <EntrySide draft={entry.draft} busy={entry.sending || entry.frozen} finishing={entry.finishing} onFinish={() => void entry.finish()} />
       </div>
     </div>
   );

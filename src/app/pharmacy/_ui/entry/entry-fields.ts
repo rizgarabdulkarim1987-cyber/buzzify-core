@@ -26,16 +26,22 @@ export function enterOrder(kind: 'known' | 'new', locked: boolean): EntryFieldNa
   return all.filter((f) => !(locked && f === 'sellPrice'));
 }
 
-/** Where Enter goes from `field`: the next field, or `'save'` from the last one (or from a field not in the order). */
-export function nextField(order: readonly EntryFieldName[], field: EntryFieldName): EntryFieldName | 'save' {
-  const at = order.indexOf(field);
-  return at === -1 || at === order.length - 1 ? 'save' : order[at + 1]!;
+/**
+ * Where Enter goes from `field`: the next field Enter stops on, or `'save'` from the last one. A read-only selling price
+ * that got focus anyway (Tab, a click) moves on to the field after it, never saves early.
+ */
+export function nextField(kind: 'known' | 'new', locked: boolean, field: EntryFieldName): EntryFieldName | 'save' {
+  const all = enterOrder(kind, false);
+  const order = enterOrder(kind, locked);
+  const at = all.indexOf(field);
+  if (at === -1) return 'save';
+  return all.slice(at + 1).find((f) => order.includes(f)) ?? 'save';
 }
 
 /** Is this field required on this form? (A read-only selling price never is.) */
 export function isRequired(kind: 'known' | 'new', field: EntryFieldName, locked: boolean): boolean {
   if (field === 'sellPrice' && locked) return false;
-  return kind === 'known' ? field === 'qty' || field === 'expiry' || field === 'purchasePrice' : NEW_REQUIRED.includes(field);
+  return kind === 'known' ? field === 'qty' || field === 'expiry' || field === 'purchasePrice' || field === 'sellPrice' : NEW_REQUIRED.includes(field);
 }
 
 /** The message key of each field's label. The known form's lot says "(optional)"; the new form lists it under Optional. */

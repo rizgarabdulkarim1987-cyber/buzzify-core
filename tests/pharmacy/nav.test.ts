@@ -60,7 +60,7 @@ describe('phActiveKey', () => {
   it.each([
     ['/pharmacy/stock/expiry', 'expiry'],
     ['/pharmacy/stock/counts/x', 'counts'],
-    ['/pharmacy/stock', 'stock'],
+    ['/pharmacy/stock', 'stockList'],
     ['/pharmacy/stock/entry', 'stock'],
     ['/pharmacy/stock/receive/new', 'receiving'],
     ['/pharmacy/catalog/new', 'catalog'],

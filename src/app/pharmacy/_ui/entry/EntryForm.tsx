@@ -2,10 +2,11 @@
 
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
+import { ArmedButton } from '../cashier/ArmedButton';
 import { formatMinor } from '../sell-logic';
 import { Num, PH_BTN, PH_FIELD, PH_PRIMARY } from '../sell-parts';
 import { formatExpiryInput, type EntryForm as EntryFormValues } from './entry-logic';
-import { enterOrder, isRequired, labelKey, nextField, packetLadder, stockInPackets, type EntryDraft, type EntryFieldName, type KnownLookup } from './entry-fields';
+import { isRequired, labelKey, nextField, packetLadder, stockInPackets, type EntryDraft, type EntryFieldName, type KnownLookup } from './entry-fields';
 import type { EntryMessage } from './use-entry';
 
 export interface EntryFormProps {
@@ -17,6 +18,9 @@ export interface EntryFormProps {
   draft: EntryDraft;
   msg: EntryMessage | null;
   sending: boolean;
+  /** A save's answer was lost: the form keeps the line that was sent (read-only) until it is sent again or dropped. */
+  frozen: boolean;
+  onDrop: () => void;
   register: (name: EntryFieldName) => (el: HTMLElement | null) => void;
   focus: (name: EntryFieldName) => void;
   onSave: () => void;
@@ -32,17 +36,16 @@ const WIDE: readonly EntryFieldName[] = ['name', 'activeIngredient'];
  * tinted and say where they came from.
  */
 export function EntryForm(props: EntryFormProps) {
-  const { kind, found, form, setField, msg, sending, focus, onSave } = props;
+  const { kind, found, form, setField, msg, sending, frozen, onDrop, focus, onSave } = props;
   const t = useT();
   const locked = form.sellPriceLocked;
-  const order = enterOrder(kind, locked);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const name = (e.target as HTMLElement).dataset.entryField as EntryFieldName | undefined;
     if (!name) return;
     e.preventDefault();
-    const next = nextField(order, name);
+    const next = nextField(kind, locked, name);
     if (next === 'save') onSave();
     else focus(next);
   }
@@ -81,7 +84,7 @@ export function EntryForm(props: EntryFormProps) {
             {field('purchasePrice')}
             {field('stripsPerPacket')}
             {field('tabletsPerStrip')}
-            <RxToggle value={form.needsRx} onChange={(v) => setField('needsRx', v)} />
+            <RxToggle value={form.needsRx} disabled={frozen} onChange={(v) => setField('needsRx', v)} />
             {field('activeIngredient', t('pharmacy.entry.hint.ingredient'))}
             {field('supplierId')}
             {field('lowStock')}
@@ -94,6 +97,7 @@ export function EntryForm(props: EntryFormProps) {
           {sending ? t('pharmacy.entry.saving') : t('pharmacy.entry.save')}
           <small className="text-xs font-medium opacity-80">{t('pharmacy.entry.saveKeys')}</small>
         </button>
+        {frozen && <ArmedButton testId="entry-drop" label={t('pharmacy.entry.drop')} armedLabel={t('pharmacy.entry.dropArmed')} onConfirm={onDrop} />}
         <span id="entry-msg" data-testid="entry-msg" role="status" aria-live="polite" className={`min-w-0 flex-1 text-sm font-semibold ${msg?.tone === 'err' ? 'text-ph-red' : 'text-ph-g6'}`}>
           {msg?.text}
         </span>
@@ -102,11 +106,12 @@ export function EntryForm(props: EntryFormProps) {
   );
 }
 
-function Field({ name, hint, prefilled, required, kind, form, setField, suppliers, draft, found, msg, register }: EntryFormProps & { name: EntryFieldName; hint?: string; prefilled: boolean; required: boolean }) {
+function Field({ name, hint, prefilled, required, kind, form, setField, suppliers, draft, found, msg, frozen, register }: EntryFormProps & { name: EntryFieldName; hint?: string; prefilled: boolean; required: boolean }) {
   const t = useT();
   const id = `entry-${name}`;
   const invalid = msg?.field === name;
-  const readOnly = name === 'sellPrice' && form.sellPriceLocked;
+  const locked = name === 'sellPrice' && form.sellPriceLocked;
+  const readOnly = locked || frozen;
   const shared = {
     id,
     ref: register(name),
@@ -115,14 +120,14 @@ function Field({ name, hint, prefilled, required, kind, form, setField, supplier
     'aria-required': required || undefined,
     'aria-invalid': invalid || undefined,
     'aria-describedby': [hint ? `${id}-hint` : '', invalid ? 'entry-msg' : ''].filter(Boolean).join(' ') || undefined,
-    className: `${prefilled && !readOnly ? PH_FIELD.replace('bg-ph-canvas', 'bg-ph-amber-wash') : PH_FIELD} read-only:border-dashed read-only:text-ph-muted`,
+    className: `${prefilled && !locked ? PH_FIELD.replace('bg-ph-canvas', 'bg-ph-amber-wash') : PH_FIELD} read-only:border-dashed read-only:text-ph-muted`,
   };
   let control: ReactNode;
   if (name === 'supplierId') {
     const known = suppliers.some((s) => s.id === form.supplierId);
     const extraName = draft?.supplierId === form.supplierId ? draft?.supplierName : found?.lastPurchase?.supplierName;
     control = (
-      <select {...shared} value={form.supplierId} onChange={(e) => setField('supplierId', e.target.value)}>
+      <select {...shared} disabled={frozen} value={form.supplierId} onChange={(e) => setField('supplierId', e.target.value)}>
         <option value="">{t('pharmacy.entry.field.supplierNone')}</option>
         {!known && form.supplierId !== '' && <option value={form.supplierId}>{extraName || form.supplierId}</option>}
         {suppliers.map((s) => (
@@ -174,10 +179,10 @@ function Field({ name, hint, prefilled, required, kind, form, setField, supplier
   );
 }
 
-function RxToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+function RxToggle({ value, disabled, onChange }: { value: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
   const t = useT();
   const option = (on: boolean, testId: string, label: string) => (
-    <button type="button" data-testid={testId} aria-pressed={value === on} onClick={() => onChange(on)} className={`${PH_BTN} flex-1 ${value === on ? 'border-ph-g8 bg-ph-g8 text-ph-on-green hover:bg-ph-g9' : ''}`}>
+    <button type="button" data-testid={testId} aria-pressed={value === on} disabled={disabled} onClick={() => onChange(on)} className={`${PH_BTN} flex-1 ${value === on ? 'border-ph-g8 bg-ph-g8 text-ph-on-green hover:bg-ph-g9' : ''}`}>
       {label}
     </button>
   );
