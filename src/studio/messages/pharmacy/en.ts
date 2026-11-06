@@ -145,6 +145,9 @@ const pharmacy: Messages = {
   'pharmacy.nav.main': 'Main navigation',
   'pharmacy.nav.more': 'More',
   'pharmacy.nav.close': 'Close',
+  'pharmacy.nav.group.daily': 'Daily',
+  'pharmacy.nav.group.stock': 'Stock',
+  'pharmacy.nav.group.purchasing': 'Purchasing',
   'pharmacy.nav.catalog': 'Catalog',
   // The catalog: list, search and states
   'pharmacy.catalog.title': 'Catalog',

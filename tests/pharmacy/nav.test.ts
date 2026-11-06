@@ -7,7 +7,7 @@ const keys = (items: { key: string }[]) => items.map((i) => i.key);
 
 describe('phNav', () => {
   it('gives an owner the five primary places', () => {
-    expect(keys(phNav('OWNER', opts).primary)).toEqual(['home', 'sell', 'stock', 'expiry', 'reports']);
+    expect(keys(phNav('OWNER', opts).primary)).toEqual(['sell', 'stock', 'catalog', 'customers', 'reports']);
   });
 
   it('ends with doctor when the AI doctor is enabled', () => {
@@ -18,7 +18,7 @@ describe('phNav', () => {
   it('badges stock and expiry', () => {
     const p = phNav('OWNER', opts).primary;
     expect(p.find((i) => i.key === 'stock')?.badge).toBe('lowStock');
-    expect(p.find((i) => i.key === 'expiry')?.badge).toBe('expiring');
+    expect(phNav('OWNER', opts).more.find((i) => i.key === 'expiry')?.badge).toBe('expiring');
   });
 
   it('hides reports, purchasing and settings from a cashier', () => {

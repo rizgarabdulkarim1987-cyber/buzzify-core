@@ -139,6 +139,9 @@ const pharmacy: Messages = {
   'pharmacy.nav.main': 'ڕێنیشاندەری سەرەکی',
   'pharmacy.nav.more': 'زیاتر',
   'pharmacy.nav.close': 'داخستن',
+  'pharmacy.nav.group.daily': 'ڕۆژانە',
+  'pharmacy.nav.group.stock': 'کۆگا',
+  'pharmacy.nav.group.purchasing': 'کڕین',
   'pharmacy.nav.catalog': 'لیستی بەرهەمەکان',
   // لیستی بەرهەمەکان: لیست، گەڕان و دۆخەکان
   'pharmacy.catalog.title': 'لیستی بەرهەمەکان',

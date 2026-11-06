@@ -142,6 +142,9 @@ const pharmacy: Messages = {
   'pharmacy.nav.main': 'التنقل الرئيسي',
   'pharmacy.nav.more': 'المزيد',
   'pharmacy.nav.close': 'إغلاق',
+  'pharmacy.nav.group.daily': 'اليومية',
+  'pharmacy.nav.group.stock': 'المخزون',
+  'pharmacy.nav.group.purchasing': 'المشتريات',
   'pharmacy.nav.catalog': 'دليل المنتجات',
   // دليل المنتجات: القائمة والبحث والحالات
   'pharmacy.catalog.title': 'دليل المنتجات',

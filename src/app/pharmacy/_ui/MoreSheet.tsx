@@ -4,17 +4,19 @@ import { X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { countText, NavIcon } from './NavIcon';
-import type { PhNavKey, PhShellLink } from './nav';
+import type { PhNavKey, PhShellGroup, PhShellLink } from './nav';
 
 /**
  * The phone's "More" sheet: a full-height modal `<dialog>` (focus stays inside, Escape closes it) listing every place the
- * bottom bar has no room for, then the person's links (account, change branch, sign out). It opens and closes at once,
- * with no motion; its content is drawn only while it is open.
+ * bottom bar has no room for (the primary ones first, then the grouped ones under their headings), then the person's
+ * links (account, change branch, sign out). It opens and closes at once, with no motion; its content is drawn only while
+ * it is open.
  */
 export function MoreSheet({
   open,
   onClose,
   links,
+  groups,
   active,
   title,
   closeLabel,
@@ -22,7 +24,9 @@ export function MoreSheet({
 }: {
   open: boolean;
   onClose: () => void;
+  /** Primary places the bar has no room for; they lead the list. */
   links: PhShellLink[];
+  groups: PhShellGroup[];
   active: PhNavKey | null;
   title: string;
   closeLabel: string;
@@ -60,36 +64,51 @@ export function MoreSheet({
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-            <ul className="flex flex-col gap-1">
-              {links.map((l) => {
-                const current = l.key === active;
-                return (
-                  <li key={l.key}>
-                    <Link
-                      href={l.href}
-                      onClick={onClose}
-                      aria-current={current ? 'page' : undefined}
-                      className={`flex min-h-12 items-center gap-3 rounded-[14px] px-3 py-1.5 text-base ${
-                        current ? 'bg-ph-g1 font-bold text-ph-g8' : 'font-medium text-ph-text hover:bg-ph-card'
-                      }`}
-                    >
-                      <NavIcon name={l.icon} className="shrink-0 text-ph-g6" />
-                      <span className="min-w-0 flex-1 break-words">{l.label}</span>
-                      {l.count ? (
-                        <span className="grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full bg-ph-red-wash px-1.5 text-xs font-bold text-ph-red">
-                          {countText(l.count)}
-                        </span>
-                      ) : null}
-                      {current ? <span aria-hidden className="size-2 shrink-0 rounded-full bg-ph-accent" /> : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            <SheetList links={links} active={active} onClose={onClose} />
+            {groups.map((g) => (
+              <section key={g.key} aria-labelledby={`ph-more-group-${g.key}`} className="mt-3">
+                <h3 id={`ph-more-group-${g.key}`} className="px-3 pb-1 text-sm font-semibold text-ph-muted">
+                  {g.label}
+                </h3>
+                <SheetList links={g.links} active={active} onClose={onClose} />
+              </section>
+            ))}
             <div className="mt-4 border-t border-ph-line pt-3">{account}</div>
           </div>
         </div>
       ) : null}
     </dialog>
+  );
+}
+
+function SheetList({ links, active, onClose }: { links: PhShellLink[]; active: PhNavKey | null; onClose: () => void }) {
+  if (links.length === 0) return null;
+  return (
+    <ul className="flex flex-col gap-1">
+      {links.map((l) => {
+        const current = l.key === active;
+        return (
+          <li key={l.key}>
+            <Link
+              href={l.href}
+              onClick={onClose}
+              aria-current={current ? 'page' : undefined}
+              className={`flex min-h-12 items-center gap-3 rounded-[14px] px-3 py-1.5 text-base ${
+                current ? 'bg-ph-g1 font-bold text-ph-g8' : 'font-medium text-ph-text hover:bg-ph-card'
+              }`}
+            >
+              <NavIcon name={l.icon} className="shrink-0 text-ph-g6" />
+              <span className="min-w-0 flex-1 break-words">{l.label}</span>
+              {l.count ? (
+                <span className="grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full bg-ph-red-wash px-1.5 text-xs font-bold text-ph-red">
+                  {countText(l.count)}
+                </span>
+              ) : null}
+              {current ? <span aria-hidden className="size-2 shrink-0 rounded-full bg-ph-accent" /> : null}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
