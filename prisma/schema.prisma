@@ -2901,6 +2901,8 @@ model PhReceiptLine {
   /// cover; the CHECK keeps `invoicedQty` within `qty + bonusQty`.
   purchaseOrderLineId String?
   invoicedQty         Int           @default(0)
+  /// Fast product entry: the request that added this line (one line per request; a repeat finds it). Null for every other line.
+  clientKey           String?
   restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   purchaseOrderLine PhPurchaseOrderLine? @relation(fields: [restaurantId, purchaseOrderLineId], references: [restaurantId, id], onDelete: NoAction)
   invoiceLines    PhSupplierInvoiceLine[]
@@ -2911,6 +2913,7 @@ model PhReceiptLine {
 
   @@unique([receiptId, lineNo])
   @@unique([restaurantId, id])
+  @@unique([restaurantId, clientKey])
   @@index([restaurantId, productId])
 }
 

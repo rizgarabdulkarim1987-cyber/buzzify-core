@@ -79,6 +79,19 @@ export const receiptLineInput = z
   });
 export type ReceiptLineInput = z.infer<typeof receiptLineInput>;
 
+/**
+ * A line as the services store it: a person's line (`ReceiptLineInput`), or a fast-entry line (Task 13), which may have no
+ * cost yet (a new product entered without its purchase price: cost and currency both null, the batch then has no cost and
+ * stock valuation counts it in `noCostRows`) and carries the request key that added it.
+ */
+export type DraftLine = Omit<ReceiptLineInput, 'unitCostMinor' | 'currency'> & {
+  unitCostMinor: bigint | null;
+  currency: 'IQD' | 'USD' | null;
+  clientKey?: string;
+};
+/** A draft's header with lines of either kind. */
+export type DraftInput = Omit<ReceiptInput, 'lines'> & { lines: readonly DraftLine[] };
+
 /** What a person enters for a draft; the pharmacy and branch come from the place. */
 export const receiptInput = z.object({
   supplierName: z.string().trim().max(200, 'Use at most 200 characters').default(''),
@@ -118,18 +131,19 @@ interface LineRow {
   lot: string;
   expiryDate: Date;
   expiryPrecision: 'DAY' | 'MONTH';
-  unitCostMinor: bigint;
-  costCurrency: 'IQD' | 'USD';
+  unitCostMinor: bigint | null;
+  costCurrency: 'IQD' | 'USD' | null;
   freeOfCharge: boolean;
   acceptExpired: boolean;
   purchaseOrderLineId: string | null;
+  clientKey: string | null;
 }
 
 /**
  * The lines as rows, checked against the business's own catalog: each product is the business's, each unit is a unit of
  * that product (sellable or not), and the quantity in base units fits a whole number of the column's size.
  */
-async function lineRows(tx: ScopedTx, restaurantId: string, receiptId: string, lines: ReceiptInput['lines']): Promise<LineRow[]> {
+async function lineRows(tx: ScopedTx, restaurantId: string, receiptId: string, lines: readonly DraftLine[]): Promise<LineRow[]> {
   const productIds = [...new Set(lines.map((l) => l.productId))];
   const [products, units] = await Promise.all([
     tx.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, active: true } }),
@@ -167,6 +181,7 @@ async function lineRows(tx: ScopedTx, restaurantId: string, receiptId: string, l
       freeOfCharge: l.freeOfCharge,
       acceptExpired: l.acceptExpired,
       purchaseOrderLineId: l.purchaseOrderLineId ?? null,
+      clientKey: l.clientKey ?? null,
     };
   });
 }
@@ -221,7 +236,7 @@ type ReplayRow = {
 async function replayOf(
   tx: ScopedTx,
   existing: ReplayRow,
-  args: { restaurantId: string; branchId: string; userId: string; input: ReceiptInput },
+  args: { restaurantId: string; branchId: string; userId: string; input: DraftInput },
 ): Promise<DraftResult> {
   const { input } = args;
   // The key belongs to whoever first used it: another user's repeat is not a replay.
@@ -271,7 +286,7 @@ async function replayOf(
  */
 export async function createDraft(
   tx: ScopedTx,
-  args: { restaurantId: string; branchId: string; clientKey: string; userId: string; input: ReceiptInput },
+  args: { restaurantId: string; branchId: string; clientKey: string; userId: string; input: DraftInput; createdAt?: Date },
 ): Promise<DraftResult> {
   const existing = await tx.phReceipt.findFirst({ where: { clientKey: args.clientKey }, select: REPLAY_SELECT });
   if (existing) return replayOf(tx, existing as unknown as ReplayRow, args);
@@ -288,12 +303,41 @@ export async function createDraft(
       receivedOn: midnight(args.input.receivedOn),
       note: args.input.note,
       createdById: args.userId,
+      // Fast entry dates its draft from the request's start, before a product the same request makes.
+      ...(args.createdAt ? { createdAt: args.createdAt } : {}),
     },
     select: { id: true, version: true },
   });
   const rows = await lineRows(tx, args.restaurantId, receipt.id, args.input.lines);
   await tx.phReceiptLine.createMany({ data: rows });
   return { id: receipt.id, version: receipt.version, status: 'DRAFT', replayed: false, lineCount: rows.length };
+}
+
+/**
+ * Adds one line at the end of a draft (fast entry, Task 13): checked like every line (`lineRows`), numbered after the last,
+ * and the draft's version raised. The conditional DRAFT update is the guard against a confirm or void that won first (it
+ * waits on the receipt row a confirm holds, then finds no DRAFT). At most `MAX_RECEIPT_LINES`.
+ */
+export async function appendDraftLine(
+  tx: ScopedTx,
+  args: { restaurantId: string; receiptId: string; line: DraftLine },
+): Promise<{ id: string; version: number; lineNo: number; lineCount: number }> {
+  const won = await tx.phReceipt.updateMany({ where: { id: args.receiptId, status: 'DRAFT' }, data: { version: { increment: 1 } } });
+  if (won.count !== 1) {
+    const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { status: true } });
+    if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
+    throw notDraft();
+  }
+  const [count, last] = await Promise.all([
+    tx.phReceiptLine.count({ where: { receiptId: args.receiptId } }),
+    tx.phReceiptLine.findFirst({ where: { receiptId: args.receiptId }, orderBy: { lineNo: 'desc' }, select: { lineNo: true } }),
+  ]);
+  if (count >= MAX_RECEIPT_LINES) throw invalid('lines', 'Use at most 200 lines');
+  const [row] = await lineRows(tx, args.restaurantId, args.receiptId, [args.line]);
+  const lineNo = (last?.lineNo ?? 0) + 1;
+  await tx.phReceiptLine.createMany({ data: [{ ...row!, lineNo }] });
+  const { version } = await tx.phReceipt.findFirstOrThrow({ where: { id: args.receiptId }, select: { version: true } });
+  return { id: args.receiptId, version, lineNo, lineCount: count + 1 };
 }
 
 /** Replaces a draft's header and lines, if it is still a draft at `expectedVersion`. */
@@ -400,7 +444,8 @@ async function findOrCreateBatch(
         supplierName,
         unitCostMinor: line.unitCostMinor,
         costCurrency: line.costCurrency,
-        costUnitId: line.unitId,
+        // A line without a cost (fast entry of a new product with no purchase price) makes a batch without one: no cost unit.
+        costUnitId: line.unitCostMinor === null ? null : line.unitId,
         receiptLineId: line.id,
       },
     ],

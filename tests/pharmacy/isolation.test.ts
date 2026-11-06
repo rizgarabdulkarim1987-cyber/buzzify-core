@@ -486,6 +486,18 @@ const CASES: Record<string, Case> = {
   'ph.stock.receipt.void': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.stock.receipt.get': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.stock.receipt.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Fast entry (Task 13): a line goes into the person's own draft in the place's branch (another business's product is not
+  // found); finishing names a receipt, which must be the person's own entry there; the lookup never repeats a typed name;
+  // the history is the place's branch only. Without a branch in the place each is refused (INVALID: choose the branch).
+  'ph.stock.entry.addLine': {
+    body: (ids) => ({ requestKey: key(), product: { kind: 'known', productId: ids.productId }, qty: 1, expiry: { month: 3, year: 2028 }, purchasePrice: '1', purchaseCurrency: 'IQD' }),
+    foreignIds: 'refused',
+    otherBranchIds: 'harmless',
+  },
+  'ph.stock.entry.finish': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.stock.entry.lookup': { body: (ids) => ({ q: ids.tradeName }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.stock.entry.draft': { body: () => ({}), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.stock.history': { body: (ids) => ({ productId: ids.productId }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   // Counting
   'ph.stock.count.open': { body: (ids) => ({ scope: 'CATEGORY', categoryId: ids.categoryId, blind: false, note: '' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.stock.count.record': {
