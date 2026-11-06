@@ -1,7 +1,7 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { DEFAULT_USD_RATE } from '@/server/pharmacy/exchange-rate';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { shiftLineOf } from '@/server/pharmacy/queries/pulse-shift';
+import { shiftLineOf } from '@/server/pharmacy/pulse-shift';
 import { currentShift } from '@/server/pharmacy/shifts-reads';
 import { expiringWhere, lowStockRows } from '@/server/pharmacy/stock-alerts';
 import { defineQuery } from '@/server/studio/framework/query';

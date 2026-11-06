@@ -31,7 +31,7 @@ vi.mock('@/app/pos/_ui/print/print-client', () => ({ printDoc: vi.fn(async () =>
 
 const { CashierScreen } = await import('@/app/pharmacy/_ui/cashier/CashierScreen');
 const { evalCalc, formatCalc, calcKey } = await import('@/app/pharmacy/_ui/cashier/calc-logic');
-const { shiftLineOf } = await import('@/server/pharmacy/queries/pulse-shift');
+const { shiftLineOf } = await import('@/server/pharmacy/pulse-shift');
 const { cartReducer, emptyCart } = await import('@/app/pharmacy/_ui/sell-logic');
 const { newReceipt, receiptsKey, serializeReceipts } = await import('@/app/pharmacy/_ui/sell-receipts');
 type AddableItem = import('@/app/pharmacy/_ui/sell-logic').AddableItem;

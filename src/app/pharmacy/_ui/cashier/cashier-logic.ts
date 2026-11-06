@@ -2,7 +2,7 @@ import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, startUnit
 import { parseReceipts, receiptsReducer, type ReceiptsAction, type ReceiptsState } from '../sell-receipts';
 import type { CashierKeyContext } from '../sell-keys';
 import { prescriptionKept } from '../prescription-logic';
-import type { ShiftLine } from '@/server/pharmacy/queries/pulse-shift';
+import type { ShiftLine } from '@/server/pharmacy/pulse-shift';
 
 /**
  * The cashier screen's state glue, pure apart from reading a DOM target: the receipts reducer plus "change the active

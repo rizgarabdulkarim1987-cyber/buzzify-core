@@ -1,7 +1,7 @@
 'use client';
 
 import { useT } from '@/studio/i18n';
-import type { ShiftLine } from '@/server/pharmacy/queries/pulse-shift';
+import type { ShiftLine } from '@/server/pharmacy/pulse-shift';
 import { formatMinor, type Currency } from '../sell-logic';
 import { Num } from '../sell-parts';
 
