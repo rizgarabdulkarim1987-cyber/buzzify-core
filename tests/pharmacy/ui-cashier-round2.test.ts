@@ -558,9 +558,60 @@ describe('the layout fits one screen (the work panel opens in the main column)',
     await flush();
     expect(byTest('cashier-screen')!.className).toContain('lg:overflow-hidden');
     expect(byTest('cashier-grid')!.className).toContain('lg:min-h-0');
-    expect(byTest('cashier-side')!.className).toContain('lg:overflow-y-auto');
     expect(byTest('cashier-work')!.className).toContain('lg:overflow-y-auto');
     expect(byTest('sale-lines-scroll')!.className).toContain('overflow-auto');
+  });
+});
+
+describe('the side column fits a short laptop screen (round 4)', () => {
+  const cls = (id: string) => byTest(id)!.className.split(' ').filter(Boolean);
+
+  it('never scrolls as a whole: the total, the keypad and the pay row keep their size, and only the customer card gives way', async () => {
+    customers.listCustomers.mockResolvedValue({ ok: true, data: { items: [CUSTOMER] } });
+    screenWith([{}]);
+    await flush();
+    const side = byTest('cashier-side')!;
+    expect(cls('cashier-side')).toContain('lg:overflow-hidden');
+    expect(cls('cashier-side')).not.toContain('lg:overflow-y-auto');
+    for (const id of ['cashier-total', 'keypad', 'cashier-pay']) expect(cls(id)).toContain('lg:shrink-0');
+    expect(cls('cashier-customer')).toEqual(expect.arrayContaining(['lg:min-h-0', 'lg:shrink', 'lg:overflow-y-auto']));
+    // The keypad sits right above the pay row, in the column itself (never under it).
+    expect([...side.children].map((c) => c.getAttribute('data-testid'))).toEqual(['cashier-total', 'cashier-customer', 'keypad', 'cashier-pay']);
+  });
+
+  it('a picked customer takes two rows: the name with Change beside it, then the figures', async () => {
+    customers.listCustomers.mockResolvedValue({ ok: true, data: { items: [CUSTOMER] } });
+    screenWith([{}], { perms: { ...PERMS, credit: true } });
+    await flush();
+    typeIn('customer-search', 'Ali');
+    await wait(300);
+    await flush();
+    click(allTest('customer-option')[0]!);
+    const card = byTest('customer-picked')!;
+    const change = byTest('customer-change')!;
+    expect(change.parentElement!.parentElement).toBe(card);
+    expect(change.parentElement!.textContent).toContain(CUSTOMER.name);
+    expect(change.className).toContain('min-h-11');
+    expect([...card.children].map((c) => c.getAttribute('data-testid') ?? c.tagName)).toEqual(['P', 'customer-figures']);
+  });
+
+  it('is denser on a short screen (under 820px high): smaller total figure and pay buttons, still 44px targets', async () => {
+    screenWith([{}]);
+    await flush();
+    expect(byTest('cashier-total')!.innerHTML).toContain('[@media(max-height:820px)]:text-[32px]');
+    expect(byTest('pay-cash')!.className).toContain('[@media(max-height:820px)]:min-h-12');
+    expect(byTest('pay-cash')!.className).toContain('min-w-11');
+    // The figures under the total (discount, count, balance, stock) go two by two.
+    expect(byTest('cashier-discount')!.parentElement!.className).toContain('[@media(max-height:820px)]:grid-cols-2');
+  });
+
+  it('on a 768px-high screen the lines give up more room while a flow is open (the table scrolls inside itself)', async () => {
+    screenWith([{}]);
+    await flush();
+    press({ key: 'F2' });
+    expect(byTest('sale-lines-scroll')!.className).toContain('lg:[@media(max-height:780px)]:min-h-[72px]');
+    press({ key: 'Escape' });
+    expect(byTest('sale-lines-scroll')!.className).not.toContain('min-h-[72px]');
   });
 });
 

@@ -133,7 +133,7 @@ export function FlowNotes({ blocked, offline, problem, pending, elsewhere, noPri
 export function ConfirmBar({ busy, disabled, label }: { busy: boolean; disabled: boolean; label: string }) {
   const t = useT();
   return (
-    <button type="submit" data-testid="flow-confirm" className={`${PH_PRIMARY} min-h-12 w-full text-base lg:sticky lg:bottom-0 lg:z-10`} disabled={disabled}>
+    <button type="submit" data-testid="flow-confirm" className={`${PH_PRIMARY} min-h-11 [@media(min-height:781px)]:min-h-12 w-full text-base lg:sticky lg:bottom-0 lg:z-10`} disabled={disabled}>
       {busy ? <Hourglass aria-hidden className="size-4" /> : <CircleCheck aria-hidden className="size-4" />}
       {busy ? t('pharmacy.sell.pay.saving') : label}
     </button>

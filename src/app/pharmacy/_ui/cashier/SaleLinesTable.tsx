@@ -16,7 +16,7 @@ export interface LineCost {
 }
 
 export interface SaleLinesTableProps {
-  /** A flow is open below: on a wide screen the table gives up its height first (two rows stay) so the flow's confirm shows. */
+  /** A flow is open below: on a wide screen the table gives up its height first (it scrolls inside itself) so the flow fits under it. */
   compact?: boolean;
   lines: CartLine[];
   /** Per line: `estimateCart(...).lines` (gross, discount, total after discount). */
@@ -91,7 +91,7 @@ export function SaleLinesTable({ compact, lines, results, currency, selected, on
   };
 
   return (
-    <div className={`max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:flex-1 ${compact ? 'lg:min-h-[96px]' : 'lg:min-h-[150px]'}`} data-testid="sale-lines-scroll">
+    <div className={`max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:flex-1 ${compact ? 'lg:[@media(min-height:781px)]:min-h-[96px] lg:[@media(max-height:780px)]:min-h-[72px]' : 'lg:min-h-[150px]'}`} data-testid="sale-lines-scroll">
       <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} style={{ minWidth: `${linesTableMinRem(canSeeCost)}rem` }} className="w-full table-fixed border-collapse text-sm tabular-nums text-ph-text">
         <colgroup>
           {columns.map((c) => (

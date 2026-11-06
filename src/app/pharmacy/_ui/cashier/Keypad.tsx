@@ -42,7 +42,7 @@ export function Keypad({ text, onKey, onEnter, canEnter, onLine }: { text: strin
     </button>
   );
   return (
-    <div className="flex min-w-0 flex-col rounded-ph-2xl border border-ph-line bg-ph-card p-2" role="group" aria-label={t('pharmacy.cashier.keypad.region')} data-testid="keypad">
+    <div className="flex min-w-0 flex-col rounded-ph-2xl border border-ph-line bg-ph-card p-2 lg:mt-auto lg:shrink-0" role="group" aria-label={t('pharmacy.cashier.keypad.region')} data-testid="keypad">
       <div dir="ltr" className="grid grid-cols-4 gap-1.5" data-testid="keypad-keys">
         <output className="col-span-3 flex min-h-11 items-center justify-end rounded-ph-xl border-2 border-ph-accent bg-ph-canvas px-3 text-[22px] font-bold tabular-nums text-ph-text" aria-label={t('pharmacy.cashier.keypad.display')} data-testid="keypad-display">
           <Num>{text}</Num>

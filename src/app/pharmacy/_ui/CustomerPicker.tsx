@@ -70,17 +70,18 @@ export function CustomerPicker({
   return (
     <div className="flex flex-col gap-2" data-testid="customer-picker">
       {picked ? (
-        <div className="flex flex-col gap-1 rounded-md border border-ink bg-raised px-3 py-2.5 text-sm" data-testid="customer-picked">
+        // Two rows (the cashier's side column must fit a laptop screen): the name with Change at its end, then the figures.
+        <div className="flex flex-col gap-0.5 rounded-md border border-ink bg-raised px-3 py-1.5 text-sm" data-testid="customer-picked">
           <p className="flex items-center gap-2 font-semibold text-text">
             <CircleCheck aria-hidden className="size-4 shrink-0 text-success" />
-            <span className="min-w-0 break-words" dir="auto">
+            <span className="min-w-0 flex-1 break-words" dir="auto">
               {isolate(picked.name)}
             </span>
+            <button type="button" className="inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover" data-testid="customer-change" onClick={() => onPick(null)}>
+              {t('pharmacy.credit.pick.change')}
+            </button>
           </p>
           <CustomerFigures customer={picked} />
-          <button type="button" className="inline-flex min-h-11 w-fit items-center rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover" data-testid="customer-change" onClick={() => onPick(null)}>
-            {t('pharmacy.credit.pick.change')}
-          </button>
         </div>
       ) : (
         <>

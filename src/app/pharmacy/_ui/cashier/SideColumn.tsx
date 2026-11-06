@@ -9,12 +9,15 @@ import { usdEquivalent } from './cashier-logic';
 import { Keypad, type PadLineKey } from './Keypad';
 import type { PayFlow, WorkFlow } from './sale-flow-logic';
 
-const PAY = 'inline-flex min-h-14 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-base font-bold disabled:cursor-not-allowed disabled:opacity-45';
+// Under 820px high (a 1366x768 or 1280x800 laptop) the pay buttons are 48px instead of 56px: still well over the 44px target.
+const PAY = 'inline-flex min-h-14 [@media(max-height:820px)]:min-h-12 min-w-11 items-center justify-center gap-2 rounded-ph-xl px-3 text-base font-bold disabled:cursor-not-allowed disabled:opacity-45';
 
 /**
  * The side column (layout A): the total box, the customer, the receipt number, the keypad and the cash / credit buttons. The work
- * panel (the payment flows, the receipt after a sale) opens in the main column, so this column never grows; on a wide screen it
- * scrolls in itself with the pay buttons held at its bottom. Credit is off without its permission.
+ * panel (the payment flows, the receipt after a sale) opens in the main column, so this column never grows. On a wide screen the
+ * column itself never scrolls: the total, the keypad and the pay row keep their size, and only the customer card gives way (it
+ * scrolls inside itself when a long name, its figures or the search results need more room than is left). Credit is off without
+ * its permission.
  */
 export function SideColumn({
   currency,
@@ -57,8 +60,8 @@ export function SideColumn({
   const usd = usdEquivalent(totalMinor, currency, usdRate);
   const small = 'flex items-baseline justify-between gap-2 text-sm text-ph-on-green-muted';
   return (
-    <aside className="flex min-w-0 flex-col gap-1.5 lg:min-h-0 lg:overflow-y-auto lg:[grid-area:side]" aria-label={t('pharmacy.cashier.side.region')} data-testid="cashier-side">
-      <div className="flex flex-col gap-0.5 rounded-ph-2xl bg-ph-g8 px-4 py-2.5 text-ph-on-green" data-testid="cashier-total">
+    <aside className="flex min-w-0 flex-col gap-1.5 lg:min-h-0 lg:overflow-hidden lg:[grid-area:side]" aria-label={t('pharmacy.cashier.side.region')} data-testid="cashier-side">
+      <div className="flex flex-col gap-0.5 rounded-ph-2xl bg-ph-g8 px-4 py-2.5 text-ph-on-green lg:shrink-0 [@media(max-height:820px)]:py-2" data-testid="cashier-total">
         {/* The receipt number shares the label's line: one row less in a column that must fit the screen. */}
         <span className="flex items-baseline justify-between gap-2 text-sm text-ph-on-green-muted">
           {t('pharmacy.cashier.total.due')}
@@ -69,7 +72,7 @@ export function SideColumn({
             </b>
           </span>
         </span>
-        <span className="break-words text-[40px] font-extrabold leading-tight tabular-nums">
+        <span className="break-words text-[40px] font-extrabold leading-tight tabular-nums [@media(max-height:820px)]:text-[32px]">
           <Num>{formatMinor(totalMinor, currency)}</Num> <span className="text-base font-semibold">{currency}</span>
         </span>
         {usd !== null && (
@@ -77,7 +80,7 @@ export function SideColumn({
             {t('pharmacy.cashier.total.usd', { amount: usd })}
           </span>
         )}
-        <div className="mt-1 grid gap-0.5 border-t border-ph-on-green-muted/30 pt-1.5 tabular-nums">
+        <div className="mt-1 grid gap-0.5 border-t border-ph-on-green-muted/30 pt-1.5 tabular-nums [@media(max-height:820px)]:grid-cols-2 [@media(max-height:820px)]:gap-x-4">
           <span className={small} data-testid="cashier-discount">
             {t('pharmacy.cashier.total.discount')}
             <b className="text-ph-on-green">
@@ -109,7 +112,7 @@ export function SideColumn({
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-2 rounded-ph-2xl border border-ph-line bg-ph-card p-2.5" data-testid="cashier-customer">
+      <div className="flex min-w-0 flex-col gap-2 rounded-ph-2xl border border-ph-line bg-ph-card p-2.5 lg:min-h-0 lg:shrink lg:overflow-y-auto" data-testid="cashier-customer">
         {canCredit ? (
           <CustomerPicker saleCurrency={currency} picked={customer} onPick={onCustomer} typeFirst version={customerVersion} />
         ) : (
@@ -122,8 +125,8 @@ export function SideColumn({
 
       <Keypad {...pad} />
 
-      {/* Last in the column and held at its bottom while the column scrolls: the pay buttons are never off screen. */}
-      <div className="grid grid-cols-[2fr_1fr] gap-1.5 bg-ph-canvas lg:sticky lg:bottom-0 lg:z-10 lg:mt-auto" data-testid="cashier-pay">
+      {/* Last in the column, right under the keypad (which takes any spare room above it): the pay buttons are never off screen. */}
+      <div className="grid grid-cols-[2fr_1fr] gap-1.5 bg-ph-canvas lg:sticky lg:bottom-0 lg:z-10 lg:shrink-0" data-testid="cashier-pay">
         <button
           type="button"
           aria-pressed={flow === 'cash'}
