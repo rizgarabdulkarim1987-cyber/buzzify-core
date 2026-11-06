@@ -9,7 +9,7 @@ import type { PhActor } from './actor';
 import { resolveBarcode } from './barcodes';
 import { assertPriceBranch, priceRowsAt, setPrice, type PriceWrite } from './prices';
 import { assertBranchSettings, createProduct, mayViewCost, productInput, type ProductWrite } from './products';
-import { appendDraftLine, confirmReceipt, createDraft, MAX_MINOR, receiptLineInput, type ConfirmResult, type DraftLine } from './receipts';
+import { appendDraftLine, confirmReceipt, createDraft, ENTRY_KEY_PREFIX, MAX_MINOR, receiptLineInput, type ConfirmResult, type DraftLine } from './receipts';
 import { searchProducts } from './search';
 
 /**
@@ -28,7 +28,6 @@ import { searchProducts } from './search';
  * lot typed, the line's lot is `EXP-YYYYMM` of its expiry, so lot-less entries of one product and month share one batch.
  */
 
-export const ENTRY_KEY_PREFIX = 'entry:';
 /** The reason on the price-history row a selling price set by entry writes (a record, not a message to translate). */
 export const ENTRY_PRICE_REASON = 'fast product entry';
 /** The unit names of a product made by entry (the prototype's wording; the catalog editor can rename them). */

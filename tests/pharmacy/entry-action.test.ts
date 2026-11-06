@@ -5,6 +5,7 @@ import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { checkProduct, productInput } from '@/server/pharmacy/products';
 import * as entryQueries from '@/server/pharmacy/queries/fast-entry';
+import * as receiptQueries from '@/server/pharmacy/queries/receipts';
 import * as sellQueries from '@/server/pharmacy/queries/sell';
 import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { act, ask, codeOf, dataOf, phCodeOf } from './stock-helpers';
@@ -445,6 +446,26 @@ describe('fix round 1', () => {
     expect(both.filter((r) => r.ok)).toHaveLength(1);
     expect(both.map((r) => (r.ok ? 'OK' : phCodeOf(r)))).toContain('CLIENT_KEY_MISMATCH');
     expect(await prisma().phReceiptLine.count()).toBe(1);
+  });
+});
+
+describe('final fix round', () => {
+  it('marks a fast-entry draft in the receiving list and on the receipt, and leaves an ordinary receipt unmarked', async () => {
+    const w = await world();
+    const added = dataOf(await act(w.owner, entryActions.addEntryLine, knownLine(w)));
+    const plain = dataOf(
+      await act(w.owner, receiptActions.create, {
+        ...placeOf(w),
+        clientKey: key(),
+        supplierName: 'Acme',
+        receivedOn: '2026-10-27',
+        lines: [{ productId: w.known.id, unitId: w.known.box, qty: 1, lot: 'L-1', expiry: '08/2028', unitCostMinor: 310n, currency: 'USD' }],
+      }),
+    );
+    const list = dataOf(await ask(w.owner, receiptQueries.list, placeOf(w)));
+    expect(Object.fromEntries(list.items.map((r) => [r.id, r.fastEntry]))).toEqual({ [added.receiptId]: true, [plain.id]: false });
+    expect(dataOf(await ask(w.owner, receiptQueries.get, { ...placeOf(w), receiptId: added.receiptId })).fastEntry).toBe(true);
+    expect(dataOf(await ask(w.owner, receiptQueries.get, { ...placeOf(w), receiptId: plain.id })).fastEntry).toBe(false);
   });
 });
 

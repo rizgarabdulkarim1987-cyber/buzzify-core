@@ -609,6 +609,10 @@ export function assertStaff(ph: PhActor): void {
   if (ph.support !== null || ph.role === null) throw new StudioError('FORBIDDEN');
 }
 
+/** The `clientKey` prefix of a draft made by fast product entry (`fast-entry.ts`): one per person and branch, finished there. */
+export const ENTRY_KEY_PREFIX = 'entry:';
+const isEntryKey = (clientKey: string | null): boolean => clientKey?.startsWith(ENTRY_KEY_PREFIX) ?? false;
+
 export interface ReceiptSummary {
   id: string;
   number: string | null;
@@ -623,6 +627,8 @@ export interface ReceiptSummary {
   lineCount: number;
   version: number;
   createdAt: string;
+  /** Made by fast product entry (the receiving list badges it and points back to the entry screen). */
+  fastEntry: boolean;
 }
 
 /** Newest first, by cursor. The scoped client keeps a branch-limited actor to their branches. */
@@ -645,6 +651,7 @@ export async function listReceipts(
       receivedOn: true,
       version: true,
       createdAt: true,
+      clientKey: true,
       _count: { select: { lines: true } },
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -668,6 +675,7 @@ export async function listReceipts(
       lineCount: r._count.lines,
       version: r.version,
       createdAt: r.createdAt.toISOString(),
+      fastEntry: isEntryKey(r.clientKey),
     })),
     nextCursor: more ? page[page.length - 1]!.id : null,
   };
@@ -732,6 +740,7 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
     lineCount: r.lines.length,
     version: r.version,
     createdAt: r.createdAt.toISOString(),
+    fastEntry: isEntryKey(r.clientKey),
     note: r.note,
     confirmedAt: r.confirmedAt ? r.confirmedAt.toISOString() : null,
     lines: r.lines.map((l) => ({
