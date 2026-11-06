@@ -25,7 +25,21 @@ const money = (minor: string, currency: Currency) => (
  * Finds a customer by name for a credit sale. Each result says in words what the account holds (balance, limit, room left) and
  * why a customer cannot be chosen (another currency, archived): never a colour alone. The list scrolls inside its own box.
  */
-export function CustomerPicker({ saleCurrency, picked, onPick }: { saleCurrency: Currency; picked: PickedCustomer | null; onPick: (customer: PickedCustomer | null) => void }) {
+export function CustomerPicker({
+  saleCurrency,
+  picked,
+  onPick,
+  typeFirst = false,
+  version = 0,
+}: {
+  saleCurrency: Currency;
+  picked: PickedCustomer | null;
+  onPick: (customer: PickedCustomer | null) => void;
+  /** List nothing until something is typed (the cashier's side column stays short). */
+  typeFirst?: boolean;
+  /** Changes when balances changed (a credit sale): the list is read again for the same text. */
+  version?: number;
+}) {
   const t = useT();
   const { locale } = useLocale();
   const [q, setQ] = useState('');
@@ -33,8 +47,10 @@ export function CustomerPicker({ saleCurrency, picked, onPick }: { saleCurrency:
   const [problem, setProblem] = useState<string | null>(null);
   const seq = useRef(0);
 
+  const idle = typeFirst && q.trim() === '';
   useEffect(() => {
     const mine = ++seq.current;
+    if (idle) return;
     const timer = setTimeout(() => {
       void settle(() => listCustomers({ search: q.trim(), active: true })).then((result) => {
         if (mine !== seq.current) return;
@@ -48,23 +64,24 @@ export function CustomerPicker({ saleCurrency, picked, onPick }: { saleCurrency:
       });
     }, 200);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the sentences follow the language; the search follows the text
-  }, [q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the sentences follow the language; the search follows the text (and balances)
+  }, [q, version]);
 
   return (
     <div className="flex flex-col gap-2" data-testid="customer-picker">
       {picked ? (
-        <div className="flex flex-col gap-1 rounded-md border border-ink bg-raised px-3 py-2.5 text-sm" data-testid="customer-picked">
+        // Two rows (the cashier's side column must fit a laptop screen): the name with Change at its end, then the figures.
+        <div className="flex flex-col gap-0.5 rounded-md border border-ink bg-raised px-3 py-1.5 text-sm" data-testid="customer-picked">
           <p className="flex items-center gap-2 font-semibold text-text">
             <CircleCheck aria-hidden className="size-4 shrink-0 text-success" />
-            <span className="min-w-0 break-words" dir="auto">
+            <span className="min-w-0 flex-1 break-words" dir="auto">
               {isolate(picked.name)}
             </span>
+            <button type="button" className="inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover" data-testid="customer-change" onClick={() => onPick(null)}>
+              {t('pharmacy.credit.pick.change')}
+            </button>
           </p>
           <CustomerFigures customer={picked} />
-          <button type="button" className="inline-flex min-h-11 w-fit items-center rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover" data-testid="customer-change" onClick={() => onPick(null)}>
-            {t('pharmacy.credit.pick.change')}
-          </button>
         </div>
       ) : (
         <>
@@ -74,23 +91,23 @@ export function CustomerPicker({ saleCurrency, picked, onPick }: { saleCurrency:
               <FieldInput type="search" dir="auto" autoComplete="off" data-testid="customer-search" className={`${FIELD} ps-10`} value={q} onChange={(event) => setQ(event.target.value)} />
             </div>
           </Field>
-          {items === null && (
+          {!idle && items === null && (
             <Note icon={<Hourglass aria-hidden />} role="status">
               {t('pharmacy.credit.pick.loading')}
             </Note>
           )}
-          {problem && (
+          {!idle && problem && (
             <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="customer-problem">
               {problem}
             </Note>
           )}
-          {items?.length === 0 && !problem && (
+          {!idle && items?.length === 0 && !problem && (
             <p className="flex items-center gap-2.5 py-2 text-sm text-text" data-testid="customer-none">
               <SearchX aria-hidden className="size-4 shrink-0 text-muted" />
               {t('pharmacy.credit.pick.none')}
             </p>
           )}
-          {items && items.length > 0 && (
+          {!idle && items && items.length > 0 && (
             <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto" aria-label={t('pharmacy.credit.pick.results')} data-testid="customer-results">
               {items.map((c) => {
                 const why = creditablePerson(c, saleCurrency);

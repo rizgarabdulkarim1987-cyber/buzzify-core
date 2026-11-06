@@ -486,6 +486,18 @@ const CASES: Record<string, Case> = {
   'ph.stock.receipt.void': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.stock.receipt.get': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.stock.receipt.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Fast entry (Task 13): a line goes into the person's own draft in the place's branch (another business's product is not
+  // found); finishing names a receipt, which must be the person's own entry there; the lookup never repeats a typed name;
+  // the history is the place's branch only. Without a branch in the place each is refused (INVALID: choose the branch).
+  'ph.stock.entry.addLine': {
+    body: (ids) => ({ requestKey: key(), product: { kind: 'known', productId: ids.productId }, qty: 1, expiry: { month: 3, year: 2028 }, purchasePrice: '1', purchaseCurrency: 'IQD' }),
+    foreignIds: 'refused',
+    otherBranchIds: 'harmless',
+  },
+  'ph.stock.entry.finish': { body: (ids, n) => ({ receiptId: pick(ids, n).receiptId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.stock.entry.lookup': { body: (ids) => ({ q: ids.tradeName }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.stock.entry.draft': { body: () => ({}), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.stock.history': { body: (ids) => ({ productId: ids.productId }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   // Counting
   'ph.stock.count.open': { body: (ids) => ({ scope: 'CATEGORY', categoryId: ids.categoryId, blind: false, note: '' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.stock.count.record': {
@@ -513,6 +525,10 @@ const CASES: Record<string, Case> = {
   'ph.sales.discardHold': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.sales.holds': { body: () => ({}), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.sell.search': { body: (ids) => ({ q: ids.tradeName }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  // A product is the business's; its batches and sales are read for the place's branch only.
+  'ph.sell.info': { body: (ids) => ({ productId: ids.productId }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  // Cost and profit of the cart lines (cost.view): the product is the business's, the batches read are the place's branch only.
+  'ph.sell.costs': { body: (ids) => ({ currency: 'IQD', lines: [{ key: 'k1', productId: ids.productId, unitId: ids.unitId, qty: 1, unitPriceMinor: '100' }] }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   // Shifts and cash (phase 3). Open and the cash movements act on the caller's own shift: they name no foreign id.
   'ph.shifts.open': { body: () => ({ currency: 'IQD', openingFloatMinor: 10n, clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.cash.paidIn': { body: () => ({ amountMinor: 5n, reason: 'Planted', clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
@@ -660,6 +676,9 @@ const CASES: Record<string, Case> = {
   'ph.credit.payment.record': { body: (ids) => ({ customerId: ids.customerId, method: 'CARD', amountMinor: 1n, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credit.payment.reverse': { body: (ids, n) => ({ paymentId: pick(ids, n).custPayId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.credit.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.exchangeRate.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.exchangeRate.set': { body: () => ({ usdRate: 1450, version: 999 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.pulse': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credit.settings.set': { body: () => ({ creditEnabled: false, version: 1 }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Printing settings (phase 7, task 6): one JSON value on the business's own settings row; a stale version changes nothing.
   'ph.print.settings.get': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
@@ -1039,7 +1058,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers the sale screen search', () => {
     const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
-    expect(sell).toEqual(['ph.sell.search']);
+    expect(sell.sort()).toEqual(['ph.sell.costs', 'ph.sell.info', 'ph.sell.search']);
     expect(sell.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
@@ -1280,6 +1299,9 @@ const ROLE_MATRIX: Record<string, { accountant: string; cashier: string }> = {
   'ph.sales.discardHold': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
   'ph.sales.holds': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.sell.search': { accountant: 'OK', cashier: 'OK' },
+  'ph.sell.info': { accountant: 'OK', cashier: 'OK' },
+  // The cashier gets an answer with no cost in it (no cost.view); the accountant holds cost.view.
+  'ph.sell.costs': { accountant: 'OK', cashier: 'OK' },
   'ph.shifts.open': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.cash.paidIn': { accountant: 'FORBIDDEN', cashier: 'OK' },
   'ph.cash.paidOut': { accountant: 'FORBIDDEN', cashier: 'OK' },

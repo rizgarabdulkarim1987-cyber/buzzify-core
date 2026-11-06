@@ -1,6 +1,7 @@
 import { Lock, PackagePlus, PackageSearch, SearchX } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { FastEntryBadge } from '@/app/pharmacy/_ui/FastEntryMark';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { ReceiptStatus } from '@/app/pharmacy/_ui/ReceiptStatus';
 import { ReceiveBlocked } from '@/app/pharmacy/_ui/ReceiveBlocked';
@@ -133,8 +134,9 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
                       <span className="text-muted">{t('pharmacy.receive.noNumber')}</span>
                     )}
                   </span>
-                  <span>
+                  <span className="flex flex-wrap items-center gap-1.5">
                     <ReceiptStatus status={r.status} t={t} />
+                    {r.fastEntry && <FastEntryBadge t={t} />}
                   </span>
                   <span dir="auto" className="min-w-0 break-words text-sm text-text">
                     <span className="text-muted md:sr-only">{t('pharmacy.receive.field.supplier')}: </span>

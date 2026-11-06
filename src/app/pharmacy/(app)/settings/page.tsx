@@ -6,6 +6,7 @@ import { PharmacySettings } from '@/app/pharmacy/_ui/PharmacySettings';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { get as getControlled } from '@/server/pharmacy/queries/controlled-settings';
 import { get as getCredit } from '@/server/pharmacy/queries/credit-settings';
+import { get as getRate } from '@/server/pharmacy/queries/exchange-rate';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -27,7 +28,8 @@ export default async function SettingsPage() {
   const { access, t } = g;
   const owner = roleMay(access.actor, 'settings.manage');
   const manager = access.actor.role === 'BRANCH_MANAGER';
-  if (!owner && !manager) {
+  const rateEditor = roleMay(access.actor, 'rate.set');
+  if (!owner && !manager && !rateEditor) {
     return (
       <>
         <PageHeader className="max-sm:px-4" title={t('pharmacy.settings.title')} />
@@ -37,14 +39,16 @@ export default async function SettingsPage() {
       </>
     );
   }
-  const [controlled, credit] = await Promise.all([query(getControlled, access.placeInput), query(getCredit, access.placeInput)]);
+  const [controlled, credit, rate] = await Promise.all([query(getControlled, access.placeInput), query(getCredit, access.placeInput), query(getRate, access.placeInput)]);
   const writable = access.writable('settings.manage');
+  const rateWritable = access.writable('rate.set');
+  const full = owner || manager;
   return (
     <>
       <PageHeader className="max-sm:px-4" title={t('pharmacy.settings.title')} description={t('pharmacy.settings.intro')} />
       <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 sm:px-8">
         {owner && !writable.ok && <WriteBlocked writable={writable} scope="sales" />}
-        {roleMay(access.actor, 'staff.manage') && (
+        {full && roleMay(access.actor, 'staff.manage') && (
           <nav aria-labelledby="set-doctor-h" className="flex min-w-0 max-w-2xl flex-col gap-2" data-testid="settings-doctor-links">
             <h2 id="set-doctor-h" className="text-lg font-semibold text-text">
               {t('pharmacy.settings.links.title')}
@@ -70,6 +74,7 @@ export default async function SettingsPage() {
             </ul>
           </nav>
         )}
+        {full && (
         <nav aria-labelledby="set-print-h" className="flex min-w-0 max-w-2xl flex-col gap-2" data-testid="settings-print-links">
           <h2 id="set-print-h" className="text-lg font-semibold text-text">
             {t('pharmacy.print.settings.title')}
@@ -83,9 +88,12 @@ export default async function SettingsPage() {
             <ChevronRight aria-hidden className="size-4 shrink-0 text-ph-muted rtl:rotate-180" />
           </Link>
         </nav>
+        )}
         <PharmacySettings
-          initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, version: controlled.version }}
+          initial={{ controlledEnabled: controlled.controlledEnabled, controlledMaxQty: controlled.controlledMaxQty, rxRetentionDays: controlled.rxRetentionDays, creditEnabled: credit.creditEnabled, usdRate: rate.usdRate, version: controlled.version }}
           editable={owner && writable.ok}
+          rateEditable={rateEditor && rateWritable.ok}
+          rateOnly={!full}
         />
       </div>
     </>

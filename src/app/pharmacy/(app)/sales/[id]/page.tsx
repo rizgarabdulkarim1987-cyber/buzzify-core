@@ -86,6 +86,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           currency={sale.currency}
           paid={can?.paidMethods ?? refundable}
           defaultMethod={can?.defaultRefundMethod ?? refundable[0] ?? 'CASH'}
+          onAccount={can?.onAccount ?? sale.methods.includes('CREDIT')}
         />
 
         {sale.number !== null && sale.status !== 'HELD' && (

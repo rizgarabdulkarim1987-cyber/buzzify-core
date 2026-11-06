@@ -36,6 +36,8 @@ export const PH_PERMISSIONS = [
   'import.apply',
   'staff.manage',
   'settings.manage',
+  /** Only the display-only USD exchange rate (the owner and the pharmacists), not the rest of the settings. */
+  'rate.set',
   'support.grant',
   'customer.manage',
   'credit.sell',
@@ -45,7 +47,7 @@ export type PhPermission = (typeof PH_PERMISSIONS)[number];
 /** Who may hold which permission. The owner holds all; only the owner may grant support access. */
 const MATRIX: Record<PhRole, readonly PhPermission[]> = {
   OWNER: PH_PERMISSIONS,
-  BRANCH_MANAGER: PH_PERMISSIONS.filter((p) => p !== 'support.grant' && p !== 'settings.manage'),
+  BRANCH_MANAGER: PH_PERMISSIONS.filter((p) => p !== 'support.grant' && p !== 'settings.manage' && p !== 'rate.set'),
   PHARMACIST_IN_CHARGE: [
     'catalog.view',
     'catalog.manage',
@@ -66,8 +68,9 @@ const MATRIX: Record<PhRole, readonly PhPermission[]> = {
     'import.apply',
     'customer.manage',
     'credit.sell',
+    'rate.set',
   ],
-  PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use', 'credit.sell'],
+  PHARMACIST: ['catalog.view', 'discount.apply', 'rx.dispense', 'rx.attachment.view', 'shift.use', 'ai.use', 'credit.sell', 'rate.set'],
   CASHIER: ['catalog.view', 'discount.apply', 'shift.use'],
   STOCK: [
     'catalog.view',

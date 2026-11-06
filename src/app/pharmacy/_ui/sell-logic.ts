@@ -116,6 +116,8 @@ export interface CartLine {
   key: string;
   productId: string;
   name: string;
+  /** The item code (a barcode) shown in the cashier's table; '' when the product has none or the line was kept before codes existed. */
+  code: string;
   /** Strength, form and pack, for the cashier to tell products apart. */
   detail: string;
   rxLevel: RxLevel;
@@ -150,6 +152,8 @@ export const MAX_QTY = 1_000_000;
 export interface AddableItem {
   productId: string;
   tradeName: string;
+  /** The item code (barcode), '' when none. */
+  code: string;
   strength: string;
   form: string;
   packLabel: string;
@@ -201,6 +205,7 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         key: `l${state.seq + 1}`,
         productId: action.item.productId,
         name: action.item.tradeName,
+        code: action.item.code,
         detail: itemDetail(action.item),
         rxLevel: action.item.rxLevel,
         units: action.item.units.map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty, priceMinor: u.priceMinor })),
@@ -245,6 +250,22 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
 }
 
 export const unitOf = (line: CartLine): CartUnit => line.units.find((u) => u.id === line.unitId) ?? line.units[0]!;
+
+/**
+ * The unit the unit key moves a line to: the next one after the line's unit (wrapping) that has a price; null when there
+ * is no other priced unit (the screen then says so inline). A unit counts as sellable when `priceMinor !== null` (CartUnit
+ * carries no other flag, and a cart's prices are already in the sale currency; `_currency` documents that).
+ */
+export function nextUnitId(line: CartLine, _currency: Currency): string | null {
+  void _currency;
+  const { units } = line;
+  const at = units.findIndex((u) => u.id === line.unitId);
+  for (let step = 1; step < units.length; step += 1) {
+    const candidate = units[(Math.max(at, 0) + step) % units.length]!;
+    if (candidate.priceMinor !== null && candidate.id !== line.unitId) return candidate.id;
+  }
+  return null;
+}
 
 // The estimate --------------------------------------------------------------------------------------------------------
 
@@ -544,44 +565,7 @@ export function openedShiftOrClosed(data: { status: 'OPEN' | 'CLOSED' }): { kind
 /** The refusals that mean "the total the server computed is not what was paid": prices or rounding moved. */
 export const TOTAL_MOVED_CODES: readonly string[] = ['PAYMENT_SHORT', 'PAYMENT_NON_CASH_OVERPAY', 'PAYMENT_CASH_NOT_NEEDED'];
 
-// Keyboard ---------------------------------------------------------------------------------------------------------------
-
-export type Shortcut = 'search' | 'pay' | 'hold' | 'escape' | 'addTop';
-
-/**
- * What a key press means on the sale screen. F2 focuses the search, F4 opens payment, F8 holds the cart, Escape clears
- * the search or closes the dialog, Enter in the search box adds the top result. Keys with Ctrl, Alt or Meta are the
- * browser's; a key held down (repeat) never fires twice; a key that someone already handled (`defaultPrevented`, as a
- * scanner's closing Enter is) and a key pressed while an input method is composing (`isComposing`, keyCode 229) mean nothing.
- * Nor does any key while a modal sheet is open over the screen (`modalOpen`, the Doctor sheet on a phone): the sheet owns
- * the keys, and Escape must close it rather than clear the search behind it. Escape pressed inside the Doctor's side panel
- * (`inDoctor`) is the panel's own too: it never clears the sale search or pulls the focus away.
- */
-export function shortcutOf(
-  event: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; keyCode?: number; defaultPrevented?: boolean },
-  inSearch: boolean,
-  modalOpen = false,
-  inDoctor = false,
-): Shortcut | null {
-  if (modalOpen) return null;
-  if (inDoctor && event.key === 'Escape') return null;
-  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented) return null;
-  if (event.isComposing || event.keyCode === 229) return null;
-  switch (event.key) {
-    case 'F2':
-      return 'search';
-    case 'F4':
-      return 'pay';
-    case 'F8':
-      return 'hold';
-    case 'Escape':
-      return 'escape';
-    case 'Enter':
-      return inSearch && !event.shiftKey ? 'addTop' : null;
-    default:
-      return null;
-  }
-}
+// The cashier's keys are `cashierKeyOf` in sell-keys.ts.
 
 /** A quantity typed in a line's field (Latin, Arabic-Indic or Persian digits): a whole number from 1; null for empty or nothing usable. */
 export function parseQtyText(text: string): number | null {
@@ -666,7 +650,7 @@ export function serializeDraft(currency: Currency, cart: CartState, attempt: Sal
   return JSON.stringify({ v: DRAFT_VERSION, currency, cart, fromHoldId, attempt, ...(prescriptionId ? { prescriptionId } : {}) } satisfies Draft);
 }
 
-const isDiscount = (d: unknown): d is DiscountDraft | null =>
+export const isDiscount = (d: unknown): d is DiscountDraft | null =>
   d === null || (typeof d === 'object' && d !== null && ((d as DiscountDraft).kind === 'amount' || (d as DiscountDraft).kind === 'percent') && typeof (d as DiscountDraft).value === 'string');
 
 const isUnit = (u: unknown): u is CartUnit => {
@@ -674,13 +658,17 @@ const isUnit = (u: unknown): u is CartUnit => {
   return !!x && typeof x.id === 'string' && typeof x.label === 'string' && Number.isInteger(x.baseQty) && (x.priceMinor === null || (typeof x.priceMinor === 'string' && /^\d+$/.test(x.priceMinor)));
 };
 
-const isLine = (l: unknown): l is CartLine => {
+/** A kept line from before codes existed has no `code`: it reads as ''. */
+export const withCode = (cart: CartState): CartState => (cart.lines.every((l) => typeof l.code === 'string') ? cart : { ...cart, lines: cart.lines.map((l) => (typeof l.code === 'string' ? l : { ...l, code: '' })) });
+
+export const isLine = (l: unknown): l is CartLine => {
   const x = l as CartLine;
   return (
     !!x &&
     typeof x.key === 'string' &&
     typeof x.productId === 'string' &&
     typeof x.name === 'string' &&
+    (x.code === undefined || typeof x.code === 'string') &&
     typeof x.detail === 'string' &&
     ['OTC', 'RX', 'RESTRICTED'].includes(x.rxLevel) &&
     Array.isArray(x.units) &&
@@ -701,7 +689,18 @@ const isLine = (l: unknown): l is CartLine => {
   );
 };
 
-const isAttempt = (a: unknown): a is SaleAttempt => {
+/**
+ * The longest signature kept. A signature is the whole request as JSON, so it is sized from the largest request: MAX_LINES lines,
+ * each with three ids, a batch reason and a discount reason of 300 characters (the server's limit) that JSON may escape to six
+ * characters each (a control character), plus the rest of the line; and the payment, credit and invoice discount on top. About
+ * 930,000 characters; an attempt for any sale the server could take is never dropped by its size. Keys are capped at 80 and the
+ * reference at 200 (the payment field's own limit).
+ */
+const SIG_LINE_BUDGET = 2 * 300 * 6 + 1024;
+export const MAX_SIG_LENGTH = MAX_LINES * SIG_LINE_BUDGET + 8192;
+
+/** A stored sale attempt that can be sent again as it was (its keys and payment); anything else reads as no attempt. */
+export const isAttempt = (a: unknown): a is SaleAttempt => {
   const x = a as SaleAttempt;
   return (
     !!x &&
@@ -714,7 +713,16 @@ const isAttempt = (a: unknown): a is SaleAttempt => {
     typeof x.amountMinor === 'string' &&
     /^\d+$/.test(x.amountMinor) &&
     typeof x.reference === 'string' &&
-    (x.fromHoldId === null || typeof x.fromHoldId === 'string')
+    (x.fromHoldId === null || typeof x.fromHoldId === 'string') &&
+    x.sig.length <= MAX_SIG_LENGTH &&
+    x.key.length <= 80 &&
+    x.paymentKey.length <= 80 &&
+    x.reference.length <= 200 &&
+    (x.creditKey === undefined || (typeof x.creditKey === 'string' && x.creditKey.length >= 8 && x.creditKey.length <= 80)) &&
+    (x.credit === undefined ||
+      x.credit === null ||
+      (typeof x.credit === 'object' && typeof x.credit.customerId === 'string' && x.credit.customerId.length > 0 && x.credit.customerId.length <= 80 && typeof x.credit.amount === 'string' && x.credit.amount.length <= 40 && typeof x.creditKey === 'string')) &&
+    (x.prescriptionId === undefined || x.prescriptionId === null || (typeof x.prescriptionId === 'string' && x.prescriptionId.length <= 64))
   );
 };
 
@@ -727,7 +735,7 @@ export function parseDraft(text: string | null): Draft | null {
     const c = raw.cart;
     if (!c || !Array.isArray(c.lines) || c.lines.length === 0 || c.lines.length > MAX_LINES || !c.lines.every(isLine)) return null;
     if (!isDiscount(c.invoiceDiscount) || typeof c.discountReason !== 'string' || !Number.isInteger(c.seq)) return null;
-    return { v: raw.v, currency: raw.currency, cart: c, fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null, ...(typeof raw.prescriptionId === 'string' && raw.prescriptionId.length <= 64 ? { prescriptionId: raw.prescriptionId } : {}) };
+    return { v: raw.v, currency: raw.currency, cart: withCode(c), fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null, ...(typeof raw.prescriptionId === 'string' && raw.prescriptionId.length <= 64 ? { prescriptionId: raw.prescriptionId } : {}) };
   } catch {
     return null;
   }
@@ -752,7 +760,7 @@ export function baseQtyByProduct(cart: CartState): Map<string, number> {
   return out;
 }
 
-/** Products whose cart quantity is above what was sellable when found: a warning, never a block (the sale decides). */
+/** Products whose cart quantity is above what was sellable when found. The cashier now blocks Pay on them (`payBlockKey`); the sale still decides. */
 export function overSellable(cart: CartState): Set<string> {
   const need = baseQtyByProduct(cart);
   const over = new Set<string>();
@@ -833,6 +841,7 @@ export function cartFromResume(
       key: `l${(seq += 1)}`,
       productId,
       name: String(raw.tradeName ?? productId),
+      code: item?.code ?? '',
       detail: '',
       rxLevel: 'OTC',
       units: [heldUnit(unitId)],

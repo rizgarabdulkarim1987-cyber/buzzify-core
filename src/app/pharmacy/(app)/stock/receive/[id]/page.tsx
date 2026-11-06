@@ -2,6 +2,7 @@ import { ArrowLeft, Lock } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { FastEntryNote } from '@/app/pharmacy/_ui/FastEntryMark';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { ReceiptEditor } from '@/app/pharmacy/_ui/ReceiptEditor';
 import { draftOfReceipt, type UnitChoice } from '@/app/pharmacy/_ui/receipt-draft';
@@ -56,6 +57,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   const writable = access.writable('purchase.manage');
   const mayReceive = roleMay(actor, 'purchase.manage');
   const editable = receipt.status === 'DRAFT' && writable.ok && access.place.branchId === receipt.branchId;
+  // A fast-entry draft is someone's entry in progress: it stays editable here (the only way to drop a line or void a stuck
+  // entry), but says where it is finished.
+  const entryNote = receipt.status === 'DRAFT' && receipt.fastEntry ? <FastEntryNote t={t} /> : null;
 
   if (editable && access.place.branchId) {
     const productIds = [...new Set(receipt.lines.map((l) => l.productId))];
@@ -70,7 +74,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         units: [...p.units].sort((a, b) => a.level - b.level).map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty })),
       };
     }
-    return (
+    const editor = (
       <ReceiptEditor
         userId={actor.userId}
         restaurantId={access.placeInput.restaurantId}
@@ -80,6 +84,13 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         receiptId={receipt.id}
         currencies={currencyList}
       />
+    );
+    if (!entryNote) return editor;
+    return (
+      <>
+        <div className="px-4 pt-6 sm:px-8">{entryNote}</div>
+        {editor}
+      </>
     );
   }
 
@@ -112,6 +123,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         ) : reason ? (
           <ReceiveBlocked reason={reason} t={t} />
         ) : null}
+        {entryNote}
         <OfflineNotice />
         <ReceiptView receipt={receipt} movements={moves} branchName={branchName} t={t} locale={locale} />
       </div>

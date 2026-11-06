@@ -2388,6 +2388,8 @@ model PhSettings {
   shiftVarianceLimitMinor BigInt     @default(0)
   /// Days after a sale in which a return needs no OWNER/BRANCH_MANAGER. CHECK >= 0.
   returnWindowDays        Int        @default(30)
+  /// Display-only exchange rate: IQD per 1 USD, shown in the cashier header. CHECK 1..1000000 in the migration.
+  usdRate                 Int        @default(1450)
   /// IANA time zone for what is printed (receipts); instants stay UTC. Validated as a real zone by the application.
   timeZone                String     @default("Asia/Baghdad")
   version                 Int        @default(1)
@@ -2899,6 +2901,8 @@ model PhReceiptLine {
   /// cover; the CHECK keeps `invoicedQty` within `qty + bonusQty`.
   purchaseOrderLineId String?
   invoicedQty         Int           @default(0)
+  /// Fast product entry: the request that added this line (one line per request; a repeat finds it). Null for every other line.
+  clientKey           String?
   restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   purchaseOrderLine PhPurchaseOrderLine? @relation(fields: [restaurantId, purchaseOrderLineId], references: [restaurantId, id], onDelete: NoAction)
   invoiceLines    PhSupplierInvoiceLine[]
@@ -2909,6 +2913,7 @@ model PhReceiptLine {
 
   @@unique([receiptId, lineNo])
   @@unique([restaurantId, id])
+  @@unique([restaurantId, clientKey])
   @@index([restaurantId, productId])
 }
 

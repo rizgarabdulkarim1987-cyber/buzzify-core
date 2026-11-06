@@ -35,6 +35,7 @@ const { ReceiptEditor } = await import('@/app/pharmacy/_ui/ReceiptEditor');
 const { ReceiptView } = await import('@/app/pharmacy/_ui/ReceiptView');
 const { ReceiptStatus } = await import('@/app/pharmacy/_ui/ReceiptStatus');
 const { ReceiveBlocked } = await import('@/app/pharmacy/_ui/ReceiveBlocked');
+const { FastEntryBadge, FastEntryNote } = await import('@/app/pharmacy/_ui/FastEntryMark');
 const { emptyDraft, inputOf, readExpiry, totalsOf, minorToText } = await import('@/app/pharmacy/_ui/receipt-draft');
 const { default: ReceiveError } = await import('@/app/pharmacy/(app)/stock/receive/error');
 const { default: ReceiveLoading } = await import('@/app/pharmacy/(app)/stock/receive/loading');
@@ -386,6 +387,7 @@ const RECEIPT = (over: Partial<ReceiptDetail> = {}): ReceiptDetail => ({
   lineCount: 1,
   version: 3,
   createdAt: '2026-10-27T08:00:00.000Z',
+  fastEntry: false,
   note: '',
   confirmedAt: '2026-10-27T09:00:00.000Z',
   lines: [
@@ -477,6 +479,18 @@ describe('states and languages', () => {
     mount(createElement(ReceiveBlocked, { reason, t: en }));
     expect(container.querySelector('[data-testid="receive-write-blocked"] svg')).toBeTruthy();
     expect(text()).toBe(en(`pharmacy.receive.blocked.${reason}`));
+  });
+
+  it.each(['en', 'ar', 'ckb'] as const)('marks a fast-entry draft and points back to the entry screen (%s)', (locale) => {
+    const t = getStudioTranslator(locale);
+    mount(createElement('div', null, createElement(FastEntryBadge, { t }), createElement(FastEntryNote, { t })), locale);
+    expect(container.querySelector('[data-testid="receipt-fast-entry"]')!.textContent).toBe(t('pharmacy.receive.fastEntry'));
+    expect(container.querySelector('[data-testid="receipt-fast-entry"] svg')).toBeTruthy();
+    const link = container.querySelector('[data-testid="receipt-fast-entry-note"] a')!;
+    expect(link.getAttribute('href')).toBe('/pharmacy/stock/entry');
+    expect(link.textContent).toBe(t('pharmacy.receive.fastEntryOpen'));
+    expect(text()).toContain(t('pharmacy.receive.fastEntryNote'));
+    for (const k of ['pharmacy.receive.fastEntry', 'pharmacy.receive.fastEntryNote', 'pharmacy.receive.fastEntryOpen']) expect(t(k)).not.toBe(k);
   });
 
   it('loading and failure each say so with an icon, and failure offers a retry', async () => {

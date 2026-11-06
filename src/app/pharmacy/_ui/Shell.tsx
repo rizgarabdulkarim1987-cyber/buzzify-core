@@ -7,10 +7,10 @@ import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
 import { BottomBar } from './BottomBar';
 import { Rail } from './Rail';
 import { SupportBanner } from './SupportBanner';
-import { phNav, type PhNavItem, type PhNavKey, type PhShellLink } from './nav';
+import { phNav, type PhNavItem, type PhNavKey, type PhShellGroup, type PhShellLink } from './nav';
 
 /** The places the phone's bottom bar holds; everything else goes in its "More" sheet. */
-const BAR = new Set<PhNavKey>(['home', 'sell', 'stock', 'expiry']);
+const BAR = new Set<PhNavKey>(['home', 'sell', 'stock', 'catalog', 'customers']);
 
 const RAIL_LINK = 'flex min-h-11 items-center gap-2 rounded-ph-xl px-2 text-sm font-medium text-ph-on-green underline underline-offset-2 hover:bg-ph-g9';
 const SHEET_LINK = 'flex min-h-12 items-center gap-2 rounded-ph-xl px-3 text-base font-medium text-ph-text underline underline-offset-2 hover:bg-ph-card';
@@ -55,7 +55,9 @@ export function Shell({
     ...(item.badge && counts ? { count: counts[item.badge] } : {}),
   });
   const primary = nav.primary.map(link);
-  const more = nav.more.map(link);
+  const groups: PhShellGroup[] = nav.groups.map((g) => ({ key: g.key, label: t(g.labelKey), links: g.items.map(link) }));
+  // A counter on a place hidden inside More (expiry) shows on the More entry instead.
+  const moreCount = nav.more.reduce((sum, item) => sum + (item.badge && counts ? counts[item.badge] : 0), 0);
   const navLabel = t('pharmacy.nav.main');
   const moreLabel = t('pharmacy.nav.more');
 
@@ -92,7 +94,7 @@ export function Shell({
         >
           <UserRound aria-hidden size={22} />
         </Link>
-        <Rail primary={primary} more={more} navLabel={navLabel} moreLabel={moreLabel} />
+        <Rail primary={primary} groups={groups} navLabel={navLabel} moreLabel={moreLabel} moreCount={moreCount} />
         <div className="hidden md:mt-auto md:flex md:flex-col md:gap-0.5 md:rounded-[14px] md:bg-ph-g8 md:p-2.5 md:text-ph-on-green">
           <span className="break-words px-2 pb-1 text-sm font-semibold" dir="auto">
             {actor.name} · {role}
@@ -116,7 +118,9 @@ export function Shell({
       </div>
       <BottomBar
         bar={primary.filter((l) => BAR.has(l.key))}
-        sheet={[...primary.filter((l) => !BAR.has(l.key)), ...more]}
+        sheet={primary.filter((l) => !BAR.has(l.key))}
+        groups={groups}
+        moreCount={moreCount}
         navLabel={navLabel}
         moreLabel={moreLabel}
         closeLabel={t('pharmacy.nav.close')}

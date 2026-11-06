@@ -1,11 +1,9 @@
 import { Lock, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { DoctorSlot } from '@/app/pharmacy/_ui/DoctorSlot';
-import { SellWorkspace } from '@/app/pharmacy/_ui/SellWorkspace';
-import { LOOK_COOKIE, lookOf } from '@/app/pharmacy/_ui/sell-look';
+import { unstable_rethrow } from 'next/navigation';
+import { CashierScreen } from '@/app/pharmacy/_ui/cashier/CashierScreen';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
-import { doctorEnabledThisRequest } from '@/server/pharmacy/doctor/nav';
+import { pulse as pulseQuery } from '@/server/pharmacy/queries/pulse';
 import { current } from '@/server/pharmacy/queries/shifts';
 import { search } from '@/server/pharmacy/queries/sell';
 import { query } from '@/server/studio/framework/invoke';
@@ -14,14 +12,24 @@ import { requestStudioLocale } from '@/studio/request-locale';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { catalogAccess, roleMay } from '../catalog/access';
 
+/** A failed read of the header chips: the till shows without them (Next's own redirect and not-found signals still pass). */
+function chipsUnread(error: unknown): undefined {
+  unstable_rethrow(error);
+  return undefined;
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pharmacy.sell.title') };
 }
 
 /**
- * The sale screen. Who may sell follows `shift.use`; the page says why it is missing for anyone else (a role that does
- * not sell, a support actor, a read-only pharmacy, "All branches" chosen). Selling is in one branch, so one must be
- * chosen. The shift gate and everything after it are the client workspace; the server checks every call again.
+ * The sale screen: the cashier (`CashierScreen`). Who may sell follows `shift.use`; the page says why it is missing for anyone
+ * else (a role that does not sell, a support actor, a read-only pharmacy, "All branches" chosen). Selling is in one branch, so
+ * one must be chosen. The shift gate (no open shift: open one first) and everything after it are the client screen; the server
+ * checks every call again. What the role may do is read here from the session: discount, batch override, prescriptions,
+ * credit, returns (`return.approve`), the cost columns (`cost.view`; the server answers `ph.sell.costs` with nothing for anyone
+ * else) and price edit (`price.change`). The header chips (`ph.pulse`) are read here and again on `router.refresh()` after a
+ * sale or a return. The AI Doctor is not on this page (owner decision 2026-11-05); it keeps its own page and nav item.
  */
 export default async function SellPage() {
   const [access, locale] = await Promise.all([catalogAccess(), requestStudioLocale()]);
@@ -51,16 +59,14 @@ export default async function SellPage() {
     );
   }
 
-  const [now, found, doctor] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), doctorEnabledThisRequest(actor)]);
+  // The header chips are a convenience: a problem reading them shows the till without chips, it never takes the till down.
+  const [now, found, pulse] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), query(pulseQuery, placeInput).catch(chipsUnread)]);
   const open = now
     ? { id: now.shift.id, currency: now.shift.currency, openingFloatMinor: now.shift.openingFloatMinor, openedAt: now.shift.openedAt }
     : null;
 
-  const look = lookOf((await cookies()).get(LOOK_COOKIE)?.value);
-
   return (
-    <SellWorkspace
-      look={look}
+    <CashierScreen
       restaurantId={placeInput.restaurantId}
       branchId={place.branchId}
       userId={actor.userId}
@@ -72,8 +78,11 @@ export default async function SellPage() {
         rx: roleMay(actor, 'rx.dispense'),
         credit: found.settings.creditEnabled && roleMay(actor, 'credit.sell'),
       }}
-      aside={<DoctorSlot where="sell" enabled={doctor} branchId={place.branchId} t={t} />}
-      phoneAside={<DoctorSlot where="sell-phone" enabled={doctor} branchId={place.branchId} t={t} />}
+      pulse={pulse}
+      role={actor.role}
+      canReturn={roleMay(actor, 'return.approve')}
+      canSeeCost={roleMay(actor, 'cost.view')}
+      canEditPrice={roleMay(actor, 'price.change')}
     />
   );
 }

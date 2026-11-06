@@ -1,15 +1,14 @@
 'use client';
 
 import { Camera, CircleAlert, Hourglass, ImageUp, Pill, Search, Send, Stethoscope, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { flushSync } from 'react-dom';
+import { useId, useState, type ChangeEvent, type ReactNode } from 'react';
 import { askDoctor } from '@/app/pharmacy/_actions/doctor';
 import type { DoctorResponse } from '@/server/pharmacy/doctor/service';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { DoctorAnswer, type AddMode } from './DoctorAnswer';
-import { askInputOf, COMPLAINT_MAX, DOCTOR_SIDE_PANEL_QUERY, EMPTY_FORM, MEDICINE_MAX, photoErrorKey, type DoctorForm } from './doctor-logic';
+import { askInputOf, COMPLAINT_MAX, EMPTY_FORM, MEDICINE_MAX, photoErrorKey, type DoctorForm } from './doctor-logic';
 import { DoctorPhotoError, prepareDoctorPhoto } from './doctor-photo';
 import { PH_BTN, PH_FIELD, PH_PRIMARY } from './sell-parts';
 
@@ -227,80 +226,5 @@ export function DoctorPanel({ branchId, addMode, header = true }: { branchId: st
         {result ? <DoctorAnswer result={result} addMode={addMode} /> : null}
       </div>
     </section>
-  );
-}
-
-/**
- * The Doctor on Sell below 2xl (phones, tablets, small laptops): a floating button that opens the panel in a bottom sheet. The
- * sheet is a modal `<dialog>` (focus stays inside, Escape closes it); it opens with the focus in the first field and gives it back
- * to the button when it closes. The panel stays mounted once opened, so closing the sheet to look at the cart keeps the question
- * and its (paid) answer. When the screen grows to 2xl, where the side panel shows instead, the sheet closes itself: a modal left
- * open but unseen would leave the page inert.
- */
-export function DoctorSheet({ branchId }: { branchId: string }) {
-  const t = useT();
-  const id = useId();
-  const [opened, setOpened] = useState(false);
-  const fab = useRef<HTMLButtonElement>(null);
-  const dialog = useRef<HTMLDialogElement>(null);
-  const closed = () => fab.current?.focus();
-  const show = () => {
-    // The content mounts on the first open: draw it now, so the first field can take the focus.
-    flushSync(() => setOpened(true));
-    dialog.current?.showModal();
-    dialog.current?.querySelector<HTMLElement>('textarea, input:not([type="file"]):not([disabled])')?.focus();
-  };
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const wide = window.matchMedia(DOCTOR_SIDE_PANEL_QUERY);
-    const onChange = (event: { matches: boolean }) => {
-      if (event.matches && dialog.current?.open) dialog.current.close();
-    };
-    wide.addEventListener('change', onChange);
-    return () => wide.removeEventListener('change', onChange);
-  }, []);
-  return (
-    <>
-      <button
-        ref={fab}
-        type="button"
-        data-testid="doctor-fab"
-        aria-haspopup="dialog"
-        onClick={show}
-        className="inline-flex min-h-12 items-center gap-2 rounded-full bg-ph-g6 px-5 text-base font-bold text-ph-on-green shadow-[0_10px_22px_-10px_rgba(11,59,48,0.75)] hover:bg-ph-g8"
-      >
-        <Stethoscope aria-hidden className="size-5" />
-        {t('pharmacy.doctor.fab')}
-      </button>
-      <dialog
-        ref={dialog}
-        aria-labelledby={`${id}-sheet`}
-        onClose={closed}
-        className="inset-x-0 top-auto bottom-0 m-0 h-[88dvh] max-h-none w-full max-w-none rounded-t-[28px] border-0 bg-ph-canvas p-0 text-ph-text backdrop:bg-ph-g9/50 2xl:hidden print:hidden"
-      >
-        {opened ? (
-          <div className="flex h-full flex-col">
-            <div className="flex shrink-0 items-center gap-3 border-b border-ph-line bg-ph-card px-4 py-2 rounded-t-[28px]">
-              <h2 id={`${id}-sheet`} className="flex min-w-0 flex-1 items-center gap-2 break-words text-lg font-bold">
-                <Stethoscope aria-hidden className="size-5 shrink-0 text-ph-g6" />
-                {t('pharmacy.doctor.title')}
-              </h2>
-              <button
-                type="button"
-                data-testid="doctor-sheet-close"
-                onClick={() => dialog.current?.close()}
-                aria-label={t('pharmacy.doctor.close')}
-                className="grid size-11 shrink-0 place-items-center rounded-ph-xl hover:bg-ph-g1"
-              >
-                <X aria-hidden size={22} />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <DoctorPanel branchId={branchId} addMode="bridge" header={false} />
-            </div>
-          </div>
-        ) : null}
-      </dialog>
-    </>
   );
 }

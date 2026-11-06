@@ -7,7 +7,7 @@ const keys = (items: { key: string }[]) => items.map((i) => i.key);
 
 describe('phNav', () => {
   it('gives an owner the five primary places', () => {
-    expect(keys(phNav('OWNER', opts).primary)).toEqual(['home', 'sell', 'stock', 'expiry', 'reports']);
+    expect(keys(phNav('OWNER', opts).primary)).toEqual(['sell', 'stock', 'catalog', 'customers', 'reports']);
   });
 
   it('ends with doctor when the AI doctor is enabled', () => {
@@ -18,7 +18,7 @@ describe('phNav', () => {
   it('badges stock and expiry', () => {
     const p = phNav('OWNER', opts).primary;
     expect(p.find((i) => i.key === 'stock')?.badge).toBe('lowStock');
-    expect(p.find((i) => i.key === 'expiry')?.badge).toBe('expiring');
+    expect(phNav('OWNER', opts).more.find((i) => i.key === 'expiry')?.badge).toBe('expiring');
   });
 
   it('hides reports, purchasing and settings from a cashier', () => {
@@ -39,10 +39,10 @@ describe('phNav', () => {
     expect(more(2)).toContain('chain');
   });
 
-  it('shows settings only to owner and branch manager', () => {
+  it('shows settings to owner, branch manager and the pharmacists (who see only the dollar rate)', () => {
     for (const role of PH_ROLES) {
       const has = keys(phNav(role, opts).more).includes('settings');
-      expect(has).toBe(role === 'OWNER' || role === 'BRANCH_MANAGER');
+      expect(has).toBe(role === 'OWNER' || role === 'BRANCH_MANAGER' || role === 'PHARMACIST_IN_CHARGE' || role === 'PHARMACIST');
     }
   });
 
@@ -60,7 +60,9 @@ describe('phActiveKey', () => {
   it.each([
     ['/pharmacy/stock/expiry', 'expiry'],
     ['/pharmacy/stock/counts/x', 'counts'],
-    ['/pharmacy/stock', 'stock'],
+    ['/pharmacy/stock', 'stockList'],
+    ['/pharmacy/stock/entry', 'stock'],
+    ['/pharmacy/stock/receive/new', 'receiving'],
     ['/pharmacy/catalog/new', 'catalog'],
     ['/pharmacy/home', 'home'],
     ['/pharmacy/print/labels', 'labels'],

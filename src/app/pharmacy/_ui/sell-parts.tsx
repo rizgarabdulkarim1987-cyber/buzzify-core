@@ -31,6 +31,7 @@ export function Note({
   tone = 'plain',
   role,
   testId,
+  id,
   look = 'studio',
   children,
 }: {
@@ -38,11 +39,12 @@ export function Note({
   tone?: keyof typeof NOTE_TONE;
   role?: 'status' | 'alert';
   testId?: string;
+  id?: string;
   look?: 'studio' | 'ph';
   children: ReactNode;
 }) {
   return (
-    <p role={role} data-testid={testId} className={look === 'ph' ? `${PH_NOTE} ${PH_NOTE_TONE[tone]}` : `${NOTE} ${NOTE_TONE[tone]}`}>
+    <p id={id} role={role} data-testid={testId} className={look === 'ph' ? `${PH_NOTE} ${PH_NOTE_TONE[tone]}` : `${NOTE} ${NOTE_TONE[tone]}`}>
       {icon}
       <span className="min-w-0 break-words">{children}</span>
     </p>

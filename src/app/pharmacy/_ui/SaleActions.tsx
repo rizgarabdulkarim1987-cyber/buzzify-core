@@ -43,13 +43,15 @@ export interface SaleActionsProps {
   currency: 'IQD' | 'USD';
   paid: RefundMethod[];
   defaultMethod: RefundMethod;
+  /** Part or all of the sale went on the customer's account: with nothing paid at the till, only the default method is offered (`refundMethodChoices`). */
+  onAccount?: boolean;
 }
 
 /**
  * What can be done with one sale: print or reprint its receipt, return part of it (the return screen), cancel what is
  * left. A cashier sees why they cannot return, in words with an icon; the server refuses them anyway.
  */
-export function SaleActions({ sale, mayReturn, roleCannotReturn, returnable, returnWindow, writeBlocked, cancelLines, currency, paid, defaultMethod }: SaleActionsProps) {
+export function SaleActions({ sale, mayReturn, roleCannotReturn, returnable, returnWindow, writeBlocked, cancelLines, currency, paid, defaultMethod, onAccount = false }: SaleActionsProps) {
   const t = useT();
   const [printing, setPrinting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -91,13 +93,13 @@ export function SaleActions({ sale, mayReturn, roleCannotReturn, returnable, ret
         </Note>
       )}
       <PrintDialog target={printing ? { kind: 'sale', id: sale.id, number: sale.number } : null} onClose={() => setPrinting(false)} />
-      <CancelDialog open={cancelling} onClose={() => setCancelling(false)} sale={sale} lines={cancelLines} currency={currency} paid={paid} defaultMethod={defaultMethod} />
+      <CancelDialog open={cancelling} onClose={() => setCancelling(false)} sale={sale} lines={cancelLines} currency={currency} paid={paid} defaultMethod={defaultMethod} onAccount={onAccount} />
     </div>
   );
 }
 
 /** Cancel what is left of a sale: a full return, with a reason, by a method the sale was paid with. Asks before it acts. */
-function CancelDialog({ open, onClose, sale, lines, currency, paid, defaultMethod }: { open: boolean; onClose: () => void; sale: { id: string; number: string | null }; lines: { saleLineId: string; baseQty: number }[]; currency: 'IQD' | 'USD'; paid: RefundMethod[]; defaultMethod: RefundMethod }) {
+function CancelDialog({ open, onClose, sale, lines, currency, paid, defaultMethod, onAccount }: { open: boolean; onClose: () => void; sale: { id: string; number: string | null }; lines: { saleLineId: string; baseQty: number }[]; currency: 'IQD' | 'USD'; paid: RefundMethod[]; defaultMethod: RefundMethod; onAccount: boolean }) {
   const t = useT();
   const router = useRouter();
   const failure = useReturnFailure();
@@ -122,7 +124,7 @@ function CancelDialog({ open, onClose, sale, lines, currency, paid, defaultMetho
       cancelled = true;
     };
   }, [open, sale.id, wire]);
-  const choices = refundMethodChoices(paid, defaultMethod);
+  const choices = refundMethodChoices(paid, defaultMethod, onAccount);
   const ready = reason.trim().length >= 3;
 
   const submit = async (event: FormEvent) => {

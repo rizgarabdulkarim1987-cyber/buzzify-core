@@ -1,20 +1,19 @@
 'use client';
 
-import { Check, Info, OctagonAlert, Plus, TriangleAlert } from 'lucide-react';
+import { Info, OctagonAlert, Plus, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { MatchedItem, MatchedOption } from '@/server/pharmacy/doctor/matcher';
 import type { DoctorResponse } from '@/server/pharmacy/doctor/service';
 import { useT } from '@/studio/i18n';
-import { addToCart } from './cart-bridge';
-import { answerSections, cartItemOf, sellAddHref, type DoctorLine, type DoctorSection, type SectionTone } from './doctor-logic';
+import { answerSections, sellAddHref, type DoctorLine, type DoctorSection, type SectionTone } from './doctor-logic';
 import { Money } from './money-parts';
 
 /**
- * Where an in-stock option goes: straight into the open Sell cart (`bridge`), a link that opens Sell with it (`link`, the full
- * page), or nowhere for a person who cannot sell (`none`: the price and stock still show, with nothing to press).
+ * Where an in-stock option goes: a link that opens the cashier with it (`link`), or nowhere for a person who cannot sell (`none`:
+ * the price and stock still show, with nothing to press).
  */
-export type AddMode = 'bridge' | 'link' | 'none';
+export type AddMode = 'link' | 'none';
 
 const BOX: Record<SectionTone, string> = {
   danger: 'rounded-ph-xl bg-ph-red-wash px-3.5 py-3 text-ph-red',
@@ -45,33 +44,13 @@ function Lines({ lines, tone }: { lines: DoctorLine[]; tone: SectionTone }) {
   );
 }
 
-function AddButton({ item, mode }: { item: MatchedItem; mode: AddMode }) {
+function AddButton({ item }: { item: MatchedItem }) {
   const t = useT();
-  const [added, setAdded] = useState(false);
-  if (mode === 'link') {
-    return (
-      <Link href={sellAddHref(item)} data-testid="doctor-add" className={ADD}>
-        <Plus aria-hidden className="size-4" />
-        {t('pharmacy.doctor.option.add')}
-      </Link>
-    );
-  }
   return (
-    <button
-      type="button"
-      data-testid="doctor-add"
-      className={`${ADD} disabled:cursor-default disabled:bg-ph-g1 disabled:text-ph-g9`}
-      // One tap adds one; after that the button says it is in the cart and stays so (a double tap must not sell two).
-      disabled={added}
-      onClick={() => {
-        if (added) return;
-        addToCart(cartItemOf(item));
-        setAdded(true);
-      }}
-    >
-      {added ? <Check aria-hidden className="size-4" /> : <Plus aria-hidden className="size-4" />}
-      {t(added ? 'pharmacy.doctor.option.added' : 'pharmacy.doctor.option.add')}
-    </button>
+    <Link href={sellAddHref(item)} data-testid="doctor-add" className={ADD}>
+      <Plus aria-hidden className="size-4" />
+      {t('pharmacy.doctor.option.add')}
+    </Link>
   );
 }
 
@@ -116,7 +95,7 @@ function OptionRow({ option, mode }: { option: MatchedOption; mode: AddMode }) {
                 <span data-testid="doctor-item-qty">{t('pharmacy.doctor.option.left', { qty: item.sellableQty, unit: item.unitLabel })}</span>
               </span>
             </span>
-            {mode === 'none' ? null : <AddButton item={item} mode={mode} />}
+            {mode === 'none' ? null : <AddButton item={item} />}
           </li>
         ))}
       </ul>

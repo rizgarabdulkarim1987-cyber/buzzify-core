@@ -86,8 +86,13 @@ export function returnSignature(saleId: string, lines: readonly { saleLineId: st
   return JSON.stringify([saleId, lines.map((l) => [l.saleLineId, l.baseQty]), reason.trim(), method]);
 }
 
-/** Methods a refund may use: the ones the sale was paid with (default first); a sale with no payments takes any. */
-export function refundMethodChoices(paid: readonly RefundMethod[], preferred: RefundMethod): RefundMethod[] {
+/**
+ * Methods a refund may use: the ones the sale was paid with (default first); a sale with no payments takes any. A sale put wholly
+ * on the customer's account (`onAccount`, nothing paid at the till) offers only the default: the refund pays the debt first and
+ * only what is left over goes back, so there is no paid method to choose from.
+ */
+export function refundMethodChoices(paid: readonly RefundMethod[], preferred: RefundMethod, onAccount = false): RefundMethod[] {
+  if (paid.length === 0 && onAccount) return [preferred];
   const pool = paid.length > 0 ? [...paid] : [...REFUND_METHODS];
   return [preferred, ...pool.filter((m) => m !== preferred)].filter((m, i, all) => pool.includes(m) && all.indexOf(m) === i);
 }

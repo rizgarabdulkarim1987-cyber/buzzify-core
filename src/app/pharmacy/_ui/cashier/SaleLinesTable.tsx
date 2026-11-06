@@ -1,0 +1,234 @@
+'use client';
+
+import { Ban, Pill, ShieldAlert, Trash2, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useT } from '@/studio/i18n';
+import { formatMinor, unitOf, type CartLine, type Currency, type Estimate } from '../sell-logic';
+import { Chip, Num } from '../sell-parts';
+import { CellInput, expiryOf, UnitCell } from './LineCells';
+
+/**
+ * What the server sent for a line's cost and profit (minor units as text, `ph.sell.costs`). Absent unless the person may see
+ * cost; the profit only with `profit.view` too. A loss keeps its minus sign.
+ */
+export interface LineCost {
+  costMinor: string;
+  profitMinor?: string;
+}
+
+export interface SaleLinesTableProps {
+  /** A flow is open below: on a wide screen the table gives up its height first (it scrolls inside itself) so the flow fits under it. */
+  compact?: boolean;
+  lines: CartLine[];
+  /** Per line: `estimateCart(...).lines` (gross, discount, total after discount). */
+  results: Estimate['lines'];
+  currency: Currency;
+  /** The key of the selected line, or null. */
+  selected: string | null;
+  onSelect: (key: string) => void;
+  onRemove: (key: string) => void;
+  /** Cost and profit columns exist only for those who may see them (pharmacist, owner). */
+  canSeeCost: boolean;
+  /** Reserved for the price-edit task: today it only marks the rows (`data-price-editable`). */
+  canEditPrice: boolean;
+  /** Products whose lines together ask for more than the sellable stock (`overSellable`). */
+  over?: ReadonlySet<string>;
+  /** Cost data by line key; only ever passed when `canSeeCost`. Without it the cost cells stay empty. */
+  costs?: Readonly<Record<string, LineCost>>;
+  /** The quantity typed in its cell (the prototype's row input); false when the screen refused it (the cell goes back). Text without it. */
+  onQty?: (key: string, text: string) => boolean;
+  /** The unit cell's press: the line to its next priced unit. Text without it. */
+  onUnit?: (line: CartLine) => void;
+  /** The line discount typed as an amount (with the discount permission); false when refused. Text without it. */
+  onDiscount?: (key: string, text: string) => boolean;
+}
+
+const COLUMNS = ['row', 'code', 'name', 'qty', 'unit', 'price', 'total', 'discount', 'netPrice', 'netTotal', 'batch', 'expiry', 'balance'] as const;
+const COST_COLUMNS = ['cost', 'profit'] as const;
+/** Fixed widths in rem for every column but the name, which takes what is left (and truncates). */
+const WIDTH: Record<string, number> = {
+  row: 2.5,
+  code: 6,
+  qty: 4.5,
+  unit: 5.5,
+  price: 6.5,
+  total: 6.5,
+  discount: 5.5,
+  netPrice: 6.5,
+  netTotal: 7,
+  batch: 6,
+  expiry: 5.5,
+  balance: 5,
+  cost: 6.5,
+  profit: 6.5,
+};
+/** The name is the flexible column, never narrower than this (rem): a fixed table gives it only what the other columns leave. */
+export const NAME_MIN_REM = 14;
+const columnsOf = (canSeeCost: boolean): readonly string[] => (canSeeCost ? [...COLUMNS, ...COST_COLUMNS] : COLUMNS);
+/** What the fixed columns take together (rem). */
+export const FIXED_REM = (canSeeCost: boolean): number => columnsOf(canSeeCost).reduce((sum, c) => sum + (WIDTH[c] ?? 0), 0);
+/** The table's minimum width (rem): every fixed column plus the name's minimum, so the name always shows; wider screens give the name the rest. */
+export const linesTableMinRem = (canSeeCost: boolean): number => FIXED_REM(canSeeCost) + NAME_MIN_REM;
+const NUMERIC = new Set(['qty', 'price', 'total', 'discount', 'netPrice', 'netTotal', 'balance', 'cost', 'profit']);
+const MUTED = '—';
+
+/**
+ * The cashier's sale lines (docs/pharmacy/prototypes/cashier-layouts-2026-11-05.html): one row per line, the thirteen
+ * columns of the spec, cost and profit after them for those who may see cost. Selection is a state of the row
+ * (`aria-selected`); the arrow, +, - and Delete keys are the screen's. A prescription, controlled, blocked or over-stock
+ * line is marked in words in its name cell (as the old screen's chips). The table scrolls in its own container; a long name truncates (the full name is its `title`).
+ */
+/** The expiry cell: MM/YYYY, red when near or past, with the "expired" mark when past (the prototype's `.low` and badge). */
+function Expiry({ date }: { date: string }) {
+  const t = useT();
+  const { text, mark } = expiryOf(date);
+  return (
+    <span className={mark ? 'font-bold text-ph-red' : undefined} data-testid="line-expiry" data-mark={mark ?? undefined}>
+      <Num>{text}</Num>
+      {mark === 'expired' && <span className="ms-1 rounded bg-ph-red px-1 text-[11px] font-normal text-ph-on-green">{t('pharmacy.cashier.batch.expired')}</span>}
+    </span>
+  );
+}
+
+export function SaleLinesTable({ compact, lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs, onQty, onUnit, onDiscount }: SaleLinesTableProps) {
+  const t = useT();
+  const columns = columnsOf(canSeeCost);
+  const selectedRow = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    // Keeps the selected row in view when the keys move it down a long cart (not every environment can scroll).
+    selectedRow.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [selected]);
+
+  const money = (minor: bigint): ReactNode => <Num>{formatMinor(minor, currency)}</Num>;
+  const moneyText = (text: string | undefined): ReactNode => {
+    if (text === undefined) return null;
+    try {
+      return money(BigInt(text));
+    } catch {
+      return null;
+    }
+  };
+
+  return (
+    <div className={`max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:flex-1 ${compact ? 'lg:[@media(min-height:781px)]:min-h-[96px] lg:[@media(max-height:780px)]:min-h-[72px]' : 'lg:min-h-[150px]'}`} data-testid="sale-lines-scroll">
+      <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} style={{ minWidth: `${linesTableMinRem(canSeeCost)}rem` }} className="w-full table-fixed border-collapse text-sm tabular-nums text-ph-text">
+        <colgroup>
+          {columns.map((c) => (
+            <col key={c} style={c === 'name' ? undefined : { width: `${WIDTH[c]}rem` }} />
+          ))}
+        </colgroup>
+        <thead className="sticky top-0 z-10 bg-ph-canvas">
+          <tr>
+            {columns.map((c) => (
+              <th key={c} scope="col" className={`border-b border-ph-line px-2 py-2 text-xs font-semibold text-ph-muted ${NUMERIC.has(c) ? 'text-end' : 'text-start'}`}>
+                {t(`pharmacy.cashier.col.${c}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, index) => {
+            const unit = unitOf(line);
+            const result = results.find((r) => r.key === line.key);
+            const priced = result !== undefined && !result.unpriced && !result.invalid;
+            const batch = line.batchId ? line.batches.find((b) => b.batchId === line.batchId) : line.batches[0];
+            const isSelected = line.key === selected;
+            const tail = (key: string, text: ReactNode, extra = '') => (
+              <td key={key} className={`px-2 py-1.5 align-middle ${NUMERIC.has(key) ? 'text-end' : 'text-start'} ${extra}`}>
+                {text}
+              </td>
+            );
+            const cost = costs?.[line.key];
+            // The unit price after the line's discount: the line total divided by the quantity; marked "≈" when it does not divide evenly.
+            const netUnit = priced && line.qty > 0 ? result.totalMinor / BigInt(line.qty) : null;
+            const netExact = priced && line.qty > 0 && result.totalMinor % BigInt(line.qty) === 0n;
+            return (
+              <tr
+                key={line.key}
+                ref={isSelected ? selectedRow : undefined}
+                aria-selected={isSelected}
+                data-testid="sale-line"
+                data-blocked={line.blocked ?? undefined}
+                data-price-editable={canEditPrice ? 'true' : undefined}
+                onClick={() => onSelect(line.key)}
+                className={`cursor-pointer border-b border-ph-line align-middle ${isSelected ? 'bg-ph-g1 outline outline-2 -outline-offset-2 outline-ph-accent' : 'hover:bg-ph-canvas'}`}
+              >
+                {tail('row', index + 1, 'text-ph-muted')}
+                {tail('code', line.code ? <bdi dir="ltr" className="block truncate" title={line.code}>{line.code}</bdi> : MUTED, line.code ? '' : 'text-ph-muted')}
+                <td key="name" className="min-w-0 px-2 py-1.5 align-middle">
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="min-w-0 flex-1 truncate font-semibold" dir="auto" title={line.detail ? `${line.name} · ${line.detail}` : line.name} data-testid="line-name">
+                      {line.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-ph-xl text-ph-muted hover:bg-ph-line disabled:cursor-not-allowed disabled:opacity-45"
+                      aria-label={t('pharmacy.sell.cart.remove', { name: line.name })}
+                      data-testid="line-remove"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemove(line.key);
+                      }}
+                    >
+                      <Trash2 aria-hidden className="size-4" />
+                    </button>
+                  </div>
+                  {(line.blocked || over?.has(line.productId) || (unit.priceMinor === null && !line.blocked) || line.rxLevel === 'RX' || line.rxLevel === 'RESTRICTED') && (
+                    <div className="flex flex-wrap gap-1 pb-1">
+                      {line.rxLevel === 'RX' && (
+                        <Chip icon={<Pill aria-hidden />} look="ph" testId="line-rx">
+                          {t('pharmacy.sell.chip.rx')}
+                        </Chip>
+                      )}
+                      {line.rxLevel === 'RESTRICTED' && !line.blocked && (
+                        <Chip icon={<ShieldAlert aria-hidden />} tone="danger" look="ph" testId="line-controlled">
+                          {t('pharmacy.sell.chip.controlled')}
+                        </Chip>
+                      )}
+                      {line.blocked && (
+                        <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="line-blocked">
+                          {t(`pharmacy.sell.line.blocked.${line.blocked}`)}
+                        </Chip>
+                      )}
+                      {unit.priceMinor === null && !line.blocked && (
+                        <Chip icon={<Ban aria-hidden />} tone="danger" look="ph" testId="line-noprice">
+                          {t('pharmacy.sell.chip.noPrice')}
+                        </Chip>
+                      )}
+                      {over?.has(line.productId) && (
+                        <Chip icon={<TriangleAlert aria-hidden />} tone="danger" look="ph" testId="line-over">
+                          {t('pharmacy.sell.chip.over', { qty: line.sellableQty })}
+                        </Chip>
+                      )}
+                    </div>
+                  )}
+                </td>
+                {tail('qty', onQty ? <CellInput value={String(line.qty)} label={t('pharmacy.cashier.lines.qty', { name: line.name })} testId="line-qty" onCommit={(text) => onQty(line.key, text)} /> : line.qty, 'font-bold')}
+                {tail('unit', onUnit ? <UnitCell label={unit.label} aria={t('pharmacy.cashier.lines.unit', { name: line.name })} onCycle={() => onUnit(line)} /> : <span className="block truncate" dir="auto" title={unit.label}>{unit.label}</span>)}
+                {tail('price', unit.priceMinor === null ? MUTED : moneyText(unit.priceMinor))}
+                {tail('total', priced ? money(result.grossMinor) : MUTED)}
+                {tail(
+                  'discount',
+                  onDiscount && line.discount?.kind !== 'percent' ? (
+                    <CellInput value={line.discount?.value ?? '0'} label={t('pharmacy.cashier.lines.discount', { name: line.name })} testId="line-discount" onCommit={(text) => onDiscount(line.key, text)} />
+                  ) : priced && result.discountMinor > 0n ? (
+                    money(result.discountMinor)
+                  ) : (
+                    MUTED
+                  ),
+                )}
+                {tail('netPrice', netUnit === null ? MUTED : netExact ? money(netUnit) : <>≈ {money(netUnit)}</>)}
+                {tail('netTotal', priced ? money(result.totalMinor) : MUTED, 'font-bold')}
+                {tail('batch', line.batchId ? line.batchLot : (batch?.lot ?? MUTED))}
+                {tail('expiry', batch ? <Expiry date={batch.expiryDate} /> : MUTED)}
+                {tail('balance', Math.floor(line.sellableQty / Math.max(1, unit.baseQty)))}
+                {canSeeCost && tail('cost', moneyText(cost?.costMinor))}
+                {canSeeCost && tail('profit', moneyText(cost?.profitMinor))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

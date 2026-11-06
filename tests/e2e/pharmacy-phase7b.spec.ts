@@ -9,6 +9,7 @@ import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
+import { addFromSearch, nextReceipt, openCashier, payCash, payOnAccount, setQty } from './helpers/cashier';
 import { ASSISTANT_SCRIPT_PATH } from './helpers/phase7b-env';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, setUserLocale, uniqueClientAddress, type StudioUser } from './helpers/studio';
 
@@ -145,15 +146,8 @@ async function session(browser: Browser, user: StudioUser, shop: Shop, branch: s
 
 const prints = (page: Page) => page.evaluate(() => (window as unknown as { __prints: number }).__prints);
 
-async function openShift(page: Page): Promise<void> {
-  await page.goto('/pharmacy/sell');
-  await expect(page.getByTestId('open-shift').or(page.getByTestId('sell-workspace'))).toBeVisible();
-  if (await page.getByTestId('open-shift').isVisible()) {
-    await page.getByTestId('shift-float').fill('10,000');
-    await page.getByTestId('shift-open').click();
-  }
-  await expect(page.getByTestId('sell-search')).toBeVisible();
-}
+/** Opens the cashier with a shift (opened with 10,000 in the drawer when none is open). */
+const openShift = (page: Page): Promise<void> => openCashier(page);
 
 /** Asks a typed question (the model path). */
 async function ask(page: Page, question: string): Promise<void> {
@@ -480,15 +474,11 @@ test.describe('Pharmacy phase 7 assistant and printing @desktop', () => {
     // 3 tablets at 250 = 750, paid with 1 000: change 250.
     const p = await session(browser, pharmacist, shop, main);
     await openShift(p);
-    await p.getByTestId('sell-search').fill(names.name);
-    await p.getByTestId('result').filter({ hasText: names.name }).getByTestId('add-unit').first().click();
-    await expect(p.getByTestId('cart-line')).toHaveCount(1);
-    await p.getByTestId('qty-input').fill('3');
-    await p.keyboard.press('F4');
-    await p.getByTestId('pay-tendered').fill('1000');
-    await p.getByTestId('pay-confirm').click();
-    await expect(p.getByTestId('sale-done')).toBeVisible();
-    await p.getByTestId('receipt-done').click();
+    await addFromSearch(p, names.name); // the tablet: the cashier starts an item in its smallest unit
+    await setQty(p, 3);
+    await payCash(p, '1000');
+    await expect(p.getByTestId('sale-change')).toContainText('250');
+    await nextReceipt(p);
     await p.context().close();
     const client = db();
     try {
@@ -581,18 +571,11 @@ test.describe('Pharmacy phase 7 assistant and printing @desktop', () => {
     // 2 tablets (500), wholly on the account, by a pharmacist (who may sell on credit).
     const p = await session(browser, pharmacist, shop, main);
     await openShift(p);
-    await p.getByTestId('sell-search').fill(names.name);
-    await p.getByTestId('result').filter({ hasText: names.name }).getByTestId('add-unit').first().click();
-    await expect(p.getByTestId('cart-line')).toHaveCount(1);
-    await p.getByTestId('qty-input').fill('2');
-    await p.keyboard.press('F4');
-    await p.getByTestId('pay-credit-toggle').check();
-    await p.getByTestId('customer-search').fill('Credit');
-    await p.getByTestId('customer-option').first().click();
-    await p.getByTestId('pay-credit-amount').fill('500');
-    await p.getByTestId('pay-confirm').click();
-    await expect(p.getByTestId('sale-done')).toBeVisible();
-    await p.getByTestId('receipt-done').click();
+    await addFromSearch(p, names.name);
+    await setQty(p, 2);
+    await payOnAccount(p, 'Credit', '0'); // nothing now: the whole 500 goes on the account
+    await expect(p.getByTestId('sale-credit')).toContainText('500');
+    await nextReceipt(p);
     const check = db();
     let creditSale: string;
     try {

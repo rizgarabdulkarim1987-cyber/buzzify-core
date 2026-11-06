@@ -141,15 +141,17 @@ test.describe('Pharmacy shell navigation @desktop', () => {
 
     const rail = mainNav(page);
     await expect(rail).toBeVisible();
-    for (const name of ['Home', 'Sell', 'Stock', 'Expiry', 'Reports']) await expect(link(rail, name)).toBeVisible();
+    // Five primary places in this order; Home and Expiry now sit under "More".
+    await expect(rail.locator('> ul > li > a')).toHaveText(['Sell', 'Stock', 'Catalog', 'Customers', 'Reports']);
+    // "More" is open while the current place (Home) is inside it, so its groups show.
+    for (const heading of ['Daily', 'Stock', 'Purchasing']) await expect(rail.getByText(heading, { exact: true }).first()).toBeVisible();
     await expect(link(rail, 'Home')).toHaveAttribute('aria-current', 'page');
+    await expect(link(rail, 'Expiry')).toBeVisible();
     await expect(link(rail, 'Stock')).not.toHaveAttribute('aria-current', 'page');
     // No AI Doctor until it is switched on.
     await expect(rail.getByRole('link', { name: 'AI Doctor' })).toHaveCount(0);
 
-    // The rest sits under "More", closed at first.
-    await expect(link(rail, 'Purchasing')).toBeHidden();
-    await rail.getByText('More', { exact: true }).click();
+    // The rest sits under "More".
     await expect(link(rail, 'Purchasing')).toBeVisible();
     await expect(link(rail, 'Settings')).toBeVisible();
     await expectTouchTargets(rail);
@@ -161,30 +163,35 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     expect(await seriousViolations(page)).toEqual([]);
 
     await link(rail, 'Stock').click();
-    await expect(page).toHaveURL(/\/pharmacy\/stock$/);
+    await expect(page).toHaveURL(/\/pharmacy\/stock\/entry$/);
     await expect(link(rail, 'Stock')).toHaveAttribute('aria-current', 'page');
+    // Stock is a primary place, so "More" closes again and Home is out of reach until it is opened.
+    await expect(link(rail, 'Home')).toBeHidden();
+    await rail.getByText('More', { exact: true }).click();
     await expect(link(rail, 'Home')).not.toHaveAttribute('aria-current', 'page');
     await page.context().close();
   });
 
-  test('an owner at 375px: the bottom bar has five items and "More" opens a sheet with the rest', async ({ browser }) => {
+  test('an owner at 375px: the bottom bar has four places and "More" opens a sheet with the rest', async ({ browser }) => {
     const { shop, owner } = await owned('Bar');
     const page = await freshPage(browser, PHONE);
     await enter(page, owner, shop.name, shop.branches[0]!.name);
 
     const bar = mainNav(page);
     await expect(bar).toBeVisible();
-    await expect(bar.getByRole('link')).toHaveText(['Home', 'Sell', 'Stock', 'Expiry']);
+    await expect(bar.getByRole('link')).toHaveText(['Sell', 'Stock', 'Catalog', 'Customers']);
     const more = bar.getByRole('button', { name: 'More' });
     await expect(more).toBeVisible();
-    await expect(link(bar, 'Home')).toHaveAttribute('aria-current', 'page');
+    // Home sits inside the sheet, so the More button marks the current place.
+    await expect(more).toHaveAttribute('aria-current', 'page');
     await expectTouchTargets(bar);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
     await more.click();
     const sheet = page.getByRole('dialog', { name: 'More' });
     await expect(sheet).toBeVisible();
-    for (const name of ['Reports', 'Purchasing', 'Settings']) await expect(link(sheet, name)).toBeVisible();
+    for (const name of ['Reports', 'Home', 'Expiry', 'Purchasing', 'Settings']) await expect(link(sheet, name)).toBeVisible();
+    for (const heading of ['Daily', 'Stock', 'Purchasing']) await expect(sheet.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     await expect(sheet.getByRole('link', { name: 'Account and language' })).toBeVisible();
     await expect(sheet.getByRole('link', { name: 'Change branch' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Sign out' })).toBeVisible();
@@ -210,7 +217,7 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     await page.setViewportSize(DESKTOP);
     await expect(page.locator('#ph-more-sheet')).not.toHaveAttribute('open', '');
     await link(mainNav(page), 'Stock').click({ timeout: 5_000 });
-    await expect(page).toHaveURL(/\/pharmacy\/stock$/);
+    await expect(page).toHaveURL(/\/pharmacy\/stock\/entry$/);
     await page.context().close();
   });
 
@@ -282,9 +289,9 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     await enter(page, cashier, shop.name, shop.branches[0]!.name);
     const rail = mainNav(page);
     await expect(link(rail, 'Sell')).toBeVisible();
-    await expect(rail.getByRole('link', { name: 'Reports' })).toHaveCount(0);
-    await rail.getByText('More', { exact: true }).click();
     await expect(link(rail, 'Catalog')).toBeVisible();
+    await expect(rail.getByRole('link', { name: 'Reports' })).toHaveCount(0);
+    await expect(link(rail, 'Home')).toBeVisible();
     await expect(rail.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     await expect(rail.getByRole('link', { name: 'Purchasing' })).toHaveCount(0);
 
@@ -292,7 +299,7 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     const bar = mainNav(page);
     await bar.getByRole('button', { name: 'More' }).click();
     const sheet = page.getByRole('dialog', { name: 'More' });
-    await expect(link(sheet, 'Catalog')).toBeVisible();
+    await expect(link(sheet, 'Home')).toBeVisible();
     await expect(sheet.getByRole('link', { name: 'Reports' })).toHaveCount(0);
     await expect(sheet.getByRole('link', { name: 'Settings' })).toHaveCount(0);
     await page.context().close();

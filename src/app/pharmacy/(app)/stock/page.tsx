@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Download, History, Lock, PackageOpen, Plus, Search, SearchX, Upload } from 'lucide-react';
+import { ArrowLeftRight, Download, History, Lock, PackageOpen, Plus, ScanBarcode, Search, SearchX, Upload } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -107,6 +107,8 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const canAdd = access.writable('catalog.manage').ok;
   const canImport = access.writable('import.apply').ok;
   const canExport = roleMay(actor, 'catalog.manage') || roleMay(actor, 'report.view');
+  // Fast product entry: the nav's Stock item opens it for a role that receives goods; this is its way back from the list.
+  const canEntry = roleMay(actor, 'purchase.manage');
   const links = (over: Partial<Params>) => {
     const next = new URLSearchParams();
     const merged = { ...sp, ...over };
@@ -124,8 +126,14 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             {productCount(t, page.total)}
           </span>,
         )}
-        {(canImport || canExport || canAdd) && (
+        {(canImport || canExport || canAdd || canEntry) && (
           <div className="flex flex-wrap items-center gap-2">
+            {canEntry && (
+              <Link href="/pharmacy/stock/entry" data-testid="stock-entry-link" className={canAdd ? BTN : PRIMARY}>
+                <ScanBarcode aria-hidden />
+                {t('pharmacy.stock.entryLink')}
+              </Link>
+            )}
             {canImport && (
               <Link href="/pharmacy/catalog/import" className={BTN}>
                 <Upload aria-hidden />

@@ -28,7 +28,6 @@ import {
   saleSignature,
   scanOutcome,
   serializeDraft,
-  shortcutOf,
   TOTAL_MOVED_CODES,
   unitOf,
   type AddableItem,
@@ -36,6 +35,7 @@ import {
   type PayDraft,
   type ScanItem,
 } from '@/app/pharmacy/_ui/sell-logic';
+import { cashierKeyOf } from '@/app/pharmacy/_ui/sell-keys';
 
 /**
  * The sale screen's client logic: money text, the cart, the estimate, the request, the draft on the device and the keys.
@@ -45,6 +45,7 @@ import {
 const item = (over: Partial<AddableItem> = {}): AddableItem => ({
   productId: 'p1',
   tradeName: 'Panadol',
+  code: '6221010001',
   strength: '500 mg',
   form: 'tablet',
   packLabel: 'box of 24',
@@ -306,37 +307,37 @@ describe('the request', () => {
   });
 });
 
+// The old screen's `shortcutOf` (F2 search, F4 pay, F8 hold) is gone with it; the cashier's keys (spec: F2 cash, F3 credit,
+// F4 new receipt, F8 hold, `/` focus scan, Esc back) are `cashierKeyOf`. Its guards are asserted here as the old ones were;
+// the Doctor cases are dropped (no Doctor on the cashier, owner decision 2026-11-05).
 describe('keys', () => {
   const press = (key: string, extra: Record<string, boolean> = {}) => ({ key, ...extra });
+  const free = { inSearch: false, inTextField: false, searchEmpty: true, modalOpen: false };
+  const inSearch = { inSearch: true, inTextField: true, searchEmpty: false, modalOpen: false };
 
-  it('F2 searches, F4 pays, F8 holds, Escape clears', () => {
-    expect(shortcutOf(press('F2'), false)).toBe('search');
-    expect(shortcutOf(press('F4'), false)).toBe('pay');
-    expect(shortcutOf(press('F8'), true)).toBe('hold');
-    expect(shortcutOf(press('Escape'), true)).toBe('escape');
+  it('/ focuses the scan field, F2 pays cash, F8 holds, Escape goes back', () => {
+    expect(cashierKeyOf(press('/'), free)).toEqual({ kind: 'focusScan' });
+    expect(cashierKeyOf(press('F2'), free)).toEqual({ kind: 'cash' });
+    expect(cashierKeyOf(press('F8'), inSearch)).toEqual({ kind: 'hold' });
+    expect(cashierKeyOf(press('Escape'), inSearch)).toEqual({ kind: 'escape' });
   });
 
   it('Enter adds the top result only in the search box, and not with Shift', () => {
-    expect(shortcutOf(press('Enter'), true)).toBe('addTop');
-    expect(shortcutOf(press('Enter'), false)).toBeNull();
-    expect(shortcutOf(press('Enter', { shiftKey: true }), true)).toBeNull();
+    expect(cashierKeyOf(press('Enter'), inSearch)).toEqual({ kind: 'addTop' });
+    expect(cashierKeyOf(press('Enter'), free)).toBeNull();
+    expect(cashierKeyOf(press('Enter', { shiftKey: true }), inSearch)).toBeNull();
   });
 
   it('leaves browser shortcuts and held keys alone', () => {
-    expect(shortcutOf(press('F2', { ctrlKey: true }), false)).toBeNull();
-    expect(shortcutOf(press('F4', { altKey: true }), false)).toBeNull();
-    expect(shortcutOf(press('F8', { repeat: true }), false)).toBeNull();
-    expect(shortcutOf(press('a'), true)).toBeNull();
+    expect(cashierKeyOf(press('F2', { ctrlKey: true }), free)).toBeNull();
+    expect(cashierKeyOf(press('F4', { altKey: true }), free)).toBeNull();
+    expect(cashierKeyOf(press('F8', { repeat: true }), free)).toBeNull();
+    expect(cashierKeyOf(press('a'), inSearch)).toBeNull();
   });
 
-  it('means nothing while another modal sheet is open (the Doctor sheet keeps its own Escape)', () => {
-    for (const key of ['F2', 'F4', 'F8', 'Escape', 'Enter']) expect(shortcutOf(press(key), true, true)).toBeNull();
-    expect(shortcutOf(press('Escape'), false, false)).toBe('escape');
-  });
-
-  it('leaves Escape typed in the Doctor side panel alone (the sale search stays), and keeps the other keys', () => {
-    expect(shortcutOf(press('Escape'), false, false, true)).toBeNull();
-    expect(shortcutOf(press('F4'), false, false, true)).toBe('pay');
+  it('means nothing while a modal sheet is open', () => {
+    for (const key of ['F2', 'F4', 'F8', 'Escape', 'Enter']) expect(cashierKeyOf(press(key), { ...inSearch, modalOpen: true })).toBeNull();
+    expect(cashierKeyOf(press('Escape'), free)).toEqual({ kind: 'escape' });
   });
 });
 
@@ -616,17 +617,20 @@ describe('attempts and keys', () => {
 });
 
 describe('keys: IME and handled keys', () => {
+  const free = { inSearch: false, inTextField: false, searchEmpty: true, modalOpen: false };
+  const inSearch = { inSearch: true, inTextField: true, searchEmpty: false, modalOpen: false };
+
   it('ignores a key while an input method is composing, and keyCode 229', () => {
-    expect(shortcutOf({ key: 'Enter', isComposing: true }, true)).toBeNull();
-    expect(shortcutOf({ key: 'Enter', keyCode: 229 }, true)).toBeNull();
-    expect(shortcutOf({ key: 'F4', isComposing: true }, false)).toBeNull();
-    expect(shortcutOf({ key: 'Enter', keyCode: 13 }, true)).toBe('addTop');
+    expect(cashierKeyOf({ key: 'Enter', isComposing: true }, inSearch)).toBeNull();
+    expect(cashierKeyOf({ key: 'Enter', keyCode: 229 }, inSearch)).toBeNull();
+    expect(cashierKeyOf({ key: 'F4', isComposing: true }, free)).toBeNull();
+    expect(cashierKeyOf({ key: 'Enter', keyCode: 13 }, inSearch)).toEqual({ kind: 'addTop' });
   });
 
   it('ignores a key that was already handled (a scanner’s closing Enter inside the search box)', () => {
-    expect(shortcutOf({ key: 'Enter', defaultPrevented: true }, true)).toBeNull();
-    expect(shortcutOf({ key: 'F4', defaultPrevented: true }, false)).toBeNull();
-    expect(shortcutOf({ key: 'Enter', defaultPrevented: false }, true)).toBe('addTop');
+    expect(cashierKeyOf({ key: 'Enter', defaultPrevented: true }, inSearch)).toBeNull();
+    expect(cashierKeyOf({ key: 'F4', defaultPrevented: true }, free)).toBeNull();
+    expect(cashierKeyOf({ key: 'Enter', defaultPrevented: false }, inSearch)).toEqual({ kind: 'addTop' });
   });
 });
 

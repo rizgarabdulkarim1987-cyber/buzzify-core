@@ -11,6 +11,16 @@ export async function sellSearch(input: unknown) {
   return invokePhQuery(sellQueries.search, input);
 }
 
+/** One product beside the sale: batches here, details, substitutes by active ingredient (the cashier's inquiry and line panels). */
+export async function sellInfo(input: unknown) {
+  return invokePhQuery(sellQueries.info, input);
+}
+
+/** The cost and profit of the cart's lines: empty for a role without cost.view (the server decides). */
+export async function sellCosts(input: unknown) {
+  return invokePhQuery(sellQueries.costs, input);
+}
+
 export async function createSale(input: unknown) {
   return invokePh(sales.create, input);
 }
