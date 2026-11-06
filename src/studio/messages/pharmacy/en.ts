@@ -3571,6 +3571,8 @@ const pharmacy: Messages = {
   'pharmacy.cashier.hold.releaseArmed': 'Tap again: it may be held already',
   'pharmacy.cashier.hold.released': 'The receipt is free again. It may be held too: check the held receipts.',
   'pharmacy.cashier.hold.changed': 'The receipt was held as it was when pressed (until {time}) and stays here because it changed since.',
+  'pharmacy.cashier.hold.expiredKept': 'Its lines stay on this receipt: pay now as a new sale.',
+  'pharmacy.cashier.hold.goneKept': 'Its lines stay on this receipt. It may have been sold already: check the sales list before paying, because paying now records a new sale.',
   'pharmacy.cashier.copy.unknown': 'No answer came. Try again: the same copy is asked for again.',
   'pharmacy.cashier.held.empty': 'No held receipts.',
   'pharmacy.cashier.held.discardArmed': 'Tap again to discard',

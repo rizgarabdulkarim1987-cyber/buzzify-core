@@ -13,7 +13,7 @@ import { prescriptionKept } from '../prescription-logic';
 import { blockedLines, formatMinor, outcomeUnknown, parseMoney, refreshCart, saleAttemptFor, saleSignature, TOTAL_MOVED_CODES, type Currency, type PayDraft } from '../sell-logic';
 import type { OpenReceipt, ReceiptsState } from '../sell-receipts';
 import { cashierReducer, type CashierAction } from './cashier-logic';
-import { flowOfAttempt, isPayFlow, rxLinesOf, RX_DROP_CODES, saleRequestOf, type WorkFlow } from './sale-flow-logic';
+import { flowOfAttempt, HOLD_DROP_CODES, isPayFlow, rxLinesOf, RX_DROP_CODES, saleRequestOf, type WorkFlow } from './sale-flow-logic';
 
 /** A finished sale, shown on the receipt it was made for until the next receipt replaces it. */
 export interface Sold {
@@ -158,8 +158,9 @@ export function useSaleFlow(opts: {
           await refreshAfterRefusal(key, result.error, said, dropRx);
           return;
         }
-        act({ type: 'refused', receiptKey: key, ...(dropRx ? { prescriptionId: null } : {}) });
-        setProblem({ receiptKey: key, text: said });
+        const holdGone = Object.hasOwn(HOLD_DROP_CODES, code) ? HOLD_DROP_CODES[code]! : null;
+        act({ type: 'refused', receiptKey: key, ...(dropRx ? { prescriptionId: null } : {}), ...(holdGone ? { fromHoldId: null } : {}) });
+        setProblem({ receiptKey: key, text: holdGone ? `${said} ${t(holdGone)}` : said });
         return;
       }
       setNotSent(false);

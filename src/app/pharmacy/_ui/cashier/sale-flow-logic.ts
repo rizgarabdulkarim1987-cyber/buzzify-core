@@ -132,3 +132,14 @@ export function saleRequestOf(
 
 /** Refusals that mean the recorded prescription cannot be used any more: the receipt lets go of it (as the old screen did). */
 export const RX_DROP_CODES: readonly string[] = ['PRESCRIPTION_NOT_FOUND', 'PRESCRIPTION_USED', 'RX_EXPIRED', 'RX_DATE_FUTURE', 'PATIENT_REQUIRED'];
+
+/**
+ * Refusals that mean the resumed hold cannot be completed any more: the receipt lets go of it and keeps its lines, so the next Pay
+ * is a plain sale (new keys). The refusal recorded nothing (the hold check rolls the whole sale back), and a sale already recorded
+ * under the same key would have been replayed instead, so this never sells the same attempt twice. A used hold may have been sold
+ * elsewhere: the cashier is told to check before paying (the message key per code).
+ */
+export const HOLD_DROP_CODES: Readonly<Record<string, string>> = {
+  HOLD_EXPIRED: 'pharmacy.cashier.hold.expiredKept',
+  HOLD_NOT_AVAILABLE: 'pharmacy.cashier.hold.goneKept',
+};

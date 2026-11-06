@@ -43,8 +43,8 @@ export type ReceiptsAction =
    * A pending attempt is never replaced by one of another signature: only Discard, `refused` and `sold` clear it.
    */
   | { type: 'attempt'; receiptKey: string; attempt: SaleAttempt | null }
-  /** A refused sale changed the receipt: its prescription is gone, or its lines were fitted to fresh prices. */
-  | { type: 'refused'; receiptKey: string; prescriptionId?: null; cart?: CartState }
+  /** A refused sale changed the receipt: its prescription is gone, its hold is gone (expired or used), or its lines were fitted to fresh prices. */
+  | { type: 'refused'; receiptKey: string; prescriptionId?: null; fromHoldId?: null; cart?: CartState }
   /** The receipt with this key was sold: done, with no attempt left. */
   | { type: 'sold'; receiptKey: string }
   /** The prescription recorded for the receipt with this key (its id only; null lets it go). Refused while its sale is in flight. */
@@ -105,7 +105,7 @@ export function receiptsReducer(state: ReceiptsState, action: ReceiptsAction): R
       return patchOpen(state, action.receiptKey, { attempt: action.attempt });
     }
     case 'refused':
-      return patchOpen(state, action.receiptKey, { attempt: null, ...(action.prescriptionId === null ? { prescriptionId: null } : {}), ...(action.cart ? { cart: action.cart } : {}) });
+      return patchOpen(state, action.receiptKey, { attempt: null, ...(action.prescriptionId === null ? { prescriptionId: null } : {}), ...(action.fromHoldId === null ? { fromHoldId: null } : {}), ...(action.cart ? { cart: action.cart } : {}) });
     case 'sold':
       return patchOpen(state, action.receiptKey, { done: true, attempt: null });
     case 'prescription':

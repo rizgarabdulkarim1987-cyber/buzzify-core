@@ -3603,6 +3603,8 @@ const pharmacy: Messages = {
   'pharmacy.cashier.hold.releaseArmed': 'اضغط مرة أخرى: قد يكون معلّقاً',
   'pharmacy.cashier.hold.released': 'تُرك الوصل. قد يكون معلّقاً أيضاً: راجع الوصولات المعلّقة.',
   'pharmacy.cashier.hold.changed': 'عُلّق الوصل كما كان عند الضغط (حتى {time}) وبقي هنا لأنه تغيّر بعدها.',
+  'pharmacy.cashier.hold.expiredKept': 'بقيت أصنافه على هذا الوصل: ادفع الآن كبيع جديد.',
+  'pharmacy.cashier.hold.goneKept': 'بقيت أصنافه على هذا الوصل. ربما بيع من قبل: راجع قائمة المبيعات قبل الدفع، فالدفع الآن يسجّل بيعاً جديداً.',
   'pharmacy.cashier.copy.unknown': 'لم يصل الجواب. أعد المحاولة: النسخة نفسها تُطلب مرة أخرى.',
   'pharmacy.cashier.held.empty': 'لا وصولات معلّقة.',
   'pharmacy.cashier.held.discardArmed': 'اضغط مرة أخرى للحذف',

@@ -3564,6 +3564,8 @@ const pharmacy: Messages = {
   'pharmacy.cashier.hold.releaseArmed': 'دووبارە دابگرە: لەوانەیە ڕاگیرابێت',
   'pharmacy.cashier.hold.released': 'وازی لە پسوولەکە هێنرا. لەوانەیە ڕاگیراویش بێت: پسوولە ڕاگیراوەکان ببینە.',
   'pharmacy.cashier.hold.changed': 'پسوولەکە وەک کاتی داگرتن ڕاگیرا (تا {time}) و لێرە مایەوە چونکە دواتر گۆڕا.',
+  'pharmacy.cashier.hold.expiredKept': 'کاڵاکانی لەسەر ئەم پسوولەیە ماونەتەوە: ئێستا وەک فرۆشتنێکی نوێ پارە بدە.',
+  'pharmacy.cashier.hold.goneKept': 'کاڵاکانی لەسەر ئەم پسوولەیە ماونەتەوە. لەوانەیە پێشتر فرۆشرابێت: پێش پارەدان لیستی فرۆشتنەکان ببینە، چونکە پارەدانی ئێستا فرۆشتنێکی نوێ تۆمار دەکات.',
   'pharmacy.cashier.copy.unknown': 'وەڵام نەگەیشت. دووبارە هەوڵ بدەرەوە: هەمان کۆپی دووبارە داوا دەکرێت.',
   'pharmacy.cashier.held.empty': 'هیچ پسوولەیەکی ڕاگیراو نییە.',
   'pharmacy.cashier.held.discardArmed': 'دووبارە دابگرە بۆ سڕینەوە',

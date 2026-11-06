@@ -373,6 +373,36 @@ describe('a sale', () => {
     expect(a).not.toBe(b);
   });
 
+  it.each([
+    ['HOLD_EXPIRED', 'This held cart has expired', 'pay now as a new sale'],
+    ['HOLD_NOT_AVAILABLE', 'This held cart was already used or discarded', 'check the sales list'],
+  ])('lets go of a dead hold (%s) but keeps the lines, so the next Pay is a plain sale with new keys', async (phCode, message, said) => {
+    sales.createSale.mockResolvedValueOnce({ ok: false, error: { code: 'CONFLICT', message, fields: { phCode } } });
+    screenWith([{ fromHoldId: 'hold-1' }]);
+    press({ key: 'F2' });
+    await confirm();
+    const first = sales.createSale.mock.calls[0]![0] as { clientKey: string; fromHoldId?: string };
+    expect(first.fromHoldId).toBe('hold-1');
+    expect(byTest('flow-problem')!.textContent).toContain(said);
+    // The refusal recorded nothing: the attempt is gone, and so is the dead hold; the lines stay.
+    expect(stored().receipts[0]).toMatchObject({ attempt: null, fromHoldId: null });
+    expect(stored().receipts[0]!.cart.lines).toHaveLength(1);
+    sales.createSale.mockResolvedValueOnce({ ok: true, data: SALE });
+    await confirm();
+    const second = sales.createSale.mock.calls[1]![0] as typeof first;
+    expect(second).not.toHaveProperty('fromHoldId');
+    expect(second.clientKey).not.toBe(first.clientKey);
+    expect(byTest('receipt-tab')!.textContent).toContain('Paid');
+  });
+
+  it('keeps the hold on any other refusal', async () => {
+    sales.createSale.mockResolvedValueOnce({ ok: false, error: { code: 'CONFLICT', message: 'Not enough stock', fields: { phCode: 'NOT_ENOUGH_STOCK' } } });
+    screenWith([{ fromHoldId: 'hold-1' }]);
+    press({ key: 'F2' });
+    await confirm();
+    expect(stored().receipts[0]).toMatchObject({ attempt: null, fromHoldId: 'hold-1' });
+  });
+
   it('restores an attempt on the receipt it belongs to, not on the others', () => {
     screenWith([{ key: 'rc-one' }, { key: 'rc-two', attempt: ATTEMPT }], {}, 0);
     expect(byTest('attempt-unknown')).toBeNull();
