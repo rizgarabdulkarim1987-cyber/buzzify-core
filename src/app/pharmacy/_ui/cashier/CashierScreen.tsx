@@ -16,6 +16,9 @@ import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
 import { cashierReducer, frozenEdit, frozenWhy, keyContextOf, lineKeyEffect, moveSuggestion, nextScanUnitPref, suggestionsFrom, unitKeyEffect, type CashierAction, type CashierPulse, type ScanUnitPref, type Suggestion } from './cashier-logic';
 import { CashierToolbar, LeaveNote } from './CashierToolbar';
+import { CurrentLine } from './CurrentLine';
+import { ShiftTotals } from './ShiftTotals';
+import { useTillExtras } from './use-till-extras';
 import { cashierOps } from './flows-logic';
 import { InquiryPanel } from './InquiryPanel';
 import { LinePanels, type BatchOverride } from './LinePanels';
@@ -203,7 +206,7 @@ export function CashierScreen(props: CashierScreenProps) {
         setClosedFor(query.trim());
         return true;
       }
-      if (stuck()) return true;
+      if (stuck() || extras.escapeMode()) return true;
       sale.close();
       setQuery('');
       setMessage(null);
@@ -241,8 +244,10 @@ export function CashierScreen(props: CashierScreenProps) {
     } else return false;
     return true;
   };
+  // The prototype's other controls (`useTillExtras`): toolbar answers, return toggle, keypad function keys, card, editable cells.
+  const extras = useTillExtras({ receipt, currency, sale, frozenNow: () => mirror.current, inquiryOn: inquiry.on, edit, say, run: (k) => run(k), closeFlow: () => closeFlow() });
   // The side keypad (`usePad`): a quantity with no panel open, the open payment or discount panel's amount otherwise.
-  const keypad = usePad({ receiptKey: receipt.key, selected, selectedLine, panelOpen, edit, say, focusField, run: (k) => run(k) });
+  const keypad = usePad({ receiptKey: receipt.key, selected, selectedLine, panelOpen, edit, say, focusField, run: (k) => run(k), fn: extras.fn });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!shift) return;
@@ -296,9 +301,9 @@ export function CashierScreen(props: CashierScreenProps) {
           </span>
         </p>
         {pulse && <PulseStrip pulse={pulse} currency={currency} onFind={find} />}
-        <CashierToolbar flow={sale.flow} canDiscard={!receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onDiscard={discard} canReprint={sale.last !== null} canOps={ops.length > 0}
-          canHold={!receipt.done && receipt.cart.lines.length > 0} holding={holds.holding} heldCount={holds.count} heldMore={holds.more}
-          canDiscount={props.perms.discount && !receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onOpen={sale.open} onHold={() => void holds.hold()} onRelease={heldHere && !holds.holding ? holds.release : undefined} />
+        <CashierToolbar flow={sale.flow} onNew={openReceipt} canDiscard={!receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onDiscard={discard} onDiscardRefused={extras.discardRefused} onReprint={extras.reprint}
+          noPrint={sale.noPrint} noPrintLocked={sale.busy} onNoPrint={sale.setNoPrint} canOps={ops.length > 0} canHold={!receipt.done && receipt.cart.lines.length > 0} holding={holds.holding} heldCount={holds.count} heldMore={holds.more} showDiscount={props.perms.discount}
+          canDiscount={props.perms.discount && !receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onOpen={sale.open} onReturn={extras.toggleReturn} onHold={() => void holds.hold()} onRelease={heldHere && !holds.holding ? holds.release : undefined} />
       </header>
       {leave.leaveTo && <LeaveNote onStay={leave.stay} onGo={leave.go} />}
       {(!online || notSent) && (
@@ -328,8 +333,9 @@ export function CashierScreen(props: CashierScreenProps) {
           stockLeft={selectedLine ? Math.floor(selectedLine.sellableQty / Math.max(1, unitOf(selectedLine).baseQty)) : null}
           pad={keypad.pad}
           flow={sale.flow}
+          card={extras.card}
           payable={!receipt.done && receipt.cart.lines.length > 0 && !heldHere}
-          onPay={(f) => run({ kind: f })}
+          onPay={extras.pay}
         />
 
         <section className="flex min-w-0 flex-col gap-2 lg:min-h-0 lg:overflow-y-auto lg:[grid-area:main]" aria-label={t('pharmacy.cashier.main.region')} data-testid="cashier-main">
@@ -366,6 +372,7 @@ export function CashierScreen(props: CashierScreenProps) {
             </Note>
           )}
           {inquiry.on && <InquiryPanel item={inquiry.item} currency={currency} onAdd={inquiry.add} onShow={inquiry.show} />}
+          <CurrentLine line={receipt.done ? null : selectedLine} result={estimate.lines.find((l) => l.key === selected)} currency={currency} />
           {receipt.cart.lines.length === 0 ? (
             <div className="min-h-[210px] min-w-0 rounded-ph-xl border border-ph-line bg-ph-card lg:min-h-[150px] lg:flex-1" data-testid="cashier-lines">
               <p className="px-4 py-8 text-center text-sm text-ph-muted">{t('pharmacy.cashier.lines.empty')}</p>
@@ -383,13 +390,14 @@ export function CashierScreen(props: CashierScreenProps) {
                 if (edit({ type: 'line', action: { type: 'remove', key } }) && key === selected) select(null);
               }}
               canSeeCost={canSeeCost} canEditPrice={canEditPrice} costs={costs}
+              onQty={extras.table.onQty} onUnit={extras.table.onUnit} onDiscount={props.perms.discount ? extras.table.onDiscount : undefined}
             />
           )}
           {/* The work area under the lines (layout A): a flow opens here, beside the pay buttons, so the side column never grows and the
               page never scrolls; idle, it holds the prescription box and the selected line's panels. An open flow takes the room the
               lines give up and its confirm bar stays at the bottom of the area (`ConfirmBar` is sticky). */}
           <div className={`flex min-w-0 flex-col gap-2 lg:overflow-y-auto ${panelOpen ? 'lg:min-h-0 lg:shrink' : 'lg:max-h-[64%] lg:shrink-0'}`} data-testid="cashier-work">
-            <WorkPanel padSlot={keypad.slot} sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
+            <WorkPanel padSlot={keypad.slot} startMethod={extras.card ? 'CARD_MANUAL' : undefined} sale={sale} receipt={receipt} estimate={estimate} currency={currency} settings={settings} perms={props.perms} offline={!online} customer={customers[receipt.key] ?? null} onCustomer={pickCustomer} onNext={openReceipt}
               other={<OtherFlow padSlot={keypad.slot} flow={sale.flow} receipt={receipt} estimate={estimate} currency={currency} maxPercent={settings.maxDiscountPercent} selectedLine={selectedLine} edit={edit} holds={holds} ops={ops} last={sale.last} place={{ restaurantId, branchId }} onRxSaved={rxSaved} close={closeFlow} canReturn={canReturn} returns={returns} />}
               idle={!receipt.done && <RxCartPanel lines={rxLinesOf(receipt.cart)} maxQty={settings.controlledMaxQty} attached={receipt.prescriptionId !== null} number={receipt.prescriptionId ? (rx.numbers[receipt.prescriptionId] ?? null) : null} mayDispense={props.perms.rx} onOpen={() => sale.open('rx')} onDetach={() => edit({ type: 'prescription', receiptKey: receipt.key, prescriptionId: null })} />}
             />
@@ -399,6 +407,7 @@ export function CashierScreen(props: CashierScreenProps) {
           </div>
         </section>
       </div>
+      {pulse?.shift && <ShiftTotals line={pulse.shift} currency={currency} />}
     </div>
   );
 }

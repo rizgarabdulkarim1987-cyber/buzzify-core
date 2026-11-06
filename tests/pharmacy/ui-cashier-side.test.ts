@@ -97,7 +97,7 @@ function screenWith(cart: CartState, over: Partial<ComponentProps<typeof Cashier
   mount(createElement(CashierScreen, { restaurantId: 'r1', branchId: 'b1', userId: 'u1', shift: SHIFT, settings: SETTINGS, perms: PERMS, pulse: PULSE, ...over }));
 }
 const lineUnit = () => allTest('sale-line')[0]!.querySelectorAll('td')[4]!.textContent;
-const lineQty = () => allTest('sale-line')[0]!.querySelectorAll('td')[3]!.textContent;
+const lineQty = () => allTest('sale-line')[0]!.querySelectorAll('td')[3]!.querySelector('input')?.value;
 const selectFirst = () => press({ key: 'ArrowDown' });
 const digit = (d: string) => click(allTest('key-digit').find((b) => b.textContent === d) ?? null);
 
@@ -142,14 +142,16 @@ describe('the keypad', () => {
     expect(lineQty()).toBe('1');
     click(byTest('keypad-enter'));
     expect(lineQty()).toBe('12');
-    expect(byTest('keypad-display')!.textContent).toBe('');
+    // Nothing typed: the display shows the selected line's quantity again (the prototype's big quantity box).
+    expect(byTest('keypad-display')!.textContent).toBe('12');
   });
 
   it('clears with C and says so when no line is selected', () => {
     screenWith(cartOf(item()));
     digit('5');
     click(byTest('keypad-clear'));
-    expect(byTest('keypad-display')!.textContent).toBe('');
+    // Cleared, with no line selected: the display reads "-" as the prototype's does.
+    expect(byTest('keypad-display')!.textContent).toBe('-');
     digit('5');
     click(byTest('keypad-enter'));
     expect(lineQty()).toBe('1');

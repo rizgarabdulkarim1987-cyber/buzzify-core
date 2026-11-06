@@ -2,6 +2,7 @@ import { cartReducer, emptyCart, nextUnitId, parseDraft, parseQtyText, startUnit
 import { parseReceipts, receiptsReducer, type ReceiptsAction, type ReceiptsState } from '../sell-receipts';
 import type { CashierKeyContext } from '../sell-keys';
 import { prescriptionKept } from '../prescription-logic';
+import type { ShiftLine } from '@/server/pharmacy/queries/pulse-shift';
 
 /**
  * The cashier screen's state glue, pure apart from reading a DOM target: the receipts reducer plus "change the active
@@ -18,6 +19,8 @@ export interface CashierPulse {
   lowStock: { count: number; firstProductName: string | null; firstProductId: string | null };
   /** IQD per 1 USD, display only. */
   usdRate: number;
+  /** The footer's shift line (cash, credit, card, transfer, returns); null or absent without it. */
+  shift?: ShiftLine | null;
 }
 
 export type CashierAction = ReceiptsAction | { type: 'line'; action: CartAction } | { type: 'load'; state: ReceiptsState } | { type: 'holding'; receiptKey: string | null };

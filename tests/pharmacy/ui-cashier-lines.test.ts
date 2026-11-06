@@ -125,7 +125,7 @@ describe('the sale-lines table', () => {
     expect(cells[5]).toBe('1,500');
     expect(cells[6]).toBe('1,500');
     expect(cells[10]).toBe('L1');
-    expect(cells[11]).toBe('2027-03');
+    expect(cells[11]).toBe('03/2027');
     expect(cells[12]).toBe('100');
   });
 
@@ -232,7 +232,7 @@ function screenWith(cart: CartState) {
   mount(createElement(CashierScreen, { restaurantId: 'r1', branchId: 'b1', userId: 'u1', shift: SHIFT, settings: SETTINGS, perms: PERMS, pulse: PULSE }));
 }
 const selectedName = () => container.querySelector('[data-testid="sale-line"][aria-selected="true"] [data-testid="line-name"]')?.textContent ?? null;
-const qtys = () => allTest('sale-line').map((r) => r.querySelectorAll('td')[3]!.textContent);
+const qtys = () => allTest('sale-line').map((r) => r.querySelectorAll('td')[3]!.querySelector('input')?.value);
 const three = () => cartOf(item({ productId: 'a', tradeName: 'Alpha' }), item({ productId: 'b', tradeName: 'Beta' }), item({ productId: 'c', tradeName: 'Gamma' }));
 
 describe('the line keys in the cashier screen', () => {

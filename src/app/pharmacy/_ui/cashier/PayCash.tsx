@@ -45,9 +45,12 @@ export function MethodButtons({ method, onMethod, disabled = false }: { method: 
  * Enter alone completes a no-change sale. A sale in flight comes back filled in as it was sent and locked: while its outcome is
  * not known Confirm sends it again with the same keys (Retry), and only Discard lets it go and the fields change again.
  */
-export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, ...common }: FlowCommon & { currency: Currency; totalMinor: bigint; attempt: SaleAttempt | null; onSubmit: (draft: PayDraft, amountMinor: bigint) => void; padSlot?: PadSlot }) {
+export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, startMethod, ...common }: FlowCommon & { currency: Currency; totalMinor: bigint; attempt: SaleAttempt | null; onSubmit: (draft: PayDraft, amountMinor: bigint) => void; padSlot?: PadSlot; /** The method the panel opens on (the card button); a sale in flight keeps its own. */ startMethod?: PayMethod }) {
   const t = useT();
-  const [draft, setDraft] = useState<PayDraft>(() => cashDraftOf(attempt, currency));
+  const [draft, setDraft] = useState<PayDraft>(() => {
+    const first = cashDraftOf(attempt, currency);
+    return startMethod && !attempt ? { ...first, method: startMethod, tendered: '' } : first;
+  });
   const form = useRef<HTMLFormElement>(null);
   // The side keypad types the amount received here, and its check key confirms (as Enter in the field does).
   usePadSink(padSlot, {

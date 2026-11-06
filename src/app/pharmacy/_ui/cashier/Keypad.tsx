@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronDown, ChevronUp, Minus, Plus, Trash2 } from 'lucide-react';
+import { Calculator, Check, ChevronDown, ChevronUp, Minus, Plus, ShoppingCart, Trash2, Undo2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { Num } from '../sell-parts';
@@ -15,14 +15,30 @@ const LINE_KEYS: Record<PadLineKey, { testId: string; icon: ReactNode }> = {
   remove: { testId: 'pad-remove', icon: <Trash2 aria-hidden className="size-5" /> },
 };
 const KEY = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-ph-xl border border-ph-line bg-ph-card text-xl font-bold tabular-nums text-ph-text hover:bg-ph-canvas disabled:cursor-not-allowed disabled:opacity-45';
+const FN = 'inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ph-xl border px-1.5 text-sm font-semibold';
+const FN_OFF = 'border-ph-line bg-ph-canvas text-ph-text hover:bg-ph-line';
+const FN_ON = 'border-ph-amber-ink bg-ph-amber-wash text-ph-amber-ink';
+
+/** The prototype's function keys under the digits: the calculator, inquiry (#) and return mode, and the green cart key. */
+export interface PadFunctions {
+  onCalc: () => void;
+  inquiry: boolean;
+  onInquiry: () => void;
+  returning: boolean;
+  onReturn: () => void;
+  /** The green cart key: finish the sale in cash (F2). */
+  onCart: () => void;
+}
 
 /**
- * The quantity pad: what is typed shows in the display, and the enter key puts it on the selected line (the screen reads it
- * with `parseQtyText`). Whole numbers only, so there is no decimal point. The keys sit in an `ltr` box so 1 2 3 read left to
- * right in an Arabic screen too (the prototype's `.keys`). Down the fourth column the line buttons move the selection and
- * step its quantity, with Delete beside the display (`onLine`), for a till without a keyboard. Plain buttons; no motion.
+ * The quantity pad: what is typed shows in the display (else the selected line's quantity, muted, as the prototype's big
+ * quantity box; "-" with no line), and the enter key puts it on the selected line (the screen reads it with `parseQtyText`). Whole
+ * numbers only, so there is no decimal point. The keys sit in an `ltr` box so 1 2 3 read left to right in an Arabic screen too (the
+ * prototype's `.keys`). Beside the display: the green cart key (pay cash) and Delete; down the fourth column the line buttons move
+ * the selection and step its quantity, for a till without a keyboard; the last row holds the calculator, inquiry (#) and return
+ * keys (the latter two pressed while their mode is on). Plain buttons; no motion.
  */
-export function Keypad({ text, onKey, onEnter, canEnter, onLine }: { text: string; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean; onLine: (key: PadLineKey) => void }) {
+export function Keypad({ text, typed, onKey, onEnter, canEnter, onLine, fn }: { text: string; typed: boolean; onKey: (key: string) => void; onEnter: () => void; canEnter: boolean; onLine: (key: PadLineKey) => void; fn: PadFunctions }) {
   const t = useT();
   const line = (kind: PadLineKey) => (
     <button
@@ -41,12 +57,16 @@ export function Keypad({ text, onKey, onEnter, canEnter, onLine }: { text: strin
       {d}
     </button>
   );
+  const returnLabel = t(fn.returning ? 'pharmacy.cashier.tools.returnEnd' : 'pharmacy.cashier.tools.return');
   return (
     <div className="flex min-w-0 flex-col rounded-ph-2xl border border-ph-line bg-ph-card p-2 lg:mt-auto lg:shrink-0" role="group" aria-label={t('pharmacy.cashier.keypad.region')} data-testid="keypad">
-      <div dir="ltr" className="grid grid-cols-4 gap-1.5" data-testid="keypad-keys">
-        <output className="col-span-3 flex min-h-11 items-center justify-end rounded-ph-xl border-2 border-ph-accent bg-ph-canvas px-3 text-[22px] font-bold tabular-nums text-ph-text" aria-label={t('pharmacy.cashier.keypad.display')} data-testid="keypad-display">
+      <div dir="ltr" className="grid grid-cols-4 gap-1.5 [@media(max-height:820px)]:gap-1" data-testid="keypad-keys">
+        <output className={`col-span-2 flex min-h-11 items-center justify-end rounded-ph-xl border-2 border-ph-accent bg-ph-canvas px-3 text-[22px] font-bold tabular-nums ${typed ? 'text-ph-text' : 'text-ph-muted'}`} aria-label={t('pharmacy.cashier.keypad.display')} data-testid="keypad-display">
           <Num>{text}</Num>
         </output>
+        <button type="button" className={`${KEY} border-ph-g8 bg-ph-g8 text-ph-on-green hover:bg-ph-g9`} data-testid="pad-cart" aria-label={t('pharmacy.cashier.keypad.cart')} title={t('pharmacy.cashier.keypad.cart')} onClick={fn.onCart}>
+          <ShoppingCart aria-hidden className="size-5" />
+        </button>
         {line('remove')}
         {digit('1')}
         {digit('2')}
@@ -68,6 +88,17 @@ export function Keypad({ text, onKey, onEnter, canEnter, onLine }: { text: strin
           <Check aria-hidden className="size-6" />
         </button>
         {line('qtyUp')}
+        <button type="button" className={`${FN} ${FN_OFF}`} data-testid="keypad-calc" onClick={fn.onCalc}>
+          <Calculator aria-hidden className="size-4 shrink-0" />
+          {t('pharmacy.cashier.keypad.calc')}
+        </button>
+        <button type="button" dir="auto" className={`${FN} ${fn.inquiry ? FN_ON : FN_OFF}`} data-testid="keypad-inquiry" aria-pressed={fn.inquiry} onClick={fn.onInquiry}>
+          <span className="truncate">{t('pharmacy.cashier.keypad.inquiry')}</span>
+        </button>
+        <button type="button" dir="auto" className={`${FN} col-span-2 ${fn.returning ? FN_ON : FN_OFF}`} data-testid="keypad-return" aria-pressed={fn.returning} onClick={fn.onReturn}>
+          <Undo2 aria-hidden className="size-4 shrink-0" />
+          {returnLabel}
+        </button>
       </div>
     </div>
   );

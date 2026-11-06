@@ -442,7 +442,7 @@ function deferred<T>() {
   const promise = new Promise<T>((r) => (resolve = r));
   return { promise, resolve };
 }
-const qtyOf = () => allTest('sale-line').map((r) => r.querySelectorAll('td')[3]!.textContent);
+const qtyOf = () => allTest('sale-line').map((r) => r.querySelectorAll('td')[3]!.querySelector('input')?.value);
 const startPay = async () => {
   press({ key: 'F2' });
   const button = byTest('flow-confirm') as HTMLButtonElement;

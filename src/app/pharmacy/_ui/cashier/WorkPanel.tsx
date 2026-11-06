@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import type { PickedCustomer } from '../CustomerPicker';
 import type { SellPerms } from '../sell-props';
-import type { Currency, Estimate } from '../sell-logic';
+import type { Currency, Estimate, PayMethod } from '../sell-logic';
 import { Note, PH_BTN } from '../sell-parts';
 import type { OpenReceipt } from '../sell-receipts';
 import type { SellSettings } from '@/server/pharmacy/sell-search';
@@ -36,7 +36,10 @@ export function WorkPanel({
   other,
   idle,
   padSlot,
+  startMethod,
 }: {
+  /** The method the cash panel opens on (the card button: CARD_MANUAL). */
+  startMethod?: PayMethod;
   /** Where the side keypad types while a payment is open (the amount received / paid now). */
   padSlot?: PadSlot;
   sale: SaleFlow;
@@ -70,7 +73,7 @@ export function WorkPanel({
     );
   }
   const block = payBlockKey(receipt.cart, estimate, { mayDispense: perms.rx, prescriptionId: receipt.prescriptionId, controlledMaxQty: settings.controlledMaxQty, controlledEnabled: settings.controlledEnabled, maxDiscountPercent: settings.maxDiscountPercent });
-  const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, elsewhere: sale.elsewhere, noPrint: sale.noPrint, onNoPrint: sale.setNoPrint };
+  const common = { busy: sale.busy, offline, blocked: sale.elsewhere ? t('pharmacy.cashier.flow.otherPaying') : block ? t(block) : null, onRetry: () => void sale.retry(customer?.name ?? ''), onDiscard: sale.discard, problem: sale.problem, pending: receipt.attempt !== null, elsewhere: sale.elsewhere };
   return (
     <section className="flex flex-col gap-2 rounded-ph-2xl border border-ph-line bg-ph-card p-2.5" data-testid="work-panel" data-flow={kind} aria-label={t('pharmacy.cashier.flow.region')}>
       <div className="flex items-center justify-between gap-2">
@@ -82,7 +85,7 @@ export function WorkPanel({
           </button>
         )}
       </div>
-      {kind === 'cash' && <PayCash key={`${receipt.key}:cash`} currency={currency} totalMinor={estimate.totalMinor} attempt={receipt.attempt} onSubmit={(draft, amount) => void sale.pay(draft, amount, null)} padSlot={padSlot} {...common} />}
+      {kind === 'cash' && <PayCash key={`${receipt.key}:cash:${startMethod ?? ''}`} startMethod={startMethod} currency={currency} totalMinor={estimate.totalMinor} attempt={receipt.attempt} onSubmit={(draft, amount) => void sale.pay(draft, amount, null)} padSlot={padSlot} {...common} />}
       {kind === 'credit' && (
         <PayCredit
           key={`${receipt.key}:credit`}

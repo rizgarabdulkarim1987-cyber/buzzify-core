@@ -13,7 +13,7 @@ const BTN = 'inline-flex min-h-12 min-w-11 items-center justify-center gap-2 rou
  * The scan / search field with the unit button and the inquiry button beside it. Enter adds the top result (a scanner's own
  * closing Enter was taken before it gets here). The unit button CONVERTS (a button, never a dropdown): it shows the unit and
  * price it would act on (the selected line's unit, else the unit the next item starts in); the screen decides what a press does.
- * The inquiry button shows and turns inquiry mode (F7).
+ * The inquiry button shows and turns inquiry mode (F7); its caption says what a press does ("End inquiry" while it is on).
  */
 export function ScanBar({
   inputRef,
@@ -106,7 +106,11 @@ export function ScanBar({
         onClick={onInquiry}
       >
         <Info aria-hidden className="size-5 shrink-0" />
-        {t('pharmacy.cashier.inquiry.button')}
+        {/* The prototype's caption: "استعلام عن سعر" with F7 under it, "إنهاء الاستعلام" while the mode is on. */}
+        <span className="flex flex-col items-start leading-tight">
+          {t(inquiry ? 'pharmacy.cashier.inquiry.end' : 'pharmacy.cashier.inquiry.button')}
+          <small className={`text-[11px] font-normal ${inquiry ? 'text-ph-on-green-muted' : 'text-ph-muted'}`}>F7</small>
+        </span>
       </button>
     </div>
   );

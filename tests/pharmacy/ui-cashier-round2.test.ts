@@ -715,7 +715,8 @@ describe('round 3: pad digits never come back after a panel (M3)', () => {
     press({ key: 'F2' });
     click(byTest('flow-back'));
     expect(flowOf()).toBe('idle');
-    expect(byTest('keypad-display')!.textContent).toBe('');
+    // The typed 7 is gone: the display shows the line's own quantity again.
+    expect(byTest('keypad-display')!.textContent).toBe('3');
     padEnter();
     expect(storedQty()).toEqual([3]);
   });

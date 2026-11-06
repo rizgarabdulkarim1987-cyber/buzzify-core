@@ -403,8 +403,12 @@ describe('a receipt while its hold is sent', () => {
     press({ key: 'ArrowDown' });
     press({ key: '+' });
     expect(stored().receipts[0]!.cart.lines[0]!.qty).toBe(3);
-    expect(byTest('tool-discount')).toBeNull();
-    expect((byTest('tool-discard') as HTMLButtonElement).disabled).toBe(true);
+    expect((byTest('tool-discount') as HTMLButtonElement).disabled).toBe(true);
+    // Discard stays in reach (the prototype answers instead of hiding it): a press says why and changes nothing.
+    expect(byTest('tool-discard')!.getAttribute('aria-disabled')).toBe('true');
+    click(byTest('tool-discard'));
+    expect(message()).toContain('being held');
+    expect(stored().receipts[0]!.cart.lines).toHaveLength(1);
     await act(async () => answer.resolve({ ok: true, data: { id: 'h1', heldUntil: '2026-11-06T08:30:00Z' } }));
     await flush();
     expect(stored().receipts[0]!.cart.lines).toHaveLength(0);
@@ -446,7 +450,7 @@ describe('a receipt while its hold is sent', () => {
 
   it('never offers the receipt discount on a receipt whose sale is in flight', () => {
     screenWith([{ attempt: ATTEMPT }]);
-    expect(byTest('tool-discount')).toBeNull();
+    expect((byTest('tool-discount') as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
@@ -694,7 +698,10 @@ describe('the copy of the last receipt', () => {
     sales.createSale.mockResolvedValue({ ok: true, data: SALE });
     receipts.reprintReceipt.mockResolvedValue(receiptOf(true));
     screenWith([{}]);
-    expect(byTest('tool-reprint')).toBeNull();
+    // Before any sale the button is there and answers that there is no earlier receipt (the prototype's message).
+    click(byTest('tool-reprint'));
+    expect(flowOf()).toBe('idle');
+    expect(receipts.reprintReceipt).not.toHaveBeenCalled();
     press({ key: 'F2' });
     const confirm = byTest('flow-confirm') as HTMLButtonElement;
     await act(async () => confirm.click());

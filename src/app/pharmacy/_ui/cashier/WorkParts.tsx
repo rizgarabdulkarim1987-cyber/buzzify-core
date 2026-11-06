@@ -23,7 +23,7 @@ export function usePadSink(slot: PadSlot | undefined, mine: PadSink) {
   });
 }
 
-/** What every payment flow shows besides its own fields: why Pay is held back, the connection, a sale in flight, a refusal, "no print". */
+/** What every payment flow shows besides its own fields: why Pay is held back, the connection, a sale in flight, a refusal ("no print" is in the toolbar, as in the prototype). */
 export interface FlowCommon {
   busy: boolean;
   offline: boolean;
@@ -35,15 +35,13 @@ export interface FlowCommon {
   pending: boolean;
   /** Another receipt's sale is being sent: this one can neither be sent again nor let go until it is answered. */
   elsewhere: boolean;
-  noPrint: boolean;
-  onNoPrint: (on: boolean) => void;
   /** Sends the sale in flight again with the same keys. */
   onRetry: () => void;
   /** Lets the sale in flight go (after the armed second tap); false when it could not (another sale is being sent). */
   onDiscard: () => boolean;
 }
 
-export function FlowNotes({ blocked, offline, problem, pending, elsewhere, noPrint, onNoPrint, busy, onRetry, onDiscard }: FlowCommon) {
+export function FlowNotes({ blocked, offline, problem, pending, elsewhere, busy, onRetry, onDiscard }: FlowCommon) {
   const t = useT();
   const blockedId = useId();
   // Letting an attempt go is a two-tap action: the first tap arms it and says what it means, the second does it. It is disarmed
@@ -58,10 +56,6 @@ export function FlowNotes({ blocked, offline, problem, pending, elsewhere, noPri
   const held = offline || elsewhere;
   return (
     <>
-      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-ph-text">
-        <input type="checkbox" className="size-5 shrink-0" data-testid="flow-no-print" checked={noPrint} disabled={busy} onChange={(event) => onNoPrint(event.target.checked)} />
-        {t('pharmacy.cashier.flow.noPrint')}
-      </label>
       {blocked && (
         <Note look="ph" icon={<TriangleAlert aria-hidden />} tone="danger" role="status" testId="flow-blocked" id={blockedId}>
           {blocked}

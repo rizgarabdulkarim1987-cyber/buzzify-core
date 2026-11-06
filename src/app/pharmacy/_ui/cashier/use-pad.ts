@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useT } from '@/studio/i18n';
 import type { CartLine } from '../sell-logic';
 import { padQty, padText, type CashierAction } from './cashier-logic';
-import type { PadLineKey } from './Keypad';
+import type { PadFunctions, PadLineKey } from './Keypad';
 import type { Message } from './use-adding';
 import type { PadSink, PadSlot } from './WorkParts';
 
@@ -27,6 +27,8 @@ export function usePad(o: {
   say: (m: Message | null) => void;
   focusField: () => void;
   run: (key: { kind: PadLineKey }) => boolean;
+  /** The function keys (calculator, inquiry, return, cart), wired by the screen. */
+  fn: PadFunctions;
 }) {
   const t = useT();
   const { panelOpen, selectedLine } = o;
@@ -67,8 +69,11 @@ export function usePad(o: {
     if (changesLine(kind) && !panelOpen && !selectedLine) o.say({ tone: 'info', text: t('pharmacy.cashier.keypad.noLine') });
     else o.run({ kind });
   };
+  // The display: what was typed, else the selected line's quantity (the prototype's big quantity box), "-" with no line; empty
+  // while a panel takes the keys.
+  const shown = panelOpen ? '' : text !== '' ? text : selectedLine ? String(selectedLine.qty) : '-';
   return {
-    pad: { text: panelOpen ? '' : text, onKey, onEnter, canEnter: panelOpen || text !== '', onLine },
+    pad: { text: shown, typed: !panelOpen && text !== '', onKey, onEnter, canEnter: panelOpen || text !== '', onLine, fn: o.fn },
     slot,
     /** Says why a line change is refused while a panel is open; true when it was refused. */
     refuseWhileOpen: (kind: string): boolean => changesLine(kind) && panelOpen && (closeFirst(), true),

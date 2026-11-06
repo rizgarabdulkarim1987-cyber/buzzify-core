@@ -5,6 +5,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { formatMinor, unitOf, type CartLine, type Currency, type Estimate } from '../sell-logic';
 import { Chip, Num } from '../sell-parts';
+import { CellInput, expiryOf, UnitCell } from './LineCells';
 
 /**
  * What the server sent for a line's cost and profit (minor units as text, `ph.sell.costs`). Absent unless the person may see
@@ -34,6 +35,12 @@ export interface SaleLinesTableProps {
   over?: ReadonlySet<string>;
   /** Cost data by line key; only ever passed when `canSeeCost`. Without it the cost cells stay empty. */
   costs?: Readonly<Record<string, LineCost>>;
+  /** The quantity typed in its cell (the prototype's row input); false when the screen refused it (the cell goes back). Text without it. */
+  onQty?: (key: string, text: string) => boolean;
+  /** The unit cell's press: the line to its next priced unit. Text without it. */
+  onUnit?: (line: CartLine) => void;
+  /** The line discount typed as an amount (with the discount permission); false when refused. Text without it. */
+  onDiscount?: (key: string, text: string) => boolean;
 }
 
 const COLUMNS = ['row', 'code', 'name', 'qty', 'unit', 'price', 'total', 'discount', 'netPrice', 'netTotal', 'batch', 'expiry', 'balance'] as const;
@@ -71,7 +78,19 @@ const MUTED = '—';
  * (`aria-selected`); the arrow, +, - and Delete keys are the screen's. A prescription, controlled, blocked or over-stock
  * line is marked in words in its name cell (as the old screen's chips). The table scrolls in its own container; a long name truncates (the full name is its `title`).
  */
-export function SaleLinesTable({ compact, lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs }: SaleLinesTableProps) {
+/** The expiry cell: MM/YYYY, red when near or past, with the "expired" mark when past (the prototype's `.low` and badge). */
+function Expiry({ date }: { date: string }) {
+  const t = useT();
+  const { text, mark } = expiryOf(date);
+  return (
+    <span className={mark ? 'font-bold text-ph-red' : undefined} data-testid="line-expiry" data-mark={mark ?? undefined}>
+      <Num>{text}</Num>
+      {mark === 'expired' && <span className="ms-1 rounded bg-ph-red px-1 text-[11px] font-normal text-ph-on-green">{t('pharmacy.cashier.batch.expired')}</span>}
+    </span>
+  );
+}
+
+export function SaleLinesTable({ compact, lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs, onQty, onUnit, onDiscount }: SaleLinesTableProps) {
   const t = useT();
   const columns = columnsOf(canSeeCost);
   const selectedRow = useRef<HTMLTableRowElement>(null);
@@ -184,15 +203,24 @@ export function SaleLinesTable({ compact, lines, results, currency, selected, on
                     </div>
                   )}
                 </td>
-                {tail('qty', line.qty, 'font-bold')}
-                {tail('unit', <span className="block truncate" dir="auto" title={unit.label}>{unit.label}</span>)}
+                {tail('qty', onQty ? <CellInput value={String(line.qty)} label={t('pharmacy.cashier.lines.qty', { name: line.name })} testId="line-qty" onCommit={(text) => onQty(line.key, text)} /> : line.qty, 'font-bold')}
+                {tail('unit', onUnit ? <UnitCell label={unit.label} aria={t('pharmacy.cashier.lines.unit', { name: line.name })} onCycle={() => onUnit(line)} /> : <span className="block truncate" dir="auto" title={unit.label}>{unit.label}</span>)}
                 {tail('price', unit.priceMinor === null ? MUTED : moneyText(unit.priceMinor))}
                 {tail('total', priced ? money(result.grossMinor) : MUTED)}
-                {tail('discount', priced && result.discountMinor > 0n ? money(result.discountMinor) : MUTED)}
+                {tail(
+                  'discount',
+                  onDiscount && line.discount?.kind !== 'percent' ? (
+                    <CellInput value={line.discount?.value ?? '0'} label={t('pharmacy.cashier.lines.discount', { name: line.name })} testId="line-discount" onCommit={(text) => onDiscount(line.key, text)} />
+                  ) : priced && result.discountMinor > 0n ? (
+                    money(result.discountMinor)
+                  ) : (
+                    MUTED
+                  ),
+                )}
                 {tail('netPrice', netUnit === null ? MUTED : netExact ? money(netUnit) : <>≈ {money(netUnit)}</>)}
                 {tail('netTotal', priced ? money(result.totalMinor) : MUTED, 'font-bold')}
                 {tail('batch', line.batchId ? line.batchLot : (batch?.lot ?? MUTED))}
-                {tail('expiry', batch ? batch.expiryDate.slice(0, 7) : MUTED)}
+                {tail('expiry', batch ? <Expiry date={batch.expiryDate} /> : MUTED)}
                 {tail('balance', Math.floor(line.sellableQty / Math.max(1, unit.baseQty)))}
                 {canSeeCost && tail('cost', moneyText(cost?.costMinor))}
                 {canSeeCost && tail('profit', moneyText(cost?.profitMinor))}

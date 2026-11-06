@@ -5,6 +5,7 @@ import { rxLevelOfLines } from '../prescription-logic';
 import type { CartLine, Currency, DiscountDraft, Estimate } from '../sell-logic';
 import type { OpenReceipt } from '../sell-receipts';
 import type { CashierAction } from './cashier-logic';
+import { CalcFlow } from './CalcFlow';
 import { DiscountFlow } from './DiscountFlow';
 import type { CashierOp } from './flows-logic';
 import { HeldList } from './HeldList';
@@ -17,7 +18,7 @@ import type { HoldFlow } from './use-hold-flow';
 import type { ReturnFlowState } from './use-return-flow';
 import type { PadSlot } from './WorkParts';
 
-/** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy, a return. */
+/** The body of a work-panel flow that is not a payment: the receipt discount, the held list, the prescription, all operations, the copy, a return, the calculator. */
 export function OtherFlow({
   flow,
   receipt,
@@ -74,6 +75,7 @@ export function OtherFlow({
       />
     );
   }
+  if (flow === 'calc') return <CalcFlow padSlot={padSlot} />;
   if (flow === 'held') return <HeldList holds={holds} />;
   if (flow === 'ops') return <OpsPanel ops={ops} />;
   if (flow === 'return') return <ReturnFlow canReturn={canReturn} shiftCurrency={currency} returns={returns} />;
