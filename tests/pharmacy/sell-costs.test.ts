@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as sellQueries from '@/server/pharmacy/queries/sell';
 import { creditWorld, type CreditWorld } from './credit-world';
-import { NOW, resetWorld, useTestDatabase } from './fixture';
+import { NOW, prisma, resetWorld, useTestDatabase } from './fixture';
 import { ask, codeOf, dataOf, makeBatch, makeProduct } from './stock-helpers';
 
 /**
@@ -112,6 +112,17 @@ describe('the cost the sale would take', () => {
     ]);
     const usd = await costs([{ key: 'usd', productId: p.id, unitId: p.tablet, qty: 1, unitPriceMinor: '150' }], w.owner, { currency: 'USD' });
     expect(usd.lines).toEqual([{ key: 'usd', costMinor: null, profitMinor: null }]);
+  });
+
+  it('never adds costs of two currencies: a line that takes a USD-costed batch (fast entry) has no cost in IQD', async () => {
+    const { p, late } = await costed();
+    // LATE came in by fast entry, costed in USD (owner decision pending: costs are not converted).
+    await prisma().phBatch.update({ where: { id: late }, data: { costCurrency: 'USD' } });
+    // 2 tablets come from SOON alone (IQD): 100. 5 tablets take 2 from LATE too: unknown, not 150 + 160.
+    expect((await costs([{ key: 'a', productId: p.id, unitId: p.tablet, qty: 2, unitPriceMinor: '150' }])).lines).toEqual([{ key: 'a', costMinor: '100', profitMinor: '200' }]);
+    expect((await costs([{ key: 'b', productId: p.id, unitId: p.tablet, qty: 5, unitPriceMinor: '150' }])).lines).toEqual([{ key: 'b', costMinor: null, profitMinor: null }]);
+    // In a USD sale the IQD batch is the unknown one.
+    expect((await costs([{ key: 'c', productId: p.id, unitId: p.tablet, qty: 5, unitPriceMinor: '150' }], w.owner, { currency: 'USD' })).lines).toEqual([{ key: 'c', costMinor: null, profitMinor: null }]);
   });
 });
 
