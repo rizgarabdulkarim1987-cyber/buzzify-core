@@ -437,6 +437,25 @@ describe('the entry screen', () => {
     expect(allTest('entry-done-item')).toHaveLength(1);
   });
 
+  it('treats an unexpected server answer like a lost one (the cashier rule): frozen, resent with the same key', async () => {
+    actions.lookupEntryProduct.mockResolvedValue(known());
+    actions.addEntryLine.mockResolvedValueOnce({ ok: false, error: { code: 'INTERNAL', message: 'Something went wrong' } });
+    screen();
+    await scan('6260147701596');
+    typeIn(field('qty'), '3');
+    typeIn(field('expiry'), '0128');
+    press({ key: 'F2' }, document);
+    await flush();
+    expect(byTest('entry-msg')?.textContent).toMatch(/no answer/i);
+    expect(field('qty').readOnly).toBe(true);
+    actions.addEntryLine.mockResolvedValueOnce(saved());
+    press({ key: 'F2' }, document);
+    await flush();
+    const [first, second] = actions.addEntryLine.mock.calls.map((c) => c[0]);
+    expect(second).toEqual(first);
+    expect(allTest('entry-done-item')).toHaveLength(1);
+  });
+
   it('refuses a new scan while a lost line waits, and drops the line only on the armed drop button', async () => {
     actions.lookupEntryProduct.mockResolvedValue(known());
     actions.addEntryLine.mockRejectedValueOnce(new Error('network'));

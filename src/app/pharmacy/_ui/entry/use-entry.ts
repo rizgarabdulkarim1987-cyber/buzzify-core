@@ -7,6 +7,7 @@ import type { StudioFailure } from '@/server/studio/framework/result';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { newKey } from '../receipt-draft';
+import { outcomeUnknown } from '../sell-logic';
 import { entryRequest, emptyEntryForm, type EntryForm, type EntryLineRequest, type EntryProblem } from './entry-logic';
 import { enterOrder, knownForm, labelKey, newForm, refusedField, type EntryDraft, type EntryFieldName, type KnownLookup } from './entry-fields';
 
@@ -181,8 +182,9 @@ export function useEntry({ canChangePrice, initialDraft, suppliers, focus }: { c
     setSending(false);
     const next = queued.current;
     queued.current = null;
-    if (!res) {
-      // The request stays, frozen: Save resends it byte for byte; the list is re-read to show whether it landed.
+    if (!res || (!res.ok && outcomeUnknown(res.error))) {
+      // No answer, or an unexpected one (the cashier's rule): the request stays, frozen: Save resends it byte for byte with the
+      // same key; the list is re-read to show whether it landed.
       setFrozen(true);
       setMsg({ tone: 'err', text: t('pharmacy.entry.msg.lost') });
       void refreshDraft();
