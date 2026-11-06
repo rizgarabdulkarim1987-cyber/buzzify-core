@@ -233,7 +233,8 @@ export function useEntry({ canChangePrice, initialDraft, suppliers, focus }: { c
       return;
     }
     if (!res.ok) {
-      setMsg({ tone: 'err', text: failureText(res.error) });
+      // A line that expired since it was entered blocks the post; the entry screen cannot drop a line, the receiving editor can.
+      setMsg({ tone: 'err', text: res.error.fields?.phCode === 'EXPIRED' ? t('pharmacy.entry.finishExpired') : failureText(res.error) });
       void refreshDraft();
       return;
     }

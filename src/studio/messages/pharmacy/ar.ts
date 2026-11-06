@@ -3780,6 +3780,7 @@ const pharmacy: Messages = {
   'pharmacy.entry.finishing': 'جارٍ الإضافة إلى المخزون…',
   'pharmacy.entry.finishHint': 'الإنهاء يضيف كل ما أُدخل إلى المخزون كإيصال استلام واحد.',
   'pharmacy.entry.finishLost': 'لم يصل رد من الخادم. اضغط إنهاء مرة أخرى: لن يُضاف مرتين.',
+  'pharmacy.entry.finishExpired': 'انتهت صلاحية سطر منذ إدخاله، فلا يمكن ترحيل الإدخال. افتح هذه المسودة في استلام البضائع، واحذف ذلك السطر (أو اقبله في الحجر)، ثم أنهِها هناك.',
   'pharmacy.entry.done.title': 'أُضيف الإدخال إلى المخزون',
   'pharmacy.entry.done.body': 'أُضيفت {count} مادة إلى المخزون في الإيصال {number}.',
   'pharmacy.entry.done.again': 'بدء إدخال جديد',

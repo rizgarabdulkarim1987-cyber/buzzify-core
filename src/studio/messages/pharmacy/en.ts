@@ -3748,6 +3748,7 @@ const pharmacy: Messages = {
   'pharmacy.entry.finishing': 'Adding to stock…',
   'pharmacy.entry.finishHint': 'Finish adds everything entered to stock as one receipt.',
   'pharmacy.entry.finishLost': 'No answer from the server. Press finish again: it will not be added twice.',
+  'pharmacy.entry.finishExpired': 'A line has expired since it was entered, so the entry cannot be posted. Open this draft in Receiving goods, remove that line (or accept it into quarantine), then finish there.',
   'pharmacy.entry.done.title': 'Entry added to stock',
   'pharmacy.entry.done.body': '{count} lines added to stock on receipt {number}.',
   'pharmacy.entry.done.again': 'Start a new entry',

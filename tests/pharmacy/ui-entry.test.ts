@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Locale } from '@/lib/locale';
 import { StudioI18nProvider } from '@/studio/i18n';
-import { STUDIO_MESSAGES } from '@/studio/messages';
+import { getStudioTranslator, STUDIO_MESSAGES } from '@/studio/messages';
 
 /**
  * The fast product entry screen (plan Task 14, prototype docs/pharmacy/prototypes/product-entry-2026-11-05.html): one scan
@@ -355,6 +355,16 @@ describe('the entry screen', () => {
     expect(byTest('entry-finished')).toBeNull();
     expect(allTest('entry-done-item')).toHaveLength(0);
     expect(document.activeElement).toBe(byTest('entry-scan'));
+  });
+
+  it('says how to get past a line that expired since it was entered (Finish is refused with EXPIRED)', async () => {
+    actions.finishEntry.mockResolvedValueOnce({ ok: false, error: { code: 'INVALID', message: 'This lot is already expired: remove it, or accept it into quarantine', fields: { phCode: 'EXPIRED', 'lines.0.expiry': 'x' } } });
+    screen({ initialDraft: { receiptId: 'rc1', version: 3, supplierId: 's1', supplierName: 'Al-Hakeem store', createdAt: '2026-11-06T08:00:00Z', lineCount: 1, lines: [LINE] } });
+    act(() => (byTest('entry-finish') as HTMLButtonElement).click());
+    act(() => (byTest('entry-finish') as HTMLButtonElement).click());
+    await flush();
+    expect(byTest('entry-msg')?.textContent).toBe(getStudioTranslator('en')('pharmacy.entry.finishExpired'));
+    expect(byTest('entry-msg')?.textContent).toContain('Receiving');
   });
 
   it('keeps Finish off with nothing entered', () => {
