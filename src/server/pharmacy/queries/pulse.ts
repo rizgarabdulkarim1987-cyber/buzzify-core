@@ -1,6 +1,7 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { DEFAULT_USD_RATE } from '@/server/pharmacy/exchange-rate';
 import { pharmacyOf } from '@/server/pharmacy/products';
+import { shiftLineOf } from '@/server/pharmacy/queries/pulse-shift';
 import { currentShift } from '@/server/pharmacy/shifts-reads';
 import { expiringWhere, lowStockRows } from '@/server/pharmacy/stock-alerts';
 import { defineQuery } from '@/server/studio/framework/query';
@@ -52,6 +53,8 @@ export const pulse = defineQuery({
       nearExpiry: expiringCount === 0 ? EMPTY : { count: expiringCount, firstProductName: firstExpiring?.tradeName ?? null, firstProductId: firstExpiring?.id ?? null },
       lowStock: { count: lowProducts.length, firstProductName: lowProducts[0]?.tradeName ?? null, firstProductId: lowProducts[0]?.id ?? null },
       usdRate: settings?.usdRate ?? DEFAULT_USD_RATE,
+      // The footer line: cash, credit, card, transfer and returns of the shift with their counts (null without an open shift).
+      shift: shiftLineOf(totals),
     };
   },
 });
