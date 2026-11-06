@@ -36,7 +36,7 @@ const WIDTHS = [
   { width: 375, height: 800 },
 ] as const;
 /** The places the phone's bottom bar holds itself (Shell.tsx); the rest sit behind its "More" button. */
-const BAR = new Set<PhNavKey>(['home', 'sell', 'stock', 'expiry']);
+const BAR = new Set<PhNavKey>(['sell', 'stock', 'catalog', 'customers']);
 
 interface Shop {
   id: string;

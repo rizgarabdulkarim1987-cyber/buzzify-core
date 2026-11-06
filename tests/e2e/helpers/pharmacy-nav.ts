@@ -9,8 +9,8 @@ export function frameNav(page: Page): Locator {
 }
 
 /**
- * The pharmacy's desktop rail shows Home, Sell, Stock, Expiry and Reports; every other place sits under its "More"
- * toggle (a native `<details>`, closed unless the current place is one of them). A closed "More" hides its links from the
+ * The pharmacy's desktop rail shows Sell, Stock, Products, Customers and Reports (then the AI Doctor when on); every other place (Home,
+ * Expiry, ...) sits under its "More" toggle, grouped as Daily, Stock and Purchasing (a native `<details>`, closed unless the current place is one of them). A closed "More" hides its links from the
  * accessibility tree, so a test that follows or rules out one of those places opens it first. A role with nothing under
  * "More" has no toggle, and this does nothing.
  */
