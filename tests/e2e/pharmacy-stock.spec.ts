@@ -223,7 +223,11 @@ test.describe('Pharmacy stock @desktop', () => {
     const page = await freshPage(browser);
     // All branches: the stock is readable, and the page says to choose one branch to change it.
     await signInAndChoose(page, owner, shop, 0);
+    // The rail's Stock item opens fast entry, which needs one branch; the stock list is its own link.
     await railLink(page, 'Stock', { exact: true });
+    await expect(page).toHaveURL(/\/pharmacy\/stock\/entry$/);
+    await expect(page.getByTestId('entry-pick-branch')).toBeVisible();
+    await page.goto('/pharmacy/stock');
     await expect(page.getByRole('heading', { level: 1, name: 'Stock' })).toBeVisible();
     await expect(page.getByTestId('stock-pick-branch')).toBeVisible();
     await expect(page.getByTestId('batch-actions')).toHaveCount(0);

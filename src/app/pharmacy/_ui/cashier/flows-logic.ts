@@ -1,4 +1,4 @@
-import { canPh, type PhRole } from '@/server/domain/pharmacy/permissions';
+import { canPh, type PhPermission, type PhRole } from '@/server/domain/pharmacy/permissions';
 import { phNav, type PhNavKey } from '../nav';
 import { blockedLines, type CartState, type Estimate } from '../sell-logic';
 import { MAX_RECEIPTS, type OpenReceipt, type ReceiptsState } from '../sell-receipts';
@@ -63,7 +63,7 @@ export function handInPlace(state: ReceiptsState): 'active' | 'new' | 'full' {
 
 // All operations ------------------------------------------------------------------------------------------------------------
 
-export type CashierOpKey = 'sales' | 'returns' | 'debt' | 'cash' | 'closeShift';
+export type CashierOpKey = 'sales' | 'returns' | 'debt' | 'cash' | 'closeShift' | 'entry';
 export interface CashierOp {
   key: CashierOpKey;
   href: string;
@@ -72,15 +72,17 @@ export interface CashierOp {
 /**
  * The prototype's "all operations" list in its order, each routed to the existing screen that does it: today's sales, returns,
  * a customer paying debt, cash paid in or out and closing the shift (both on the shift screen). An entry shows only when the nav
- * lets this role open its screen. The prototype's "open the drawer without a sale" has no screen yet and is left out.
+ * lets this role open its screen; product entry (the Stock item's screen) also needs `purchase.manage`. The prototype's "open the drawer without a sale" has no screen yet and is left out.
  */
-const OPS: readonly { key: CashierOpKey; nav: PhNavKey; shift?: true }[] = [
+const OPS: readonly { key: CashierOpKey; nav: PhNavKey; shift?: true; needs?: PhPermission }[] = [
   { key: 'sales', nav: 'sales' },
   { key: 'returns', nav: 'returns' },
   { key: 'debt', nav: 'customers' },
   // The shift screen also opens for reports; paying cash in or out and closing the shift need a person who works a shift.
   { key: 'cash', nav: 'shifts', shift: true },
   { key: 'closeShift', nav: 'shifts', shift: true },
+  // Product entry (the Stock item's screen) needs the receiving permission, which the Stock item itself does not ask for.
+  { key: 'entry', nav: 'stock', needs: 'purchase.manage' },
 ];
 
 export function cashierOps(role: PhRole | null): CashierOp[] {
@@ -89,6 +91,6 @@ export function cashierOps(role: PhRole | null): CashierOp[] {
   const allowed = new Map([...primary, ...more].map((item) => [item.key, item.href]));
   return OPS.flatMap((op) => {
     const href = allowed.get(op.nav);
-    return href && (!op.shift || canPh(role, 'shift.use')) ? [{ key: op.key, href }] : [];
+    return href && (!op.shift || canPh(role, 'shift.use')) && (!op.needs || canPh(role, op.needs)) ? [{ key: op.key, href }] : [];
   });
 }

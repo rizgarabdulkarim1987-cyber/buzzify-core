@@ -61,6 +61,8 @@ describe('phActiveKey', () => {
     ['/pharmacy/stock/expiry', 'expiry'],
     ['/pharmacy/stock/counts/x', 'counts'],
     ['/pharmacy/stock', 'stock'],
+    ['/pharmacy/stock/entry', 'stock'],
+    ['/pharmacy/stock/receive/new', 'receiving'],
     ['/pharmacy/catalog/new', 'catalog'],
     ['/pharmacy/home', 'home'],
     ['/pharmacy/print/labels', 'labels'],

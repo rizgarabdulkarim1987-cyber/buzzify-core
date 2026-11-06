@@ -163,7 +163,7 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     expect(await seriousViolations(page)).toEqual([]);
 
     await link(rail, 'Stock').click();
-    await expect(page).toHaveURL(/\/pharmacy\/stock$/);
+    await expect(page).toHaveURL(/\/pharmacy\/stock\/entry$/);
     await expect(link(rail, 'Stock')).toHaveAttribute('aria-current', 'page');
     // Stock is a primary place, so "More" closes again and Home is out of reach until it is opened.
     await expect(link(rail, 'Home')).toBeHidden();
@@ -217,7 +217,7 @@ test.describe('Pharmacy shell navigation @desktop', () => {
     await page.setViewportSize(DESKTOP);
     await expect(page.locator('#ph-more-sheet')).not.toHaveAttribute('open', '');
     await link(mainNav(page), 'Stock').click({ timeout: 5_000 });
-    await expect(page).toHaveURL(/\/pharmacy\/stock$/);
+    await expect(page).toHaveURL(/\/pharmacy\/stock\/entry$/);
     await page.context().close();
   });
 

@@ -31,7 +31,8 @@ describe('simplified pharmacy navigation', () => {
     expect(keys(phNav('OWNER', opts).primary)).not.toContain('doctor');
   });
 
-  it('points Stock at one constant', () => {
+  it('points Stock at one constant: the fast entry screen', () => {
+    expect(PH_STOCK_HREF).toBe('/pharmacy/stock/entry');
     expect(phNav('OWNER', opts).primary.find((i) => i.key === 'stock')?.href).toBe(PH_STOCK_HREF);
   });
 

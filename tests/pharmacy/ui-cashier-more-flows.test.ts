@@ -267,7 +267,11 @@ describe('where items land (pure)', () => {
       ['debt', '/pharmacy/customers'],
       ['cash', '/pharmacy/shifts'],
       ['closeShift', '/pharmacy/shifts'],
+      ['entry', '/pharmacy/stock/entry'],
     ]);
+    // Product entry needs the receiving permission (the stock clerk has it, the pharmacist does not).
+    expect(flows.cashierOps('STOCK').map((o) => o.key)).toContain('entry');
+    expect(flows.cashierOps('PHARMACIST').map((o) => o.key)).not.toContain('entry');
   });
 });
 
@@ -674,7 +678,7 @@ describe('all operations', () => {
     root = createRoot(container);
     screenWith([{}], { role: 'OWNER' });
     click(byTest('tool-ops'));
-    expect(allTest('ops-link')).toHaveLength(5);
+    expect(allTest('ops-link')).toHaveLength(6);
   });
 
   it('has no operations button without a role', () => {
