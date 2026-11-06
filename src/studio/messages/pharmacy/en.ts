@@ -3420,6 +3420,7 @@ const pharmacy: Messages = {
   'pharmacy.print.test.ruler': 'This line should measure 100 mm:',
   'pharmacy.print.test.labelName': 'Test label',
   'pharmacy.cashier.title': 'Sell',
+  'pharmacy.cashier.shift.open': 'Shift open · {currency}',
   'pharmacy.cashier.pulse.region': 'Shift summary and alerts',
   'pharmacy.cashier.pulse.rate': '1$ = {rate} IQD',
   'pharmacy.cashier.pulse.shiftSales': 'Shift sales',

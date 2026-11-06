@@ -184,7 +184,7 @@ export function HomeDashboard({
         </>
       ) : null}
 
-      <DoctorSlot where="home" enabled={doctorEnabled} branchId={null} t={t} />
+      <DoctorSlot where="home" enabled={doctorEnabled} t={t} />
     </div>
   );
 }

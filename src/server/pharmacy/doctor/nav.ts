@@ -5,7 +5,7 @@ import type { PhActor } from '../actor';
 import { DOCTOR_UI_READY, doctorAccess, doctorEnabledFor } from './access';
 
 /**
- * Whether the Doctor shows for this person now (nav item, Home card, Sell panel, the /pharmacy/doctor page). The plan's AI
+ * Whether the Doctor shows for this person now (nav item, Home card, the /pharmacy/doctor page). The plan's AI
  * budget is read only for a person the budget can decide for: someone the rule refuses whatever the plan holds (switch off, a
  * role without `ai.use`, support) costs no read. One read per request at most: the layout and the page share it (React
  * `cache`, keyed by the request's actor object from the cached `getPhAccess`).

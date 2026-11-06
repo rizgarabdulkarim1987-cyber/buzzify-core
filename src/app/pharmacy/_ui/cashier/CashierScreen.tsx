@@ -1,15 +1,16 @@
 'use client';
 
-import { CircleAlert, CloudOff, Undo2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, CloudOff, Undo2 } from 'lucide-react';
 import { useEffect, useId, useMemo, useReducer, useRef, useState } from 'react';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
-import { useT } from '@/studio/i18n';
+import { useLocale, useT } from '@/studio/i18n';
 import type { PickedCustomer } from '../CustomerPicker';
 import { OpenShiftPanel, type OpenShift } from '../OpenShiftPanel';
+import { phDateTime } from '../ph-date';
 import { RxCartPanel } from '../SellRx';
 import { cashierKeyOf, type CashierKey } from '../sell-keys';
-import { estimateCart, overSellable, unitOf, type CartLine, type Currency } from '../sell-logic';
-import { Note } from '../sell-parts';
+import { estimateCart, formatMinor, overSellable, unitOf, type CartLine, type Currency } from '../sell-logic';
+import { Note, Num } from '../sell-parts';
 import type { SellScreenProps } from '../sell-props';
 import { initialReceipts, MAX_RECEIPTS } from '../sell-receipts';
 import { useOnline } from '../use-online';
@@ -66,14 +67,16 @@ export interface CashierScreenProps extends SellScreenProps {
 export function CashierScreen(props: CashierScreenProps) {
   const { restaurantId, branchId, userId, settings, pulse, canSeeCost = false, canEditPrice = false, canReturn = false } = props;
   const t = useT();
+  const { locale } = useLocale();
   const online = useOnline();
   const [shift, setShift] = useState<OpenShift | null>(props.shift);
   const [state, dispatch] = useReducer(cashierReducer, undefined, initialReceipts);
   const [notSent, setNotSent] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [query, setQuery] = useState('');
-  // The products a scanned barcode matched when it matched several: listed under the field until one is chosen, typing or Escape.
-  const [matches, setMatches] = useState<Suggestion[] | null>(null);
+  // The products a scanned barcode matched when it matched several, on the receipt they were offered on: listed under the field
+  // until one is chosen, typing, Escape, any later scan outcome or another receipt.
+  const [offer, setMatches] = useState<{ at: string; rows: Suggestion[] } | null>(null);
   // Each receipt keeps its own selected line.
   const [selections, setSelections] = useState<Record<string, string | null>>({});
   // The unit the next scanned item starts in while no line is selected: one preference for the whole screen, not per receipt.
@@ -87,6 +90,9 @@ export function CashierScreen(props: CashierScreenProps) {
   const currency: Currency = shift?.currency ?? settings.defaultCurrency;
   const step = Number(settings.roundingStepMinor);
   const receipt = state.receipts[state.active] ?? state.receipts[0]!;
+  // Another receipt drops the list for good (a state change during render, React's "adjust state when a value changes").
+  if (offer && offer.at !== receipt.key) setMatches(null);
+  const matches = offer && offer.at === receipt.key ? offer.rows : null;
   const estimate = useMemo(() => estimateCart(receipt.cart, currency, step), [receipt.cart, currency, step]);
   const costs = useLineCosts({ enabled: canSeeCost, lines: receipt.cart.lines, results: estimate.lines, currency });
   const selected = receipt.cart.lines.some((l) => l.key === selections[receipt.key]) ? (selections[receipt.key] ?? null) : null;
@@ -140,7 +146,9 @@ export function CashierScreen(props: CashierScreenProps) {
   const used = () => void (setQuery(''), focusField());
   const panels = usePanels({ mirror, apply, say, addItem: (item, handIn) => addItem(item, handIn) });
   const { inquiry } = panels;
-  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say, setNotSent, query, used, focus: focusField, inquire: inquiry.on ? inquiry.show : null, offer: (_code, items) => setMatches(suggestionsFrom(items)) });
+  // Every scan outcome says something: each one closes the list of an earlier barcode first (a new "several" outcome offers its own).
+  const sayScan = (m: Message | null) => void (setMatches(null), say(m));
+  const { addItem, addTop, lookupFailed } = useAdding({ currency, enabled: ready, mirror, picks, select, scanUnit, dispatch, say: sayScan, setNotSent, query, used, focus: focusField, inquire: inquiry.on ? inquiry.show : null, offer: (_code, items) => setMatches({ at: mirror.current.receipts[mirror.current.active]?.key ?? receipt.key, rows: suggestionsFrom(items) }) });
   useHandIn({ currency, ready, add: addItem, lookupFailed, say, setNotSent });
   const holds = useHoldFlow({ currency, enabled: ready, mirror, apply, say, setNotSent, done: sale.close });
   const leave = useLeaveGuard(anyLines);
@@ -289,6 +297,18 @@ export function CashierScreen(props: CashierScreenProps) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-2 sm:p-3" data-testid="cashier-screen">
       <h1 className="sr-only">{t('pharmacy.cashier.title')}</h1>
       <header className="flex min-w-0 flex-col gap-2">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ph-muted" data-testid="shift-line">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-ph-text">
+            <CircleCheck aria-hidden className="size-4 text-ph-g6" />
+            {t('pharmacy.cashier.shift.open', { currency: shift.currency })}
+          </span>
+          <span>
+            {t('pharmacy.sell.shift.float', { currency: shift.currency })}: <Num>{formatMinor(BigInt(shift.openingFloatMinor), shift.currency)}</Num>
+          </span>
+          <span>
+            <Num>{phDateTime(shift.openedAt, locale)}</Num>
+          </span>
+        </p>
         {pulse && <PulseStrip pulse={pulse} currency={currency} onFind={find} />}
         <CashierToolbar flow={sale.flow} canDiscard={!receipt.done && receipt.cart.lines.length > 0 && !receipt.attempt && !heldHere} onDiscard={discard} canReprint={sale.last !== null} canOps={ops.length > 0}
           canHold={!receipt.done && receipt.cart.lines.length > 0} holding={holds.holding} heldCount={holds.count} heldMore={holds.more}

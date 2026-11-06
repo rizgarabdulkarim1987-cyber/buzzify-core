@@ -3413,6 +3413,7 @@ const pharmacy: Messages = {
   'pharmacy.print.test.ruler': 'ئەم هێڵە دەبێت 100 ملم بێت:',
   'pharmacy.print.test.labelName': 'لیبڵی تاقیکردنەوە',
   'pharmacy.cashier.title': 'فرۆشتن',
+  'pharmacy.cashier.shift.open': 'شیفت کراوەیە · {currency}',
   'pharmacy.cashier.pulse.region': 'پوختەی شەفت و ئاگادارکردنەوەکان',
   'pharmacy.cashier.pulse.rate': '1$ = {rate} د.ع',
   'pharmacy.cashier.pulse.shiftSales': 'فرۆشی شەفت',

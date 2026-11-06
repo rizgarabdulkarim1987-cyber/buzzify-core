@@ -469,22 +469,17 @@ describe('<DoctorSheet> (phone)', () => {
 describe('access', () => {
   const actor = { userId: 'u', name: 'U', restaurantId: 'r', restaurantName: 'R', role: 'PHARMACIST' as const, allBranches: false, branchIds: ['b1'], viaMembership: false, aiDoctor: false, support: null, locale: 'en' as const };
 
-  it('draws no slot on Home or Sell for a person without access', () => {
-    for (const where of ['home', 'sell', 'sell-phone'] as const) {
-      mount(createElement(DoctorSlot, { where, enabled: false, branchId: 'b1', t: en }));
-      expect(container.innerHTML, where).toBe('');
-    }
+  it('draws no slot on Home for a person without access', () => {
+    mount(createElement(DoctorSlot, { where: 'home', enabled: false, t: en }));
+    expect(container.innerHTML).toBe('');
   });
 
-  it('draws the green card that opens the full page on Home, and the panel on Sell, for a person with access', () => {
-    mount(createElement(DoctorSlot, { where: 'home', enabled: true, branchId: 'b1', t: en }));
+  // The Doctor is no longer on the sale screen (the cashier replaced it, owner decision): only the Home card is left.
+  it('draws the green card that opens the full page on Home for a person with access', () => {
+    mount(createElement(DoctorSlot, { where: 'home', enabled: true, t: en }));
     const card = byTest('home-doctor')!;
     expect(card.className).toMatch(/bg-ph-g9|bg-ph-g8/);
     expect(card.querySelector('a[href="/pharmacy/doctor"]')).not.toBeNull();
-    mount(createElement(DoctorSlot, { where: 'sell', enabled: true, branchId: 'b1', t: en }));
-    expect(byTest('doctor-panel')).not.toBeNull();
-    mount(createElement(DoctorSlot, { where: 'sell', enabled: true, branchId: null, t: en }));
-    expect(byTest('doctor-panel')).toBeNull();
   });
 
   it('puts no Doctor item in the nav for a person without access', () => {

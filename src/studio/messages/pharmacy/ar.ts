@@ -3449,6 +3449,7 @@ const pharmacy: Messages = {
   'pharmacy.print.test.ruler': 'يجب أن يقيس هذا الخط 100 مم:',
   'pharmacy.print.test.labelName': 'ملصق اختبار',
   'pharmacy.cashier.title': 'البيع',
+  'pharmacy.cashier.shift.open': 'الوردية مفتوحة · {currency}',
   'pharmacy.cashier.pulse.region': 'ملخص الوردية والتنبيهات',
   'pharmacy.cashier.pulse.rate': '1$ = {rate} د.ع',
   'pharmacy.cashier.pulse.shiftSales': 'مبيعات الوردية',

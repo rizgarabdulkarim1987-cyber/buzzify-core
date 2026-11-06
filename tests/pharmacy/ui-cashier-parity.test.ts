@@ -329,4 +329,69 @@ describe('return mode (carried from Task 10)', () => {
     expect(byTest('return-pending')).toBeNull();
     expect(byTest('return-problem')!.textContent).toBe(STUDIO_MESSAGES.en['pharmacy.returns.fail.NOTHING_TO_RETURN']);
   });
+
+  it('a second Retry pressed while the first is still being sent is not taken for a refusal (M3)', async () => {
+    ready();
+    returns.createReturn.mockRejectedValueOnce(new Error('offline'));
+    await fillAndSend();
+    expect(byTest('return-pending')).not.toBeNull();
+    let answer: (value: unknown) => void = () => {};
+    returns.createReturn.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const retryButton = byTest('return-retry')!;
+    // Two presses before the screen re-renders: the second meets the local lock of the first.
+    await act(async () => {
+      retryButton.click();
+      retryButton.click();
+    });
+    await flush();
+    expect(returns.createReturn).toHaveBeenCalledTimes(2);
+    expect(byTest('return-problem')).toBeNull();
+    await act(async () => answer({ ok: true, data: RETURN_DONE }));
+    await flush();
+    expect(byTest('return-slip')).not.toBeNull();
+  });
+});
+
+// The shift line and the several-matches list (review minors M1, M2) ---------------------------------------------------------
+
+describe('the shift line (old shift-line, M1)', () => {
+  it('says the shift is open, in which currency, with its opening cash and when it opened', async () => {
+    screenWith([{ cart: emptyCart() }], { shift: { ...SHIFT, openingFloatMinor: '10000' }, pulse: undefined });
+    await flush();
+    const line = byTest('shift-line')!;
+    expect(line).not.toBeNull();
+    expect(line.textContent).toContain(STUDIO_MESSAGES.en['pharmacy.cashier.shift.open'].replace('{currency}', 'IQD'));
+    expect(line.textContent).toContain('10,000');
+    expect(line.textContent).toContain('2026');
+  });
+});
+
+describe('the several-matches list does not go stale (M2)', () => {
+  const TWO = [sellItem({ matchedOn: 'barcode' }), sellItem({ productId: 'p2', tradeName: 'Panadol Extra', matchedOn: 'barcode' })];
+  const offered = async () => {
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: TWO } });
+    screenWith([{ cart: emptyCart() }]);
+    await flush();
+    typeIn('cashier-search', '6221010001');
+    enter();
+    await flush();
+    expect(allTest('suggestion')).toHaveLength(2);
+  };
+
+  it('closes when a new receipt is opened, and stays closed on going back', async () => {
+    await offered();
+    click(byTest('receipt-new'));
+    expect(allTest('suggestion')).toHaveLength(0);
+    click(allTest('receipt-tab')[0]!);
+    expect(allTest('suggestion')).toHaveLength(0);
+  });
+
+  it('closes when a later scan has another outcome', async () => {
+    await offered();
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [] } });
+    enter();
+    await flush();
+    expect(message()).toContain('6221010001');
+    expect(allTest('suggestion')).toHaveLength(0);
+  });
 });

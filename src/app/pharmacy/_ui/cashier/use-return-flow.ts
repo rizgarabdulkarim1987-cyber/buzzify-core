@@ -66,7 +66,8 @@ export function useReturnFlow() {
     pending,
     done,
     send,
-    retry: () => (kept.current ? send(kept.current.request) : null),
+    // Null while the request is already being sent (a second press before the screen re-rendered): nothing was refused.
+    retry: () => (kept.current && !lock.current ? send(kept.current.request) : null),
     release: () => {
       if (lock.current) return;
       kept.current = null;

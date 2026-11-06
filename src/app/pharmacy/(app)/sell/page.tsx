@@ -1,5 +1,6 @@
 import { Lock, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
+import { unstable_rethrow } from 'next/navigation';
 import { CashierScreen } from '@/app/pharmacy/_ui/cashier/CashierScreen';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { pulse as pulseQuery } from '@/server/pharmacy/queries/pulse';
@@ -10,6 +11,12 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { catalogAccess, roleMay } from '../catalog/access';
+
+/** A failed read of the header chips: the till shows without them (Next's own redirect and not-found signals still pass). */
+function chipsUnread(error: unknown): undefined {
+  unstable_rethrow(error);
+  return undefined;
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pharmacy.sell.title') };
@@ -52,7 +59,8 @@ export default async function SellPage() {
     );
   }
 
-  const [now, found, pulse] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), query(pulseQuery, placeInput)]);
+  // The header chips are a convenience: a problem reading them shows the till without chips, it never takes the till down.
+  const [now, found, pulse] = await Promise.all([query(current, placeInput), query(search, { ...placeInput, q: '', limit: 1 }), query(pulseQuery, placeInput).catch(chipsUnread)]);
   const open = now
     ? { id: now.shift.id, currency: now.shift.currency, openingFloatMinor: now.shift.openingFloatMinor, openedAt: now.shift.openedAt }
     : null;
