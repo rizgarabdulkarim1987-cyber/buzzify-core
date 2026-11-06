@@ -7,6 +7,7 @@ import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
+import { addFromSearch, discardReceipt, nextReceipt, openCashier, openCredit, payCash, pickCustomer, setQty, suggestionFor } from './helpers/cashier';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, setUserLocale, uniqueClientAddress, type StudioUser } from './helpers/studio';
 
 /**
@@ -127,31 +128,29 @@ async function session(browser: Browser, user: StudioUser, shop: Shop, branch: s
   return page;
 }
 
-async function openShift(page: Page): Promise<void> {
-  await page.goto('/pharmacy/sell');
-  await expect(page.getByTestId('open-shift').or(page.getByTestId('sell-workspace'))).toBeVisible();
-  if (await page.getByTestId('open-shift').isVisible()) {
-    await page.getByTestId('shift-float').fill('10,000');
-    await page.getByTestId('shift-open').click();
-  }
-  await expect(page.getByTestId('sell-search')).toBeVisible();
-}
+/** Opens the cashier with a shift (opened with 10,000 in the drawer when none is open). */
+const openShift = (page: Page): Promise<void> => openCashier(page);
 
-/** Finds a product by name and adds `qty` tablets to the cart. */
+/** Finds a product in the cashier's search and adds `qty` tablets (its smallest unit, where the cashier starts) to the receipt. */
 async function addTablets(page: Page, name: string, qty: number): Promise<void> {
-  await page.getByTestId('sell-search').fill(name);
-  await page.getByTestId('result').filter({ hasText: name }).getByTestId('add-unit').first().click();
-  await expect(page.getByTestId('cart-line')).toHaveCount(1);
-  if (qty !== 1) await page.getByTestId('qty-input').fill(String(qty));
+  await addFromSearch(page, name);
+  if (qty !== 1) await setQty(page, qty);
 }
 
-async function clearCart(page: Page): Promise<void> {
-  const clear = page.getByTestId('clear-cart');
-  if ((await clear.isVisible()) && (await clear.isEnabled())) {
-    await clear.click();
-    await page.getByTestId('ask-confirm').click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(0);
-  }
+/** Empties the active receipt (the toolbar's discard). */
+const clearCart = (page: Page): Promise<void> => discardReceipt(page);
+
+/** Opens the cash flow on the active receipt (nothing is sent until it is confirmed). */
+async function openCash(page: Page): Promise<void> {
+  await page.getByTestId('pay-cash').click();
+  await expect(page.getByTestId('work-panel')).toHaveAttribute('data-flow', 'cash');
+}
+
+/** Opens the prescription form of the receipt (the work panel's rx flow; it was a drawer on the old screen). */
+async function openRx(page: Page): Promise<void> {
+  await page.getByTestId('rx-open').click();
+  await expect(page.getByTestId('work-panel')).toHaveAttribute('data-flow', 'rx');
+  await expect(page.getByTestId('flow-rx-form')).toBeVisible();
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -222,10 +221,12 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     // Controlled: the product carries its chip, the panel asks for the prescription, and paying is blocked in words.
     await expect(p.getByTestId('rx-panel')).toBeVisible();
     await expect(p.getByTestId('rx-missing')).toBeVisible();
-    await expect(p.getByTestId('pay-open')).toBeDisabled();
-    await expect(p.getByTestId('pay-blocked')).toContainText('prescription');
-    await p.getByTestId('rx-open').click();
-    await expect(p.getByTestId('rx-drawer')).toBeVisible();
+    // The cash flow opens, but says why it cannot be paid and its Confirm stays off.
+    await openCash(p);
+    await expect(p.getByTestId('flow-blocked')).toContainText('prescription');
+    await expect(p.getByTestId('flow-confirm')).toBeDisabled();
+    await p.getByTestId('flow-back').click();
+    await openRx(p);
     await p.getByTestId('rx-save').click();
     await expect(p.getByTestId('rx-invalid')).toBeVisible();
     await p.getByTestId('rx-number').fill('RX-100');
@@ -235,7 +236,6 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await p.getByTestId('rx-idnote').fill('National ID: 4821');
     await p.getByTestId('rx-date').fill(baghdadToday());
     await p.getByTestId('rx-file').setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: PNG });
-    await expect(p.getByTestId('rx-file-chosen')).toBeVisible();
     await p.getByTestId('rx-save').click();
     await expect(p.getByTestId('rx-attached')).toBeVisible();
     // The patient's words are never kept on the device.
@@ -248,14 +248,12 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     p.on('request', (request) => {
       if (request.method() === 'POST') sent.push(request.postData() ?? '');
     });
-    await p.getByTestId('remove-line').click();
-    await expect(p.getByTestId('cart-line')).toHaveCount(0);
+    await p.getByTestId('line-remove').click();
+    await expect(p.getByTestId('sale-line')).toHaveCount(0);
     await expect(p.getByTestId('rx-attached')).toHaveCount(0);
     await addTablets(p, names.otc, 1);
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-confirm').click();
-    await expect(p.getByTestId('sale-done')).toBeVisible();
-    await p.getByTestId('receipt-done').click();
+    await payCash(p);
+    await nextReceipt(p);
     expect(sent.some((body) => body.includes('prescriptionId'))).toBe(false);
     {
       const probe = db();
@@ -274,8 +272,7 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await addTablets(p, names.restricted, 2);
     await expect(p.getByTestId('rx-missing')).toBeVisible();
     await expect(p.getByTestId('rx-attached')).toHaveCount(0);
-    await p.getByTestId('rx-open').click();
-    await expect(p.getByTestId('rx-drawer')).toBeVisible();
+    await openRx(p);
     await p.getByTestId('rx-number').fill('RX-100');
     await p.getByTestId('rx-prescriber').fill('Dr Strange');
     await p.getByTestId('rx-license').fill('LIC-77');
@@ -285,10 +282,8 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await p.getByTestId('rx-file').setInputFiles({ name: 'scan.png', mimeType: 'image/png', buffer: PNG });
     await p.getByTestId('rx-save').click();
     await expect(p.getByTestId('rx-attached')).toBeVisible();
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-confirm').click();
-    await expect(p.getByTestId('sale-done')).toBeVisible();
-    await p.getByTestId('receipt-done').click();
+    await payCash(p);
+    await nextReceipt(p);
     const client = db();
     try {
       const rx = await client.phPrescription.findFirstOrThrow({ where: { restaurantId: shop.id, number: 'RX-100' }, select: { id: true, saleId: true, patientName: true } });
@@ -309,7 +304,9 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await addTablets(c, names.restricted, 1);
     await expect(c.getByTestId('rx-needs-pharmacist')).toBeVisible();
     await expect(c.getByTestId('rx-open')).toHaveCount(0);
-    await expect(c.getByTestId('pay-open')).toBeDisabled();
+    await openCash(c);
+    await expect(c.getByTestId('flow-blocked')).toBeVisible();
+    await expect(c.getByTestId('flow-confirm')).toBeDisabled();
     await c.context().close();
   });
 
@@ -385,53 +382,44 @@ test.describe('Pharmacy phase 7 @desktop', () => {
 
     // 1. Within the limit: 4 tablets of 250 = 1 000 wholly on the account.
     await addTablets(p, names.otc, 4);
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-credit-toggle').check();
-    await p.getByTestId('customer-search').fill('Credit');
-    await p.getByTestId('customer-option').first().click();
-    await expect(p.getByTestId('customer-picked').getByTestId('customer-figures')).toContainText(/5,?000/);
-    await p.getByTestId('pay-credit-amount').fill('1000');
-    await expect(p.getByTestId('pay-all-credit')).toBeVisible();
-    await p.getByTestId('pay-confirm').click();
+    await expect((await pickCustomer(p, 'Credit')).getByTestId('customer-figures')).toContainText(/5,?000/);
+    await openCredit(p, 'Credit');
+    await p.getByTestId('flow-now').fill('0');
+    await expect(p.getByTestId('flow-debt')).toContainText(/1,?000/);
+    await p.getByTestId('flow-confirm').click();
     await expect(p.getByTestId('sale-done')).toBeVisible();
     await expect(p.getByTestId('sale-credit')).toContainText(/1,?000/);
     await expect(p.getByTestId('sale-credit-label')).toContainText('Credit Customer');
-    await p.getByTestId('receipt-done').click();
+    await nextReceipt(p);
 
     // 2. Over the limit: 20 tablets = 5 000 on the account would make 6 000 against 5 000; refused on screen, nothing sent.
     await clearCart(p);
     await addTablets(p, names.otc, 20);
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-credit-toggle').check();
-    await p.getByTestId('customer-search').fill('Credit');
-    await p.getByTestId('customer-option').first().click();
-    await p.getByTestId('pay-credit-amount').fill('5000');
-    await expect(p.getByText('This would go over the customer’s credit limit').first()).toBeVisible();
-    await expect(p.getByTestId('pay-confirm')).toBeDisabled();
+    await openCredit(p, 'Credit');
+    await p.getByTestId('flow-now').fill('0');
+    await expect(p.getByTestId('flow-debt')).toContainText('over the limit');
+    await expect(p.getByTestId('flow-confirm')).toBeDisabled();
     const posted: string[] = [];
     p.on('request', (request) => {
       if (request.method() === 'POST') posted.push(request.url());
     });
-    await p.getByTestId('pay-confirm').click({ force: true });
+    await p.getByTestId('flow-confirm').click({ force: true });
     await p.waitForTimeout(500);
     expect(posted).toEqual([]);
     await p.keyboard.press('Escape');
 
     // 3. Mixed: 12 tablets = 3 000, 2 000 on the account (exactly the 4 000 left minus 2 000) and 1 000 in cash.
     await clearCart(p);
+    // The credit flow takes the 1 000 paid now (no change is given in it); its room line shows the 1 000 already owed.
     await addTablets(p, names.otc, 12);
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-credit-toggle').check();
-    await p.getByTestId('customer-search').fill('Credit');
-    await p.getByTestId('customer-option').first().click();
-    await p.getByTestId('pay-credit-amount').fill('2000');
-    await expect(p.getByTestId('credit-after')).toContainText(/3,?000/);
-    await p.getByTestId('pay-tendered').fill('1500');
-    await expect(p.getByTestId('pay-change')).toContainText(/500/);
-    await p.getByTestId('pay-confirm').click();
+    await openCredit(p, 'Credit');
+    await expect(p.getByTestId('flow-credit-room')).toContainText(/1,?000/);
+    await p.getByTestId('flow-now').fill('1000');
+    await expect(p.getByTestId('flow-debt')).toContainText(/2,?000/);
+    await p.getByTestId('flow-confirm').click();
     await expect(p.getByTestId('sale-done')).toBeVisible();
     await expect(p.getByTestId('sale-credit')).toContainText(/2,?000/);
-    await p.getByTestId('receipt-done').click();
+    await nextReceipt(p);
     await p.context().close();
 
     const client = db();
@@ -527,9 +515,9 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     // The till now shows it as unavailable at search time (text and icon, never an error after the fact).
     const p = await session(browser, pharmacist, shop, branch);
     await openShift(p);
-    await p.getByTestId('sell-search').fill(names.restricted);
-    await expect(p.getByTestId('result').filter({ hasText: names.restricted }).getByTestId('chip-notSellable')).toBeVisible();
-    await expect(p.getByTestId('result').filter({ hasText: names.restricted }).getByTestId('add-unit').first()).toBeDisabled();
+    const offOff = await suggestionFor(p, names.restricted);
+    await expect(offOff.getByTestId('suggestion-note')).toContainText('Cannot be sold');
+    await expect(offOff).toHaveAttribute('aria-disabled', 'true');
     await p.context().close();
     // On asks first, and says what it means.
     await o.getByTestId('settings-controlled-on').check();
@@ -668,14 +656,13 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     }
     await c.context().close();
 
-    // The sale screen: a controlled item in the cart, the drawer (empty and with problems), the credit payment panel.
+    // The sale screen: a controlled item on the receipt, the prescription form (empty and with problems), the credit flow.
     const p = await session(browser, pharmacist, shop, branch, small);
     await openShift(p);
     await addTablets(p, names.restricted, 1);
     await expect(p.getByTestId('rx-panel')).toBeVisible();
     await check(p, `${locale}-sell-controlled`);
-    await p.getByTestId('rx-open').click();
-    await expect(p.getByTestId('rx-drawer')).toBeVisible();
+    await openRx(p);
     await check(p, `${locale}-rx-drawer`, [375, 1280]);
     await p.getByTestId('rx-save').click();
     await expect(p.getByTestId('rx-invalid')).toBeVisible();
@@ -686,15 +673,14 @@ test.describe('Pharmacy phase 7 @desktop', () => {
     await p.getByTestId('rx-date').fill(baghdadToday());
     await p.getByTestId('rx-save').click();
     await expect(p.getByTestId('rx-attached')).toBeVisible();
-    await p.getByTestId('pay-open').click();
-    await p.getByTestId('pay-credit-toggle').check();
-    await p.getByTestId('customer-search').fill('Credit');
-    await p.getByTestId('customer-option').first().click();
-    await p.getByTestId('pay-credit-amount').fill('500');
-    await expect(p.getByTestId('credit-numbers')).toBeVisible();
+    await openCredit(p, 'Credit');
+    await p.getByTestId('flow-now').fill('0');
+    await expect(p.getByTestId('flow-credit-room')).toBeVisible();
     await check(p, `${locale}-pay-credit`, [375, 1280]);
-    await p.getByTestId('pay-credit-amount').fill('999999');
-    await check(p, `${locale}-pay-credit-over`, [375, 1280]);
+    // Paid now covers it all: nothing is left for the account, said in words.
+    await p.getByTestId('flow-now').fill('999999');
+    await expect(p.getByTestId('flow-credit-nothing')).toBeVisible();
+    await check(p, `${locale}-pay-credit-nothing`, [375, 1280]);
     await p.context().close();
 
     // A lapsed subscription: the read-only notices on the new screens.

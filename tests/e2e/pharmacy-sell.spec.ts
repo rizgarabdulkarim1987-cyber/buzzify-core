@@ -6,6 +6,7 @@ import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
+import { addFromSearch, discardReceipt, nextReceipt } from './helpers/cashier';
 import {
   assignMember,
   createStudioUser,
@@ -17,11 +18,13 @@ import {
 } from './helpers/studio';
 
 /**
- * The pharmacy sale screen: the shift gate, a scanner-speed burst of keys adding an item, the search and Enter adding the
- * top result, paying cash with change, the receipt (print, a print that fails, reprint as a copy), hold and resume, the
- * offline banner with the cart kept on the device, a cashier who cannot complete a prescription sale, and Arabic right to
- * left at 375, 768 and 1280 px with no sideways scroll and no serious axe finding. Pharmacies, stock and people are written
- * straight to the development database and removed afterwards.
+ * The pharmacy sale screen (the cashier, `CashierScreen`): the shift gate, a scanner-speed burst of keys adding an item, the search
+ * list and Enter adding the top result, paying cash with change, the receipt (print, a print that fails, reprint as a copy), hold
+ * and resume, the offline banner with the receipts kept on the device, a cashier who cannot complete a prescription sale, and Arabic
+ * right to left at 375, 768 and 1280 px with no sideways scroll and no serious axe finding. Pharmacies, stock and people are written
+ * straight to the development database and removed afterwards. Migrated from the old sale screen (plan Task 11): the quantity is
+ * set with the keypad now (no typed quantity field, so the Arabic-digit quantity case went with it), unknown scans share the one
+ * message line, and the old screen's pane-scroll layout checks became the cashier's pay-button and 44px checks.
  */
 
 const DAY = 86_400_000;
@@ -199,14 +202,6 @@ async function unitIdOf(restaurantId: string, productName: string, unitLabel: st
   }
 }
 
-/** Neither the document nor `<main>` scrolls (the workspace fits the frame; only its own panes scroll). */
-const frameScrolls = (page: Page) =>
-  page.evaluate(() => {
-    const doc = document.documentElement;
-    const main = document.querySelector('main');
-    return { page: doc.scrollHeight > doc.clientHeight + 1, main: main ? main.scrollHeight > main.clientHeight + 1 : true };
-  });
-
 async function openShiftInDb(shop: TestPharmacy, userId: string): Promise<void> {
   const client = db();
   try {
@@ -304,72 +299,74 @@ test.describe('Pharmacy sell @desktop', () => {
 
     // No shift, no sale: the gate asks for the opening cash first.
     await expect(page.getByTestId('open-shift')).toBeVisible();
-    await expect(page.getByTestId('sell-search')).toHaveCount(0);
+    await expect(page.getByTestId('cashier-search')).toHaveCount(0);
     await page.getByTestId('shift-float').fill('10,000');
     await page.getByTestId('shift-open').click();
-    await expect(page.getByTestId('sell-workspace')).toBeVisible();
+    await expect(page.getByTestId('cashier-screen')).toBeVisible();
     await expect(page.getByTestId('shift-line')).toContainText('Shift open');
-    await expect(page.getByTestId('sell-search')).toBeFocused();
+    await expect(page.getByTestId('shift-line')).toContainText('10,000');
+    await expect(page.getByTestId('cashier-search')).toBeFocused();
 
-    // A scanner-speed burst (no pauses) ending in Enter adds the strip the barcode names; nothing is left in the box.
+    // A scanner-speed burst (no pauses) ending in Enter adds the strip the barcode names; nothing is left in the field.
     await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toContainText(names.sellable);
-    await expect(page.getByTestId('line-total')).toContainText('2,000');
-    await expect(page.getByTestId('sell-search')).toHaveValue('');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toContainText(names.sellable);
+    await expect(page.getByTestId('sale-line')).toContainText('strip');
+    await expect(page.getByTestId('cashier-total')).toContainText('2,000');
+    await expect(page.getByTestId('cashier-search')).toHaveValue('');
 
-    // An unknown barcode says so, with nothing added.
+    // An unknown barcode says so on the message line, with nothing added.
     await page.keyboard.type('9990001112223\n', { delay: 0 });
-    await expect(page.getByTestId('scan-unknown')).toContainText('9990001112223');
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cashier-message')).toContainText('9990001112223');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
 
-    // Typing by hand is slow: it searches. The result carries its badges, stock and soonest-expiry strip; the Rx and
-    // unpriced products say so in words. Enter adds the top result in the unit the search names (the strip: a second one).
-    await page.keyboard.press('F2');
-    await page.getByTestId('sell-search').fill(names.sellable);
-    const result = page.getByTestId('result').filter({ hasText: names.sellable });
-    await expect(result).toBeVisible();
-    await expect(result.getByTestId('batch-strip')).toContainText('SOON-1');
-    await expect(result.getByTestId('sellable-qty')).toContainText('200');
-    await page.getByTestId('sell-search').press('Enter');
-    await expect(page.getByTestId('qty-input')).toHaveValue('2');
-    await expect(page.getByTestId('cart-total')).toContainText('4,000');
-    await expect(page.getByTestId('estimate-mark')).toBeVisible();
-    // A button adds a chosen unit: one tablet as its own line.
-    await page.getByTestId('sell-search').fill(names.sellable);
-    await result.getByTestId('add-unit').first().click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(2);
-    await expect(page.getByTestId('cart-total')).toContainText('4,250');
-    await page.getByTestId('sell-search').fill('Sellable');
+    // Typing by hand is slow: it searches. The list under the field (never a dialog) says the stock; the Rx and unpriced products
+    // say so in words. Enter adds the top result in the cashier's start unit (the tablet: a line of its own).
+    await page.keyboard.press('/');
+    await page.getByTestId('cashier-search').fill(names.sellable);
+    const row = page.getByTestId('suggestion').filter({ hasText: names.sellable });
+    await expect(row).toBeVisible();
+    await expect(row.getByTestId('suggestion-note')).toContainText('200');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByTestId('cashier-search').press('Enter');
+    await expect(page.getByTestId('sale-line')).toHaveCount(2);
+    await expect(page.getByTestId('cashier-total')).toContainText('2,250');
+    // A click on the suggestion adds one more tablet to that same line.
+    await page.getByTestId('cashier-search').fill(names.sellable);
+    await row.click();
+    await expect(page.getByTestId('sale-line')).toHaveCount(2);
+    await expect(page.getByTestId('cashier-total')).toContainText('2,500');
+    // The selected line's batches show under the lines, the soonest expiry first.
+    await expect(page.getByTestId('line-panels')).toBeVisible();
+    await page.getByTestId('cashier-search').fill('Sellable');
     for (const width of [375, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.screenshot({ path: `test-results/sell-en-${width}.png`, fullPage: true });
       expect(await scrollsSideways(page), `sell at ${width}px`).toBe(false);
     }
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.getByTestId('sell-search').fill('');
+    await page.getByTestId('cashier-search').fill('Unpriced');
+    const unpriced = page.getByTestId('suggestion').filter({ hasText: names.unpriced });
+    await expect(unpriced.getByTestId('suggestion-note')).toContainText('No price');
+    await expect(unpriced).toHaveAttribute('aria-disabled', 'true');
+    await page.getByTestId('cashier-search').fill('Rxdrug');
+    await expect(page.getByTestId('suggestion').filter({ hasText: names.rx }).getByTestId('suggestion-note')).toContainText('Rx');
+    await page.getByTestId('cashier-search').fill('');
 
-    await page.getByTestId('sell-search').fill('Unpriced');
-    await expect(page.getByTestId('result').filter({ hasText: names.unpriced }).getByTestId('chip-noPrice')).toBeVisible();
-    await expect(page.getByTestId('result').filter({ hasText: names.unpriced }).getByTestId('add-unit').first()).toBeDisabled();
-    await page.getByTestId('sell-search').fill('Rxdrug');
-    await expect(page.getByTestId('result').filter({ hasText: names.rx }).getByTestId('chip-rx')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('sell-search')).toHaveValue('');
-
-    // Pay with F4: cash handed over, the change shown, then the sale and its receipt.
-    await page.keyboard.press('F4');
-    await expect(page.getByTestId('pay-total')).toContainText('4,250');
-    await page.getByTestId('pay-tendered').fill('5000');
-    await expect(page.getByTestId('pay-change')).toContainText('750');
-    await page.getByTestId('pay-confirm').click();
+    // Pay with F2: cash handed over, the change shown, then the sale and its receipt in the work panel.
+    await page.keyboard.press('F2');
+    await expect(page.getByTestId('work-panel')).toHaveAttribute('data-flow', 'cash');
+    await expect(page.getByTestId('flow-due')).toContainText('2,500');
+    await page.getByTestId('flow-tendered').fill('5000');
+    await expect(page.getByTestId('flow-change')).toContainText('2,500');
+    await page.getByTestId('flow-confirm').click();
     await expect(page.getByTestId('sale-done')).toBeVisible();
     await expect(page.getByTestId('receipt-number')).toContainText(/\d{8}-\d{6}/);
-    await expect(page.getByTestId('sale-total')).toContainText('4,250');
-    await expect(page.getByTestId('sale-change')).toContainText('750');
+    await expect(page.getByTestId('sale-total')).toContainText('2,500');
+    await expect(page.getByTestId('sale-change')).toContainText('2,500');
     await expect(page.getByTestId('receipt-frame')).toBeVisible();
 
-    // A printer that throws shows a sentence and changes nothing about the sale.
+    // A printer that throws shows a sentence and changes nothing about the sale (no thermal printer here: the browser prints).
     await page.getByTestId('receipt-frame').evaluate((frame) => {
       Object.defineProperty(frame, 'contentWindow', {
         get: () => ({
@@ -382,56 +379,53 @@ test.describe('Pharmacy sell @desktop', () => {
     });
     await page.getByTestId('receipt-print').click();
     await expect(page.getByTestId('print-failed')).toBeVisible();
-    await expect(page.getByTestId('sale-total')).toContainText('4,250');
+    await expect(page.getByTestId('sale-total')).toContainText('2,500');
 
     // A reprint is a marked copy.
     await page.getByTestId('receipt-reprint').click();
-    await expect(page.getByRole('dialog')).toContainText('Copy 1');
-    await page.getByTestId('receipt-done').click();
-    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await expect(page.getByTestId('flow-receipt')).toContainText('Copy 1');
+    await nextReceipt(page);
+    await expect(page.getByTestId('cashier-lines')).toBeVisible();
 
-    // Hold with F8, then continue it from the held list and pay by card.
-    await page.getByTestId('sell-search').fill(names.sellable);
-    await page.getByTestId('result').filter({ hasText: names.sellable }).getByTestId('add-unit').nth(1).click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    // Hold with F8, then continue it from the held receipts and pay by card.
+    await addFromSearch(page, names.sellable, { unitSteps: 1 });
+    await expect(page.getByTestId('sale-line')).toContainText('strip');
     await page.keyboard.press('F8');
-    await expect(page.getByTestId('sell-notice')).toContainText('Cart held');
-    await expect(page.getByTestId('cart-empty')).toBeVisible();
-    await page.getByTestId('open-holds').click();
-    await expect(page.getByTestId('hold-row')).toHaveCount(1);
-    await page.getByTestId('hold-resume').click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toContainText(names.sellable);
-    await page.getByTestId('pay-open').click();
-    await page.getByTestId('pay-CARD_MANUAL').check({ force: true });
-    await page.getByTestId('pay-confirm').click();
+    await expect(page.getByTestId('cashier-message')).toContainText('held');
+    await expect(page.getByTestId('cashier-lines')).toBeVisible();
+    await page.getByTestId('tool-held').click();
+    await expect(page.getByTestId('held-row')).toHaveCount(1);
+    await page.getByTestId('held-resume').click();
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toContainText(names.sellable);
+    await page.getByTestId('pay-cash').click();
+    await page.getByTestId('pay-method-CARD_MANUAL').click();
+    await page.getByTestId('flow-confirm').click();
     await expect(page.getByTestId('sale-done')).toBeVisible();
-    await page.getByTestId('receipt-done').click();
-    await page.getByTestId('open-holds').click();
-    await expect(page.getByTestId('hold-row')).toHaveCount(0);
+    await nextReceipt(page);
+    await page.getByTestId('tool-held').click();
+    await expect(page.getByTestId('held-empty')).toBeVisible();
     await page.keyboard.press('Escape');
 
-    // Offline: the sale is not sent, the banner says so, and the cart stays on this device.
-    await page.getByTestId('sell-search').fill(names.sellable);
-    await page.getByTestId('result').filter({ hasText: names.sellable }).getByTestId('add-unit').first().click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    // Offline: the sale is not sent, the banner says so, and the receipt stays on this device.
+    await addFromSearch(page, names.sellable);
     await page.context().setOffline(true);
-    await expect(page.getByTestId('sell-offline')).toContainText('No connection');
-    await page.getByTestId('pay-open').click();
-    await expect(page.getByTestId('pay-confirm')).toBeDisabled();
+    await expect(page.getByTestId('cashier-offline')).toContainText('No connection');
+    await page.getByTestId('pay-cash').click();
+    await expect(page.getByTestId('flow-confirm')).toBeDisabled();
     await page.keyboard.press('Escape');
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length)).toBe(1);
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-receipts')).length)).toBe(1);
     await page.context().setOffline(false);
-    await expect(page.getByTestId('sell-offline')).toHaveCount(0);
+    await expect(page.getByTestId('cashier-offline')).toHaveCount(0);
 
-    // Reload: the draft cart comes back from the device.
+    // Reload: the open receipt comes back from the device.
     await page.reload();
-    await expect(page.getByTestId('draft-restored')).toBeVisible();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cashier-restored')).toBeVisible();
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
     await page.context().close();
   });
 
-  test('a cashier can hold a prescription cart but not pay for it, and sees no batch control', async ({ browser }) => {
+  test('a cashier can hold a prescription receipt but not pay for it, and sees no batch choice', async ({ browser }) => {
     test.setTimeout(120_000);
     const { shop } = await owned('Cashier');
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
@@ -442,20 +436,21 @@ test.describe('Pharmacy sell @desktop', () => {
     const page = await freshPage(browser);
     await signInAndChoose(page, cashier, shop, 0);
     await page.goto('/pharmacy/sell');
-    await page.getByTestId('sell-search').fill(names.rx);
-    await page.getByTestId('result').filter({ hasText: names.rx }).getByTestId('add-unit').first().click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('pay-open')).toBeDisabled();
-    await expect(page.getByTestId('pay-blocked')).toContainText('needs a pharmacist');
-    await expect(page.getByTestId('hold-cart')).toBeEnabled();
-    await page.getByTestId('line-more').locator('> summary').click();
-    await expect(page.getByTestId('batch-select')).toHaveCount(0);
+    await addFromSearch(page, names.rx);
+    await page.getByTestId('pay-cash').click();
+    await expect(page.getByTestId('flow-blocked')).toContainText('needs a pharmacist');
+    await expect(page.getByTestId('flow-confirm')).toBeDisabled();
+    await page.getByTestId('flow-back').click();
+    await expect(page.getByTestId('tool-hold')).toBeEnabled();
+    // The selected line's panels show, without the batch choice (batch.override).
+    await expect(page.getByTestId('line-panels')).toBeVisible();
+    await expect(page.getByTestId('batch-override')).toHaveCount(0);
     await page.context().close();
   });
 
   // Task 8b -----------------------------------------------------------------------------------------------------------------
 
-  test('two scans that come before the first lookup returns both land; a held product beyond the first 30 name hits resumes intact; discard asks first; the quantity can be cleared and typed in Arabic digits', async ({ browser }) => {
+  test('two scans that come before the first lookup returns both land; a held product beyond the first 30 name hits resumes intact; discard asks first', async ({ browser }) => {
     test.setTimeout(240_000);
     const { shop, owner } = await owned('Scans');
     const tag = randomUUID().slice(0, 6);
@@ -469,87 +464,72 @@ test.describe('Pharmacy sell @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
     await page.goto('/pharmacy/sell');
     await page.getByTestId('shift-open').click();
-    await expect(page.getByTestId('sell-workspace')).toBeVisible();
+    await expect(page.getByTestId('cashier-screen')).toBeVisible();
 
-    // Two scans in one burst, the second typed before the first lookup can have returned: both are in the cart.
+    // Two scans in one burst, the second typed before the first lookup can have returned: both are on the receipt.
     await page.keyboard.type(`${BARCODE}\n${BARCODE_2}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(2);
-    await expect(page.getByTestId('cart-line').nth(0)).toContainText(names.sellable);
-    await expect(page.getByTestId('cart-line').nth(1)).toContainText(second.name);
-    // A third, unknown one and an unknown fourth are BOTH said (neither replaces the other), until dismissed.
+    await expect(page.getByTestId('sale-line')).toHaveCount(2);
+    await expect(page.getByTestId('sale-line').nth(0)).toContainText(names.sellable);
+    await expect(page.getByTestId('sale-line').nth(1)).toContainText(second.name);
+    // Two unknown ones in a row: the message line says the last (one message line, never a stack of dialogs); Escape clears it.
     await page.keyboard.type('9990001112223\n9990001112224\n', { delay: 0 });
-    await expect(page.getByTestId('scan-unknown')).toHaveCount(2);
-    await page.getByTestId('scan-dismiss').first().click();
-    await expect(page.getByTestId('scan-unknown')).toHaveCount(1);
+    await expect(page.getByTestId('cashier-message')).toContainText('9990001112224');
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('scan-unknown')).toHaveCount(0);
-    // A scan typed INSIDE the search box adds once and does not also add the top result of the half-typed text.
-    await page.getByTestId('sell-search').focus();
+    await expect(page.getByTestId('cashier-message')).toHaveCount(0);
+    // A scan typed INSIDE the search field adds once and does not also add the top result of the half-typed text.
+    await page.getByTestId('cashier-search').focus();
     await page.keyboard.type(`${BARCODE_2}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(2);
-    await expect(page.getByTestId('sell-search')).toHaveValue('');
+    await expect(page.getByTestId('sale-line')).toHaveCount(2);
+    await expect(page.getByTestId('cashier-search')).toHaveValue('');
 
-    // The quantity field can be emptied (the line stays) and takes Arabic digits.
-    const qty = page.getByTestId('qty-input').first();
-    await qty.fill('');
-    await expect(page.getByTestId('cart-line')).toHaveCount(2);
-    await qty.pressSequentially('٣');
-    await expect(qty).toHaveValue('3');
-    await qty.blur();
-    await expect(qty).toHaveValue('3');
-
-    // Remove both, take the product beyond the 30 hits, hold it, and continue it: the line comes back as it was held.
-    await page.getByTestId('clear-cart').click();
-    await page.getByTestId('ask-confirm').click();
-    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    // Discard both, scan the product beyond the 30 hits, hold it, and continue it: the line comes back as it was held.
+    await discardReceipt(page);
     await page.keyboard.type(`${BARCODE_3}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toContainText('35 mg');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    // The 35th twin, by its strength (the line's full name and detail are its name cell's title).
+    await expect(page.getByTestId('line-name')).toHaveAttribute('title', /35 mg/);
     await page.keyboard.press('F8');
-    await expect(page.getByTestId('sell-notice')).toContainText('Cart held');
-    await page.getByTestId('open-holds').click();
-    await expect(page.getByTestId('hold-row')).toHaveCount(1);
-    await page.getByTestId('hold-resume').click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toContainText('35 mg');
-    await expect(page.getByTestId('held-blocked')).toHaveCount(0);
-    await expect(page.getByTestId('pay-open')).toBeEnabled();
+    await expect(page.getByTestId('cashier-message')).toContainText('held');
+    await page.getByTestId('tool-held').click();
+    await expect(page.getByTestId('held-row')).toHaveCount(1);
+    await page.getByTestId('held-resume').click();
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('line-name')).toHaveAttribute('title', /35 mg/);
+    await expect(page.getByTestId('line-blocked')).toHaveCount(0);
+    await expect(page.getByTestId('pay-cash')).toBeEnabled();
     expect(target.id).toBeTruthy();
 
-    // A held product that is archived meanwhile stays in the cart, marked; Pay and Hold stay off until it is removed.
-    await page.getByTestId('hold-cart').click();
-    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    // A held product that is archived meanwhile stays on the receipt, marked; paying says why until it is removed.
+    await page.keyboard.press('F8');
+    await expect(page.getByTestId('cashier-lines')).toBeVisible();
     await archiveProduct(target.id);
-    await page.getByTestId('open-holds').click();
-    await page.getByTestId('hold-resume').click();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toHaveAttribute('data-blocked', 'GONE');
-    await expect(page.getByTestId('chip-blocked')).toContainText('no longer available');
-    await expect(page.getByTestId('held-blocked')).toContainText(dupName);
-    await expect(page.getByTestId('pay-open')).toBeDisabled();
-    await expect(page.getByTestId('hold-cart')).toBeDisabled();
-    await page.keyboard.press('F8');
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    // It survives a reload (the mark is part of the draft) and goes only when the cashier removes it.
+    await page.getByTestId('tool-held').click();
+    await page.getByTestId('held-resume').click();
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toHaveAttribute('data-blocked', 'GONE');
+    await expect(page.getByTestId('line-blocked')).toContainText('no longer available');
+    await page.getByTestId('pay-cash').click();
+    await expect(page.getByTestId('flow-blocked')).toBeVisible();
+    await expect(page.getByTestId('flow-confirm')).toBeDisabled();
+    await page.keyboard.press('Escape');
+    // It survives a reload (the mark is part of the receipt kept on the device) and goes only when the cashier removes it.
     await page.reload();
-    await expect(page.getByTestId('cart-line')).toHaveAttribute('data-blocked', 'GONE');
-    await page.getByTestId('remove-line').click();
-    await expect(page.getByTestId('held-blocked')).toHaveCount(0);
+    await expect(page.getByTestId('sale-line')).toHaveAttribute('data-blocked', 'GONE');
+    await page.getByTestId('line-remove').click();
+    await expect(page.getByTestId('sale-line')).toHaveCount(0);
 
-    // Discarding a held cart asks first.
+    // Discarding a held receipt asks first (a press arms it, a second discards).
     await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
     await page.keyboard.press('F8');
-    await expect(page.getByTestId('cart-empty')).toBeVisible();
-    await page.getByTestId('open-holds').click();
-    const rows = page.getByTestId('hold-row');
+    await expect(page.getByTestId('cashier-lines')).toBeVisible();
+    await page.getByTestId('tool-held').click();
+    const rows = page.getByTestId('held-row');
     await expect(rows).toHaveCount(2);
-    await rows.nth(0).getByTestId('hold-discard').click();
-    await expect(page.getByTestId('hold-discard-ask')).toBeVisible();
-    await page.getByTestId('hold-discard-keep').click();
+    await rows.nth(0).getByTestId('held-discard').click();
+    await expect(rows.nth(0).getByTestId('held-discard')).toHaveAttribute('aria-pressed', 'true');
     await expect(rows).toHaveCount(2);
-    await rows.nth(0).getByTestId('hold-discard').click();
-    await page.getByTestId('hold-discard-confirm').click();
+    await rows.nth(0).getByTestId('held-discard').click();
     await expect(rows).toHaveCount(1);
     await page.context().close();
   });
@@ -562,11 +542,11 @@ test.describe('Pharmacy sell @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
     await page.goto('/pharmacy/sell');
     await page.getByTestId('shift-open').click();
-    await expect(page.getByTestId('sell-search')).toBeFocused();
+    await expect(page.getByTestId('cashier-search')).toBeFocused();
     await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await page.keyboard.press('F4');
-    await page.getByTestId('pay-tendered').fill('5000');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await page.keyboard.press('F2');
+    await page.getByTestId('flow-tendered').fill('5000');
 
     // The server records the sale, but the browser never gets the answer.
     await page.route('**/pharmacy/sell', async (route) => {
@@ -575,34 +555,36 @@ test.describe('Pharmacy sell @desktop', () => {
         await route.abort();
       } else await route.continue();
     });
-    await page.getByTestId('pay-confirm').click();
-    await expect(page.getByTestId('pay-problem')).toContainText('may or may not have been recorded');
-    await expect(page.getByTestId('pay-problem')).toContainText('Sales');
+    await page.getByTestId('flow-confirm').click();
+    await expect(page.getByTestId('flow-problem')).toContainText('may or may not have been recorded');
+    await expect(page.getByTestId('flow-problem')).toContainText('Sales');
     await page.unroute('**/pharmacy/sell');
     expect(await completedSales(shop.id)).toBe(1);
-    const stored = await page.evaluate(() => {
-      const key = Object.keys(localStorage).find((k) => k.startsWith('ph-sell-draft'));
-      return key ? (JSON.parse(localStorage.getItem(key)!) as { attempt: { key: string; paymentKey: string; amountMinor: string } | null }) : null;
-    });
-    expect(stored?.attempt?.key).toMatch(/^sale-/);
-    expect(stored?.attempt?.amountMinor).toBe('5000');
+    const attemptOf = () =>
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((k) => k.startsWith('ph-sell-receipts'));
+        const kept = key ? (JSON.parse(localStorage.getItem(key)!) as { receipts: { attempt: { key: string; amountMinor: string } | null }[] }) : null;
+        return kept?.receipts.find((r) => r.attempt)?.attempt ?? null;
+      });
+    const stored = await attemptOf();
+    expect(stored?.key).toMatch(/^sale-/);
+    expect(stored?.amountMinor).toBe('5000');
 
-    // Reload: the cart and the attempt come back, the screen warns, and the payment is filled in as it was sent.
+    // Reload: the receipt and its attempt come back, the screen warns, and the payment is filled in as it was sent.
     await page.reload();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
     await expect(page.getByTestId('attempt-unknown')).toContainText('Check Sales');
-    await page.keyboard.press('F4');
-    await expect(page.getByTestId('pay-tendered')).toHaveValue('5000');
-    await page.getByTestId('pay-confirm').click();
+    await page.keyboard.press('F2');
+    await expect(page.getByTestId('flow-tendered')).toHaveValue('5000');
+    await page.getByTestId('flow-confirm').click();
     await expect(page.getByTestId('sale-done')).toContainText('already saved');
     await expect(page.getByTestId('sale-total')).toContainText('2,000');
     expect(await completedSales(shop.id)).toBe(1);
-    const after = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length);
-    expect(after).toBe(0);
+    expect(await attemptOf()).toBeNull();
     await page.context().close();
   });
 
-  test('a price that moved after the cart was filled: the refused payment shows the server total, refreshes the cart by id, and the retry sells at the new price', async ({ browser }) => {
+  test('a price that moved after the receipt was filled: the refused payment shows the server total, refreshes the receipt by id, and the retry sells at the new price', async ({ browser }) => {
     test.setTimeout(240_000);
     const { shop, owner } = await owned('Moved');
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
@@ -610,18 +592,19 @@ test.describe('Pharmacy sell @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
     await page.goto('/pharmacy/sell');
     await page.getByTestId('shift-open').click();
-    await expect(page.getByTestId('sell-search')).toBeFocused();
+    await expect(page.getByTestId('cashier-search')).toBeFocused();
     await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
-    await expect(page.getByTestId('line-total')).toContainText('2,000');
+    await expect(page.getByTestId('cashier-total')).toContainText('2,000');
     await raisePrice(shop.id, names.sellable, 'strip', 2200n);
-    await page.keyboard.press('F4');
-    await page.getByTestId('pay-tendered').fill('2000');
-    await page.getByTestId('pay-confirm').click();
-    await expect(page.getByTestId('pay-problem')).toContainText('2,200');
-    await expect(page.getByTestId('pay-total')).toContainText('2,200');
-    await expect(page.getByTestId('line-total')).toContainText('2,200');
-    await page.getByTestId('pay-exact').click();
-    await page.getByTestId('pay-confirm').click();
+    await page.keyboard.press('F2');
+    await page.getByTestId('flow-tendered').fill('2000');
+    await page.getByTestId('flow-confirm').click();
+    await expect(page.getByTestId('flow-problem')).toContainText('2,200');
+    await expect(page.getByTestId('cashier-total')).toContainText('2,200');
+    await expect(page.getByTestId('sale-line')).toContainText('2,200');
+    // An empty amount is exactly the total.
+    await page.getByTestId('flow-tendered').fill('');
+    await page.getByTestId('flow-confirm').click();
     await expect(page.getByTestId('sale-total')).toContainText('2,200');
     expect(await completedSales(shop.id)).toBe(1);
     await page.context().close();
@@ -630,7 +613,7 @@ test.describe('Pharmacy sell @desktop', () => {
   test('reads in Arabic right to left with no sideways scroll at 375, 768 and 1280px, and passes axe', async ({ browser }) => {
     test.setTimeout(180_000);
     const { shop, owner } = await owned('Arabic', 'ar');
-    await seedCatalog(shop, randomUUID().slice(0, 6));
+    const names = await seedCatalog(shop, randomUUID().slice(0, 6));
     const page = await freshPage(browser, { width: 375, height: 800 });
     await signInAndChoose(page, owner, shop, 1);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
@@ -643,29 +626,28 @@ test.describe('Pharmacy sell @desktop', () => {
       expect(await seriousViolations(page), `gate at ${width}px`).toEqual([]);
     }
     await page.getByTestId('shift-open').click();
-    await expect(page.getByTestId('sell-workspace')).toBeVisible();
-    await page.getByTestId('sell-search').fill('Sellable');
-    await page.getByTestId('result').first().getByTestId('add-unit').nth(1).click();
-    await page.getByTestId('sell-search').fill('Sellable');
-    await expect(page.getByTestId('result').first()).toBeVisible();
-    await page.getByTestId('line-more').locator('> summary').click();
+    await expect(page.getByTestId('cashier-screen')).toBeVisible();
+    await addFromSearch(page, names.sellable, { unitSteps: 1 });
+    await page.getByTestId('cashier-search').fill('Sellable');
+    await expect(page.getByTestId('suggestion').first()).toBeVisible();
     for (const width of [375, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.screenshot({ path: `test-results/sell-ar-${width}.png`, fullPage: true });
-      expect(await scrollsSideways(page), `workspace at ${width}px`).toBe(false);
-      expect(await seriousViolations(page), `workspace at ${width}px`).toEqual([]);
+      expect(await scrollsSideways(page), `cashier at ${width}px`).toBe(false);
+      expect(await seriousViolations(page), `cashier at ${width}px`).toEqual([]);
     }
-    // The payment dialog too.
+    // The cash flow too.
     await page.setViewportSize({ width: 375, height: 800 });
-    await page.getByTestId('pay-open-bar').click();
-    await expect(page.getByTestId('pay-tendered')).toBeVisible();
-    expect(await seriousViolations(page), 'pay dialog').toEqual([]);
+    await page.getByTestId('cashier-search').fill('');
+    await page.getByTestId('pay-cash').click();
+    await expect(page.getByTestId('flow-tendered')).toBeVisible();
+    expect(await seriousViolations(page), 'cash flow').toEqual([]);
     await page.context().close();
   });
 
   // Pharmacy redesign, task 7 ------------------------------------------------------------------------------------------------
 
-  test('`?add=` puts the units in the cart after the saved draft, says an unknown one in words, and the address loses the parameter', async ({ browser }) => {
+  test('`?add=` puts the units on the receipt after the ones kept on the device, says an unknown one in words, and the address loses the parameter', async ({ browser }) => {
     test.setTimeout(180_000);
     const { shop, owner } = await owned('Add');
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
@@ -676,28 +658,27 @@ test.describe('Pharmacy sell @desktop', () => {
     await signInAndChoose(page, owner, shop, 1);
 
     await page.goto(`/pharmacy/sell?add=${strip}:2`);
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('cart-line')).toContainText(names.sellable);
-    await expect(page.getByTestId('qty-input')).toHaveValue('2');
-    await expect(page.getByTestId('line-total')).toContainText('4,000');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('sale-line')).toContainText(names.sellable);
+    await expect(page.getByTestId('cashier-total')).toContainText('4,000');
     await expect(page).toHaveURL(/\/pharmacy\/sell$/);
 
-    // Handed in again with the draft on the device: the draft is read first, so the two are added to it, not replaced by it.
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length)).toBe(1);
+    // Handed in again with the receipt kept on the device: the device is read first, so the two are added to it, not replaced by it.
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-receipts')).length)).toBe(1);
     await page.goto(`/pharmacy/sell?add=${strip}:2`);
-    await expect(page.getByTestId('qty-input')).toHaveValue('4');
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cashier-total')).toContainText('8,000');
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
 
     // A unit that is not here is said in words, without its raw id; nothing is added.
     const missing = randomUUID();
     await page.goto(`/pharmacy/sell?add=${missing}:1`);
-    await expect(page.getByTestId('scan-unknown')).toBeVisible();
-    await expect(page.getByTestId('scan-unknown')).not.toContainText(missing);
-    await expect(page.getByTestId('qty-input')).toHaveValue('4');
+    await expect(page.getByTestId('cashier-message')).toContainText('not a product here');
+    await expect(page.getByTestId('cashier-message')).not.toContainText(missing);
+    await expect(page.getByTestId('cashier-total')).toContainText('8,000');
     await page.context().close();
   });
 
-  test('the offline banner and the draft cart survive a reload while the browser says it is offline', async ({ browser }) => {
+  test('the offline banner and the open receipt survive a reload while the browser says it is offline', async ({ browser }) => {
     test.setTimeout(180_000);
     const { shop, owner } = await owned('Draft');
     const names = await seedCatalog(shop, randomUUID().slice(0, 6));
@@ -707,24 +688,24 @@ test.describe('Pharmacy sell @desktop', () => {
     page.on('dialog', (dialog) => void dialog.accept());
     await signInAndChoose(page, owner, shop, 1);
     await page.goto(`/pharmacy/sell?add=${strip}:3`);
-    await expect(page.getByTestId('qty-input')).toHaveValue('3');
-    await expect(page.getByTestId('sell-offline')).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length)).toBe(1);
+    await expect(page.getByTestId('cashier-total')).toContainText('6,000');
+    await expect(page.getByTestId('cashier-offline')).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-receipts')).length)).toBe(1);
 
     // From the next load on, the browser reports no connection (the page itself still loads).
     await page.context().addInitScript(() => {
       Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
     });
     await page.reload();
-    await expect(page.getByTestId('sell-offline')).toBeVisible();
-    await expect(page.getByTestId('draft-restored')).toBeVisible();
-    await expect(page.getByTestId('cart-line')).toHaveCount(1);
-    await expect(page.getByTestId('qty-input')).toHaveValue('3');
+    await expect(page.getByTestId('cashier-offline')).toBeVisible();
+    await expect(page.getByTestId('cashier-restored')).toBeVisible();
+    await expect(page.getByTestId('sale-line')).toHaveCount(1);
+    await expect(page.getByTestId('cashier-total')).toContainText('6,000');
     await page.context().close();
   });
 
   for (const locale of ['en', 'ckb'] as const) {
-    test(`${locale}: the pay bar is in view without the page scrolling at 1280×800 and 375×667, with 44px steppers`, async ({ browser }) => {
+    test(`${locale}: the pay buttons are in view at 1280×800 with four lines, every control 44px, no sideways scroll at 375`, async ({ browser }) => {
       test.setTimeout(180_000);
       const shop = await makePharmacy(`Bar ${locale}`);
       restaurants.push(shop.id);
@@ -742,55 +723,37 @@ test.describe('Pharmacy sell @desktop', () => {
       const page = await freshPage(browser, { width: 1280, height: 800 });
       await signInAndChoose(page, owner, shop, 1);
       if (locale === 'ckb') await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-      // Four lines: more than the phone's cart pane holds, so the cart scrolls inside its pane.
       await page.goto(`/pharmacy/sell?add=${units.map((u) => `${u}:1`).join(',')}`);
-      await expect(page.getByTestId('cart-line')).toHaveCount(4);
-      // The AI Doctor's column is there, and takes no room while its slot renders nothing (this run's plan has no AI budget; with
-      // one, the Doctor shows: tests/e2e/pharmacy-doctor.spec.ts).
-      await expect(page.getByTestId('sell-doctor-slot')).toHaveCount(1);
-      await expect(page.getByTestId('sell-doctor-slot')).toBeHidden();
+      await expect(page.getByTestId('sale-line')).toHaveCount(4);
+      // The AI Doctor is not on the sale screen (it has its own page: tests/e2e/pharmacy-doctor.spec.ts).
       await expect(page.getByTestId('doctor-panel')).toHaveCount(0);
       await expect(page.getByTestId('doctor-fab')).toHaveCount(0);
 
-      for (const [width, height, payId] of [
-        [1280, 800, 'pay-open'],
-        [375, 667, 'pay-open-bar'],
-      ] as const) {
-        await page.setViewportSize({ width, height });
-        const pay = page.getByTestId(payId);
-        await expect(pay, `${width}px`).toBeInViewport({ ratio: 1 });
-        expect((await pay.boundingBox())!.height, `pay at ${width}px`).toBeGreaterThanOrEqual(56);
-        expect(await frameScrolls(page), `${width}px`).toEqual({ page: false, main: false });
-        expect(await scrollsSideways(page), `sideways at ${width}px`).toBe(false);
-        // Every row's stepper, not just the first.
-        for (const id of ['qty-less', 'qty-more']) {
-          const buttons = await page.getByTestId(id).all();
-          expect(buttons, `${id} at ${width}px`).toHaveLength(4);
-          for (const [row, button] of buttons.entries()) {
-            const box = (await button.boundingBox())!;
-            expect(Math.min(box.width, box.height), `${id} row ${row + 1} at ${width}px`).toBeGreaterThanOrEqual(44);
-          }
+      // The pay buttons are in view with four lines on the receipt, 56px high.
+      const pay = page.getByTestId('pay-cash');
+      await expect(pay).toBeInViewport({ ratio: 1 });
+      expect((await pay.boundingBox())!.height, 'pay at 1280px').toBeGreaterThanOrEqual(56);
+      expect(await scrollsSideways(page), 'sideways at 1280px').toBe(false);
+      // Every row's remove button, every keypad key: 44px at least.
+      for (const id of ['line-remove', 'key-digit']) {
+        for (const [n, button] of (await page.getByTestId(id).all()).entries()) {
+          const box = (await button.boundingBox())!;
+          expect(Math.min(box.width, box.height), `${id} ${n + 1}`).toBeGreaterThanOrEqual(44);
         }
-        // The last line is reached by scrolling the cart's own pane; the pay bar stays where it was.
-        await page.getByTestId('cart-line').last().scrollIntoViewIfNeeded();
-        await expect(pay, `${width}px after scrolling the cart`).toBeInViewport({ ratio: 1 });
-        expect(await frameScrolls(page), `${width}px after scrolling the cart`).toEqual({ page: false, main: false });
       }
+      await page.setViewportSize({ width: 375, height: 667 });
+      expect(await scrollsSideways(page), 'sideways at 375px').toBe(false);
+      await page.getByTestId('pay-cash').scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('pay-cash')).toBeInViewport();
 
-      // Keyboard focus is visible: the amber ring on the scan field and on a pharmacy field (the invoice discount).
+      // Keyboard focus lands on the scan field (the `/` key, from anywhere else on the screen), and Tab moves on from it.
       await page.setViewportSize({ width: 1280, height: 800 });
-      await page.getByTestId('sell-search').focus();
+      await page.getByTestId('cashier-total').click();
+      await expect(page.getByTestId('cashier-search')).not.toBeFocused();
+      await page.keyboard.press('/');
+      await expect(page.getByTestId('cashier-search')).toBeFocused();
       await page.keyboard.press('Tab');
-      await page.keyboard.press('Shift+Tab');
-      const ring = (testId: string, inner = false) =>
-        page.getByTestId(testId).evaluate((el, deep) => {
-          const target = (deep ? el.querySelector('input') : el) as HTMLElement;
-          const style = getComputedStyle(target);
-          return { focused: target.matches(':focus-visible'), outline: style.outlineStyle, width: style.outlineWidth, colour: style.outlineColor };
-        }, inner);
-      expect(await ring('sell-search')).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
-      await page.getByTestId('invoice-discount').locator('input').focus();
-      expect(await ring('invoice-discount', true)).toEqual({ focused: true, outline: 'solid', width: '2px', colour: 'rgb(242, 183, 5)' });
+      await expect(page.getByTestId('cashier-search')).not.toBeFocused();
       await page.context().close();
     });
   }

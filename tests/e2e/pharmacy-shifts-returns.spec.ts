@@ -6,6 +6,7 @@ import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { applyMovement } from '@/server/pharmacy/stock';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { seriousViolations } from './helpers/axe';
+import { addFromSearch, nextReceipt, payCash } from './helpers/cashier';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, uniqueClientAddress, type StudioUser } from './helpers/studio';
 import { openRailMore, railLink } from './helpers/pharmacy-nav';
 
@@ -219,18 +220,17 @@ const cashMovements = async (shiftId: string) => {
   }
 };
 
-/** One strip chosen from the search results and paid `tendered` in cash on the sale screen (an open shift is needed). */
+/** One strip chosen from the cashier's search and paid `tendered` in cash (an open shift is needed). */
 async function sellStrip(page: Page, tendered: string): Promise<void> {
   await page.goto('/pharmacy/sell');
   await expect(page.getByTestId('shift-line')).toBeVisible();
-  await page.getByTestId('sell-search').fill('Sellable');
-  await page.getByTestId('result').first().getByTestId('add-unit').nth(1).click();
-  await expect(page.getByTestId('cart-line')).toHaveCount(1);
-  await page.keyboard.press('F4');
-  await page.getByTestId('pay-tendered').fill(tendered);
-  await page.getByTestId('pay-confirm').click();
-  await expect(page.getByTestId('sale-done')).toBeVisible();
-  await page.getByTestId('receipt-done').click();
+  // The cashier starts an item in its smallest unit (the tablet); one press of the unit key turns the line into a strip.
+  await addFromSearch(page, 'Sellable', { unitSteps: 1 });
+  await expect(page.getByTestId('sale-line')).toHaveCount(1);
+  await expect(page.getByTestId('sale-line')).toContainText('strip');
+  await expect(page.getByTestId('sale-line')).toContainText('2,000');
+  await payCash(page, tendered);
+  await nextReceipt(page);
 }
 
 test.describe('Pharmacy shifts, sales and returns @desktop', () => {
