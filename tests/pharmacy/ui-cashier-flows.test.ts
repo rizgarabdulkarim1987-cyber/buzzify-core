@@ -529,8 +529,13 @@ describe('the frozen receipt (screen)', () => {
     expect(byTest('flow-discard-warning')!.textContent).toContain('Sales');
     click(byTest('flow-discard'));
     expect(stored().receipts[0]!.attempt).toBeNull();
+    // Unfrozen, but the cash panel is still open: + changes nothing until it is closed (round 3, M1).
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['3']);
+    press({ key: 'Escape' });
     press({ key: '+' });
     expect(qtyOf()).toEqual(['4']);
+    press({ key: 'F2' });
     sales.createSale.mockResolvedValueOnce({ ok: true, data: SALE });
     await confirm();
     expect((sales.createSale.mock.calls[2]![0] as { clientKey: string }).clientKey).not.toBe(a!.clientKey);
@@ -551,6 +556,9 @@ describe('the frozen receipt (screen)', () => {
     expect(byTest('flow-problem')!.textContent).toContain('6,000');
     expect(stored().receipts[0]!.attempt).toBeNull();
     expect(byTest('receipt-tab')!.textContent).toContain('6,000');
+    press({ key: '+' });
+    expect(qtyOf()).toEqual(['3']);
+    press({ key: 'Escape' });
     press({ key: '+' });
     expect(qtyOf()).toEqual(['4']);
   });

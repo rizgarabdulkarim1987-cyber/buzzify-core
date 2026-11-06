@@ -17,13 +17,13 @@ type Kind = DiscountDraft['kind'];
  * kind clears what was typed: "10" meant 10% and must not become an amount of 10 (or the other way round) without being retyped.
  * With nothing typed the kind is kept here (`kind`), so the next value is typed in it.
  */
-function DiscountFields({ label, value, kind: emptyKind, onKind, currency, testId, onChange }: { label: string; value: DiscountDraft | null; kind: Kind; onKind: (kind: Kind) => void; currency: Currency; testId: string; onChange: (discount: DiscountDraft | null) => void }) {
+function DiscountFields({ label, value, kind: emptyKind, onKind, onFocus, currency, testId, onChange }: { label: string; value: DiscountDraft | null; kind: Kind; onKind: (kind: Kind) => void; onFocus: () => void; currency: Currency; testId: string; onChange: (discount: DiscountDraft | null) => void }) {
   const t = useT();
   const draft = value ?? { kind: emptyKind, value: '' };
   return (
     <div className="flex flex-wrap items-end gap-1.5">
       <Field label={label} className="min-w-0 flex-1 basis-32">
-        <FieldInput className={PH_FIELD} dir="ltr" inputMode="decimal" autoComplete="off" data-testid={`${testId}-value`} value={draft.value} onChange={(event) => onChange(event.target.value === '' ? null : { ...draft, value: event.target.value })} />
+        <FieldInput className={PH_FIELD} dir="ltr" inputMode="decimal" autoComplete="off" data-testid={`${testId}-value`} onFocus={onFocus} value={draft.value} onChange={(event) => onChange(event.target.value === '' ? null : { ...draft, value: event.target.value })} />
       </Field>
       <div role="group" aria-label={t('pharmacy.sell.discount.kind')} className="flex gap-1">
         {(['percent', 'amount'] as const).map((kind) => (
@@ -64,7 +64,7 @@ export function DiscountFlow({
   onApply,
   padSlot,
 }: {
-  /** The side keypad types the receipt discount here; its check key applies. */
+  /** The side keypad types here (the receipt discount, or the line's once its field had focus); its check key applies. */
   padSlot?: PadSlot;
   cart: CartState;
   estimate: Estimate;
@@ -85,17 +85,26 @@ export function DiscountFlow({
   const [kinds, setKinds] = useState<Record<string, Kind>>({});
   const kindOf = (id: string, value: DiscountDraft | null): Kind => value?.kind ?? kinds[id] ?? 'percent';
   const setKind = (id: string) => (kind: Kind) => setKinds((all) => ({ ...all, [id]: kind }));
+  // The keypad types into the field that last had focus: the receipt discount unless the line's field was chosen.
+  const [target, setTarget] = useState<'invoice' | 'line'>('invoice');
+  const padLine = target === 'line' && line !== null ? line : null;
   usePadSink(padSlot, {
     key: (key) => {
-      const typed = padMoney(cart.invoiceDiscount?.value ?? '', key);
-      onInvoice(typed === '' ? null : { kind: kindOf('invoice', cart.invoiceDiscount), value: typed });
+      const value = padLine ? padLine.discount : cart.invoiceDiscount;
+      const typed = padMoney(value?.value ?? '', key);
+      const next = typed === '' ? null : { kind: kindOf(padLine ? padLine.key : 'invoice', value), value: typed };
+      if (padLine) onLine(padLine.key, next);
+      else onInvoice(next);
     },
     enter: onApply,
   });
   return (
     <div className="flex flex-col gap-2.5" data-testid="flow-discount">
-      <DiscountFields label={t('pharmacy.cashier.discount.value')} value={cart.invoiceDiscount} kind={kindOf('invoice', cart.invoiceDiscount)} onKind={setKind('invoice')} currency={currency} testId="disc" onChange={onInvoice} />
-      {line && <DiscountFields label={t('pharmacy.cashier.discount.line', { name: line.name })} value={line.discount} kind={kindOf(line.key, line.discount)} onKind={setKind(line.key)} currency={currency} testId="disc-line" onChange={(d) => onLine(line.key, d)} />}
+      <DiscountFields label={t('pharmacy.cashier.discount.value')} value={cart.invoiceDiscount} kind={kindOf('invoice', cart.invoiceDiscount)} onKind={setKind('invoice')} onFocus={() => setTarget('invoice')} currency={currency} testId="disc" onChange={onInvoice} />
+      {line && <DiscountFields label={t('pharmacy.cashier.discount.line', { name: line.name })} value={line.discount} kind={kindOf(line.key, line.discount)} onKind={setKind(line.key)} onFocus={() => setTarget('line')} currency={currency} testId="disc-line" onChange={(d) => onLine(line.key, d)} />}
+      <p className="text-xs text-ph-muted" data-testid="disc-pad-target">
+        {t(padLine ? 'pharmacy.cashier.discount.padLine' : 'pharmacy.cashier.discount.padInvoice')}
+      </p>
       {any && (
         <Field label={t('pharmacy.sell.discount.reason')} hint={t('pharmacy.sell.discount.reasonHint', { percent: maxPercent })} optional={!needed}>
           <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={300} aria-invalid={needed || undefined} data-testid="disc-reason" value={cart.discountReason} onChange={(event) => onReason(event.target.value)} />

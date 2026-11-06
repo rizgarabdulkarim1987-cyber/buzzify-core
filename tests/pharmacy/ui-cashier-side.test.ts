@@ -126,6 +126,9 @@ describe('the pure side-column helpers', () => {
     expect(logic.scanUnitId(item(), 'smallest')).toBe('tab');
     expect(logic.scanUnitId(item(), 'default')).toBeUndefined();
     expect(logic.scanUnitId(item({ matchedUnitId: 'tab' }), 'largest')).toBeUndefined();
+    // Fix round 3: a name hit's start unit (`asTyped`) is not a barcode's: the preference still applies to it.
+    expect(logic.scanUnitId({ ...item({ matchedUnitId: 'tab' }), matchedOn: 'tradeName' }, 'largest')).toBe('box');
+    expect(logic.scanUnitId({ ...item({ matchedUnitId: 'tab' }), matchedOn: 'barcode' }, 'largest')).toBeUndefined();
   });
 });
 

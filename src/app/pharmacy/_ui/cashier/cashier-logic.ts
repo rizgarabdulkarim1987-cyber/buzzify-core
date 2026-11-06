@@ -166,9 +166,13 @@ export type ScanUnitPref = 'default' | 'largest' | 'smallest';
 
 export const nextScanUnitPref = (pref: ScanUnitPref): ScanUnitPref => (pref === 'default' ? 'largest' : pref === 'largest' ? 'smallest' : 'default');
 
-/** The unit id to add an item in under the preference; undefined = the item's own start unit (a barcode that named a unit always wins). */
-export function scanUnitId(item: Pick<AddableItem, 'units' | 'matchedUnitId'>, pref: ScanUnitPref): string | undefined {
-  if (pref === 'default' || item.matchedUnitId) return undefined;
+/**
+ * The unit id to add an item in under the preference; undefined = the item's own start unit. A unit a barcode named always wins;
+ * a name hit's start unit (`matchedOn` other than 'barcode', set by `asTyped`) gives way to the preference.
+ */
+export function scanUnitId(item: Pick<AddableItem, 'units' | 'matchedUnitId'> & { matchedOn?: string }, pref: ScanUnitPref): string | undefined {
+  const named = item.matchedUnitId !== null && (item.matchedOn === undefined || item.matchedOn === 'barcode');
+  if (pref === 'default' || named) return undefined;
   const priced = item.units.filter((u) => u.priceMinor !== null);
   if (priced.length < 2) return undefined;
   const sorted = [...priced].sort((a, b) => a.baseQty - b.baseQty);
@@ -255,10 +259,16 @@ export interface Suggestion {
 }
 
 /**
- * The item as a name search adds it: in its smallest priced unit (the spec's unit button runs tablet → strip → packet, and stock
- * is counted in tablets), not the packet the server matched a name hit on. A barcode keeps the unit it is printed on.
+ * The item as a name search adds it: in its smallest PRICED unit (the spec's unit button runs tablet → strip → packet and skips
+ * units with no price; stock is counted in tablets), not the packet the server matched a name hit on. With no priced unit the
+ * server's unit stays. A barcode keeps the unit it is printed on.
  */
-export const asTyped = <T extends ScanItem>(item: T): T => (item.matchedOn === 'barcode' || item.matchedUnitId === null ? item : { ...item, matchedUnitId: null });
+export function asTyped<T extends ScanItem>(item: T): T {
+  if (item.matchedOn === 'barcode') return item;
+  const smallest = [...item.units].filter((u) => u.priceMinor !== null).sort((a, b) => a.baseQty - b.baseQty)[0];
+  if (!smallest || smallest.id === item.matchedUnitId) return item;
+  return { ...item, matchedUnitId: smallest.id };
+}
 
 export function suggestionsFrom(items: readonly ScanItem[], limit = SUGGESTION_MAX): Suggestion[] {
   return items.slice(0, limit).map(asTyped).map((item) => ({

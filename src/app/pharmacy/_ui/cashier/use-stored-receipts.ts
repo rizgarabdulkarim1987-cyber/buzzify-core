@@ -8,7 +8,8 @@ import { restoreReceipts, type CashierAction } from './cashier-logic';
 /**
  * The open receipts live on this device per pharmacy, branch, person and currency: read once when the shift is known (the
  * old single-cart draft moves in as receipt 1), written on every change after that. `loaded` is false until the read is
- * done (an early scan would be replaced by the restore); `restored` says receipts with lines came back.
+ * done (an early scan would be replaced by the restore); `restored` says receipts with lines came back, until the first key or
+ * tap on the screen (the note is said once).
  */
 export function useStoredReceipts(ids: { restaurantId: string; branchId: string; userId: string }, currency: Currency, shiftOpen: boolean, state: ReceiptsState, dispatch: Dispatch<CashierAction>, anyLines: boolean) {
   const [loaded, setLoaded] = useState(false);
@@ -58,5 +59,18 @@ export function useStoredReceipts(ids: { restaurantId: string; branchId: string;
     },
     [storeKey],
   );
-  return { loaded, restored, save };
+  // "Restored from this device" is said once: the first key or tap takes it away.
+  const [seen, setSeen] = useState(false);
+  const showRestored = restored && anyLines && !seen;
+  useEffect(() => {
+    if (!showRestored) return;
+    const done = () => setSeen(true);
+    window.addEventListener('keydown', done, true);
+    window.addEventListener('pointerdown', done, true);
+    return () => {
+      window.removeEventListener('keydown', done, true);
+      window.removeEventListener('pointerdown', done, true);
+    };
+  }, [showRestored]);
+  return { loaded, restored: showRestored, save };
 }

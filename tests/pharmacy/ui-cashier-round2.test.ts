@@ -592,3 +592,99 @@ describe('the customer picker in the side column', () => {
     expect(allTest('customer-option')).toHaveLength(1);
   });
 });
+
+// Fix round 3 (task-11-review.md, Re-review 2) ---------------------------------------------------------------------------------------
+
+describe('round 3: a name add starts in the smallest PRICED unit (I2)', () => {
+  const PARTLY = [
+    { id: 'tab', label: 'tablet', baseQty: 1, priceMinor: null },
+    { id: 'strip', label: 'strip', baseQty: 10, priceMinor: '2500' },
+    { id: 'pack', label: 'packet', baseQty: 30, priceMinor: '5500' },
+  ];
+  const unitOfLine = () => stored().receipts[0]!.cart.lines.map((l) => l.unitId);
+
+  it('Enter on a typed name skips the unpriced tablet and adds a strip', async () => {
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [sellItem({ units: PARTLY, matchedUnitId: 'pack', sellableQty: 300 })] } });
+    screenWith([{ cart: emptyCart() }]);
+    await flush();
+    typeIn('cashier-search', 'Pan');
+    enter();
+    await flush();
+    expect(unitOfLine()).toEqual(['strip']);
+  });
+
+  it('a picked suggestion shows and adds the strip', async () => {
+    sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [sellItem({ units: PARTLY, matchedUnitId: 'pack', sellableQty: 300 })] } });
+    screenWith([{ cart: emptyCart() }]);
+    await flush();
+    typeIn('cashier-search', 'Pan');
+    await wait(300);
+    await flush();
+    const row = allTest('suggestion')[0]!;
+    expect(row.textContent).toContain('strip');
+    click(row);
+    expect(unitOfLine()).toEqual(['strip']);
+  });
+
+  it('with no priced unit at all, keeps the server’s unit', async () => {
+    const { asTyped } = await import('@/app/pharmacy/_ui/cashier/cashier-logic');
+    const none = PARTLY.map((u) => ({ ...u, priceMinor: null }));
+    expect(asTyped(sellItem({ units: none, matchedUnitId: 'pack' }) as never)).toMatchObject({ matchedUnitId: 'pack' });
+    expect(asTyped(sellItem({ units: PARTLY, matchedUnitId: 'pack', matchedOn: 'barcode' }) as never)).toMatchObject({ matchedUnitId: 'pack' });
+  });
+});
+
+describe('round 3: the physical line keys while a panel is open (M1)', () => {
+  const two = () => cartReducer(cartReducer(emptyCart(), { type: 'add', item: item() }), { type: 'add', item: item({ productId: 'p2', tradeName: 'Brufen' }) });
+  for (const [name, key] of [['cash', 'F2'], ['discount', 'F9']] as const) {
+    it(`+ - and Delete change nothing while the ${name} panel is open, and say why`, async () => {
+      screenWith([{ cart: two() }]);
+      await flush();
+      press({ key: 'ArrowDown' });
+      press({ key });
+      press({ key: '+' });
+      press({ key: '-' });
+      press({ key: 'Delete' });
+      expect(storedQty()).toEqual([1, 1]);
+      expect(message()).toContain('Close the open panel');
+      // The arrows still move the selection.
+      press({ key: 'ArrowDown' });
+      expect(container.querySelector('[data-testid="sale-line"][aria-selected="true"] [data-testid="line-name"]')?.textContent).toBe('Brufen');
+    });
+  }
+});
+
+describe('round 3: pad digits never come back after a panel (M3)', () => {
+  it('digits typed before F2 are dropped when the panel opens, so ✓ after closing it changes nothing', async () => {
+    screenWith([{}]);
+    await flush();
+    press({ key: 'ArrowDown' });
+    pad('7');
+    expect(byTest('keypad-display')!.textContent).toBe('7');
+    press({ key: 'F2' });
+    click(byTest('flow-back'));
+    expect(flowOf()).toBe('idle');
+    expect(byTest('keypad-display')!.textContent).toBe('');
+    padEnter();
+    expect(storedQty()).toEqual([3]);
+  });
+});
+
+describe('round 3: the discount pad types into the focused field (M4)', () => {
+  it('goes to the line discount when that field has focus, and back to the receipt discount when it does', async () => {
+    screenWith([{}]);
+    await flush();
+    press({ key: 'ArrowDown' });
+    press({ key: 'F9' });
+    act(() => byTest('disc-line-value')!.focus());
+    pad('5');
+    expect(valueOf('disc-line-value')).toBe('5');
+    expect(stored().receipts[0]!.cart.invoiceDiscount).toBeNull();
+    expect(stored().receipts[0]!.cart.lines[0]!.discount).toEqual({ kind: 'percent', value: '5' });
+    act(() => byTest('disc-value')!.focus());
+    pad('2');
+    expect(valueOf('disc-value')).toBe('2');
+    expect(stored().receipts[0]!.cart.lines[0]!.discount).toEqual({ kind: 'percent', value: '5' });
+    expect(byTest('disc-pad-target')!.textContent).toMatch(/receipt/i);
+  });
+});

@@ -16,6 +16,8 @@ export interface LineCost {
 }
 
 export interface SaleLinesTableProps {
+  /** A flow is open below: on a wide screen the table gives up its height first (two rows stay) so the flow's confirm shows. */
+  compact?: boolean;
   lines: CartLine[];
   /** Per line: `estimateCart(...).lines` (gross, discount, total after discount). */
   results: Estimate['lines'];
@@ -69,7 +71,7 @@ const MUTED = '—';
  * (`aria-selected`); the arrow, +, - and Delete keys are the screen's. A prescription, controlled, blocked or over-stock
  * line is marked in words in its name cell (as the old screen's chips). The table scrolls in its own container; a long name truncates (the full name is its `title`).
  */
-export function SaleLinesTable({ lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs }: SaleLinesTableProps) {
+export function SaleLinesTable({ compact, lines, results, currency, selected, onSelect, onRemove, canSeeCost, canEditPrice, over, costs }: SaleLinesTableProps) {
   const t = useT();
   const columns = columnsOf(canSeeCost);
   const selectedRow = useRef<HTMLTableRowElement>(null);
@@ -89,7 +91,7 @@ export function SaleLinesTable({ lines, results, currency, selected, onSelect, o
   };
 
   return (
-    <div className="max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:min-h-[150px] lg:flex-1" data-testid="sale-lines-scroll">
+    <div className={`max-h-[60vh] min-h-[210px] min-w-0 overflow-auto rounded-ph-xl border border-ph-line bg-ph-card lg:max-h-none lg:flex-1 ${compact ? 'lg:min-h-[96px]' : 'lg:min-h-[150px]'}`} data-testid="sale-lines-scroll">
       <table role="grid" aria-label={t('pharmacy.cashier.lines.table')} style={{ minWidth: `${linesTableMinRem(canSeeCost)}rem` }} className="w-full table-fixed border-collapse text-sm tabular-nums text-ph-text">
         <colgroup>
           {columns.map((c) => (
