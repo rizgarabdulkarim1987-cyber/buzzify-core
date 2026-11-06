@@ -1,7 +1,6 @@
 import { canPh, type PhRole } from '@/server/domain/pharmacy/permissions';
 import type { MatchedItem } from '@/server/pharmacy/doctor/matcher';
 import type { DoctorResponse } from '@/server/pharmacy/doctor/service';
-import type { CartBridgeItem } from './cart-bridge';
 
 /**
  * The AI Doctor's screen rules, pure (plan Task 8; spec "Answer structure", "Safety framing"):
@@ -9,16 +8,13 @@ import type { CartBridgeItem } from './cart-bridge';
  *    after them), before any option; the app's own "consult a doctor" line is ALWAYS the last section, whatever the result.
  *    REFER, UNSURE and UNAVAILABLE carry codes only, so they show fixed app lines and never model text. An answer with a red
  *    flag never shows options, even if some arrive (the server already empties them; this is the second guard).
- *  - `cartItemOf` / `sellAddHref`: one of the matched unit to the Sell cart (the bridge on Sell, `?add=` from Home).
+ *  - `sellAddHref`: one of the matched unit to the cashier (`?add=`).
  *  - `askInputOf`: the form as the `ph.doctor.ask` input.
  * The message keys mirror `DOCTOR_MESSAGE_KEYS` and `REFER_GENERIC` of the server domain (tests/pharmacy/ui-doctor.test.ts
  * holds them equal), written out here so the client bundle does not pull the server's screening tables.
  */
 
 export const DISCLAIMER_KEY = 'pharmacy.doctor.disclaimer';
-
-/** Where the Sell screen has room for the Doctor's side panel (Tailwind's `2xl`, 96rem). Below it the Doctor is a sheet. */
-export const DOCTOR_SIDE_PANEL_QUERY = '(min-width: 96rem)';
 
 /** How an in-stock option is added: a link to Sell for a person who can sell, else nothing to press (price and stock still show). */
 export function doctorAddMode(role: PhRole | null): 'link' | 'none' {
@@ -93,10 +89,7 @@ export function answerSections(result: DoctorResponse): DoctorSection[] {
 
 // The cart -----------------------------------------------------------------------------------------------------------------
 
-/** One of the matched unit. The Sell screen's quantity is in the unit it is handed (`dispatch add { unitId, qty }`), not in base units. */
-export const cartItemOf = (item: Pick<MatchedItem, 'unitId'>): CartBridgeItem => ({ unitId: item.unitId, qty: 1 });
-
-/** The Sell screen with that unit added (`parseSellAdd` reads it back). */
+/** The cashier with one of that unit added: the quantity is in the unit handed, not in base units (`parseSellAdd` reads it back). */
 export const sellAddHref = (item: Pick<MatchedItem, 'unitId'>): string => `/pharmacy/sell?add=${encodeURIComponent(item.unitId)}:1`;
 
 // The question -------------------------------------------------------------------------------------------------------------

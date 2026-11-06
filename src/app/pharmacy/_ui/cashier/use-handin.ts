@@ -1,19 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { sellSearch } from '@/app/pharmacy/_actions/sales';
 import type { SellItem } from '@/server/pharmacy/sell-search';
 import { useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
-import { onAddToCart } from '../cart-bridge';
 import type { phMessage } from '../ph-failure';
 import { createScanQueue, isAddable, parseSellAdd, type Currency } from '../sell-logic';
 import type { HandedIn, Message } from './use-adding';
 
 /**
- * Items handed to the cashier from other screens, as the old sale screen took them: the cart bridge (`onAddToCart`, while the
- * screen is mounted) and `?add=<unitId>:<qty>,...` in the address (read once, then removed from it). Each is looked up by its unit
+ * Items handed to the cashier from other screens (the AI Doctor's Add, Home): `?add=<unitId>:<qty>,...` in the address (read
+ * once, then removed from it). Each is looked up by its unit
  * id and added through the same path as a scan, one at a time, in order; nothing is added before the stored receipts are read
  * (it would be replaced by them): early items wait. Unknown, blocked and failed lookups are said.
  */
@@ -53,18 +52,10 @@ export function useHandIn(o: {
     queue.current = createScanQueue((code) => handler.current(code));
   }, []);
 
-  const readyRef = useRef(false);
   const early = useRef<string[]>([]);
-  const handIn = useCallback((item: HandedIn) => {
-    const code = `${item.unitId}:${item.qty}`;
-    if (readyRef.current) queue.current?.push(code);
-    else early.current.push(code);
-  }, []);
-  useEffect(() => onAddToCart(handIn), [handIn]);
 
   const urlRead = useRef(false);
   useEffect(() => {
-    readyRef.current = o.ready;
     if (!o.ready) return;
     if (!urlRead.current) {
       urlRead.current = true;

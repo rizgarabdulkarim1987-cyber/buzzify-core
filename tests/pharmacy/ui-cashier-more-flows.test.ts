@@ -8,7 +8,7 @@ import { STUDIO_MESSAGES } from '@/studio/messages';
 
 /**
  * The cashier's other inline flows (plan Task 9b): the receipt discount (F9), hold (F8) and the held list, the prescription
- * recorded inline, items handed in from other screens (`?add=`, the cart bridge), the in-app leave guard, "all operations"
+ * recorded inline, items handed in from other screens (`?add=`), the in-app leave guard, "all operations"
  * and the copy of the last receipt. No dialog anywhere; every server call is the old sale screen's.
  */
 
@@ -34,7 +34,6 @@ vi.mock('@/app/pos/_ui/print/print-client', () => bridge);
 const { CashierScreen } = await import('@/app/pharmacy/_ui/cashier/CashierScreen');
 const flows = await import('@/app/pharmacy/_ui/cashier/flows-logic');
 const cashierLogic = await import('@/app/pharmacy/_ui/cashier/cashier-logic');
-const { addToCart } = await import('@/app/pharmacy/_ui/cart-bridge');
 const { todayInStudioZone } = await import('@/app/pharmacy/_ui/ph-date');
 const { cartReducer, emptyCart, estimateCart } = await import('@/app/pharmacy/_ui/sell-logic');
 const { newReceipt, receiptsKey, receiptsReducer, serializeReceipts } = await import('@/app/pharmacy/_ui/sell-receipts');
@@ -402,15 +401,9 @@ describe('a receipt while its hold is sent', () => {
     expect(stored().receipts[0]!.cart.lines[0]!.qty).toBe(3);
     expect(byTest('tool-discount')).toBeNull();
     expect((byTest('tool-discard') as HTMLButtonElement).disabled).toBe(true);
-    act(() => addToCart({ unitId: 'strip', qty: 1 }));
-    await flush();
-    expect(stored().receipts).toHaveLength(2);
-    expect(stored().receipts[1]!.cart.lines.map((l) => l.productId)).toEqual(['p2']);
     await act(async () => answer.resolve({ ok: true, data: { id: 'h1', heldUntil: '2026-11-06T08:30:00Z' } }));
     await flush();
-    const s = stored();
-    expect(s.receipts[0]!.cart.lines).toHaveLength(0);
-    expect(s.receipts[1]!.cart.lines.map((l) => l.productId)).toEqual(['p2']);
+    expect(stored().receipts[0]!.cart.lines).toHaveLength(0);
     expect(sales.holdSale).toHaveBeenCalledTimes(1);
   });
 
@@ -597,27 +590,22 @@ describe('items handed in from other screens', () => {
     expect(allTest('sale-line')[0]!.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('adds a bridged item to the active receipt, or to a new one when the active is frozen', async () => {
+  it('adds a handed-in item to a new receipt when the active one is frozen', async () => {
+    window.history.replaceState({}, '', '/pharmacy/sell?add=strip:1');
     sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [sellItem({ productId: 'p2', tradeName: 'Brufen' })] } });
     screenWith([{ attempt: ATTEMPT }]);
-    await flush();
-    act(() => addToCart({ unitId: 'strip', qty: 1 }));
     await flush();
     const s = stored();
     expect(s.receipts).toHaveLength(2);
     expect(s.receipts[0]!.cart.lines.map((l) => l.productId)).toEqual(['p1']);
     expect(s.receipts[1]!.cart.lines.map((l) => l.productId)).toEqual(['p2']);
     expect(s.active).toBe(1);
-    act(() => addToCart({ unitId: 'strip', qty: 1 }));
-    await flush();
-    expect(stored().receipts[1]!.cart.lines[0]!.qty).toBe(2);
   });
 
   it('refuses visibly when the active receipt is frozen and no receipt can be opened', async () => {
     sales.sellSearch.mockResolvedValue({ ok: true, data: { items: [sellItem({ productId: 'p2', tradeName: 'Brufen' })] } });
+    window.history.replaceState({}, '', '/pharmacy/sell?add=strip:1');
     screenWith([{ attempt: ATTEMPT }, {}, {}, {}, {}, {}]);
-    await flush();
-    act(() => addToCart({ unitId: 'strip', qty: 1 }));
     await flush();
     expect(stored().receipts.flatMap((r) => r.cart.lines.map((l) => l.productId))).not.toContain('p2');
     expect(message()).toContain('Brufen');

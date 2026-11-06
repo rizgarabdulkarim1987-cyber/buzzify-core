@@ -32,9 +32,8 @@ vi.mock('@/server/studio/framework/invoke', () => ({ query: queries.query }));
 
 const logic = await import('@/app/pharmacy/_ui/doctor-logic');
 const { DoctorAnswer } = await import('@/app/pharmacy/_ui/DoctorAnswer');
-const { DoctorPanel, DoctorSheet } = await import('@/app/pharmacy/_ui/DoctorPanel');
+const { DoctorPanel } = await import('@/app/pharmacy/_ui/DoctorPanel');
 const { DoctorSlot } = await import('@/app/pharmacy/_ui/DoctorSlot');
-const bridge = await import('@/app/pharmacy/_ui/cart-bridge');
 const { parseSellAdd } = await import('@/app/pharmacy/_ui/sell-logic');
 const { phNav } = await import('@/app/pharmacy/_ui/nav');
 const { doctorEnabledFor } = await import('@/server/pharmacy/doctor/access');
@@ -222,10 +221,6 @@ describe('answerSections', () => {
 // The cart (pure) -----------------------------------------------------------------------------------------------------------
 
 describe('what goes to the cart', () => {
-  it('hands the Sell screen one of the matched unit (the quantity is in that unit, not in base units)', () => {
-    expect(logic.cartItemOf(item({ unitId: 'u-box', baseQty: 30 }))).toEqual({ unitId: 'u-box', qty: 1 });
-  });
-
   it('links Home to the Sell screen with the same unit, read back by the Sell screen', () => {
     const href = logic.sellAddHref(item({ unitId: 'cm3x:9 &y=1' }));
     expect(href.startsWith('/pharmacy/sell?add=')).toBe(true);
@@ -271,7 +266,7 @@ describe('<DoctorAnswer>', () => {
   });
 
   it('draws red flags first, in red, and no option or Add beside them even if the server sent some', () => {
-    mount(createElement(DoctorAnswer, { result: flagged({ options: [inStock, notInStock] }), addMode: 'bridge' }));
+    mount(createElement(DoctorAnswer, { result: flagged({ options: [inStock, notInStock] }), addMode: 'link' }));
     const answer = byTest('doctor-answer')!;
     const flags = byTest('doctor-section-redFlags')!;
     expect(answer.firstElementChild).toBe(flags);
@@ -282,7 +277,7 @@ describe('<DoctorAnswer>', () => {
   });
 
   it('shows a not-in-stock option by name with "not in your stock" only: no price, no quantity, no Add button', () => {
-    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'bridge' }));
+    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'link' }));
     const row = byTest('doctor-option-NOT_IN_STOCK')!;
     expect(row.textContent).toContain('ibuprofen');
     expect(row.textContent).toContain(en('pharmacy.doctor.option.notInStock'));
@@ -292,7 +287,7 @@ describe('<DoctorAnswer>', () => {
   });
 
   it('shows the model’s note as plain text apart from the price, and the price and quantity from the catalog fields', () => {
-    mount(createElement(DoctorAnswer, { result: complaint({ options: [{ ...inStock, note: '<b>9,999 IQD</b>' }] }), addMode: 'bridge' }));
+    mount(createElement(DoctorAnswer, { result: complaint({ options: [{ ...inStock, note: '<b>9,999 IQD</b>' }] }), addMode: 'link' }));
     const row = byTest('doctor-option-IN_STOCK')!;
     const note = row.querySelector('[data-testid="doctor-option-note"]')!;
     expect(note.textContent).toBe('<b>9,999 IQD</b>');
@@ -307,27 +302,6 @@ describe('<DoctorAnswer>', () => {
     mount(createElement(DoctorAnswer, { result: complaint({ answer: { ...(complaint() as Extract<DoctorResponse, { mode: 'COMPLAINT' }>).answer, likelyCauses: ['<img src=x onerror=alert(1)>'] } }), addMode: 'link' }));
     expect(container.querySelector('img')).toBeNull();
     expect(byTest('doctor-section-likelyCauses')!.textContent).toContain('<img src=x onerror=alert(1)>');
-  });
-
-  it('on Sell, Add to cart hands the matched unit to the cart bridge', async () => {
-    const got: unknown[] = [];
-    const off = bridge.onAddToCart((x) => got.push(x));
-    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'bridge' }));
-    await click(byTest('doctor-add')!);
-    off();
-    expect(got).toEqual([{ unitId: 'u-strip', qty: 1 }]);
-    expect(byTest('doctor-add')!.textContent).toContain(en('pharmacy.doctor.option.added'));
-  });
-
-  it('adds once: a second tap on the same option adds nothing more, and the button says it is in the cart', async () => {
-    const got: unknown[] = [];
-    const off = bridge.onAddToCart((x) => got.push(x));
-    mount(createElement(DoctorAnswer, { result: complaint(), addMode: 'bridge' }));
-    await click(byTest('doctor-add')!);
-    await click(byTest('doctor-add')!);
-    off();
-    expect(got).toHaveLength(1);
-    expect((byTest('doctor-add') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('for a person who cannot sell, shows the price and quantity but no Add', () => {
@@ -348,7 +322,7 @@ describe('<DoctorAnswer>', () => {
   });
 
   it('draws a REFER with no options at all', () => {
-    mount(createElement(DoctorAnswer, { result: refer, addMode: 'bridge' }));
+    mount(createElement(DoctorAnswer, { result: refer, addMode: 'link' }));
     expect(byTest('doctor-section-options')).toBeNull();
     expect(byTest('doctor-add')).toBeNull();
     expect(byTest('doctor-section-refer')!.textContent).toContain(en(DOCTOR_MESSAGE_KEYS.reason.CHEST_PAIN));
@@ -401,65 +375,6 @@ describe('<DoctorPanel>', () => {
     for (const locale of ['ar', 'ckb'] as const) {
       mount(createElement(DoctorPanel, { branchId: 'b1', addMode: 'link' }), locale);
       expect(container.textContent).not.toMatch(/pharmacy\.doctor\./);
-    }
-  });
-});
-
-describe('<DoctorSheet> (phone)', () => {
-  it('opens from the floating button, closes with its close button and returns the focus to the button', async () => {
-    mount(createElement(DoctorSheet, { branchId: 'b1' }));
-    const open = byTest('doctor-fab')!;
-    expect(Math.min(...['min-h-11', 'min-h-12', 'min-h-14'].map((c) => (open.className.includes(c) ? 0 : 1)))).toBe(0);
-    (open as HTMLElement).focus();
-    await click(open);
-    const dialog = container.querySelector('dialog')!;
-    expect(dialog.hasAttribute('open')).toBe(true);
-    expect(dialog.getAttribute('aria-labelledby')).toBeTruthy();
-    expect(dialog.querySelector('[data-testid="doctor-complaint"]')).not.toBeNull();
-    await click(dialog.querySelector('[data-testid="doctor-sheet-close"]')!);
-    expect(dialog.hasAttribute('open')).toBe(false);
-    expect(document.activeElement).toBe(open);
-  });
-
-  it('closes on Escape (the dialog’s cancel) and returns the focus', async () => {
-    mount(createElement(DoctorSheet, { branchId: 'b1' }));
-    const open = byTest('doctor-fab')!;
-    await click(open);
-    const dialog = container.querySelector('dialog')!;
-    await act(async () => {
-      dialog.removeAttribute('open');
-      dialog.dispatchEvent(new Event('close'));
-    });
-    expect(document.activeElement).toBe(open);
-  });
-
-  it('puts the focus in the first field when it opens, and keeps what was typed when it is closed and opened again', async () => {
-    mount(createElement(DoctorSheet, { branchId: 'b1' }));
-    await click(byTest('doctor-fab')!);
-    const dialog = container.querySelector('dialog')!;
-    const field = dialog.querySelector('[data-testid="doctor-complaint"]')!;
-    expect(document.activeElement).toBe(field);
-    type(field, 'Dry cough');
-    await click(dialog.querySelector('[data-testid="doctor-sheet-close"]')!);
-    await click(byTest('doctor-fab')!);
-    expect((dialog.querySelector('[data-testid="doctor-complaint"]') as HTMLTextAreaElement).value).toBe('Dry cough');
-  });
-
-  it('closes itself when the screen grows wide enough for the side panel, so the sheet is never open and unseen', async () => {
-    const listeners: Array<(e: { matches: boolean }) => void> = [];
-    const mql = { matches: false, addEventListener: (_: string, fn: (e: { matches: boolean }) => void) => listeners.push(fn), removeEventListener: vi.fn() };
-    const was = window.matchMedia;
-    window.matchMedia = vi.fn(() => mql) as never;
-    try {
-      mount(createElement(DoctorSheet, { branchId: 'b1' }));
-      await click(byTest('doctor-fab')!);
-      const dialog = container.querySelector('dialog')!;
-      expect(dialog.hasAttribute('open')).toBe(true);
-      expect(vi.mocked(window.matchMedia).mock.calls[0]![0]).toBe(logic.DOCTOR_SIDE_PANEL_QUERY);
-      await act(async () => listeners.forEach((fn) => fn({ matches: true })));
-      expect(dialog.hasAttribute('open')).toBe(false);
-    } finally {
-      window.matchMedia = was;
     }
   });
 });
