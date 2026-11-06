@@ -72,7 +72,7 @@ export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, ...c
   };
   const fieldError = preview.amountMinor === null ? t('pharmacy.sell.pay.invalidAmount') : !preview.ok && !cash ? t('pharmacy.sell.pay.exactOnly') : undefined;
   return (
-    <form ref={form} className="flex flex-col gap-2.5" onSubmit={submit} data-testid="flow-cash">
+    <form ref={form} className="flex flex-col gap-2" onSubmit={submit} data-testid="flow-cash">
       <p className="text-sm text-ph-muted" data-testid="flow-due">
         {t('pharmacy.cashier.flow.due')}:{' '}
         <b className="text-ph-text">
@@ -96,8 +96,9 @@ export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, ...c
         />
       </Field>
       {cash ? (
-        <>
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('pharmacy.sell.pay.quick')}>
+        // On a wide screen the shortcuts and the change share one row, so the panel fits the work area with its confirm.
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch">
+          <div className="flex flex-wrap gap-1.5 lg:min-w-0 lg:flex-1" role="group" aria-label={t('pharmacy.sell.pay.quick')}>
             {cashShortcuts(totalMinor, currency).map((amount) => (
               <button key={amount.toString()} type="button" className={PH_BTN} data-testid="flow-quick" disabled={locked} onClick={() => change({ ...draft, tendered: plainMinor(amount, currency) })}>
                 <Num>{formatMinor(amount, currency)}</Num>
@@ -107,14 +108,14 @@ export function PayCash({ currency, totalMinor, attempt, onSubmit, padSlot, ...c
           <p
             data-testid="flow-change"
             role="status"
-            className={`flex items-baseline justify-between gap-3 rounded-ph-xl px-3 py-2.5 text-md font-bold ${short === null ? 'bg-ph-g1 text-ph-g6' : 'bg-ph-red-wash text-ph-red'}`}
+            className={`flex items-baseline justify-between gap-3 rounded-ph-xl px-3 py-2.5 text-md font-bold lg:min-w-0 lg:flex-1 lg:items-center ${short === null ? 'bg-ph-g1 text-ph-g6' : 'bg-ph-red-wash text-ph-red'}`}
           >
             <span>{t(short === null ? 'pharmacy.cashier.flow.change' : 'pharmacy.cashier.flow.short')}</span>
             <span>
               <Num>{formatMinor(short ?? preview.changeMinor, currency)}</Num> {currency}
             </span>
           </p>
-        </>
+        </div>
       ) : (
         <Field label={t('pharmacy.sell.pay.reference')} optional>
           <FieldInput className={PH_FIELD} dir="auto" autoComplete="off" maxLength={200} data-testid="flow-reference" readOnly={locked} value={draft.reference} onChange={(event) => change({ ...draft, reference: event.target.value })} />

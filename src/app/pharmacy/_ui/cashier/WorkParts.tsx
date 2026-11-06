@@ -126,11 +126,14 @@ export function FlowNotes({ blocked, offline, problem, pending, elsewhere, noPri
   );
 }
 
-/** The flow's one confirm button, across the panel (Enter in a field submits the same form). */
+/**
+ * The flow's one confirm button, across the panel (Enter in a field submits the same form). On a wide screen it sticks to the
+ * bottom of the work area, so a flow taller than the room left still shows it without scrolling.
+ */
 export function ConfirmBar({ busy, disabled, label }: { busy: boolean; disabled: boolean; label: string }) {
   const t = useT();
   return (
-    <button type="submit" data-testid="flow-confirm" className={`${PH_PRIMARY} min-h-12 w-full text-base`} disabled={disabled}>
+    <button type="submit" data-testid="flow-confirm" className={`${PH_PRIMARY} min-h-12 w-full text-base lg:sticky lg:bottom-0 lg:z-10`} disabled={disabled}>
       {busy ? <Hourglass aria-hidden className="size-4" /> : <CircleCheck aria-hidden className="size-4" />}
       {busy ? t('pharmacy.sell.pay.saving') : label}
     </button>
