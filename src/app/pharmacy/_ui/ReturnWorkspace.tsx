@@ -54,7 +54,7 @@ export function ReturnWorkspace({ data, shiftOk, send }: ReturnWorkspaceProps) {
   const rows = data.lines.map((l) => ({ saleLineId: l.id, remaining: l.remainingBaseQty, text: texts[l.id] ?? '' }));
   const request = returnRequest(rows);
   const wire = JSON.stringify(request.lines);
-  const choices = refundMethodChoices(data.paidMethods, data.defaultRefundMethod);
+  const choices = refundMethodChoices(data.paidMethods, data.defaultRefundMethod, data.onAccount);
   const fresh = !request.ok || previewCurrent(settledWire, wire);
   const shown = fresh ? preview : null;
 

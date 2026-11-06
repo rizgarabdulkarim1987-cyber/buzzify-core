@@ -104,6 +104,13 @@ describe('refundMethodChoices', () => {
     expect(refundMethodChoices(['CARD_MANUAL', 'CASH'], 'CARD_MANUAL')).toEqual(['CARD_MANUAL', 'CASH']);
     expect(refundMethodChoices([], 'CASH')).toEqual(['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL']);
   });
+
+  it('a sale put wholly on the account offers only the default method (fix round 2): the refund pays the debt first', () => {
+    expect(refundMethodChoices([], 'CASH', true)).toEqual(['CASH']);
+    // Part paid in cash, the rest on the account: still the methods it was paid with.
+    expect(refundMethodChoices(['CASH'], 'CASH', true)).toEqual(['CASH']);
+    expect(refundMethodChoices(['CARD_MANUAL'], 'CARD_MANUAL', true)).toEqual(['CARD_MANUAL']);
+  });
 });
 
 describe('saleFilterParams', () => {
